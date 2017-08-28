@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -53,8 +54,8 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * A builder for histograms on date fields.
  */
-public class DateHistogramAggregationBuilder
-        extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, DateHistogramAggregationBuilder> {
+public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, DateHistogramAggregationBuilder>
+        implements MultiBucketAggregationBuilder {
     public static final String NAME = "date_histogram";
 
     public static final Map<String, DateTimeUnit> DATE_FIELD_UNITS;

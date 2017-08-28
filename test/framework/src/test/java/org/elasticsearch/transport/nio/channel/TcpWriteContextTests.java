@@ -30,7 +30,6 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
-import java.nio.channels.SocketChannel;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -183,6 +182,23 @@ public class TcpWriteContextTests extends ESTestCase {
         writeContext.flushChannel();
 
         verify(listener2).onResponse(channel);
+        assertFalse(writeContext.hasQueuedWriteOps());
+    }
+
+    public void testWhenIOExceptionThrownListenerIsCalled() throws IOException {
+        assertFalse(writeContext.hasQueuedWriteOps());
+
+        WriteOperation writeOperation = mock(WriteOperation.class);
+        writeContext.queueWriteOperations(writeOperation);
+
+        assertTrue(writeContext.hasQueuedWriteOps());
+
+        IOException exception = new IOException();
+        when(writeOperation.flush()).thenThrow(exception);
+        when(writeOperation.getListener()).thenReturn(listener);
+        expectThrows(IOException.class, () -> writeContext.flushChannel());
+
+        verify(listener).onFailure(exception);
         assertFalse(writeContext.hasQueuedWriteOps());
     }
 

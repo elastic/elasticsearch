@@ -26,8 +26,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -48,21 +46,11 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
     protected abstract Reader<T> instanceReader();
 
     /**
-     * Returns a {@link CopyFunction} that can be used to make an exact copy of
-     * the given instance. This defaults to a function that uses
-     * {@link #copyInstance(Writeable)} to create the copy.
-     */
-    protected CopyFunction<T> getCopyFunction() {
-        return (original) -> copyInstance(original);
-    }
-
-    /**
-     * Returns a {@link MutateFunction} that can be used to make create a copy
-     * of the given instance that is different to this instance. This defaults
-     * to null.
+     * Returns an instance which is mutated slightly so it should not be equal
+     * to the given instance.
      */
     // TODO: Make this abstract when all sub-classes implement this (https://github.com/elastic/elasticsearch/issues/25929)
-    protected MutateFunction<T> getMutateFunction() {
+    protected T mutateInstance(T instance) throws IOException {
         return null;
     }
 
@@ -72,7 +60,7 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), getCopyFunction(), getMutateFunction());
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copyInstance, this::mutateInstance);
         }
     }
 

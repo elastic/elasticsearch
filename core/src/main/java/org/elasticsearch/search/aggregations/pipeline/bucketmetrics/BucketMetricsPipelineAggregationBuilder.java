@@ -23,16 +23,19 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketMetricsPipelineAggregationBuilder<AF>>
         extends AbstractPipelineAggregationBuilder<AF> {
@@ -106,11 +109,28 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
     protected abstract PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException;
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
+    public void doValidate(AggregatorFactory<?> parent, List<AggregationBuilder> aggBuilders,
             List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
+        }
+        // Need to find the first agg name in the buckets path to check its a
+        // multi bucket agg: aggs are split with '>' and can optionally have a
+        // metric name after them by using '.' so need to split on both to get
+        // just the agg name
+        final String firstAgg = bucketsPaths[0].split("[>\\.]")[0];
+        Optional<AggregationBuilder> aggBuilder = aggBuilders.stream().filter((builder) -> builder.getName().equals(firstAgg))
+                .findAny();
+        if (aggBuilder.isPresent()) {
+            if ((aggBuilder.get() instanceof MultiBucketAggregationBuilder) == false) {
+                throw new IllegalArgumentException("The first aggregation in " + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
+                        + " must be a multi-bucket aggregation for aggregation [" + name + "] found :"
+                        + aggBuilder.get().getClass().getName() + " for buckets path: " + bucketsPaths[0]);
+            }
+        } else {
+            throw new IllegalArgumentException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
+                    + " aggregation does not exist for aggregation [" + name + "]: " + bucketsPaths[0]);
         }
     }
 

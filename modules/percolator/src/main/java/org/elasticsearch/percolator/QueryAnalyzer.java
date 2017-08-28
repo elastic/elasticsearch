@@ -57,16 +57,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.BiFunction;
+import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.toSet;
 
 final class QueryAnalyzer {
 
-    private static final Map<Class<? extends Query>, Function<Query, Result>> queryProcessors;
+    private static final Map<Class<? extends Query>, BiFunction<Query, Map<String, Float>, Result>> queryProcessors;
 
     static {
-        Map<Class<? extends Query>, Function<Query, Result>> map = new HashMap<>();
+        Map<Class<? extends Query>, BiFunction<Query, Map<String, Float>, Result>> map = new HashMap<>();
         map.put(MatchNoDocsQuery.class, matchNoDocsQuery());
         map.put(ConstantScoreQuery.class, constantScoreQuery());
         map.put(BoostQuery.class, boostQuery());
@@ -117,48 +118,48 @@ final class QueryAnalyzer {
      * query analysis is stopped and an UnsupportedQueryException is thrown. So that the caller can mark
      * this query in such a way that the PercolatorQuery always verifies if this query with the MemoryIndex.
      */
-    static Result analyze(Query query) {
+    static Result analyze(Query query, Map<String, Float> boosts) {
         Class queryClass = query.getClass();
         if (queryClass.isAnonymousClass()) {
             // Sometimes queries have anonymous classes in that case we need the direct super class.
             // (for example blended term query)
             queryClass = queryClass.getSuperclass();
         }
-        Function<Query, Result> queryProcessor = queryProcessors.get(queryClass);
+        BiFunction<Query, Map<String, Float>, Result> queryProcessor = queryProcessors.get(queryClass);
         if (queryProcessor != null) {
-            return queryProcessor.apply(query);
+            return queryProcessor.apply(query, boosts);
         } else {
             throw new UnsupportedQueryException(query);
         }
     }
 
-    private static Function<Query, Result> matchNoDocsQuery() {
-        return (query -> new Result(true, Collections.emptySet()));
+    private static BiFunction<Query, Map<String, Float>, Result> matchNoDocsQuery() {
+        return (query, boosts) -> new Result(true, Collections.emptySet());
     }
 
-    private static Function<Query, Result> constantScoreQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> constantScoreQuery() {
+        return (query, boosts)-> {
             Query wrappedQuery = ((ConstantScoreQuery) query).getQuery();
-            return analyze(wrappedQuery);
+            return analyze(wrappedQuery, boosts);
         };
     }
 
-    private static Function<Query, Result> boostQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> boostQuery() {
+        return (query, boosts) -> {
             Query wrappedQuery = ((BoostQuery) query).getQuery();
-            return analyze(wrappedQuery);
+            return analyze(wrappedQuery, boosts);
         };
     }
 
-    private static Function<Query, Result> termQuery() {
-        return (query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> termQuery() {
+        return (query, boosts) -> {
             TermQuery termQuery = (TermQuery) query;
             return new Result(true, Collections.singleton(new QueryExtraction(termQuery.getTerm())));
-        });
+        };
     }
 
-    private static Function<Query, Result> termInSetQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> termInSetQuery() {
+        return (query, boosts) -> {
             TermInSetQuery termInSetQuery = (TermInSetQuery) query;
             Set<QueryExtraction> terms = new HashSet<>();
             PrefixCodedTerms.TermIterator iterator = termInSetQuery.getTermData().iterator();
@@ -169,29 +170,29 @@ final class QueryAnalyzer {
         };
     }
 
-    private static Function<Query, Result> synonymQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> synonymQuery() {
+        return (query, boosts) -> {
             Set<QueryExtraction> terms = ((SynonymQuery) query).getTerms().stream().map(QueryExtraction::new).collect(toSet());
             return new Result(true, terms);
         };
     }
 
-    private static Function<Query, Result> commonTermsQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> commonTermsQuery() {
+        return (query, boosts) -> {
             Set<QueryExtraction> terms = ((CommonTermsQuery) query).getTerms().stream().map(QueryExtraction::new).collect(toSet());
             return new Result(false, terms);
         };
     }
 
-    private static Function<Query, Result> blendedTermQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> blendedTermQuery() {
+        return (query, boosts) -> {
             Set<QueryExtraction> terms = ((BlendedTermQuery) query).getTerms().stream().map(QueryExtraction::new).collect(toSet());
             return new Result(true, terms);
         };
     }
 
-    private static Function<Query, Result> phraseQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> phraseQuery() {
+        return (query, boosts) -> {
             Term[] terms = ((PhraseQuery) query).getTerms();
             if (terms.length == 0) {
                 return new Result(true, Collections.emptySet());
@@ -209,8 +210,8 @@ final class QueryAnalyzer {
         };
     }
 
-    private static Function<Query, Result> multiPhraseQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> multiPhraseQuery() {
+        return (query, boosts) -> {
             Term[][] terms = ((MultiPhraseQuery) query).getTermArrays();
             if (terms.length == 0) {
                 return new Result(true, Collections.emptySet());
@@ -219,58 +220,58 @@ final class QueryAnalyzer {
             Set<QueryExtraction> bestTermArr = null;
             for (Term[] termArr : terms) {
                 Set<QueryExtraction> queryExtractions = Arrays.stream(termArr).map(QueryExtraction::new).collect(toSet());
-                bestTermArr = selectBestExtraction(bestTermArr, queryExtractions);
+                bestTermArr = selectBestExtraction(boosts, bestTermArr, queryExtractions);
             }
             return new Result(false, bestTermArr);
         };
     }
 
-    private static Function<Query, Result> spanTermQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> spanTermQuery() {
+        return (query, boosts) -> {
             Term term = ((SpanTermQuery) query).getTerm();
             return new Result(true, Collections.singleton(new QueryExtraction(term)));
         };
     }
 
-    private static Function<Query, Result> spanNearQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> spanNearQuery() {
+        return (query, boosts) -> {
             Set<QueryExtraction> bestClauses = null;
             SpanNearQuery spanNearQuery = (SpanNearQuery) query;
             for (SpanQuery clause : spanNearQuery.getClauses()) {
-                Result temp = analyze(clause);
-                bestClauses = selectBestExtraction(temp.extractions, bestClauses);
+                Result temp = analyze(clause, boosts);
+                bestClauses = selectBestExtraction(boosts, temp.extractions, bestClauses);
             }
             return new Result(false, bestClauses);
         };
     }
 
-    private static Function<Query, Result> spanOrQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> spanOrQuery() {
+        return (query, boosts) -> {
             Set<QueryExtraction> terms = new HashSet<>();
             SpanOrQuery spanOrQuery = (SpanOrQuery) query;
             for (SpanQuery clause : spanOrQuery.getClauses()) {
-                terms.addAll(analyze(clause).extractions);
+                terms.addAll(analyze(clause, boosts).extractions);
             }
             return new Result(false, terms);
         };
     }
 
-    private static Function<Query, Result> spanNotQuery() {
-        return query -> {
-            Result result = analyze(((SpanNotQuery) query).getInclude());
+    private static BiFunction<Query, Map<String, Float>, Result> spanNotQuery() {
+        return (query, boosts) -> {
+            Result result = analyze(((SpanNotQuery) query).getInclude(), boosts);
             return new Result(false, result.extractions);
         };
     }
 
-    private static Function<Query, Result> spanFirstQuery() {
-        return query -> {
-            Result result = analyze(((SpanFirstQuery) query).getMatch());
+    private static BiFunction<Query, Map<String, Float>, Result> spanFirstQuery() {
+        return (query, boosts) -> {
+            Result result = analyze(((SpanFirstQuery) query).getMatch(), boosts);
             return new Result(false, result.extractions);
         };
     }
 
-    private static Function<Query, Result> booleanQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> booleanQuery() {
+        return (query, boosts) -> {
             BooleanQuery bq = (BooleanQuery) query;
             List<BooleanClause> clauses = bq.clauses();
             int minimumShouldMatch = bq.getMinimumNumberShouldMatch();
@@ -301,12 +302,12 @@ final class QueryAnalyzer {
 
                     Result temp;
                     try {
-                        temp = analyze(clause.getQuery());
+                        temp = analyze(clause.getQuery(), boosts);
                     } catch (UnsupportedQueryException e) {
                         uqe = e;
                         continue;
                     }
-                    bestClause = selectBestExtraction(temp.extractions, bestClause);
+                    bestClause = selectBestExtraction(boosts, temp.extractions, bestClause);
                 }
                 if (bestClause != null) {
                     return new Result(false, bestClause);
@@ -326,22 +327,22 @@ final class QueryAnalyzer {
                         disjunctions.add(clause.getQuery());
                     }
                 }
-                return handleDisjunction(disjunctions, minimumShouldMatch, numProhibitedClauses > 0);
+                return handleDisjunction(disjunctions, minimumShouldMatch, numProhibitedClauses > 0, boosts);
             }
         };
     }
 
-    private static Function<Query, Result> disjunctionMaxQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> disjunctionMaxQuery() {
+        return (query, boosts) -> {
             List<Query> disjuncts = ((DisjunctionMaxQuery) query).getDisjuncts();
-            return handleDisjunction(disjuncts, 1, false);
+            return handleDisjunction(disjuncts, 1, false, boosts);
         };
     }
 
-    private static Function<Query, Result> functionScoreQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> functionScoreQuery() {
+        return (query, boosts) -> {
             FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) query;
-            Result result = analyze(functionScoreQuery.getSubQuery());
+            Result result = analyze(functionScoreQuery.getSubQuery(), boosts);
             // If min_score is specified we can't guarantee upfront that this percolator query matches,
             // so in that case we set verified to false.
             // (if it matches with the percolator document matches with the extracted terms.
@@ -351,8 +352,8 @@ final class QueryAnalyzer {
         };
     }
 
-    private static Function<Query, Result> pointRangeQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> pointRangeQuery() {
+        return (query, boosts) -> {
             PointRangeQuery pointRangeQuery = (PointRangeQuery) query;
             byte[] lowerPoint = pointRangeQuery.getLowerPoint();
             byte[] upperPoint = pointRangeQuery.getUpperPoint();
@@ -371,18 +372,19 @@ final class QueryAnalyzer {
         return result;
     }
 
-    private static Function<Query, Result> indexOrDocValuesQuery() {
-        return query -> {
+    private static BiFunction<Query, Map<String, Float>, Result> indexOrDocValuesQuery() {
+        return (query, boosts) -> {
             IndexOrDocValuesQuery indexOrDocValuesQuery = (IndexOrDocValuesQuery) query;
-            return analyze(indexOrDocValuesQuery.getIndexQuery());
+            return analyze(indexOrDocValuesQuery.getIndexQuery(), boosts);
         };
     }
 
-    private static Result handleDisjunction(List<Query> disjunctions, int minimumShouldMatch, boolean otherClauses) {
+    private static Result handleDisjunction(List<Query> disjunctions, int minimumShouldMatch, boolean otherClauses,
+                                            Map<String, Float> boosts) {
         boolean verified = minimumShouldMatch <= 1 && otherClauses == false;
         Set<QueryExtraction> terms = new HashSet<>();
         for (Query disjunct : disjunctions) {
-            Result subResult = analyze(disjunct);
+            Result subResult = analyze(disjunct, boosts);
             if (subResult.verified == false) {
                 verified = false;
             }
@@ -391,22 +393,53 @@ final class QueryAnalyzer {
         return new Result(verified, terms);
     }
 
-    static Set<QueryExtraction> selectBestExtraction(Set<QueryExtraction> extractions1, Set<QueryExtraction> extractions2) {
+    static Set<QueryExtraction> selectBestExtraction(Map<String, Float> boostFields, Set<QueryExtraction> extractions1,
+                                                     Set<QueryExtraction> extractions2) {
         assert extractions1 != null || extractions2 != null;
         if (extractions1 == null) {
             return extractions2;
         } else if (extractions2 == null) {
             return extractions1;
         } else {
+            Set<QueryExtraction> filtered1;
+            Set<QueryExtraction> filtered2;
+            if (boostFields.isEmpty() == false) {
+                Predicate<QueryExtraction> predicate = extraction -> {
+                    String fieldName = extraction.term != null ? extraction.term.field() : extraction.range.fieldName;
+                    float boost = boostFields.getOrDefault(fieldName, 1F);
+                    return boost != 0F;
+                };
+                filtered1 = extractions1.stream().filter(predicate).collect(toSet());
+                if (filtered1.isEmpty()) {
+                    return extractions2;
+                }
+                filtered2 = extractions2.stream().filter(predicate).collect(toSet());
+                if (filtered2.isEmpty()) {
+                    return extractions1;
+                }
+
+                float extraction1LowestBoost = lowestBoost(filtered1, boostFields);
+                float extraction2LowestBoost = lowestBoost(filtered2, boostFields);
+                if (extraction1LowestBoost > extraction2LowestBoost) {
+                    return extractions1;
+                } else if (extraction2LowestBoost > extraction1LowestBoost) {
+                    return extractions2;
+                }
+                // Step out, because boosts are equal, so pick best extraction on either term or range size.
+            } else {
+                filtered1 = extractions1;
+                filtered2 = extractions2;
+            }
+
             // Prefer term based extractions over range based extractions:
             boolean onlyRangeBasedExtractions = true;
-            for (QueryExtraction clause : extractions1) {
+            for (QueryExtraction clause : filtered1) {
                 if (clause.term != null) {
                     onlyRangeBasedExtractions = false;
                     break;
                 }
             }
-            for (QueryExtraction clause : extractions2) {
+            for (QueryExtraction clause : filtered2) {
                 if (clause.term != null) {
                     onlyRangeBasedExtractions = false;
                     break;
@@ -414,25 +447,35 @@ final class QueryAnalyzer {
             }
 
             if (onlyRangeBasedExtractions) {
-                BytesRef terms1SmallestRange = smallestRange(extractions1);
-                BytesRef terms2SmallestRange = smallestRange(extractions2);
+                BytesRef extraction1SmallestRange = smallestRange(filtered1);
+                BytesRef extraction2SmallestRange = smallestRange(filtered2);
                 // Keep the clause with smallest range, this is likely to be the rarest.
-                if (terms1SmallestRange.compareTo(terms2SmallestRange) <= 0) {
+                if (extraction1SmallestRange.compareTo(extraction2SmallestRange) <= 0) {
                     return extractions1;
                 } else {
                     return extractions2;
                 }
             } else {
-                int terms1ShortestTerm = minTermLength(extractions1);
-                int terms2ShortestTerm = minTermLength(extractions2);
+                int extraction1ShortestTerm = minTermLength(filtered1);
+                int extraction2ShortestTerm = minTermLength(filtered2);
                 // keep the clause with longest terms, this likely to be rarest.
-                if (terms1ShortestTerm >= terms2ShortestTerm) {
+                if (extraction1ShortestTerm >= extraction2ShortestTerm) {
                     return extractions1;
                 } else {
                     return extractions2;
                 }
             }
         }
+    }
+
+    private static float lowestBoost(Set<QueryExtraction> extractions, Map<String, Float> boostFields) {
+        float lowestBoost = Float.POSITIVE_INFINITY;
+        for (QueryExtraction extraction : extractions) {
+            String fieldName = extraction.term != null ? extraction.term.field() : extraction.range.fieldName;
+            float boost = boostFields.getOrDefault(fieldName, 1F);
+            lowestBoost = Math.min(lowestBoost, boost);
+        }
+        return lowestBoost;
     }
 
     private static int minTermLength(Set<QueryExtraction> extractions) {

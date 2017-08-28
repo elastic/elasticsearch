@@ -675,24 +675,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private void maybeRefreshEngine() {
         if (indexSettings.getRefreshInterval().millis() > 0) {
             for (IndexShard shard : this.shards.values()) {
-                switch (shard.state()) {
-                    case CREATED:
-                    case RECOVERING:
-                    case CLOSED:
-                        continue;
-                    case POST_RECOVERY:
-                    case STARTED:
-                    case RELOCATED:
-                        try {
-                            if (shard.isRefreshNeeded()) {
-                                shard.refresh("schedule");
-                            }
-                        } catch (IndexShardClosedException | AlreadyClosedException ex) {
-                            // fine - continue;
+                if (shard.isReadAllowed()) {
+                    try {
+                        if (shard.isRefreshNeeded()) {
+                            shard.refresh("schedule");
                         }
-                        continue;
-                    default:
-                        throw new IllegalStateException("unknown state: " + shard.state());
+                    } catch (IndexShardClosedException | AlreadyClosedException ex) {
+                        // fine - continue;
+                    }
                 }
             }
         }

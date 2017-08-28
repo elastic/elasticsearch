@@ -1,0 +1,7 @@
+[[breaking_70_cluster_changes]]
+=== Cluster changes
+
+==== `:` is no longer allowed in cluster name
+
+Due to cross-cluster search using `:` to separate a cluster and index name,
+cluster names may no longer contain `:`.

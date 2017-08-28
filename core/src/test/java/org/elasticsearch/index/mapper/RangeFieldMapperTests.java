@@ -245,24 +245,24 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField pointField = fields[1];
         assertEquals(2, pointField.fieldType().pointDimensionCount());
 
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", type).field("coerce", false).endObject().endObject()
-            .endObject().endObject();
-        DocumentMapper mapper2 = parser.parse("type", new CompressedXContent(mapping.string()));
+        // date_range ignores the coerce parameter and epoch_millis date format truncates floats (see issue: #14641)
+        if (type.equals("date_range") == false) {
 
-        assertEquals(mapping.string(), mapper2.mappingSource().toString());
+            mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties").startObject("field")
+                    .field("type", type).field("coerce", false).endObject().endObject().endObject().endObject();
+            DocumentMapper mapper2 = parser.parse("type", new CompressedXContent(mapping.string()));
 
-        ThrowingRunnable runnable = () -> mapper2.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field(getFromField(), "5.2")
-            .field(getToField(), "10")
-            .endObject()
-            .endObject().bytes(),
-            XContentType.JSON));
-        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-        assertThat(e.getCause().getMessage(), anyOf(containsString("passed as String"),
-            containsString("failed to parse date"), containsString("is not an IP string literal")));
+            assertEquals(mapping.string(), mapper2.mappingSource().toString());
+
+            ThrowingRunnable runnable = () -> mapper2
+                    .parse(SourceToParse.source(
+                            "test", "type", "1", XContentFactory.jsonBuilder().startObject().startObject("field")
+                                    .field(getFromField(), "5.2").field(getToField(), "10").endObject().endObject().bytes(),
+                            XContentType.JSON));
+            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            assertThat(e.getCause().getMessage(), anyOf(containsString("passed as String"), containsString("failed to parse date"),
+                    containsString("is not an IP string literal")));
+        }
     }
 
     @Override

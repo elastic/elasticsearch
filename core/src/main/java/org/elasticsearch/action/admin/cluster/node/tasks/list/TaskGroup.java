@@ -19,7 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 
@@ -32,7 +33,7 @@ import java.util.stream.Collectors;
 /**
  * Information about a currently running task and all its subtasks.
  */
-public class TaskGroup implements ToXContent {
+public class TaskGroup implements ToXContentObject {
 
     private final TaskInfo task;
 

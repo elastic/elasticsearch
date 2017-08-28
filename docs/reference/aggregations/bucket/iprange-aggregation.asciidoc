@@ -7,7 +7,9 @@ Example:
 
 [source,js]
 --------------------------------------------------
+GET /ip_addresses/data/_search
 {
+    "size": 10,
     "aggs" : {
         "ip_ranges" : {
             "ip_range" : {
@@ -21,6 +23,8 @@ Example:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:iprange]
 
 Response:
 
@@ -34,23 +38,26 @@ Response:
             "buckets" : [
                 {
                     "to": "10.0.0.5",
-                    "doc_count": 4
+                    "doc_count": 10
                 },
                 {
                     "from": "10.0.0.5",
-                    "doc_count": 6
+                    "doc_count": 260
                 }
             ]
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 IP ranges can also be defined as CIDR masks:
 
 [source,js]
 --------------------------------------------------
+GET /ip_addresses/data/_search
 {
+    "size": 0,
     "aggs" : {
         "ip_ranges" : {
             "ip_range" : {
@@ -64,32 +71,37 @@ IP ranges can also be defined as CIDR masks:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:iprange]
 
 Response:
 
 [source,js]
 --------------------------------------------------
 {
+    ...
+
     "aggregations": {
         "ip_ranges": {
             "buckets": [
                 {
                     "key": "10.0.0.0/25",
                     "from": "10.0.0.0",
-                    "to": "10.0.0.127",
-                    "doc_count": 127
+                    "to": "10.0.0.128",
+                    "doc_count": 128
                 },
                 {
                     "key": "10.0.0.127/25",
                     "from": "10.0.0.0",
-                    "to": "10.0.0.127",
-                    "doc_count": 127
+                    "to": "10.0.0.128",
+                    "doc_count": 128
                 }
             ]
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ==== Keyed Response
 
@@ -97,11 +109,13 @@ Setting the `keyed` flag to `true` will associate a unique string key with each 
 
 [source,js]
 --------------------------------------------------
+GET /ip_addresses/data/_search
 {
+    "size": 0,
     "aggs": {
         "ip_ranges": {
             "ip_range": {
-                "field": "remote_ip",
+                "field": "ip",
                 "ranges": [
                     { "to" : "10.0.0.5" },
                     { "from" : "10.0.0.5" }
@@ -112,6 +126,8 @@ Setting the `keyed` flag to `true` will associate a unique string key with each 
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:iprange]
 
 Response:
 
@@ -125,27 +141,30 @@ Response:
             "buckets": {
                 "*-10.0.0.5": {
                     "to": "10.0.0.5",
-                    "doc_count": 1462
+                    "doc_count": 10
                 },
                 "10.0.0.5-*": {
                     "from": "10.0.0.5",
-                    "doc_count": 50000
+                    "doc_count": 260
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 It is also possible to customize the key for each range:
 
 [source,js]
 --------------------------------------------------
+GET /ip_addresses/data/_search
 {
+    "size": 0,
     "aggs": {
         "ip_ranges": {
             "ip_range": {
-                "field": "remote_ip",
+                "field": "ip",
                 "ranges": [
                     { "key": "infinity", "to" : "10.0.0.5" },
                     { "key": "and-beyond", "from" : "10.0.0.5" }
@@ -156,6 +175,8 @@ It is also possible to customize the key for each range:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:iprange]
 
 Response:
 
@@ -169,14 +190,15 @@ Response:
             "buckets": {
                 "infinity": {
                     "to": "10.0.0.5",
-                    "doc_count": 1462
+                    "doc_count": 10
                 },
                 "and-beyond": {
                     "from": "10.0.0.5",
-                    "doc_count": 50000
+                    "doc_count": 260
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]

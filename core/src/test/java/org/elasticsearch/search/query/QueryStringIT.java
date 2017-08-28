@@ -242,16 +242,24 @@ public class QueryStringIT extends ESIntegTestCase {
     }
 
 
-    @LuceneTestCase.AwaitsFix(bugUrl="currently can't perform phrase queries on fields that don't support positions")
     public void testPhraseQueryOnFieldWithNoPositions() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo bar", "f4", "eggplant parmesan"));
         reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "foo bar", "f4", "chicken parmesan"));
         indexRandom(true, false, reqs);
 
-        SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("\"eggplant parmesan\"")).get();
-        assertHits(resp.getHits(), "1");
-        assertHitCount(resp, 1L);
+        SearchResponse resp = client().prepareSearch("test")
+            .setQuery(queryStringQuery("\"eggplant parmesan\"").lenient(true)).get();
+        assertHitCount(resp, 0L);
+
+        Exception exc = expectThrows(Exception.class,
+            () -> client().prepareSearch("test").setQuery(
+                queryStringQuery("f4:\"eggplant parmesan\"").lenient(false)
+            ).get()
+        );
+        IllegalStateException ise = (IllegalStateException) ExceptionsHelper.unwrap(exc, IllegalStateException.class);
+        assertNotNull(ise);
+        assertThat(ise.getMessage(), containsString("field:[f4] was indexed without position data; cannot run PhraseQuery"));
     }
 
     public void testBooleanStrictQuery() throws Exception {
@@ -316,6 +324,7 @@ public class QueryStringIT extends ESIntegTestCase {
             QueryBuilders.queryStringQuery("say what the fudge")
                 .defaultField("field")
                 .defaultOperator(Operator.AND)
+                .autoGenerateSynonymsPhraseQuery(false)
                 .analyzer("lower_graphsyns")).get();
 
         assertHitCount(searchResponse, 1L);
@@ -326,6 +335,7 @@ public class QueryStringIT extends ESIntegTestCase {
             QueryBuilders.queryStringQuery("three what the fudge foo")
                 .defaultField("field")
                 .defaultOperator(Operator.OR)
+                .autoGenerateSynonymsPhraseQuery(false)
                 .analyzer("lower_graphsyns")).get();
 
         assertHitCount(searchResponse, 6L);
@@ -336,11 +346,22 @@ public class QueryStringIT extends ESIntegTestCase {
             QueryBuilders.queryStringQuery("three what the fudge foo")
                 .defaultField("field")
                 .defaultOperator(Operator.OR)
+                .autoGenerateSynonymsPhraseQuery(false)
                 .analyzer("lower_graphsyns")
                 .minimumShouldMatch("80%")).get();
 
         assertHitCount(searchResponse, 3L);
         assertSearchHits(searchResponse, "1", "2", "6");
+
+        // multi terms synonyms phrase
+        searchResponse = client().prepareSearch(index).setQuery(
+            QueryBuilders.queryStringQuery("what the fudge")
+                .defaultField("field")
+                .defaultOperator(Operator.AND)
+                .analyzer("lower_graphsyns"))
+            .get();
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse,  "1", "2", "3");
     }
 
     private void assertHits(SearchHits hits, String... ids) {

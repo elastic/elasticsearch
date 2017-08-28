@@ -31,7 +31,7 @@ import java.util.Set;
 
 public class KuromojiPartOfSpeechFilterFactory extends AbstractTokenFilterFactory {
 
-    private final Set<String> stopTags = new HashSet<String>();
+    private final Set<String> stopTags = new HashSet<>();
 
     public KuromojiPartOfSpeechFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);

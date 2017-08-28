@@ -64,6 +64,14 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
         return normalizationFactor > 0 ? (value() / normalizationFactor) : value();
     }
 
+    DocValueFormat formatter() {
+        return format;
+    }
+
+    double getNormalizationFactor() {
+        return normalizationFactor;
+    }
+
     @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {

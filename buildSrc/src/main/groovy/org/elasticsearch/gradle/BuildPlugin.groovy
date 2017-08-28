@@ -30,25 +30,25 @@ import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.XmlProvider
 import org.gradle.api.artifacts.Configuration
-import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.file.CopySpec
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.internal.jvm.Jvm
 import org.gradle.process.ExecResult
 import org.gradle.util.GradleVersion
 
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
-
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
@@ -79,7 +79,7 @@ class BuildPlugin implements Plugin<Project> {
         configureConfigurations(project)
         project.ext.versions = VersionProperties.versions
         configureCompile(project)
-        configureJavadocJar(project)
+        configureJavadoc(project)
         configureSourcesJar(project)
         configurePomGeneration(project)
 
@@ -270,8 +270,8 @@ class BuildPlugin implements Plugin<Project> {
         })
 
         // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
-        Closure disableTransitiveDeps = { Dependency dep ->
-            if (dep instanceof ModuleDependency && !(dep instanceof ProjectDependency) && dep.group.startsWith('org.elasticsearch') == false) {
+        Closure disableTransitiveDeps = { ModuleDependency dep ->
+            if (!(dep instanceof ProjectDependency) && dep.group.startsWith('org.elasticsearch') == false) {
                 dep.transitive = false
 
                 // also create a configuration just for this dependency version, so that later
@@ -289,7 +289,7 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.provided.dependencies.all(disableTransitiveDeps)
     }
 
-    /** Adds repositores used by ES dependencies */
+    /** Adds repositories used by ES dependencies */
     static void configureRepositories(Project project) {
         RepositoryHandler repos = project.repositories
         if (System.getProperty("repos.mavenlocal") != null) {
@@ -410,11 +410,10 @@ class BuildPlugin implements Plugin<Project> {
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
                 File gradleJavaHome = Jvm.current().javaHome
-                if (new File(project.javaHome).canonicalPath != gradleJavaHome.canonicalPath) {
-                    options.fork = true
-                    options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
-                    options.forkOptions.memoryMaximumSize = "1g"
-                }
+                // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
+                options.fork = true
+                options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
+                options.forkOptions.memoryMaximumSize = "1g"
                 if (project.targetCompatibility >= JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
                     // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
@@ -455,6 +454,33 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
+    static void configureJavadoc(Project project) {
+        String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
+        project.afterEvaluate {
+            project.tasks.withType(Javadoc) {
+                executable = new File(project.javaHome, 'bin/javadoc')
+            }
+            /*
+             * Order matters, the linksOffline for org.elasticsearch:elasticsearch must be the last one
+             * or all the links for the other packages (e.g org.elasticsearch.client) will point to core rather than their own artifacts
+             */
+            Closure sortClosure = { a, b -> b.group <=> a.group }
+            Closure depJavadocClosure = { dep ->
+                if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
+                    String substitution = project.ext.projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
+                    if (substitution != null) {
+                        project.javadoc.dependsOn substitution + ':javadoc'
+                        String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
+                        project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${project.project(substitution).buildDir}/docs/javadoc/"
+                    }
+                }
+            }
+            project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+            project.configurations.provided.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+        }
+        configureJavadocJar(project)
+    }
+
     /** Adds a javadocJar task to generate a jar containing javadocs. */
     static void configureJavadocJar(Project project) {
         Jar javadocJarTask = project.task('javadocJar', type: Jar)
@@ -474,8 +500,10 @@ class BuildPlugin implements Plugin<Project> {
         project.assemble.dependsOn(sourcesJarTask)
     }
 
-    /** Adds additional manifest info to jars, and adds source and javadoc jars */
+    /** Adds additional manifest info to jars */
     static void configureJars(Project project) {
+        project.ext.licenseFile = null
+        project.ext.noticeFile = null
         project.tasks.withType(Jar) { Jar jarTask ->
             // we put all our distributable files under distributions
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
@@ -497,6 +525,20 @@ class BuildPlugin implements Plugin<Project> {
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
                     logger.warn('Building without git revision id.')
                     jarTask.manifest.attributes('Change': 'Unknown')
+                }
+            }
+            // add license/notice files
+            project.afterEvaluate {
+                if (project.licenseFile == null || project.noticeFile == null) {
+                    throw new GradleException("Must specify license and notice file for project ${project.path}")
+                }
+                jarTask.into('META-INF') {
+                    from(project.licenseFile.parent) {
+                        include project.licenseFile.name
+                    }
+                    from(project.noticeFile.parent) {
+                        include project.noticeFile.name
+                    }
                 }
             }
         }
@@ -527,8 +569,6 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.artifact', project.name
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
-            // Breaking change in JDK-9, revert to JDK-8 behavior for now, see https://github.com/elastic/elasticsearch/issues/21534
-            systemProperty 'jdk.io.permissionsUseCanonicalPath', 'true'
             systemProperty 'jna.nosys', 'true'
             // default test sysprop values
             systemProperty 'tests.ifNoTests', 'fail'

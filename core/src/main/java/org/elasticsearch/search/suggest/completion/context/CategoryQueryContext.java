@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -37,7 +37,7 @@ import static org.elasticsearch.search.suggest.completion.context.CategoryContex
 /**
  * Defines the query context for {@link CategoryContextMapping}
  */
-public final class CategoryQueryContext implements ToXContent {
+public final class CategoryQueryContext implements ToXContentObject {
     public static final String NAME = "category";
 
     private final String category;

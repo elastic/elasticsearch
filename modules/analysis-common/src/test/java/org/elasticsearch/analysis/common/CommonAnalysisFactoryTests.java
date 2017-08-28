@@ -124,6 +124,10 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("fingerprint", FingerprintTokenFilterFactory.class);
         filters.put("minhash", MinHashTokenFilterFactory.class);
         filters.put("scandinavianfolding", ScandinavianFoldingFilterFactory.class);
+        filters.put("arabicstem", ArabicStemTokenFilterFactory.class);
+        filters.put("brazilianstem", BrazilianStemTokenFilterFactory.class);
+        filters.put("czechstem", CzechStemTokenFilterFactory.class);
+        filters.put("germanstem", GermanStemTokenFilterFactory.class);
         return filters;
     }
 

@@ -43,6 +43,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.StreamSupport;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
@@ -60,7 +61,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected boolean indexOptionsSet = false;
         protected boolean docValuesSet = false;
         protected final MultiFields.Builder multiFieldsBuilder;
-        protected CopyTo copyTo;
+        protected CopyTo copyTo = CopyTo.empty();
 
         protected Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
             super(name);
@@ -211,19 +212,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         protected boolean defaultDocValues(Version indexCreated) {
-            if (indexCreated.onOrAfter(Version.V_5_0_0_alpha1)) {
-                // add doc values by default to keyword (boolean, numerics, etc.) fields
-                return fieldType.tokenized() == false;
-            } else {
-                return fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE;
-            }
+            return fieldType.tokenized() == false;
         }
 
         protected void setupFieldType(BuilderContext context) {
             fieldType.setName(buildFullName(context));
-            if (context.indexCreatedVersion().before(Version.V_5_0_0_alpha1)) {
-                fieldType.setOmitNorms(fieldType.omitNorms() && fieldType.boost() == 1.0f);
-            }
             if (fieldType.indexAnalyzer() == null && fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
                 fieldType.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
                 fieldType.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -246,17 +239,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         super(simpleName);
         assert indexSettings != null;
         this.indexCreatedVersion = Version.indexCreated(indexSettings);
-        if (indexCreatedVersion.onOrAfter(Version.V_5_0_0_beta1)) {
-            if (simpleName.isEmpty()) {
-                throw new IllegalArgumentException("name cannot be empty string");
-            }
+        if (simpleName.isEmpty()) {
+            throw new IllegalArgumentException("name cannot be empty string");
         }
         fieldType.freeze();
         this.fieldType = fieldType;
         defaultFieldType.freeze();
         this.defaultFieldType = defaultFieldType;
         this.multiFields = multiFields;
-        this.copyTo = copyTo;
+        this.copyTo = Objects.requireNonNull(copyTo);
     }
 
     @Override
@@ -407,10 +398,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         multiFields.toXContent(builder, params);
-
-        if (copyTo != null) {
-            copyTo.toXContent(builder, params);
-        }
+        copyTo.toXContent(builder, params);
     }
 
     protected final void doXContentAnalyzers(XContentBuilder builder, boolean includeDefaults) throws IOException {
@@ -617,6 +605,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     public static class CopyTo {
 
+        private static final CopyTo EMPTY = new CopyTo(Collections.emptyList());
+
+        public static CopyTo empty() {
+            return EMPTY;
+        }
+
         private final List<String> copyToFields;
 
         private CopyTo(List<String> copyToFields) {
@@ -643,6 +637,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             }
 
             public CopyTo build() {
+                if (copyToBuilders.isEmpty()) {
+                    return EMPTY;
+                }
                 return new CopyTo(Collections.unmodifiableList(copyToBuilders));
             }
         }

@@ -20,9 +20,9 @@
 package org.elasticsearch.index.query;
 
 
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.mapper.UidFieldMapper;
@@ -39,7 +39,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     @Override
     protected IdsQueryBuilder doCreateTestQueryBuilder() {
         String[] types;
-        if (getCurrentTypes().length > 0 && randomBoolean()) {
+        if (getCurrentTypes() != null && getCurrentTypes().length > 0 && randomBoolean()) {
             int numberOfTypes = randomIntBetween(1, getCurrentTypes().length);
             types = new String[numberOfTypes];
             for (int i = 0; i < numberOfTypes; i++) {

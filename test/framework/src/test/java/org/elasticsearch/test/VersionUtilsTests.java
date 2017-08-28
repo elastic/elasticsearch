@@ -181,11 +181,15 @@ public class VersionUtilsTests extends ESTestCase {
         // First check the index compatible versions
         VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");
         List<Version> released = VersionUtils.allReleasedVersions().stream()
-                /* We skip alphas, betas, and the like in gradle because they don't have
-                 * backwards compatibility guarantees even though they are technically
-                 * released. */
-                .filter(v -> v.isRelease() && (v.major == Version.CURRENT.major || v.major == Version.CURRENT.major - 1))
+                // Java lists some non-index compatible versions but gradle does not include them.
+                .filter(v -> v.major == Version.CURRENT.major || v.major == Version.CURRENT.major - 1)
+                /* Gradle will never include *released* alphas or betas because it will prefer
+                 * the unreleased branch head. Gradle is willing to use branch heads that are
+                 * beta or rc so that we have *something* to test against even though we
+                 * do not offer backwards compatibility for alphas, betas, or rcs. */
+                .filter(Version::isRelease)
                 .collect(toList());
+
         List<String> releasedIndexCompatible = released.stream()
                 .map(Object::toString)
                 .collect(toList());
@@ -195,7 +199,15 @@ public class VersionUtilsTests extends ESTestCase {
                 /* Gradle skips the current version because being backwards compatible
                  * with yourself is implied. Java lists the version because it is useful. */
                 .filter(v -> v != Version.CURRENT)
-                .map(v -> v.major + "." + v.minor + "." + v.revision)
+                /* Note that gradle skips alphas because they don't have any backwards
+                 * compatibility guarantees but keeps the last beta and rc in a branch
+                 * on when there are only betas an RCs in that branch so that we have
+                 * *something* to test that branch against. There is no need to recreate
+                 * that logic here because allUnreleasedVersions already only contains
+                 * the heads of branches so it should be good enough to just keep all
+                 * the non-alphas.*/
+                .filter(v -> false == v.isAlpha())
+                .map(Object::toString)
                 .collect(toCollection(LinkedHashSet::new)));
         assertEquals(unreleasedIndexCompatible, indexCompatible.unreleased);
 

@@ -1258,3 +1258,220 @@
             filter:    [scandinavian_folding]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: raksmorgas }
+
+---
+"arabic_stem":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_arabic_stem:
+                    type: arabic_stem
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: الحسن
+            tokenizer: keyword
+            filter:    [my_arabic_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: حسن }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text: الحسن
+            tokenizer: keyword
+            filter:    [arabic_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: حسن }
+
+---
+"brazilian_stem":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_brazilian_stem:
+                    type: brazilian_stem
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: Brasília
+            tokenizer: keyword
+            filter:    [my_brazilian_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: brasil }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text: Brasília
+            tokenizer: keyword
+            filter:    [brazilian_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: brasil }
+
+---
+"czech_stem":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_czech_stem:
+                    type: czech_stem
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: angličtí
+            tokenizer: keyword
+            filter:    [my_czech_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: anglick }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text: angličtí
+            tokenizer: keyword
+            filter:    [czech_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: anglick }
+
+---
+"dutch_stem":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_dutch_stem:
+                    type: dutch_stem
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: ophouden
+            tokenizer: keyword
+            filter:    [my_dutch_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: ophoud }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text: ophouden
+            tokenizer: keyword
+            filter:    [dutch_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: ophoud }
+
+---
+"french_stem":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_french_stem:
+                    type: french_stem
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: chevaux
+            tokenizer: keyword
+            filter:    [my_french_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: cheval }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text: chevaux
+            tokenizer: keyword
+            filter:    [french_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: cheval }
+
+---
+"german_stem":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_german_stem:
+                    type: german_stem
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: abschließen
+            tokenizer: keyword
+            filter:    [my_german_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: abschliess }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text: abschließen
+            tokenizer: keyword
+            filter:    [german_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: abschliess }
+
+---
+"russian_stem":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_russian_stem:
+                    type: russian_stem
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: журналы
+            tokenizer: keyword
+            filter:    [my_russian_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: журнал }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text: журналы
+            tokenizer: keyword
+            filter:    [russian_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: журнал }

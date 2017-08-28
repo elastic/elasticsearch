@@ -563,7 +563,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         }
     }
 
-    public void testNestedSourceFiltering() throws Exception {
+    public void testNestedSource() throws Exception {
         assertAcked(prepareCreate("index1").addMapping("message", "comments", "type=nested"));
         client().prepareIndex("index1", "message", "1").setSource(jsonBuilder().startObject()
                 .field("message", "quick brown fox")
@@ -581,6 +581,19 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None)
                 .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(true,
                     new String[]{"comments.message"}, null))))
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits(), equalTo(2L));
+        assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap()),
+                equalTo("fox eat quick"));
+        assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap()),
+                equalTo("fox ate rabbit x y z"));
+
+        response = client().prepareSearch()
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None)
+                        .innerHit(new InnerHitBuilder()))
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);

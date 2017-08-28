@@ -82,8 +82,54 @@ After this, the `SearchSourceBuilder` only needs to be added to the
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-setter]
 --------------------------------------------------
 
-===== Specifying Sorting
+===== Building queries
 
+Search queries are created using `QueryBuilder` objects. A `QueryBuilder` exists
+ for every search query type supported by Elasticsearch's {ref}/query-dsl.html[Query DSL].
+
+A `QueryBuilder` can be created using its constructor:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-query-builder-ctor]
+--------------------------------------------------
+<1> Create a full text {ref}/query-dsl-match-query.html[Match Query] that matches
+the text "kimchy" over the field "user".
+
+Once created, the `QueryBuilder` object provides methods to configure the options
+of the search query it creates:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-query-builder-options]
+--------------------------------------------------
+<1> Enable fuzzy matching on the match query
+<2> Set the prefix length option on the match query
+<3> Set the max expansion options to control the fuzzy
+    process of the query
+
+`QueryBuilder` objects can also be created using the `QueryBuilders` utility class.
+This class provides helper methods that can be used to create `QueryBuilder` objects
+ using a fluent programming style:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-query-builders]
+--------------------------------------------------
+
+Whatever the method used to create it, the `QueryBuilder` object must be added
+to the `SearchSourceBuilder` as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-query-setter]
+--------------------------------------------------
+
+The <<java-rest-high-search-queries, Search Queries>> page gives a list of all available search queries with
+their corresponding `QueryBuilder` objects and `QueryBuilders` helper methods.
+
+
+===== Specifying Sorting
 
 The `SearchSourceBuilder` allows to add one or more `SortBuilder` instances. There are four special implementations (Field-, Score-, GeoDistance- and ScriptSortBuilder).
 
@@ -143,6 +189,9 @@ sub-aggregation on the average age of employees in the company:
 --------------------------------------------------
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations]
 --------------------------------------------------
+
+The <<java-rest-high-aggregations, Aggregations>> page gives a list of all available aggregations with
+their corresponding `AggregationBuilder` objects and `AggregationBuilders` helper methods.
 
 We will later see how to <<java-rest-high-retrieve-aggs,access aggregations>> in the `SearchResponse`.
 

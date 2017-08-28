@@ -22,6 +22,7 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -29,7 +30,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -167,6 +167,8 @@ public class MatchQuery {
 
     protected Float commonTermsCutoff = null;
 
+    protected boolean autoGenerateSynonymsPhraseQuery = true;
+
     public MatchQuery(QueryShardContext context) {
         this.context = context;
     }
@@ -226,12 +228,20 @@ public class MatchQuery {
         this.zeroTermsQuery = zeroTermsQuery;
     }
 
+    public void setAutoGenerateSynonymsPhraseQuery(boolean enabled) {
+        this.autoGenerateSynonymsPhraseQuery = enabled;
+    }
+
     protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
         if (analyzer == null) {
             return quoted ? context.getSearchQuoteAnalyzer(fieldType) : context.getSearchAnalyzer(fieldType);
         } else {
             return analyzer;
         }
+    }
+
+    private boolean hasPositions(MappedFieldType fieldType) {
+        return fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
     }
 
     public Query parse(Type type, String fieldName, Object value) throws IOException {
@@ -258,6 +268,11 @@ public class MatchQuery {
         assert analyzer != null;
         MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
         builder.setEnablePositionIncrements(this.enablePositionIncrements);
+        if (hasPositions(fieldType)) {
+            builder.setAutoGenerateMultiTermSynonymsPhraseQuery(this.autoGenerateSynonymsPhraseQuery);
+        } else {
+            builder.setAutoGenerateMultiTermSynonymsPhraseQuery(false);
+        }
 
         Query query = null;
         switch (type) {
@@ -323,6 +338,20 @@ public class MatchQuery {
         @Override
         protected Query newSynonymQuery(Term[] terms) {
             return blendTermsQuery(terms, mapper);
+        }
+
+        @Override
+        protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
+            if (hasPositions(mapper) == false) {
+                IllegalStateException exc =
+                    new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
+                if (lenient) {
+                    return newLenientFieldQuery(field, exc);
+                } else {
+                    throw exc;
+                }
+            }
+            return super.analyzePhrase(field, stream, slop);
         }
 
         /**

@@ -32,7 +32,7 @@ public class DutchAnalyzerProvider extends AbstractIndexAnalyzerProvider<DutchAn
     public DutchAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         analyzer = new DutchAnalyzer(
-            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, DutchAnalyzer.getDefaultStopSet()),
+            Analysis.parseStopWords(env, settings, DutchAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);

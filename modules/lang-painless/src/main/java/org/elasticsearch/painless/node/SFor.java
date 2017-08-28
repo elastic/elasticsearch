@@ -161,7 +161,7 @@ public final class SFor extends AStatement {
             AExpression initializer = (AExpression)this.initializer;
 
             initializer.write(writer, globals);
-            writer.writePop(initializer.expected.sort.size);
+            writer.writePop(initializer.expected.type.getSize());
         }
 
         writer.mark(start);

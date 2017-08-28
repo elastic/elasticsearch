@@ -45,12 +45,19 @@ public interface AzureStorageService {
     ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
 
     final class Storage {
+        @Deprecated
         public static final String PREFIX = "cloud.azure.storage.";
 
+        @Deprecated
         public static final Setting<Settings> STORAGE_ACCOUNTS = Setting.groupSetting(Storage.PREFIX, Setting.Property.NodeScope);
 
-        public static final Setting<TimeValue> TIMEOUT_SETTING =
-            Setting.timeSetting("cloud.azure.storage.timeout", TimeValue.timeValueMinutes(-1), Property.NodeScope);
+        /**
+         * Azure timeout (defaults to -1 minute)
+         * @deprecated We don't want to support global timeout settings anymore
+         */
+        @Deprecated
+        static final Setting<TimeValue> TIMEOUT_SETTING =
+            Setting.timeSetting("cloud.azure.storage.timeout", TimeValue.timeValueMinutes(-1), Property.NodeScope, Property.Deprecated);
     }
 
     boolean doesContainerExist(String account, LocationMode mode, String container);

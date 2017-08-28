@@ -211,8 +211,8 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     protected boolean doEquals(Object obj) {
         InternalStats other = (InternalStats) obj;
         return count == other.count &&
-            min == other.min &&
-            max == other.max &&
-            Double.compare(count, other.count) == 0;
+            Double.compare(min, other.min) == 0 &&
+            Double.compare(max, other.max) == 0 &&
+            Double.compare(sum, other.sum) == 0;
     }
 }

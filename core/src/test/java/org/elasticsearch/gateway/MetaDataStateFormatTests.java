@@ -37,6 +37,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -368,7 +369,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    private static class DummyState implements ToXContent {
+    private static class DummyState implements ToXContentFragment {
         String string;
         int aInt;
         long aLong;

@@ -54,8 +54,8 @@ public class EElvis extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        if (expected != null && expected.sort.primitive) {
-            throw createError(new IllegalArgumentException("Evlis operator cannot return primitives"));
+        if (expected != null && expected.clazz.isPrimitive()) {
+            throw createError(new IllegalArgumentException("Elvis operator cannot return primitives"));
         }
         lhs.expected = expected;
         lhs.explicit = explicit;
@@ -73,7 +73,7 @@ public class EElvis extends AExpression {
         if (lhs.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
-        if (lhs.actual.sort.primitive) {
+        if (lhs.actual.clazz.isPrimitive()) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
         }
         if (rhs.isNull) {

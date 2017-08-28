@@ -93,7 +93,7 @@ security of the Elasticsearch deployment.
 
 By default all script types are allowed to be executed.  This can be modified using the
 setting `script.allowed_types`.  Only the types specified as part of the setting will be
-allowed to be executed.  To specify no types are allowed, set `scripts.allowed_types` to
+allowed to be executed.  To specify no types are allowed, set `script.allowed_types` to
 be `none`.
 
 [source,yaml]
@@ -109,7 +109,7 @@ script.allowed_types: inline <1>
 
 By default all script contexts are allowed to be executed.  This can be modified using the
 setting `script.allowed_contexts`.  Only the contexts specified as part of the setting will
-be allowed to be executed.  To specify no contexts are allowed, set `scripts.allowed_contexts`
+be allowed to be executed.  To specify no contexts are allowed, set `script.allowed_contexts`
 to be `none`.
 
 [source,yaml]

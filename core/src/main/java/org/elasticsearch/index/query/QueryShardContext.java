@@ -40,14 +40,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -60,9 +57,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
 import static java.util.Collections.unmodifiableMap;
@@ -77,7 +75,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final MapperService mapperService;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
-    private final Function<MappedFieldType, IndexFieldData<?>> indexFieldDataService;
+    private final BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataService;
     private final int shardId;
     private final IndexReader reader;
     private final String clusterAlias;
@@ -101,10 +99,10 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean isFilter;
 
     public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
-            Function<MappedFieldType, IndexFieldData<?>> indexFieldDataLookup, MapperService mapperService,
-            SimilarityService similarityService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
-            NamedWriteableRegistry namedWriteableRegistry,Client client, IndexReader reader, LongSupplier nowInMillis,
-            String clusterAlias) {
+                             BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup, MapperService mapperService,
+                             SimilarityService similarityService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
+                             NamedWriteableRegistry namedWriteableRegistry, Client client, IndexReader reader, LongSupplier nowInMillis,
+                             String clusterAlias) {
         super(xContentRegistry, namedWriteableRegistry,client, nowInMillis);
         this.shardId = shardId;
         this.similarityService = similarityService;
@@ -143,8 +141,8 @@ public class QueryShardContext extends QueryRewriteContext {
         return similarityService != null ? similarityService.similarity(mapperService) : null;
     }
 
-    public String defaultField() {
-        return indexSettings.getDefaultField();
+    public List<String> defaultFields() {
+        return indexSettings.getDefaultFields();
     }
 
     public boolean queryStringLenient() {
@@ -164,13 +162,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        if (clusterAlias != null && IndexFieldMapper.NAME.equals(fieldType.name())) {
-            // this is a "hack" to make the _index field data aware of cross cluster search cluster aliases.
-            ConstantIndexFieldData ifd = (ConstantIndexFieldData) indexFieldDataService.apply(fieldType);
-            return (IFD) new ConstantIndexFieldData.Builder(m -> fullyQualifiedIndexName)
-                .build(indexSettings, fieldType, null, null, mapperService);
-        }
-        return (IFD) indexFieldDataService.apply(fieldType);
+        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndexName);
     }
 
     public void addNamedQuery(String name, Query query) {
@@ -283,7 +275,8 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public SearchLookup lookup() {
         if (lookup == null) {
-            lookup = new SearchLookup(getMapperService(), indexFieldDataService, types);
+            lookup = new SearchLookup(getMapperService(),
+                mappedFieldType -> indexFieldDataService.apply(mappedFieldType, fullyQualifiedIndexName), types);
         }
         return lookup;
     }

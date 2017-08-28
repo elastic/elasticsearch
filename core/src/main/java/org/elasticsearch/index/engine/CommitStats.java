@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import java.util.Base64;
 import java.util.Map;
 
 /** a class the returns dynamic information with respect to the last commit point of this shard */
-public final class CommitStats implements Streamable, ToXContent {
+public final class CommitStats implements Streamable, ToXContentFragment {
 
     private Map<String, String> userData;
     private long generation;

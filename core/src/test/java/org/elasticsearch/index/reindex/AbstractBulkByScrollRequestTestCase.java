@@ -39,16 +39,21 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
                 randomFrom(ActiveShardCount.ALL, ActiveShardCount.NONE, ActiveShardCount.ONE, ActiveShardCount.DEFAULT));
         original.setRetryBackoffInitialTime(parseTimeValue(randomPositiveTimeValue(), "retry_backoff_initial_time"));
         original.setMaxRetries(between(0, 1000));
-        original.setSlices(between(2, 1000));
         original.setRequestsPerSecond(
                 randomBoolean() ? Float.POSITIVE_INFINITY : randomValueOtherThanMany(r -> r < 0, ESTestCase::randomFloat));
         if (randomBoolean()) {
             original.setSize(between(0, Integer.MAX_VALUE));
         }
 
+        // it's not important how many slices there are, we just need a number for forSlice
+        int actualSlices = between(2, 1000);
+        original.setSlices(randomBoolean()
+            ? actualSlices
+            : AbstractBulkByScrollRequest.AUTO_SLICES);
+
         TaskId slicingTask = new TaskId(randomAlphaOfLength(5), randomLong());
         SearchRequest sliceRequest = new SearchRequest();
-        R forSliced = original.forSlice(slicingTask, sliceRequest);
+        R forSliced = original.forSlice(slicingTask, sliceRequest, actualSlices);
         assertEquals(original.isAbortOnVersionConflict(), forSliced.isAbortOnVersionConflict());
         assertEquals(original.isRefresh(), forSliced.isRefresh());
         assertEquals(original.getTimeout(), forSliced.getTimeout());
@@ -57,10 +62,10 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         assertEquals(original.getMaxRetries(), forSliced.getMaxRetries());
         assertEquals("only the parent task should store results", false, forSliced.getShouldStoreResult());
         assertEquals("slice requests always have a single worker", 1, forSliced.getSlices());
-        assertEquals("requests_per_second is split between all workers", original.getRequestsPerSecond() / original.getSlices(),
+        assertEquals("requests_per_second is split between all workers", original.getRequestsPerSecond() / actualSlices,
                 forSliced.getRequestsPerSecond(), Float.MIN_NORMAL);
         assertEquals("size is split evenly between all workers", original.getSize() == AbstractBulkByScrollRequest.SIZE_ALL_MATCHES
-                ? AbstractBulkByScrollRequest.SIZE_ALL_MATCHES : original.getSize() / original.getSlices(), forSliced.getSize());
+                ? AbstractBulkByScrollRequest.SIZE_ALL_MATCHES : original.getSize() / actualSlices, forSliced.getSize());
         assertEquals(slicingTask, forSliced.getParentTask());
 
         extraForSliceAssertions(original, forSliced);

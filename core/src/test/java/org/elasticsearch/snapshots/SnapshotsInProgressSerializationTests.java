@@ -115,4 +115,16 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
     }
 
+    @Override
+    protected Custom mutateInstance(Custom instance) {
+        List<Entry> entries = new ArrayList<>(((SnapshotsInProgress) instance).entries());
+        boolean addEntry = entries.isEmpty() ? true : randomBoolean();
+        if (addEntry) {
+            entries.add(randomSnapshot());
+        } else {
+            entries.remove(randomIntBetween(0, entries.size() - 1));
+        }
+        return new SnapshotsInProgress(entries);
+    }
+
 }

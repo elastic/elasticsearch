@@ -32,7 +32,7 @@ public class PortugueseAnalyzerProvider extends AbstractIndexAnalyzerProvider<Po
     public PortugueseAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         analyzer = new PortugueseAnalyzer(
-            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, PortugueseAnalyzer.getDefaultStopSet()),
+            Analysis.parseStopWords(env, settings, PortugueseAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);

@@ -58,7 +58,7 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
         env = setupEnv(true, fileSystems); // default to posix, but tests may call setupEnv(false) to overwrite
     }
 
-    static Environment setupEnv(boolean posix, List<FileSystem> fileSystems) throws IOException {
+    public static Environment setupEnv(boolean posix, List<FileSystem> fileSystems) throws IOException {
         final Configuration configuration;
         if (posix) {
             configuration = Configuration.unix().toBuilder().setAttributeViews("basic", "owner", "posix", "unix").build();

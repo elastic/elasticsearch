@@ -21,10 +21,11 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -67,4 +68,37 @@ public class InternalSimpleValueTests extends InternalAggregationTestCase<Intern
             assertEquals(parsed.value(), Double.NaN, 0);
         }
     }
+
+    @Override
+    protected InternalSimpleValue mutateInstance(InternalSimpleValue instance) {
+        String name = instance.getName();
+        double value = instance.getValue();
+        DocValueFormat formatter = instance.formatter();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 2)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            if (Double.isFinite(value)) {
+                value += between(1, 100);
+            } else {
+                value = randomDoubleBetween(0, 100000, true);
+            }
+            break;
+        case 2:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalSimpleValue(name, value, formatter, pipelineAggregators, metaData);
+    }
+
 }

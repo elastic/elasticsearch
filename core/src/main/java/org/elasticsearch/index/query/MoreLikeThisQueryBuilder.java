@@ -488,7 +488,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     /**
-     * Constructs a new more like this query which uses the "_all" field.
+     * Constructs a new more like this query which uses the default search field.
      * @param likeTexts the text to use when generating the 'More Like This' query.
      * @param likeItems the documents to use when generating the 'More Like This' query.
      */

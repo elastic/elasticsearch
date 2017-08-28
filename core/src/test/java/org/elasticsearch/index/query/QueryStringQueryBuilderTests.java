@@ -50,7 +50,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -172,7 +171,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     @Override
     protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder,
                                        Query query, SearchContext context) throws IOException {
-        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class))
+        assertThat(query, either(instanceOf(TermQuery.class))
             .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
             .or(instanceOf(PhraseQuery.class)).or(instanceOf(BoostQuery.class))
             .or(instanceOf(MultiPhrasePrefixQuery.class)).or(instanceOf(PrefixQuery.class)).or(instanceOf(SpanQuery.class))
@@ -809,11 +808,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         } else {
             expected = new MatchNoDocsQuery();
         }
-        assertThat(query, equalTo(expected));
-
-        queryBuilder = new QueryStringQueryBuilder("_all:*");
-        query = queryBuilder.toQuery(context);
-        expected = new MatchAllDocsQuery();
         assertThat(query, equalTo(expected));
 
         queryBuilder = new QueryStringQueryBuilder("*:*");

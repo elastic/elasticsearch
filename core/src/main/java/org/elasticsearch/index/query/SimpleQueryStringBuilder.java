@@ -31,7 +31,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser.Settings;
@@ -405,11 +404,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
         } else {
             List<String> defaultFields = context.defaultFields();
-            if (context.getMapperService().allEnabled() == false &&
-                    defaultFields.size() == 1 && AllFieldMapper.NAME.equals(defaultFields.get(0))) {
-                // For indices created before 6.0 with _all disabled
-                defaultFields = Collections.singletonList("*");
-            }
             boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
             if (isAllField) {
                 newSettings.lenient(lenientSet ? settings.lenient() : true);

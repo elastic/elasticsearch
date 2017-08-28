@@ -152,7 +152,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public RangeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new RangeFieldMapper(name, fieldType, defaultFieldType, coerce(context), includeInAll,
+            return new RangeFieldMapper(name, fieldType, defaultFieldType, coerce(context),
                 context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -309,7 +309,6 @@ public class RangeFieldMapper extends FieldMapper {
         }
     }
 
-    private Boolean includeInAll;
     private Explicit<Boolean> coerce;
 
     private RangeFieldMapper(
@@ -317,13 +316,11 @@ public class RangeFieldMapper extends FieldMapper {
         MappedFieldType fieldType,
         MappedFieldType defaultFieldType,
         Explicit<Boolean> coerce,
-        Boolean includeInAll,
         Settings indexSettings,
         MultiFields multiFields,
         CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.coerce = coerce;
-        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -343,7 +340,6 @@ public class RangeFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        final boolean includeInAll = context.includeInAll(this.includeInAll, this);
         Range range;
         if (context.externalValueSet()) {
             range = context.parseExternalValue(Range.class);
@@ -394,9 +390,6 @@ public class RangeFieldMapper extends FieldMapper {
                     + name() + "], expected an object but got " + parser.currentName());
             }
         }
-        if (includeInAll) {
-            context.allEntries().addText(fieldType.name(), range.toString(), fieldType.boost());
-        }
         boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
         boolean docValued = fieldType.hasDocValues();
         boolean stored = fieldType.stored();
@@ -407,7 +400,6 @@ public class RangeFieldMapper extends FieldMapper {
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         super.doMerge(mergeWith, updateAllTypes);
         RangeFieldMapper other = (RangeFieldMapper) mergeWith;
-        this.includeInAll = other.includeInAll;
         if (other.coerce.explicit()) {
             this.coerce = other.coerce;
         }
@@ -429,11 +421,6 @@ public class RangeFieldMapper extends FieldMapper {
         }
         if (includeDefaults || coerce.explicit()) {
             builder.field("coerce", coerce.value());
-        }
-        if (includeInAll != null) {
-            builder.field("include_in_all", includeInAll);
-        } else if (includeDefaults) {
-            builder.field("include_in_all", false);
         }
     }
 

@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.node.Node;
 
@@ -49,21 +48,9 @@ import java.util.function.Function;
  * be called for each settings update.
  */
 public final class IndexSettings {
-    public static final String DEFAULT_FIELD_SETTING_KEY = "index.query.default_field";
-    public static final Setting<List<String>> DEFAULT_FIELD_SETTING;
-    static {
-        Function<Settings, List<String>> defValue = settings -> {
-            final String defaultField;
-            if (settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null &&
-                    Version.indexCreated(settings).before(Version.V_6_0_0_alpha1)) {
-                defaultField = AllFieldMapper.NAME;
-            } else {
-                defaultField = "*";
-            }
-            return Collections.singletonList(defaultField);
-        };
-        DEFAULT_FIELD_SETTING = Setting.listSetting(DEFAULT_FIELD_SETTING_KEY, defValue, Function.identity(), Property.IndexScope, Property.Dynamic);
-    }
+    public static final Setting<List<String>> DEFAULT_FIELD_SETTING =
+        Setting.listSetting("index.query.default_field", Collections.singletonList("*"),
+            Function.identity(), Property.IndexScope, Property.Dynamic);
     public static final Setting<Boolean> QUERY_STRING_LENIENT_SETTING =
         Setting.boolSetting("index.query_string.lenient", false, Property.IndexScope);
     public static final Setting<Boolean> QUERY_STRING_ANALYZE_WILDCARD =

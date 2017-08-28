@@ -1,10 +1,9 @@
 [[copy-to]]
 === `copy_to`
 
-The `copy_to` parameter allows you to create custom
-<<mapping-all-field,`_all`>> fields.  In other words, the values of multiple
-fields can be copied into a group field, which can then be queried as a single
-field.  For instance, the `first_name` and `last_name` fields can be copied to
+The `copy_to` parameter allows you to copy the values of multiple
+fields into a group field, which can then be queried as a single
+field. For instance, the `first_name` and `last_name` fields can be copied to
 the `full_name` field as follows:
 
 [source,js]

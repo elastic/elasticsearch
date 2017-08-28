@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
@@ -28,6 +29,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Class used to encapsulate a number of {@link RerouteExplanation}
@@ -47,6 +50,18 @@ public class RoutingExplanations implements ToXContentFragment {
 
     public List<RerouteExplanation> explanations() {
         return this.explanations;
+    }
+
+    /**
+     * Provides feedback from commands with a YES decision that should be displayed to the user after the command has been applied
+     */
+    public List<String> getYesDecisionMessages() {
+        return explanations().stream()
+            .filter(explanation -> explanation.decisions().type().equals(Decision.Type.YES))
+            .map(explanation -> explanation.command().getMessage())
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
     }
 
     /**

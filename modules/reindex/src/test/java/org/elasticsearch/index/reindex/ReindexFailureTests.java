@@ -63,7 +63,7 @@ public class ReindexFailureTests extends ReindexTestCase {
                 .batches(1)
                 .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
         for (Failure failure: response.getBulkFailures()) {
-            assertThat(failure.getMessage(), containsString("NumberFormatException[For input string: \"words words\"]"));
+            assertThat(failure.getMessage(), containsString("IllegalArgumentException[For input string: \"words words\"]"));
         }
     }
 

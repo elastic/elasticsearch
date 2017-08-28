@@ -55,9 +55,6 @@ import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -81,8 +78,6 @@ import java.util.Set;
 import static java.util.Collections.unmodifiableMap;
 
 public class Analysis {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Analysis.class));
 
     public static Version parseAnalysisVersion(Settings indexSettings, Settings settings, Logger logger) {
         // check for explicit version on the specific analyzer component
@@ -183,15 +178,14 @@ public class Analysis {
         return parseWords(env, settings, "common_words", defaultCommonWords, NAMED_STOP_WORDS, ignoreCase);
     }
 
-    public static CharArraySet parseArticles(Environment env, org.elasticsearch.Version indexCreatedVersion, Settings settings) {
-        boolean articlesCase = settings.getAsBooleanLenientForPreEs6Indices(indexCreatedVersion, "articles_case", false, deprecationLogger);
+    public static CharArraySet parseArticles(Environment env, Settings settings) {
+        boolean articlesCase = settings.getAsBoolean("articles_case", false);
         return parseWords(env, settings, "articles", null, null, articlesCase);
     }
 
-    public static CharArraySet parseStopWords(Environment env, org.elasticsearch.Version indexCreatedVersion, Settings settings,
+    public static CharArraySet parseStopWords(Environment env, Settings settings,
                                               CharArraySet defaultStopWords) {
-        boolean stopwordsCase =
-            settings.getAsBooleanLenientForPreEs6Indices(indexCreatedVersion, "stopwords_case", false, deprecationLogger);
+        boolean stopwordsCase = settings.getAsBoolean("stopwords_case", false);
         return parseStopWords(env, settings, defaultStopWords, stopwordsCase);
     }
 
@@ -214,14 +208,12 @@ public class Analysis {
         return setWords;
     }
 
-    public static CharArraySet getWordSet(Environment env, org.elasticsearch.Version indexCreatedVersion, Settings settings,
-                                          String settingsPrefix) {
+    public static CharArraySet getWordSet(Environment env, Settings settings, String settingsPrefix) {
         List<String> wordList = getWordList(env, settings, settingsPrefix);
         if (wordList == null) {
             return null;
         }
-        boolean ignoreCase =
-            settings.getAsBooleanLenientForPreEs6Indices(indexCreatedVersion, settingsPrefix + "_case", false, deprecationLogger);
+        boolean ignoreCase = settings.getAsBoolean(settingsPrefix + "_case", false);
         return new CharArraySet(wordList, ignoreCase);
     }
 

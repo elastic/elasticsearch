@@ -381,7 +381,8 @@ public class NodeStatsTests extends ESTestCase {
             }
             allCircuitBreakerStats = new AllCircuitBreakerStats(circuitBreakerStatsArray);
         }
-        ScriptStats scriptStats = frequently() ? new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
+        ScriptStats scriptStats = frequently() ?
+                new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
         DiscoveryStats discoveryStats = frequently() ? new DiscoveryStats(randomBoolean() ? new PendingClusterStateStats(randomInt(),
                 randomInt(), randomInt()) : null) : null;
         IngestStats ingestStats = null;

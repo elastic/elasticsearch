@@ -437,8 +437,12 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge("doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("doc",
-            "string_boost", "type=text,boost=4").string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge("doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(
+                "doc",
+                "string_boost", "type=text,boost=4", "string_no_pos",
+                "type=text,index_options=docs").string()
+            ),
+            MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     public void testMatchPhrasePrefixWithBoost() throws Exception {
@@ -463,6 +467,16 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             Query query = builder.toQuery(context);
             assertThat(query, instanceOf(MultiPhrasePrefixQuery.class));
         }
+    }
 
+    public void testLenientPhraseQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        MatchQuery b = new MatchQuery(context);
+        b.setLenient(true);
+        Query query = b.parse(Type.PHRASE, "string_no_pos", "foo bar");
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+        assertThat(query.toString(),
+            containsString("field:[string_no_pos] was indexed without position data; cannot run PhraseQuery"));
     }
 }

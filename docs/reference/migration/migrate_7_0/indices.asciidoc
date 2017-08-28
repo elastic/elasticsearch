@@ -1,0 +1,7 @@
+[[breaking_70_indices_changes]]
+=== Indices changes
+
+==== `:` is no longer allowed in index name
+
+Due to cross-cluster search using `:` to separate a cluster and index name,
+index names may no longer contain `:`.

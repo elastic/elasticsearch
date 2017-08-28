@@ -116,6 +116,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             validationException =
                 addValidationError("disabling [track_total_hits] is not allowed in a scroll context", validationException);
         }
+        if (source != null && source.from() > 0 &&  scroll() != null) {
+            validationException =
+                addValidationError("using [from] is not allowed in a scroll context", validationException);
+        }
         return validationException;
     }
 
@@ -381,6 +385,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 sb.append("], ");
                 sb.append("search_type[").append(searchType).append("], ");
                 if (source != null) {
+                    
                     sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
                 } else {
                     sb.append("source[]");

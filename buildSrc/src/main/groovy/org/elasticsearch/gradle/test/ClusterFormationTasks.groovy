@@ -206,7 +206,19 @@ class ClusterFormationTasks {
         for (Map.Entry<String, Object[]> command : node.config.setupCommands.entrySet()) {
             // the first argument is the actual script name, relative to home
             Object[] args = command.getValue().clone()
-            args[0] = new File(node.homeDir, args[0].toString())
+            final Object commandPath
+            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                /*
+                 * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+                 * getting the short name requiring the path to already exist. Note that we have to capture the value of arg[0] now
+                 * otherwise we would stack overflow later since arg[0] is replaced below.
+                 */
+                String argsZero = args[0]
+                commandPath = "${-> Paths.get(NodeInfo.getShortPathName(node.homeDir.toString())).resolve(argsZero.toString()).toString()}"
+            } else {
+                commandPath = node.homeDir.toPath().resolve(args[0].toString()).toString()
+            }
+            args[0] = commandPath
             setup = configureExecTask(taskName(prefix, node, command.getKey()), project, setup, node, args)
         }
 
@@ -337,7 +349,11 @@ class ClusterFormationTasks {
         if (node.config.keystoreSettings.isEmpty()) {
             return setup
         } else {
-            File esKeystoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
+            /*
+             * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+             * getting the short name requiring the path to already exist.
+             */
+            final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch-keystore').toString()}"
             return configureExecTask(name, project, setup, node, esKeystoreUtil, 'create')
         }
     }
@@ -345,8 +361,12 @@ class ClusterFormationTasks {
     /** Adds tasks to add settings to the keystore */
     static Task configureAddKeystoreSettingTasks(String parent, Project project, Task setup, NodeInfo node) {
         Map kvs = node.config.keystoreSettings
-        File esKeystoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
         Task parentTask = setup
+        /*
+         * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to getting
+         * the short name requiring the path to already exist.
+         */
+        final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch-keystore').toString()}"
         for (Map.Entry<String, String> entry in kvs) {
             String key = entry.getKey()
             String name = taskName(parent, node, 'addToKeystore#' + key)
@@ -482,8 +502,13 @@ class ClusterFormationTasks {
             pluginZip = project.configurations.getByName("_plugin_${prefix}_${plugin.path}")
         }
         // delay reading the file location until execution time by wrapping in a closure within a GString
-        Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
-        Object[] args = [new File(node.homeDir, 'bin/elasticsearch-plugin'), 'install', file]
+        final Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
+        /*
+         * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to getting
+         * the short name requiring the path to already exist.
+         */
+        final Object esPluginUtil = "${-> node.binPath().resolve('elasticsearch-plugin').toString()}"
+        final Object[] args = [esPluginUtil, 'install', file]
         return configureExecTask(name, project, setup, node, args)
     }
 

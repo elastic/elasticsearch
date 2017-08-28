@@ -267,7 +267,7 @@ public class TransportActionProxyTests extends ESTestCase {
     }
 
     public void testIsProxyRequest() {
-        assertTrue(TransportActionProxy.isProxyRequest(new TransportActionProxy.ProxyRequest<>(() -> null)));
+        assertTrue(TransportActionProxy.isProxyRequest(new TransportActionProxy.ProxyRequest<>((in) -> null)));
         assertFalse(TransportActionProxy.isProxyRequest(TransportRequest.Empty.INSTANCE));
     }
 }

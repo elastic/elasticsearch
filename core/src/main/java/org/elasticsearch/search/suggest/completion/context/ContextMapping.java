@@ -163,7 +163,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
 
     public static class InternalQueryContext {
         public enum Occur {
-            MUST, SHOULD, MUST_NOT;
+            MUST, SHOULD;
 
             public static Occur fromString(String occur) {
                 if (occur.equalsIgnoreCase("must")) {

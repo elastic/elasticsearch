@@ -77,17 +77,37 @@ if (bwcVersion.endsWith('-SNAPSHOT')) {
   }
 
   // this is an Exec task so that the SHA that is checked out is logged
+  String buildMetadataKey = "bwc_refspec_${project.path.substring(1)}"
   task checkoutBwcBranch(type: Exec) {
+    def String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(buildMetadataKey, "upstream/${bwcBranch}"))
     dependsOn fetchLatest
     workingDir = checkoutDir
-    commandLine = ['git', 'checkout', "upstream/${bwcBranch}"]
+    commandLine = ['git', 'checkout', refspec]
+  }
+
+  File buildMetadataFile = project.file("build/${project.name}/build_metadata")
+  task writeBuildMetadata(type: LoggedExec) {
+    dependsOn checkoutBwcBranch
+    workingDir = checkoutDir
+    commandLine = ['git', 'rev-parse', 'HEAD']
+    ignoreExitValue = true
+    ByteArrayOutputStream output = new ByteArrayOutputStream()
+    standardOutput = output
+    doLast {
+      if (execResult.exitValue != 0) {
+        output.toString('UTF-8').eachLine { line -> logger.error(line) }
+        execResult.assertNormalExitValue()
+      }
+      project.mkdir(buildMetadataFile.parent)
+      buildMetadataFile.setText("${buildMetadataKey}=${output.toString('UTF-8')}", 'UTF-8')
+    }
   }
 
   File bwcDeb = file("${checkoutDir}/distribution/deb/build/distributions/elasticsearch-${bwcVersion}.deb")
   File bwcRpm = file("${checkoutDir}/distribution/rpm/build/distributions/elasticsearch-${bwcVersion}.rpm")
   File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.zip")
   task buildBwcVersion(type: GradleBuild) {
-    dependsOn checkoutBwcBranch
+    dependsOn checkoutBwcBranch, writeBuildMetadata
     dir = checkoutDir
     tasks = [':distribution:deb:assemble', ':distribution:rpm:assemble', ':distribution:zip:assemble']
   }

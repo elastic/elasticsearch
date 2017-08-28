@@ -221,10 +221,10 @@ public class InetAddressesTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.parseCidr(""));
         assertThat(e.getMessage(), Matchers.containsString("Expected [ip/prefix] but was []"));
 
-        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.parseCidr("192.168.1.42/40"));
+        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.parseCidr("192.168.1.42/33"));
         assertThat(e.getMessage(), Matchers.containsString("Illegal prefix length"));
 
-        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.parseCidr("::1/130"));
+        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.parseCidr("::1/129"));
         assertThat(e.getMessage(), Matchers.containsString("Illegal prefix length"));
 
         e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.parseCidr("::ffff:0:0/96"));
@@ -237,5 +237,13 @@ public class InetAddressesTests extends ESTestCase {
         cidr = InetAddresses.parseCidr("::fffe:0:0/95");
         assertEquals(InetAddresses.forString("::fffe:0:0"), cidr.v1());
         assertEquals(Integer.valueOf(95), cidr.v2());
+
+        cidr = InetAddresses.parseCidr("192.168.0.0/32");
+        assertEquals(InetAddresses.forString("192.168.0.0"), cidr.v1());
+        assertEquals(Integer.valueOf(32), cidr.v2());
+
+        cidr = InetAddresses.parseCidr("::fffe:0:0/128");
+        assertEquals(InetAddresses.forString("::fffe:0:0"), cidr.v1());
+        assertEquals(Integer.valueOf(128), cidr.v2());
     }
 }

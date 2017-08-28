@@ -73,7 +73,7 @@ public class SearchAfterSortedDocQueryTests extends ESTestCase {
         FieldDoc fieldDoc = new FieldDoc(0, 0f, new Object[] {4, 5});
         IllegalArgumentException ex =
             expectThrows(IllegalArgumentException.class, () -> new SearchAfterSortedDocQuery(sort, fieldDoc));
-        assertThat(ex.getMessage(), equalTo("after doc  has 2 value(s) but sort has 1"));
+        assertThat(ex.getMessage(), equalTo("after doc has 2 value(s) but sort has 1"));
     }
 
     public void testRandom() throws IOException {

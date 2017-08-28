@@ -132,9 +132,9 @@ String buildMetadataValue = System.getenv('BUILD_METADATA')
 if (buildMetadataValue == null) {
   buildMetadataValue = ''
 }
-Map<String,String> buildMetadataMap = buildMetadataValue.tokenize(';').collectEntries {
+Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectEntries {
   def (String key, String value) = it.split('=')
-  return [key: value]
+  return [key, value]
 }
 
 // injecting groovy property variables into all projects

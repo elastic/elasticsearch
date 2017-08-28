@@ -42,9 +42,22 @@ public final class InternalSettingsPlugin extends Plugin {
         Setting.timeSetting("index.translog.retention.check_interval", new TimeValue(10, TimeUnit.MINUTES),
             new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic, Property.IndexScope);
 
+    public static final Setting<TimeValue> GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING =
+            Setting.timeSetting(
+                    "index.global_checkpoint_sync.interval",
+                    new TimeValue(30, TimeUnit.SECONDS),
+                    new TimeValue(0, TimeUnit.MILLISECONDS),
+                    Property.Dynamic,
+                    Property.IndexScope);
+
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(VERSION_CREATED, MERGE_ENABLED,
-            INDEX_CREATION_DATE_SETTING, PROVIDED_NAME_SETTING, TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING);
+        return Arrays.asList(
+                VERSION_CREATED,
+                MERGE_ENABLED,
+                INDEX_CREATION_DATE_SETTING,
+                PROVIDED_NAME_SETTING,
+                TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING,
+                GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING);
     }
 }

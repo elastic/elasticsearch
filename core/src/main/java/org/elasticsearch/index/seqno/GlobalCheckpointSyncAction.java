@@ -47,7 +47,7 @@ import org.elasticsearch.transport.TransportService;
 public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         GlobalCheckpointSyncAction.Request,
         GlobalCheckpointSyncAction.Request,
-        ReplicationResponse> implements IndexEventListener {
+        ReplicationResponse> {
 
     public static String ACTION_NAME = "indices:admin/seq_no/global_checkpoint_sync";
 
@@ -76,6 +76,10 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
                 ThreadPool.Names.SAME);
     }
 
+    public void updateGlobalCheckpointForShard(final ShardId shardId) {
+        execute(new Request(shardId));
+    }
+
     @Override
     protected ReplicationResponse newResponseInstance() {
         return new ReplicationResponse();
@@ -91,11 +95,6 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         } else {
             listener.onResponse(new ReplicaResponse(SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT));
         }
-    }
-
-    @Override
-    public void onShardInactive(final IndexShard indexShard) {
-        execute(new Request(indexShard.shardId()));
     }
 
     @Override

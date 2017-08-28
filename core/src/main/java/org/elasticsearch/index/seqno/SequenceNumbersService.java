@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.seqno;
 
+import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ReplicationGroup;
@@ -132,6 +134,16 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
+     * Update the local knowledge of the global checkpoint for the specified allocation ID.
+     *
+     * @param allocationId     the allocation ID to update the global checkpoint for
+     * @param globalCheckpoint the global checkpoint
+     */
+    public void updateGlobalCheckpointForShard(final String allocationId, final long globalCheckpoint) {
+        globalCheckpointTracker.updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
+    }
+
+    /**
      * Called when the recovery process for a shard is ready to open the engine on the target shard.
      * See {@link GlobalCheckpointTracker#initiateTracking(String)} for details.
      *
@@ -177,6 +189,17 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public long getGlobalCheckpoint() {
         return globalCheckpointTracker.getGlobalCheckpoint();
+    }
+
+    /**
+     * Returns the global checkpoints for all shards.
+     *
+     * @param allocationId the allocationId to use for the global checkpoint on the primary
+     *
+     * @return the global checkpoints for all shards
+     */
+    public ObjectLongMap<String> getGlobalCheckpoints(final String allocationId) {
+        return globalCheckpointTracker.getGlobalCheckpoints(allocationId);
     }
 
     /**

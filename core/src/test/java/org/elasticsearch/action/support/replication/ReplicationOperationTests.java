@@ -380,6 +380,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final long globalCheckpoint;
         final Supplier<ClusterState> clusterStateSupplier;
         final Map<String, Long> knownLocalCheckpoints = new HashMap<>();
+        final Map<String, Long> knownGlobalCheckpoints = new HashMap<>();
 
         TestPrimary(ShardRouting routing, Supplier<ClusterState> clusterStateSupplier) {
             this.routing = routing;
@@ -432,6 +433,11 @@ public class ReplicationOperationTests extends ESTestCase {
         @Override
         public void updateLocalCheckpointForShard(String allocationId, long checkpoint) {
             knownLocalCheckpoints.put(allocationId, checkpoint);
+        }
+
+        @Override
+        public void updateGlobalCheckpointForShard(String allocationId, long globalCheckpoint) {
+            knownGlobalCheckpoints.compute(allocationId, (k, v) -> v == null || globalCheckpoint > v ? globalCheckpoint : v);
         }
 
         @Override

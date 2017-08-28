@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.seqno;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -496,6 +498,38 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         assert invariant();
     }
 
+    private ObjectLongMap<String> globalCheckpoints = new ObjectLongHashMap<>();
+
+    /**
+     * Update the local knowledge of the global checkpoint for the specified allocation ID.
+     *
+     * @param allocationId     the allocation ID to update the global checkpoint for
+     * @param globalCheckpoint the global checkpoint
+     */
+    synchronized void updateGlobalCheckpointForShard(final String allocationId, final long globalCheckpoint) {
+        assert primaryMode;
+        assert handoffInProgress == false;
+        final long current = globalCheckpoints.getOrDefault(allocationId, SequenceNumbers.UNASSIGNED_SEQ_NO);
+        if (globalCheckpoint > current) {
+            globalCheckpoints.put(allocationId, globalCheckpoint);
+        }
+    }
+
+    /**
+     * Returns the global checkpoints for all shards.
+     *
+     * @param allocationId the allocationId to use for the global checkpoint on the primary
+     *
+     * @return the global checkpoints for all shards
+     */
+    synchronized ObjectLongMap<String> getGlobalCheckpoints(final String allocationId) {
+        assert primaryMode;
+        assert handoffInProgress == false;
+        final ObjectLongMap<String> copy = new ObjectLongHashMap<>(globalCheckpoints);
+        copy.put(allocationId, globalCheckpoint);
+        return copy;
+    }
+
     /**
      * Computes the global checkpoint based on the given local checkpoints. In case where there are entries preventing the
      * computation to happen (for example due to blocking), it returns the fallback value.
@@ -585,6 +619,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
                 lcps.localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
             }
         });
+        globalCheckpoints.clear();
         assert invariant();
     }
 

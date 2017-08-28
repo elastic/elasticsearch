@@ -1007,6 +1007,11 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
+        public void updateGlobalCheckpointForShard(final String allocationId, final long globalCheckpoint) {
+            indexShard.updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
+        }
+
+        @Override
         public long localCheckpoint() {
             return indexShard.getLocalCheckpoint();
         }

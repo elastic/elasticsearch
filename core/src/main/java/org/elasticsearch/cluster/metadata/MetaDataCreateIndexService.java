@@ -428,7 +428,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         (tmpImd.getNumberOfReplicas() + 1) + "]");
                 }
                 // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList());
+                final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList(), s -> {});
                 createdIndex = indexService.index();
                 // now add the mappings
                 MapperService mapperService = indexService.mapperService();

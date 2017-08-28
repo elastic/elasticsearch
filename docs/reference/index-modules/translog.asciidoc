@@ -131,6 +131,7 @@ Creating new empty checkpoint at [data/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/
 Creating new empty translog at [data/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/translog-3.tlog]
 Done.
 --------------------------------------------------
+// NOTCONSOLE
 
 You can also use the `-h` option to get a list of all options and parameters
 that the `elasticsearch-translog` tool supports.

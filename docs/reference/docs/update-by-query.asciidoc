@@ -262,6 +262,7 @@ The JSON response looks like this:
   "failures" : [ ]
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 `took`::
 
@@ -350,6 +351,8 @@ The responses looks like:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
+// We can't test tasks output
 
 <1> this object contains the actual status. It is just like the response json
 with the important addition of the `total` field. `total` is the total number

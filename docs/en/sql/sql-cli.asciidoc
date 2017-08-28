@@ -1,0 +1,5 @@
+[role="xpack"]
+[[sql-cli]]
+== SQL CLI
+
+Content

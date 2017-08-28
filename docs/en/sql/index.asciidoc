@@ -1,0 +1,14 @@
+[role="xpack"]
+[[xpack-sql]]
+= SQL Access
+
+[partintro]
+--
+Overview
+
+--
+
+include::sql-query-dsl.asciidoc[]
+include::sql-rest.asciidoc[]
+include::sql-jdbc.asciidoc[]
+include::sql-cli.asciidoc[]

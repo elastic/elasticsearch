@@ -18,7 +18,13 @@ include::setup-xes.asciidoc[]
 include::{es-repo-dir}/reference/index-shared2.asciidoc[]
 
 :edit_url!:
-include::rest-api/index.asciidoc[]
+include::sql/index.asciidoc[]
 
 :edit_url:
 include::{es-repo-dir}/reference/index-shared3.asciidoc[]
+
+:edit_url!:
+include::rest-api/index.asciidoc[]
+
+:edit_url:
+include::{es-repo-dir}/reference/index-shared4.asciidoc[]

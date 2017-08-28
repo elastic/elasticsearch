@@ -1,0 +1,5 @@
+[role="xpack"]
+[[sql-rest]]
+== SQL REST API
+
+Content

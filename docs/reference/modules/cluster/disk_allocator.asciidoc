@@ -66,6 +66,7 @@ PUT _cluster/settings
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 
 NOTE: Prior to 2.0.0, when using multiple data paths, the disk threshold
 decider only factored in the usage across all data paths (if you had two

@@ -80,6 +80,7 @@
             ingest.new_date_format: true
       warnings:
         - "[ingest.new_date_format] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+        - "[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
 
   - match: {transient: {ingest: {new_date_format: "true"}}}
 
@@ -115,5 +116,6 @@
             ingest.new_date_format: false
       warnings:
         - "[ingest.new_date_format] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+        - "[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
 
   - match: {transient: {ingest: {new_date_format: "false"}}}

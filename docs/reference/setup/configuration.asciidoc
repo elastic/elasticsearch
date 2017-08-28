@@ -216,6 +216,7 @@ PUT /_cluster/settings
 }
 -------------------------------
 // CONSOLE
+// TEST[warning:[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 
 This is most appropriate when you need to dynamically need to adjust a logging
 level on an actively-running cluster.

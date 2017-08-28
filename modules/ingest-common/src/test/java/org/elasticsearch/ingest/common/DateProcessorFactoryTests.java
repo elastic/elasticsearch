@@ -103,12 +103,9 @@ public class DateProcessorFactoryTests extends ESTestCase {
             config.put("field", sourceField);
             config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
             config.put("locale", locale);
-            try {
-                factory.create(null, null, config);
-                fail("should fail with invalid locale");
-            } catch(IllegalArgumentException e) {
-                assertThat(e.getMessage(), equalTo("Invalid language tag specified: " + locale));
-            }
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> factory.create(null, null, config));
+            assertThat(e.getMessage(), equalTo("Unknown language: " + locale.split("_")[0]));
         }
     }
 

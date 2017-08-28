@@ -149,7 +149,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
 
-        this.dynamic = this.indexSettings.getValue(INDEX_MAPPER_DYNAMIC_SETTING);
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
+            if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings())) {
+                throw new IllegalArgumentException("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey() + " was removed after version 6.0.0");
+            }
+            this.dynamic = INDEX_MAPPER_DYNAMIC_DEFAULT;
+        } else {
+            this.dynamic = this.indexSettings.getValue(INDEX_MAPPER_DYNAMIC_SETTING);
+        }
         defaultMappingSource = "{\"_default_\":{}}";
 
         if (logger.isTraceEnabled()) {

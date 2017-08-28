@@ -28,5 +28,5 @@ dependencies {
 }
 
 integTestCluster {
-  setting 'script.max_compilations_per_minute', '1000'
+  setting 'script.max_compilations_rate', '1000'
 }

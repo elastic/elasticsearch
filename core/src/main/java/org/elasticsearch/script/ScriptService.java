@@ -67,7 +67,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
         Setting.intSetting("script.max_size_in_bytes", 65535, Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_COMPILATIONS_PER_MINUTE =
-        Setting.intSetting("script.max_compilations_per_minute", 15, 0, Property.Dynamic, Property.NodeScope);
+        Setting.intSetting("script.max_compilations_rate", 75, 0, Property.Dynamic, Property.NodeScope);
 
     public static final String ALLOW_NONE = "none";
 
@@ -88,9 +88,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     private ClusterState clusterState;
 
-    private int totalCompilesPerMinute;
+    private int totalCompilesPerFiveMinutes;
     private long lastInlineCompileTime;
-    private double scriptsPerMinCounter;
+    private double scriptsPerFiveMinsCounter;
     private double compilesAllowedPerNano;
 
     public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
@@ -188,11 +188,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
         this.lastInlineCompileTime = System.nanoTime();
-        this.setMaxCompilationsPerMinute(SCRIPT_MAX_COMPILATIONS_PER_MINUTE.get(settings));
+        this.setMaxCompilationRate(SCRIPT_MAX_COMPILATIONS_PER_MINUTE.get(settings));
     }
 
     void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
-        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_PER_MINUTE, this::setMaxCompilationsPerMinute);
+        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_PER_MINUTE, this::setMaxCompilationRate);
     }
 
     @Override
@@ -208,11 +208,16 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return scriptEngine;
     }
 
-    void setMaxCompilationsPerMinute(Integer newMaxPerMinute) {
-        this.totalCompilesPerMinute = newMaxPerMinute;
+    /**
+     * This configures the maximum script compilations per five minute window.
+     *
+     * @param newRate the new expected maximum number of compilations per five minute window
+     */
+    void setMaxCompilationRate(Integer newRate) {
+        this.totalCompilesPerFiveMinutes = newRate;
         // Reset the counter to allow new compilations
-        this.scriptsPerMinCounter = totalCompilesPerMinute;
-        this.compilesAllowedPerNano = ((double) totalCompilesPerMinute) / TimeValue.timeValueMinutes(1).nanos();
+        this.scriptsPerFiveMinsCounter = totalCompilesPerFiveMinutes;
+        this.compilesAllowedPerNano = ((double) totalCompilesPerFiveMinutes) / TimeValue.timeValueMinutes(5).nanos();
     }
 
     /**
@@ -325,21 +330,21 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         long timePassed = now - lastInlineCompileTime;
         lastInlineCompileTime = now;
 
-        scriptsPerMinCounter += (timePassed) * compilesAllowedPerNano;
+        scriptsPerFiveMinsCounter += (timePassed) * compilesAllowedPerNano;
 
         // It's been over the time limit anyway, readjust the bucket to be level
-        if (scriptsPerMinCounter > totalCompilesPerMinute) {
-            scriptsPerMinCounter = totalCompilesPerMinute;
+        if (scriptsPerFiveMinsCounter > totalCompilesPerFiveMinutes) {
+            scriptsPerFiveMinsCounter = totalCompilesPerFiveMinutes;
         }
 
         // If there is enough tokens in the bucket, allow the request and decrease the tokens by 1
-        if (scriptsPerMinCounter >= 1) {
-            scriptsPerMinCounter -= 1.0;
+        if (scriptsPerFiveMinsCounter >= 1) {
+            scriptsPerFiveMinsCounter -= 1.0;
         } else {
             scriptMetrics.onCompilationLimit();
             // Otherwise reject the request
-            throw new CircuitBreakingException("[script] Too many dynamic script compilations within one minute, max: [" +
-                            totalCompilesPerMinute + "/min]; please use on-disk, indexed, or scripts with parameters instead; " +
+            throw new CircuitBreakingException("[script] Too many dynamic script compilations within five minute window, max: [" +
+                    totalCompilesPerFiveMinutes + "/min]; please use indexed, or scripts with parameters instead; " +
                             "this limit can be changed by the [" + SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey() + "] setting");
         }
     }

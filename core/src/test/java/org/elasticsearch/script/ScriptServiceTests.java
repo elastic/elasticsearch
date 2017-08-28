@@ -82,24 +82,26 @@ public class ScriptServiceTests extends ESTestCase {
         };
     }
 
+    // even though circuit breaking is allowed to be configured per minute, we actually weigh this over five minutes
+    // simply by multiplying by five, so even setting it to one, requires five compilations to break
     public void testCompilationCircuitBreaking() throws Exception {
         buildScriptService(Settings.EMPTY);
-        scriptService.setMaxCompilationsPerMinute(1);
+        scriptService.setMaxCompilationRate(1);
         scriptService.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationsPerMinute(2);
+        scriptService.setMaxCompilationRate(2);
         scriptService.checkCompilationLimit(); // should pass
         scriptService.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
         int count = randomIntBetween(5, 50);
-        scriptService.setMaxCompilationsPerMinute(count);
+        scriptService.setMaxCompilationRate(count);
         for (int i = 0; i < count; i++) {
             scriptService.checkCompilationLimit(); // should pass
         }
         expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationsPerMinute(0);
+        scriptService.setMaxCompilationRate(0);
         expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationsPerMinute(Integer.MAX_VALUE);
+        scriptService.setMaxCompilationRate(Integer.MAX_VALUE);
         int largeLimit = randomIntBetween(1000, 10000);
         for (int i = 0; i < largeLimit; i++) {
             scriptService.checkCompilationLimit();

@@ -23,18 +23,19 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -46,8 +47,9 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentToBytes implements NamedWriteable {
+public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWriteable, ToXContentObject, Rewriteable<SortBuilder<?>> {
 
     protected SortOrder order = SortOrder.ASC;
 
@@ -89,14 +91,13 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
         return this.order;
     }
 
-    public static List<SortBuilder<?>> fromXContent(QueryParseContext context) throws IOException {
+    public static List<SortBuilder<?>> fromXContent(XContentParser parser) throws IOException {
         List<SortBuilder<?>> sortFields = new ArrayList<>(2);
-        XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 if (token == XContentParser.Token.START_OBJECT) {
-                    parseCompoundSortField(context, sortFields);
+                    parseCompoundSortField(parser, sortFields);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     String fieldName = parser.text();
                     sortFields.add(fieldOrScoreSort(fieldName));
@@ -109,7 +110,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
             String fieldName = parser.text();
             sortFields.add(fieldOrScoreSort(fieldName));
         } else if (token == XContentParser.Token.START_OBJECT) {
-            parseCompoundSortField(context, sortFields);
+            parseCompoundSortField(parser, sortFields);
         } else {
             throw new IllegalArgumentException("malformed sort format, either start with array, object, or an actual string");
         }
@@ -124,10 +125,9 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
         }
     }
 
-    private static void parseCompoundSortField(QueryParseContext context, List<SortBuilder<?>> sortFields)
+    private static void parseCompoundSortField(XContentParser parser, List<SortBuilder<?>> sortFields)
             throws IOException {
         XContentParser.Token token;
-        XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String fieldName = parser.currentName();
@@ -137,9 +137,9 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
                     sortFields.add(fieldOrScoreSort(fieldName).order(order));
                 } else {
                     if (PARSERS.containsKey(fieldName)) {
-                        sortFields.add(PARSERS.get(fieldName).fromXContent(context, fieldName));
+                        sortFields.add(PARSERS.get(fieldName).fromXContent(parser, fieldName));
                     } else {
-                        sortFields.add(FieldSortBuilder.fromXContent(context, fieldName));
+                        sortFields.add(FieldSortBuilder.fromXContent(parser, fieldName));
                     }
                 }
             }
@@ -191,7 +191,8 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
             Query innerDocumentsQuery;
             if (nestedFilter != null) {
                 context.nestedScope().nextLevel(nestedObjectMapper);
-                innerDocumentsQuery = QueryBuilder.rewriteQuery(nestedFilter, context).toFilter(context);
+                assert nestedFilter == Rewriteable.rewrite(nestedFilter, context) : "nested filter is not rewritten";
+                innerDocumentsQuery = nestedFilter.toFilter(context);
                 context.nestedScope().previousLevel();
             } else {
                 innerDocumentsQuery = nestedObjectMapper.nestedTypeFilter();
@@ -201,9 +202,9 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
         return nested;
     }
 
-    protected static QueryBuilder parseNestedFilter(XContentParser parser, QueryParseContext context) {
+    protected static QueryBuilder parseNestedFilter(XContentParser parser) {
         try {
-            return context.parseInnerQueryBuilder();
+            return parseInnerQueryBuilder(parser);
         } catch (Exception e) {
             throw new ParsingException(parser.getTokenLocation(), "Expected " + NESTED_FILTER_FIELD.getPreferredName() + " element.", e);
         }
@@ -211,6 +212,11 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
 
     @FunctionalInterface
     private interface Parser<T extends SortBuilder<?>> {
-        T fromXContent(QueryParseContext context, String elementName) throws IOException;
+        T fromXContent(XContentParser parser, String elementName) throws IOException;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

@@ -52,7 +52,6 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
@@ -103,13 +102,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
         assertTrue(globalAgg.remapGlobalOrds());
 
-        aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.STRING)
-            .field("string")
-            .executionHint("global_ordinals_hash");
-        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
-        globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
-        assertTrue(globalAgg.remapGlobalOrds());
         indexReader.close();
         directory.close();
     }

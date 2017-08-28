@@ -24,7 +24,6 @@ import org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 

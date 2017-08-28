@@ -176,7 +176,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             transportService = new TransportService(settings,
                     new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService(),
                         new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                        new NetworkService(settings, Collections.emptyList())),
+                        new NetworkService(Collections.emptyList())),
                     threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddressDiscoveryNodeFunction, null) {
                 @Override
                 protected TaskManager createTaskManager() {

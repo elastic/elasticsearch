@@ -51,14 +51,13 @@ public class StoredExpressionTests extends ESIntegTestCase {
 
     public void testAllOpsDisabledIndexedScripts() throws IOException {
         client().admin().cluster().preparePutStoredScript()
-                .setLang(ExpressionScriptEngine.NAME)
                 .setId("script1")
-                .setContent(new BytesArray("{\"script\":\"2\"}"), XContentType.JSON)
+                .setContent(new BytesArray("{\"script\": {\"lang\": \"expression\", \"source\": \"2\"} }"), XContentType.JSON)
                 .get();
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
-                    .setScript(new Script(ScriptType.STORED, ExpressionScriptEngine.NAME, "script1", Collections.emptyMap())).get();
+                    .setScript(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
@@ -67,7 +66,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
         try {
             client().prepareSearch()
                     .setSource(
-                            new SearchSourceBuilder().scriptField("test1", new Script(ScriptType.STORED, "expression", "script1", Collections.emptyMap())))
+                            new SearchSourceBuilder().scriptField("test1", new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())))
                     .setIndices("test").setTypes("scriptTest").get();
             fail("search script should have been rejected");
         } catch(Exception e) {
@@ -77,7 +76,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
             client().prepareSearch("test")
                     .setSource(
                             new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
-                                    new Script(ScriptType.STORED, "expression", "script1", Collections.emptyMap())))).get();
+                                    new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())))).get();
         } catch (Exception e) {
             assertThat(e.toString(), containsString("cannot execute scripts using [aggs] context"));
         }

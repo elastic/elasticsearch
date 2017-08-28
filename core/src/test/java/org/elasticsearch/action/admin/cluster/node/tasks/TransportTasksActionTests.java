@@ -217,7 +217,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         private List<TestTaskResponse> tasks;
 
         TestTasksResponse() {
-
+            super(null, null);
         }
 
         TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures,

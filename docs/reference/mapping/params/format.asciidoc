@@ -31,8 +31,7 @@ Many APIs which support date values also support <<date-math,date math>>
 expressions, such as `now-1m/d` -- the current time, minus one month, rounded
 down to the nearest day.
 
-TIP: The `format` setting must have the same setting for fields of the same
-name in the same index.  Its value can be updated on existing fields using the
+TIP: The `format` setting can be updated on existing fields using the
 <<indices-put-mapping,PUT mapping API>>.
 
 
@@ -174,7 +173,7 @@ The following tables lists all the defaults ISO formats supported:
 
 `date_time` or `strict_date_time`::
 
-    A formatter that combines a full date and time, separated by a 'T': 
+    A formatter that combines a full date and time, separated by a 'T':
     `yyyy-MM-dd'T'HH:mm:ss.SSSZZ`.
 
 `date_time_no_millis` or `strict_date_time_no_millis`::

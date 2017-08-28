@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -59,7 +58,7 @@ public class MultiMatchQuery extends MatchQuery {
     private Query parseAndApply(Type type, String fieldName, Object value, String minimumShouldMatch, Float boostValue) throws IOException {
         Query query = parse(type, fieldName, value);
         query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
-        if (query != null && boostValue != null && boostValue != AbstractQueryBuilder.DEFAULT_BOOST) {
+        if (query != null && boostValue != null && boostValue != AbstractQueryBuilder.DEFAULT_BOOST && query instanceof MatchNoDocsQuery == false) {
             query = new BoostQuery(query, boostValue);
         }
         return query;
@@ -89,7 +88,6 @@ public class MultiMatchQuery extends MatchQuery {
             final List<? extends Query> queries = queryBuilder.buildGroupedQueries(type, fieldNames, value, minimumShouldMatch);
             result = queryBuilder.combineGrouped(queries);
         }
-        assert result != null;
         return result;
     }
 
@@ -140,7 +138,7 @@ public class MultiMatchQuery extends MatchQuery {
             return MultiMatchQuery.super.blendTermsQuery(terms, fieldType);
         }
 
-        public Query termQuery(MappedFieldType fieldType, Object value) {
+        public Query termQuery(MappedFieldType fieldType, BytesRef value) {
             return MultiMatchQuery.this.termQuery(fieldType, value, lenient);
         }
     }
@@ -155,12 +153,12 @@ public class MultiMatchQuery extends MatchQuery {
         @Override
         public List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException {
             Map<Analyzer, List<FieldAndFieldType>> groups = new HashMap<>();
-            List<Tuple<String, Float>> missing = new ArrayList<>();
+            List<Query> queries = new ArrayList<>();
             for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {
                 String name = entry.getKey();
                 MappedFieldType fieldType = context.fieldMapper(name);
                 if (fieldType != null) {
-                    Analyzer actualAnalyzer = getAnalyzer(fieldType);
+                    Analyzer actualAnalyzer = getAnalyzer(fieldType, type == MultiMatchQueryBuilder.Type.PHRASE);
                     name = fieldType.name();
                     if (!groups.containsKey(actualAnalyzer)) {
                        groups.put(actualAnalyzer, new ArrayList<>());
@@ -169,15 +167,7 @@ public class MultiMatchQuery extends MatchQuery {
                     boost = boost == null ? Float.valueOf(1.0f) : boost;
                     groups.get(actualAnalyzer).add(new FieldAndFieldType(fieldType, boost));
                 } else {
-                    missing.add(new Tuple<>(name, entry.getValue()));
-                }
-
-            }
-            List<Query> queries = new ArrayList<>();
-            for (Tuple<String, Float> tuple : missing) {
-                Query q = parseGroup(type.matchQueryType(), tuple.v1(), tuple.v2(), value, minimumShouldMatch);
-                if (q != null) {
-                    queries.add(q);
+                    queries.add(new MatchNoDocsQuery("unknown field " + name));
                 }
             }
             for (List<FieldAndFieldType> group : groups.values()) {
@@ -226,13 +216,13 @@ public class MultiMatchQuery extends MatchQuery {
         }
 
         @Override
-        public Query termQuery(MappedFieldType fieldType, Object value) {
+        public Query termQuery(MappedFieldType fieldType, BytesRef value) {
             /*
              * Use the string value of the term because we're reusing the
              * portion of the query is usually after the analyzer has run on
              * each term. We just skip that analyzer phase.
              */
-            return blendTerm(new Term(fieldType.name(), value.toString()), fieldType);
+            return blendTerm(new Term(fieldType.name(), value.utf8ToString()), fieldType);
         }
     }
 
@@ -242,7 +232,7 @@ public class MultiMatchQuery extends MatchQuery {
     }
 
     static Query blendTerms(QueryShardContext context, BytesRef[] values, Float commonTermsCutoff, float tieBreaker,
-            FieldAndFieldType... blendedFields) {
+                            FieldAndFieldType... blendedFields) {
         List<Query> queries = new ArrayList<>();
         Term[] terms = new Term[blendedFields.length * values.length];
         float[] blendedBoost = new float[blendedFields.length * values.length];
@@ -277,7 +267,7 @@ public class MultiMatchQuery extends MatchQuery {
                     blendedBoost[i] = boost;
                     i++;
                 } else {
-                    if (boost != 1f) {
+                    if (boost != 1f && query instanceof MatchNoDocsQuery == false) {
                         query = new BoostQuery(query, boost);
                     }
                     queries.add(query);

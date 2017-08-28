@@ -86,6 +86,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -150,7 +151,10 @@ public class InternalEngine extends Engine {
         }
         this.uidField = engineConfig.getIndexSettings().isSingleType() ? IdFieldMapper.NAME : UidFieldMapper.NAME;
         this.versionMap = new LiveVersionMap();
-        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
+        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
+            engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
+            engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
+        );
         this.deletionPolicy = new CombinedDeletionPolicy(
             new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()), translogDeletionPolicy, openMode);
         store.incRef();
@@ -230,6 +234,22 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public void restoreLocalCheckpointFromTranslog() throws IOException {
+        try (ReleasableLock ignored = writeLock.acquire()) {
+            ensureOpen();
+            final long localCheckpoint = seqNoService().getLocalCheckpoint();
+            try (Translog.Snapshot snapshot = getTranslog().newSnapshotFromMinSeqNo(localCheckpoint + 1)) {
+                Translog.Operation operation;
+                while ((operation = snapshot.next()) != null) {
+                    if (operation.seqNo() > localCheckpoint) {
+                        seqNoService().markSeqNoAsCompleted(operation.seqNo());
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
@@ -304,9 +324,8 @@ public class InternalEngine extends Engine {
     private void recoverFromTranslogInternal() throws IOException {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
-        try {
-            final long translogGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-            Translog.Snapshot snapshot = translog.newSnapshot(translogGen);
+        final long translogGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+        try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(translogGen)) {
             opsRecovered = config().getTranslogRecoveryRunner().run(this, snapshot);
         } catch (Exception e) {
             throw new EngineException(shardId, "failed to recover from translog", e);
@@ -673,14 +692,23 @@ public class InternalEngine extends Engine {
             // this allows to ignore the case where a document was found in the live version maps in
             // a delete state and return false for the created flag in favor of code simplicity
             final OpVsLuceneDocStatus opVsLucene;
-            if (index.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
-            } else {
+            if (index.seqNo() == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
                 // This can happen if the primary is still on an old node and send traffic without seq# or we recover from translog
                 // created by an old version.
                 assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) :
                     "index is newly created but op has no sequence numbers. op: " + index;
                 opVsLucene = compareOpToLuceneDocBasedOnVersions(index);
+            } else if (index.seqNo() <= seqNoService.getLocalCheckpoint()){
+                // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
+                // this can happen during recovery where older operations are sent from the translog that are already
+                // part of the lucene commit (either from a peer recovery or a local translog)
+                // or due to concurrent indexing & recovery. For the former it is important to skip lucene as the operation in
+                // question may have been deleted in an out of order op that is not replayed.
+                // See testRecoverFromStoreWithOutOfOrderDelete for an example of local recovery
+                // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
+                opVsLucene = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+            } else {
+                opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
             }
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
                 plan = IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
@@ -959,12 +987,21 @@ public class InternalEngine extends Engine {
         // this allows to ignore the case where a document was found in the live version maps in
         // a delete state and return true for the found flag in favor of code simplicity
         final OpVsLuceneDocStatus opVsLucene;
-        if (delete.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-            opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
-        } else {
+        if (delete.seqNo() == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
             assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) :
                 "index is newly created but op has no sequence numbers. op: " + delete;
             opVsLucene = compareOpToLuceneDocBasedOnVersions(delete);
+        } else if (delete.seqNo() <= seqNoService.getLocalCheckpoint()) {
+            // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
+            // this can happen during recovery where older operations are sent from the translog that are already
+            // part of the lucene commit (either from a peer recovery or a local translog)
+            // or due to concurrent indexing & recovery. For the former it is important to skip lucene as the operation in
+            // question may have been deleted in an out of order op that is not replayed.
+            // See testRecoverFromStoreWithOutOfOrderDelete for an example of local recovery
+            // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
+            opVsLucene = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+        } else {
+            opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
         }
 
         final DeletionStrategy plan;
@@ -1212,7 +1249,7 @@ public class InternalEngine extends Engine {
             ensureOpen();
             ensureCanFlush();
             String syncId = lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID);
-            if (syncId != null && translog.totalOperations() == 0 && indexWriter.hasUncommittedChanges()) {
+            if (syncId != null && translog.uncommittedOperations() == 0 && indexWriter.hasUncommittedChanges()) {
                 logger.trace("start renewing sync commit [{}]", syncId);
                 commitIndexWriter(indexWriter, translog, syncId);
                 logger.debug("successfully sync committed. sync id [{}].", syncId);
@@ -1312,6 +1349,43 @@ public class InternalEngine extends Engine {
             pruneDeletedTombstones();
         }
         return new CommitId(newCommitId);
+    }
+
+    @Override
+    public void rollTranslogGeneration() throws EngineException {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            translog.rollGeneration();
+            translog.trimUnreferencedReaders();
+        } catch (AlreadyClosedException e) {
+            failOnTragicEvent(e);
+            throw e;
+        } catch (Exception e) {
+            try {
+                failEngine("translog trimming failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new EngineException(shardId, "failed to roll translog", e);
+        }
+    }
+
+    @Override
+    public void trimTranslog() throws EngineException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            translog.trimUnreferencedReaders();
+        } catch (AlreadyClosedException e) {
+            failOnTragicEvent(e);
+            throw e;
+        } catch (Exception e) {
+            try {
+                failEngine("translog trimming failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new EngineException(shardId, "failed to trim translog", e);
+        }
     }
 
     private void pruneDeletedTombstones() {
@@ -1525,7 +1599,7 @@ public class InternalEngine extends Engine {
      * is failed.
      */
     @Override
-    protected final void closeNoLock(String reason) {
+    protected final void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
@@ -1552,8 +1626,12 @@ public class InternalEngine extends Engine {
             } catch (Exception e) {
                 logger.warn("failed to rollback writer on close", e);
             } finally {
-                store.decRef();
-                logger.debug("engine closed [{}]", reason);
+                try {
+                    store.decRef();
+                    logger.debug("engine closed [{}]", reason);
+                } finally {
+                    closedLatch.countDown();
+                }
             }
         }
     }
@@ -1854,6 +1932,10 @@ public class InternalEngine extends Engine {
             // the setting will be re-interpreted if it's set to true
             this.maxUnsafeAutoIdTimestamp.set(Long.MAX_VALUE);
         }
+        final TranslogDeletionPolicy translogDeletionPolicy = translog.getDeletionPolicy();
+        final IndexSettings indexSettings = engineConfig.getIndexSettings();
+        translogDeletionPolicy.setRetentionAgeInMillis(indexSettings.getTranslogRetentionAge().getMillis());
+        translogDeletionPolicy.setRetentionSizeInBytes(indexSettings.getTranslogRetentionSize().getBytes());
     }
 
     public MergeStats getMergeStats() {

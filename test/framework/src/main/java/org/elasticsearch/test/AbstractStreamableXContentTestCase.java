@@ -18,18 +18,17 @@
  */
 package org.elasticsearch.test;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & Streamable> extends AbstractStreamableTestCase<T> {
 
@@ -41,23 +40,38 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             T testInstance = createTestInstance();
             XContentType xContentType = randomFrom(XContentType.values());
-            XContentBuilder builder = toXContent(testInstance, xContentType);
-            XContentBuilder shuffled = shuffleXContent(builder);
-            assertParsedInstance(xContentType, shuffled.bytes(), testInstance);
-            for (Map.Entry<String, T> alternateVersion : getAlternateVersions().entrySet()) {
-                String instanceAsString = alternateVersion.getKey();
-                assertParsedInstance(XContentType.JSON, new BytesArray(instanceAsString), alternateVersion.getValue());
+            BytesReference shuffled = toShuffledXContent(testInstance, xContentType, ToXContent.EMPTY_PARAMS, false);
+            BytesReference withRandomFields;
+            if (supportsUnknownFields()) {
+                // we add a few random fields to check that parser is lenient on new fields
+                withRandomFields = XContentTestUtils.insertRandomFields(xContentType, shuffled, null, random());
+            } else {
+                withRandomFields = shuffled;
             }
+            XContentParser parser = createParser(XContentFactory.xContent(xContentType), withRandomFields);
+            T parsed = parseInstance(parser);
+            T expected = getExpectedFromXContent(testInstance);
+            assertNotSame(expected, parsed);
+            assertEquals(expected, parsed);
+            assertEquals(expected.hashCode(), parsed.hashCode());
+            assertToXContentEquivalent(shuffled, XContentHelper.toXContent(parsed, xContentType, false), xContentType);
         }
     }
 
-    private void assertParsedInstance(XContentType xContentType, BytesReference instanceAsBytes, T expectedInstance)
-            throws IOException {
-        XContentParser parser = createParser(XContentFactory.xContent(xContentType), instanceAsBytes);
-        T newInstance = parseInstance(parser);
-        assertNotSame(newInstance, expectedInstance);
-        assertEquals(expectedInstance, newInstance);
-        assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
+    /**
+     * Returns the expected parsed object given the test object that the parser will be fed with.
+     * Useful in cases some fields are not written as part of toXContent, hence not parsed back.
+     */
+    protected T getExpectedFromXContent(T testInstance) {
+        return testInstance;
+    }
+
+    /**
+     * Indicates whether the parser supports unknown fields or not. In case it does, such behaviour will be tested by
+     * inserting random fields before parsing and checking that they don't make parsing fail.
+     */
+    protected boolean supportsUnknownFields() {
+        return true;
     }
 
     private T parseInstance(XContentParser parser) throws IOException {
@@ -70,33 +84,4 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
      * Parses to a new instance using the provided {@link XContentParser}
      */
     protected abstract T doParseInstance(XContentParser parser);
-
-    /**
-     * Renders the provided instance in XContent
-     * 
-     * @param instance
-     *            the instance to render
-     * @param contentType
-     *            the content type to render to
-     */
-    protected static <T extends ToXContent> XContentBuilder toXContent(T instance, XContentType contentType)
-            throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-        if (randomBoolean()) {
-            builder.prettyPrint();
-        }
-        instance.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        return builder;
-    }
-
-    /**
-     * Returns alternate string representation of the instance that need to be
-     * tested as they are never used as output of the test instance. By default
-     * there are no alternate versions.
-     * 
-     * These alternatives must be JSON strings.
-     */
-    protected Map<String, T> getAlternateVersions() {
-        return Collections.emptyMap();
-    }
 }

@@ -66,9 +66,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setMaxBufferedDocs(100);
-        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a
-                                                   // single segment with
-                                                   // predictable docIds
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             for (int i = 0; i < 10; i++) {
                 Document doc = new Document();
@@ -133,6 +131,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             for (int i = 0; i < 10; i++) {
                 Document doc = new Document();

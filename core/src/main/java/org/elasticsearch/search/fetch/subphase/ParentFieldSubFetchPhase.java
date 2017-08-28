@@ -23,8 +23,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -51,12 +51,12 @@ public final class ParentFieldSubFetchPhase implements FetchSubPhase {
             return;
         }
 
-        Map<String, SearchHitField> fields = hitContext.hit().fieldsOrNull();
+        Map<String, DocumentField> fields = hitContext.hit().fieldsOrNull();
         if (fields == null) {
             fields = new HashMap<>();
             hitContext.hit().fields(fields);
         }
-        fields.put(ParentFieldMapper.NAME, new SearchHitField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
+        fields.put(ParentFieldMapper.NAME, new DocumentField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
     }
 
     public static String getParentId(ParentFieldMapper fieldMapper, LeafReader reader, int docId) {

@@ -56,6 +56,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -223,7 +224,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             final long minGenerationToRecoverFrom;
             if (checkpoint.minTranslogGeneration < 0) {
                 final Version indexVersionCreated = indexSettings().getIndexVersionCreated();
-                assert indexVersionCreated.before(Version.V_6_0_0_alpha3) :
+                assert indexVersionCreated.before(Version.V_6_0_0_beta1) :
                     "no minTranslogGeneration in checkpoint, but index was created with version [" + indexVersionCreated + "]";
                 minGenerationToRecoverFrom = deletionPolicy.getMinTranslogGenerationForRecovery();
             } else {
@@ -326,7 +327,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 try {
                     current.sync();
                 } finally {
-                    closeFilesIfNoPendingViews();
+                    closeFilesIfNoPendingRetentionLocks();
                 }
             } finally {
                 logger.debug("translog closed");
@@ -360,6 +361,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (readers.isEmpty()) {
                 return current.getGeneration();
             } else {
+                assert readers.stream().map(TranslogReader::getGeneration).min(Long::compareTo).get()
+                    .equals(readers.get(0).getGeneration()) : "the first translog isn't the one with the minimum generation:" + readers;
                 return readers.get(0).getGeneration();
             }
         }
@@ -367,17 +370,31 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
 
     /**
-     * Returns the number of operations in the transaction files that aren't committed to lucene..
+     * Returns the number of operations in the translog files that aren't committed to lucene.
      */
-    public int totalOperations() {
+    public int uncommittedOperations() {
         return totalOperations(deletionPolicy.getMinTranslogGenerationForRecovery());
     }
 
     /**
      * Returns the size in bytes of the translog files that aren't committed to lucene.
      */
+    public long uncommittedSizeInBytes() {
+        return sizeInBytesByMinGen(deletionPolicy.getMinTranslogGenerationForRecovery());
+    }
+
+    /**
+     * Returns the number of operations in the translog files
+     */
+    public int totalOperations() {
+        return totalOperations(-1);
+    }
+
+    /**
+     * Returns the size in bytes of the v files
+     */
     public long sizeInBytes() {
-        return sizeInBytes(deletionPolicy.getMinTranslogGenerationForRecovery());
+        return sizeInBytesByMinGen(-1);
     }
 
     /**
@@ -394,15 +411,35 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Returns the size in bytes of the translog files that aren't committed to lucene.
+     * Returns the number of operations in the transaction files that contain operations with seq# above the given number.
      */
-    private long sizeInBytes(long minGeneration) {
+    public int estimateTotalOperationsFromMinSeq(long minSeqNo) {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            return readersAboveMinSeqNo(minSeqNo).mapToInt(BaseTranslogReader::totalOperations).sum();
+        }
+    }
+
+    /**
+     * Returns the size in bytes of the translog files above the given generation
+     */
+    private long sizeInBytesByMinGen(long minGeneration) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return Stream.concat(readers.stream(), Stream.of(current))
                     .filter(r -> r.getGeneration() >= minGeneration)
                     .mapToLong(BaseTranslogReader::sizeInBytes)
                     .sum();
+        }
+    }
+
+    /**
+     * Returns the size in bytes of the translog files with ops above the given seqNo
+     */
+    private long sizeOfGensAboveSeqNoInBytes(long minSeqNo) {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            return readersAboveMinSeqNo(minSeqNo).mapToLong(BaseTranslogReader::sizeInBytes).sum();
         }
     }
 
@@ -493,7 +530,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @return {@code true} if the translog should be flushed
      */
     public boolean shouldFlush() {
-        final long size = this.sizeInBytes();
+        final long size = this.uncommittedSizeInBytes();
         return size > this.indexSettings.getFlushThresholdSize().getBytes();
     }
 
@@ -540,41 +577,88 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * Snapshots the current transaction log allowing to safely iterate over the snapshot.
      * Snapshots are fixed in time and will not be updated with future operations.
      */
-    public Snapshot newSnapshot() {
+    public Snapshot newSnapshot() throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
-            return newSnapshot(getMinFileGeneration());
+            return newSnapshotFromGen(getMinFileGeneration());
         }
     }
 
-    public Snapshot newSnapshot(long minGeneration) {
+    public Snapshot newSnapshotFromGen(long minGeneration) throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             if (minGeneration < getMinFileGeneration()) {
                 throw new IllegalArgumentException("requested snapshot generation [" + minGeneration + "] is not available. " +
                     "Min referenced generation is [" + getMinFileGeneration() + "]");
             }
-            Snapshot[] snapshots = Stream.concat(readers.stream(), Stream.of(current))
+            TranslogSnapshot[] snapshots = Stream.concat(readers.stream(), Stream.of(current))
                     .filter(reader -> reader.getGeneration() >= minGeneration)
-                    .map(BaseTranslogReader::newSnapshot).toArray(Snapshot[]::new);
-            return new MultiSnapshot(snapshots);
+                    .map(BaseTranslogReader::newSnapshot).toArray(TranslogSnapshot[]::new);
+            return newMultiSnapshot(snapshots);
         }
     }
 
-    /**
-     * Returns a view into the current translog that is guaranteed to retain all current operations
-     * while receiving future ones as well
-     */
-    public Translog.View newView() {
-        try (ReleasableLock lock = readLock.acquire()) {
+    public Snapshot newSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
+        try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            final long viewGen = deletionPolicy.acquireTranslogGenForView();
-            try {
-                return new View(viewGen);
-            } catch (Exception e) {
-                deletionPolicy.releaseTranslogGenView(viewGen);
-                throw e;
+            TranslogSnapshot[] snapshots = readersAboveMinSeqNo(minSeqNo).map(BaseTranslogReader::newSnapshot)
+                .toArray(TranslogSnapshot[]::new);
+            return newMultiSnapshot(snapshots);
+        }
+    }
+
+    private Snapshot newMultiSnapshot(TranslogSnapshot[] snapshots) throws IOException {
+        final Closeable onClose;
+        if (snapshots.length == 0) {
+            onClose = () -> {};
+        } else {
+            assert Arrays.stream(snapshots).map(BaseTranslogReader::getGeneration).min(Long::compareTo).get()
+                == snapshots[0].generation : "first reader generation of " + snapshots + " is not the smallest";
+            onClose = acquireTranslogGenFromDeletionPolicy(snapshots[0].generation);
+        }
+        boolean success = false;
+        try {
+            Snapshot result = new MultiSnapshot(snapshots, onClose);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                onClose.close();
             }
         }
+    }
+
+    private Stream<? extends BaseTranslogReader> readersAboveMinSeqNo(long minSeqNo) {
+        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread() :
+        "callers of readersAboveMinSeqNo must hold a lock: readLock ["
+            + readLock.isHeldByCurrentThread() + "], writeLock [" + readLock.isHeldByCurrentThread() + "]";
+        return Stream.concat(readers.stream(), Stream.of(current))
+            .filter(reader -> {
+                final long maxSeqNo = reader.getCheckpoint().maxSeqNo;
+                return maxSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO || maxSeqNo >= minSeqNo;
+            });
+    }
+
+    /**
+     * Acquires a lock on the translog files, preventing them from being trimmed
+     */
+    public Closeable acquireRetentionLock() {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            final long viewGen = getMinFileGeneration();
+            return acquireTranslogGenFromDeletionPolicy(viewGen);
+        }
+    }
+
+    private Closeable acquireTranslogGenFromDeletionPolicy(long viewGen) {
+        Releasable toClose = deletionPolicy.acquireTranslogGen(viewGen);
+        return () -> {
+            try {
+                toClose.close();
+            } finally {
+                trimUnreferencedReaders();
+                closeFilesIfNoPendingRetentionLocks();
+            }
+        };
     }
 
     /**
@@ -674,7 +758,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public TranslogStats stats() {
         // acquire lock to make the two numbers roughly consistent (no file change half way)
         try (ReleasableLock lock = readLock.acquire()) {
-            return new TranslogStats(totalOperations(), sizeInBytes());
+            return new TranslogStats(totalOperations(), sizeInBytes(), uncommittedOperations(), uncommittedSizeInBytes());
         }
     }
 
@@ -685,65 +769,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     // public for testing
     public TranslogDeletionPolicy getDeletionPolicy() {
         return deletionPolicy;
-    }
-
-    /**
-     * a view into the translog, capturing all translog file at the moment of creation
-     * and updated with any future translog.
-     */
-    /**
-     * a view into the translog, capturing all translog file at the moment of creation
-     * and updated with any future translog.
-     */
-    public class View implements Closeable {
-
-        AtomicBoolean closed = new AtomicBoolean();
-        final long minGeneration;
-
-        View(long minGeneration) {
-            this.minGeneration = minGeneration;
-        }
-
-        /** this smallest translog generation in this view */
-        public long minTranslogGeneration() {
-            return minGeneration;
-        }
-
-        /**
-         * The total number of operations in the view.
-         */
-        public int totalOperations() {
-            return Translog.this.totalOperations(minGeneration);
-        }
-
-        /**
-         * Returns the size in bytes of the files behind the view.
-         */
-        public long sizeInBytes() {
-            return Translog.this.sizeInBytes(minGeneration);
-        }
-
-        /** create a snapshot from this view */
-        public Snapshot snapshot() {
-            ensureOpen();
-            return Translog.this.newSnapshot(minGeneration);
-        }
-
-        void ensureOpen() {
-            if (closed.get()) {
-                throw new AlreadyClosedException("View is already closed");
-            }
-        }
-
-        @Override
-        public void close() throws IOException {
-            if (closed.getAndSet(true) == false) {
-                logger.trace("closing view starting at translog [{}]", minGeneration);
-                deletionPolicy.releaseTranslogGenView(minGeneration);
-                trimUnreferencedReaders();
-                closeFilesIfNoPendingViews();
-            }
-        }
     }
 
 
@@ -804,7 +829,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.
      */
-    public interface Snapshot {
+    public interface Snapshot extends Closeable {
 
         /**
          * The total number of operations in the translog.
@@ -1137,7 +1162,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (format >= FORMAT_SINGLE_TYPE) {
                 type = in.readString();
                 id = in.readString();
-                uid = new Term(in.readString(), in.readString());
+                if (format >= FORMAT_SEQ_NO) {
+                    uid = new Term(in.readString(), in.readBytesRef());
+                } else {
+                    uid = new Term(in.readString(), in.readString());
+                }
             } else {
                 uid = new Term(in.readString(), in.readString());
                 // the uid was constructed from the type and id so we can
@@ -1228,7 +1257,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.writeString(type);
             out.writeString(id);
             out.writeString(uid.field());
-            out.writeString(uid.text());
+            out.writeBytesRef(uid.bytes());
             out.writeLong(version);
             out.writeByte(versionType.getValue());
             out.writeLong(seqNo);
@@ -1522,7 +1551,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 // we're shutdown potentially on some tragic event, don't delete anything
                 return;
             }
-            long minReferencedGen = deletionPolicy.minTranslogGenRequired();
+            long minReferencedGen = deletionPolicy.minTranslogGenRequired(readers, current);
             assert minReferencedGen >= getMinFileGeneration() :
                 "deletion policy requires a minReferenceGen of [" + minReferencedGen + "] but the lowest gen available is ["
                     + getMinFileGeneration() + "]";
@@ -1568,10 +1597,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             reader.path().resolveSibling(getCommitCheckpointFileName(reader.getGeneration())));
     }
 
-    void closeFilesIfNoPendingViews() throws IOException {
+    void closeFilesIfNoPendingRetentionLocks() throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
-            if (closed.get() && deletionPolicy.pendingViewsCount() == 0) {
-                logger.trace("closing files. translog is closed and there are no pending views");
+            if (closed.get() && deletionPolicy.pendingTranslogRefCount() == 0) {
+                logger.trace("closing files. translog is closed and there are no pending retention locks");
                 ArrayList<Closeable> toClose = new ArrayList<>(readers);
                 toClose.add(current);
                 IOUtils.close(toClose);
@@ -1663,4 +1692,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return translogUUID;
     }
 
+
+    TranslogWriter getCurrent() {
+        return current;
+    }
+
+    List<TranslogReader> getReaders() {
+        return readers;
+    }
 }

@@ -16,13 +16,9 @@ PUT data/counters/1 <1>
 <1> Creates the `data` index, the `counters` mapping type, and a field
     called `count` with datatype `long`.
 
-The automatic detection and addition of new types and fields is called
+The automatic detection and addition of new fields is called
 _dynamic mapping_. The dynamic mapping rules can be customised to suit your
 purposes with:
-
-<<default-mapping,`_default_` mapping>>::
-
-    Configure the base mapping to be used for new mapping types.
 
 <<dynamic-field-mapping,Dynamic field mappings>>::
 
@@ -36,50 +32,9 @@ TIP: <<indices-templates,Index templates>> allow you to configure the default
 mappings, settings and aliases for new indices, whether created
 automatically or explicitly.
 
-
-[float]
-=== Disabling automatic type creation
-
-Automatic type creation can be disabled per-index by setting the `index.mapper.dynamic`
-setting to `false` in the index settings:
-
-[source,js]
---------------------------------------------------
-PUT data/_settings
-{
-  "index.mapper.dynamic":false <1>
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-<1> Disable automatic type creation for the index named "data".
-
-Automatic type creation can also be disabled for all indices by setting an index template:
-
-[source,js]
---------------------------------------------------
-PUT _template/template_all
-{
-  "index_patterns": ["*"],
-  "order":0,
-  "settings": {
-    "index.mapper.dynamic": false <1>
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-<1> Disable automatic type creation for all indices.
-
-Regardless of the value of this setting, types can still be added explicitly
-when <<indices-create-index,creating an index>> or with the
-<<indices-put-mapping,PUT mapping>> API.
-
-
-include::dynamic/default-mapping.asciidoc[]
-
 include::dynamic/field-mapping.asciidoc[]
 
 include::dynamic/templates.asciidoc[]
+
+include::dynamic/default-mapping.asciidoc[]
+

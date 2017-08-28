@@ -41,13 +41,13 @@ releases 2.0 and later do not support rivers.
 [float]
 ==== Supported by Elasticsearch:
 
-* {logstash}/plugins-outputs-elasticsearch.html[Logstash output to Elasticsearch]:
+* {logstash-ref}/plugins-outputs-elasticsearch.html[Logstash output to Elasticsearch]:
   The Logstash `elasticsearch` output plugin.
-* {logstash}/plugins-inputs-elasticsearch.html[Elasticsearch input to Logstash]
+* {logstash-ref}/plugins-inputs-elasticsearch.html[Elasticsearch input to Logstash]
   The Logstash `elasticsearch` input plugin.
-* {logstash}/plugins-filters-elasticsearch.html[Elasticsearch event filtering in Logstash]
+* {logstash-ref}/plugins-filters-elasticsearch.html[Elasticsearch event filtering in Logstash]
   The Logstash `elasticsearch` filter plugin.
-* {logstash}/plugins-codecs-es_bulk.html[Elasticsearch bulk codec]
+* {logstash-ref}/plugins-codecs-es_bulk.html[Elasticsearch bulk codec]
   The Logstash `es_bulk` plugin decodes the Elasticsearch bulk format into individual events.
 
 [float]

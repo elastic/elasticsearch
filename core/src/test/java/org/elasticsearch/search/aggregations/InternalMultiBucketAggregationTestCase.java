@@ -90,7 +90,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
     public void testIterators() throws IOException {
         final T aggregation = createTestInstance();
-        assertMultiBucketsAggregations(aggregation, parseAndAssert(aggregation, false), true);
+        assertMultiBucketsAggregations(aggregation, parseAndAssert(aggregation, false, false), true);
     }
 
     private void assertMultiBucketsAggregations(Aggregation expected, Aggregation actual, boolean checkOrder) {

@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
@@ -76,7 +77,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         return size;
     }
 
-    public Translog.Snapshot newSnapshot() {
+    public TranslogSnapshot newSnapshot() {
         return new TranslogSnapshot(this, sizeInBytes());
     }
 
@@ -120,5 +121,9 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
 
     public Path path() {
         return path;
+    }
+
+    public long getLastModifiedTime() throws IOException {
+        return Files.getLastModifiedTime(path).toMillis();
     }
 }

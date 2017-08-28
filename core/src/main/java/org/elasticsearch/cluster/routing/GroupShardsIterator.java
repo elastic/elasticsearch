@@ -78,4 +78,8 @@ public final class GroupShardsIterator<ShardIt extends ShardIterator> implements
     public Iterator<ShardIt> iterator() {
         return iterators.iterator();
     }
+
+    public ShardIt get(int index) {
+        return  iterators.get(index);
+    }
 }

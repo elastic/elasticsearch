@@ -29,6 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +39,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
-import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -324,7 +324,7 @@ public class UpdateHelper extends AbstractComponent {
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(source);
         boolean sourceRequested = false;
-        Map<String, GetField> fields = null;
+        Map<String, DocumentField> fields = null;
         if (request.fields() != null && request.fields().length > 0) {
             for (String field : request.fields()) {
                 if (field.equals("_source")) {
@@ -336,12 +336,12 @@ public class UpdateHelper extends AbstractComponent {
                     if (fields == null) {
                         fields = new HashMap<>(2);
                     }
-                    GetField getField = fields.get(field);
-                    if (getField == null) {
-                        getField = new GetField(field, new ArrayList<>(2));
-                        fields.put(field, getField);
+                    DocumentField documentField = fields.get(field);
+                    if (documentField == null) {
+                        documentField = new DocumentField(field, new ArrayList<>(2));
+                        fields.put(field, documentField);
                     }
-                    getField.getValues().add(value);
+                    documentField.getValues().add(value);
                 }
             }
         }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -41,9 +42,9 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilter;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.filters.ParsedFilters;
+import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
@@ -58,14 +59,14 @@ import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.nested.ParsedNested;
 import org.elasticsearch.search.aggregations.bucket.nested.ParsedReverseNested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.ParsedBinaryRange;
+import org.elasticsearch.search.aggregations.bucket.range.ParsedDateRange;
+import org.elasticsearch.search.aggregations.bucket.range.ParsedGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.date.ParsedDateRange;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.ParsedGeoDistance;
-import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
 import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantLongTerms;
@@ -130,12 +131,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
@@ -297,7 +300,13 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     public final void testFromXContent() throws IOException {
         final T aggregation = createTestInstance();
-        final Aggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean());
+        final Aggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), false);
+        assertFromXContent(aggregation, (ParsedAggregation) parsedAggregation);
+    }
+
+    public final void testFromXContentWithRandomFields() throws IOException {
+        final T aggregation = createTestInstance();
+        final Aggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), true);
         assertFromXContent(aggregation, (ParsedAggregation) parsedAggregation);
     }
 
@@ -305,7 +314,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     @SuppressWarnings("unchecked")
     protected <P extends ParsedAggregation> P parseAndAssert(final InternalAggregation aggregation,
-                                                             final boolean shuffled) throws IOException {
+                                                             final boolean shuffled, final boolean addRandomFields) throws IOException {
 
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         final XContentType xContentType = randomFrom(XContentType.values());
@@ -317,29 +326,57 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         } else {
             originalBytes = toXContent(aggregation, xContentType, params, humanReadable);
         }
+        BytesReference mutated;
+        if (addRandomFields) {
+            /*
+             * - we don't add to the root object because it should only contain
+             * the named aggregation to test - we don't want to insert into the
+             * "meta" object, because we pass on everything we find there
+             *
+             * - we don't want to directly insert anything random into "buckets"
+             * objects, they are used with "keyed" aggregations and contain
+             * named bucket objects. Any new named object on this level should
+             * also be a bucket and be parsed as such.
+             */
+            Predicate<String> basicExcludes = path -> path.isEmpty() || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
+                    || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName());
+            Predicate<String> excludes = basicExcludes.or(excludePathsFromXContentInsertion());
+            mutated = insertRandomFields(xContentType, originalBytes, excludes, random());
+        } else {
+            mutated = originalBytes;
+        }
 
-        Aggregation parsedAggregation;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+        SetOnce<Aggregation> parsedAggregation = new SetOnce<>();
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-
-            parsedAggregation = XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class);
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, parsedAggregation::set);
 
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
 
-            assertEquals(aggregation.getName(), parsedAggregation.getName());
-            assertEquals(aggregation.getMetaData(), parsedAggregation.getMetaData());
+            Aggregation agg = parsedAggregation.get();
+            assertEquals(aggregation.getName(), agg.getName());
+            assertEquals(aggregation.getMetaData(), agg.getMetaData());
 
-            assertTrue(parsedAggregation instanceof ParsedAggregation);
-            assertEquals(aggregation.getType(), parsedAggregation.getType());
+            assertTrue(agg instanceof ParsedAggregation);
+            assertEquals(aggregation.getType(), agg.getType());
+
+            BytesReference parsedBytes = toXContent(agg, xContentType, params, humanReadable);
+            assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
+
+            return (P) agg;
         }
 
-        BytesReference parsedBytes = toXContent(parsedAggregation, xContentType, params, humanReadable);
-        assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
+    }
 
-        return (P) parsedAggregation;
+    /**
+     * Overwrite this in your test if other than the basic xContent paths should be excluded during insertion of random fields
+     */
+    protected Predicate<String> excludePathsFromXContentInsertion() {
+        return path -> false;
     }
 
     /**

@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -135,7 +134,7 @@ public final class SFunction extends AStatement {
 
         org.objectweb.asm.commons.Method method =
             new org.objectweb.asm.commons.Method(name, MethodType.methodType(rtnType.clazz, paramClasses).toMethodDescriptorString());
-        this.method = new Method(name, null, false, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
+        this.method = new Method(name, null, null, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
     }
 
     @Override
@@ -163,7 +162,7 @@ public final class SFunction extends AStatement {
             allEscape = statement.allEscape;
         }
 
-        if (!methodEscape && rtnType.sort != Sort.VOID) {
+        if (!methodEscape && rtnType.clazz != void.class) {
             throw createError(new IllegalArgumentException("Not all paths provide a return value for method [" + name + "]."));
         }
 
@@ -198,7 +197,7 @@ public final class SFunction extends AStatement {
         }
 
         if (!methodEscape) {
-            if (rtnType.sort == Sort.VOID) {
+            if (rtnType.clazz == void.class) {
                 function.returnValue();
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -29,6 +30,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 public abstract class AbstractPercentilesTestCase<T extends InternalAggregation & Iterable<Percentile>>
         extends InternalAggregationTestCase<T> {
@@ -62,7 +64,7 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
 
     public void testPercentilesIterators() throws IOException {
         final T aggregation = createTestInstance();
-        final Iterable<Percentile> parsedAggregation = parseAndAssert(aggregation, false);
+        final Iterable<Percentile> parsedAggregation = parseAndAssert(aggregation, false, false);
 
         Iterator<Percentile> it = aggregation.iterator();
         Iterator<Percentile> parsedIt = parsedAggregation.iterator();
@@ -81,5 +83,10 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
             Arrays.sort(percents);
         }
         return percents;
+    }
+
+    @Override
+    protected Predicate<String> excludePathsFromXContentInsertion() {
+        return path -> path.endsWith(CommonFields.VALUES.getPreferredName());
     }
 }

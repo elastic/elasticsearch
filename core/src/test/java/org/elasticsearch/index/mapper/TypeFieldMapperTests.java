@@ -27,6 +27,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -61,8 +62,8 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDocValues(boolean singleType) throws IOException {
-        Settings indexSettings = Settings.builder()
-                .put("index.mapping.single_type", singleType)
+        Settings indexSettings = singleType ? Settings.EMPTY : Settings.builder()
+                .put("index.version.created", Version.V_5_6_0)
                 .build();
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE, false);
@@ -75,7 +76,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         w.close();
 
         MappedFieldType ft = mapperService.fullName(TypeFieldMapper.NAME);
-        IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder().build(mapperService.getIndexSettings(),
+        IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
                 ft, new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
         AtomicOrdinalsFieldData afd = fd.load(r.leaves().get(0));
         SortedSetDocValues values = afd.getOrdinalsValues();
@@ -89,7 +90,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDefaultsMultipleTypes() throws IOException {
         Settings indexSettings = Settings.builder()
-                .put("index.mapping.single_type", false)
+                .put("index.version.created", Version.V_5_6_0)
                 .build();
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE, false);
@@ -100,9 +101,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultsSingleType() throws IOException {
-        Settings indexSettings = Settings.builder()
-                .put("index.mapping.single_type", true)
-                .build();
+        Settings indexSettings = Settings.EMPTY;
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE, false);
         ParsedDocument document = mapper.parse(SourceToParse.source("index", "type", "id", new BytesArray("{}"), XContentType.JSON));

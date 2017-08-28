@@ -20,20 +20,7 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.RequestLine;
-import org.apache.http.StatusLine;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHttpResponse;
-import org.apache.http.message.BasicRequestLine;
-import org.apache.http.message.BasicStatusLine;
-import org.apache.http.nio.entity.NStringEntity;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -48,6 +35,20 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.ProtocolVersion;
+import org.apache.http.RequestLine;
+import org.apache.http.StatusLine;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHttpResponse;
+import org.apache.http.message.BasicRequestLine;
+import org.apache.http.message.BasicStatusLine;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -56,12 +57,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
+import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.internal.matchers.ArrayEquals;
@@ -69,6 +73,7 @@ import org.mockito.internal.matchers.VarargMatcher;
 
 import java.io.IOException;
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -88,6 +93,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isNotNull;
 import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -102,7 +108,16 @@ public class RestHighLevelClientTests extends ESTestCase {
     @Before
     public void initClient() {
         restClient = mock(RestClient.class);
-        restHighLevelClient = new RestHighLevelClient(restClient);
+        restHighLevelClient = new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+    }
+
+    public void testCloseIsIdempotent() throws IOException {
+        restHighLevelClient.close();
+        verify(restClient, times(1)).close();
+        restHighLevelClient.close();
+        verify(restClient, times(2)).close();
+        restHighLevelClient.close();
+        verify(restClient, times(3)).close();
     }
 
     public void testPingSuccessful() throws IOException {
@@ -150,7 +165,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     public void testSearchScroll() throws IOException {
         Header[] headers = randomHeaders(random(), "Header");
         SearchResponse mockSearchResponse = new SearchResponse(new SearchResponseSections(SearchHits.empty(), InternalAggregations.EMPTY,
-                null, false, false, null, 1), randomAlphaOfLengthBetween(5, 10), 5, 5, 100, new ShardSearchFailure[0]);
+                null, false, false, null, 1), randomAlphaOfLengthBetween(5, 10), 5, 5, 0, 100, new ShardSearchFailure[0]);
         mockResponse(mockSearchResponse);
         SearchResponse searchResponse = restHighLevelClient.searchScroll(new SearchScrollRequest(randomAlphaOfLengthBetween(5, 10)),
                 headers);
@@ -613,9 +628,11 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
     }
 
-    public void testNamedXContents() {
+    public void testDefaultNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getDefaultNamedXContents();
-        assertEquals(45, namedXContents.size());
+        int expectedInternalAggregations = InternalAggregationTestCase.getDefaultNamedXContents().size();
+        int expectedSuggestions = 3;
+        assertEquals(expectedInternalAggregations + expectedSuggestions, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
             Integer counter = categories.putIfAbsent(namedXContent.categoryClass, 1);
@@ -624,8 +641,26 @@ public class RestHighLevelClientTests extends ESTestCase {
             }
         }
         assertEquals(2, categories.size());
-        assertEquals(Integer.valueOf(42), categories.get(Aggregation.class));
-        assertEquals(Integer.valueOf(3), categories.get(Suggest.Suggestion.class));
+        assertEquals(expectedInternalAggregations, categories.get(Aggregation.class).intValue());
+        assertEquals(expectedSuggestions, categories.get(Suggest.Suggestion.class).intValue());
+    }
+
+    public void testProvidedNamedXContents() {
+        List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
+        assertEquals(2, namedXContents.size());
+        Map<Class<?>, Integer> categories = new HashMap<>();
+        List<String> names = new ArrayList<>();
+        for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
+            names.add(namedXContent.name.getPreferredName());
+            Integer counter = categories.putIfAbsent(namedXContent.categoryClass, 1);
+            if (counter != null) {
+                categories.put(namedXContent.categoryClass, counter + 1);
+            }
+        }
+        assertEquals(1, categories.size());
+        assertEquals(Integer.valueOf(2), categories.get(Aggregation.class));
+        assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
+        assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {

@@ -514,14 +514,6 @@ public class RelocationIT extends ESIntegTestCase {
 
         // refresh is a replication action so this forces a global checkpoint sync which is needed as these are asserted on in tear down
         client().admin().indices().prepareRefresh("test").get();
-        /*
-         * We have to execute a second refresh as in the face of relocations, the relocation target is not aware of the in-sync set and so
-         * the first refresh would bring back the local checkpoint for any shards added to the in-sync set that the relocation target was
-         * not tracking.
-         */
-        // TODO: remove this after a primary context is transferred during relocation handoff
-        client().admin().indices().prepareRefresh("test").get();
-
     }
 
     class RecoveryCorruption extends MockTransportService.DelegateTransport {

@@ -22,10 +22,12 @@ import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptReque
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.script.StoredScriptSource;
 
 import java.io.IOException;
 
@@ -37,13 +39,9 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
     public RestPutStoredScriptAction(Settings settings, RestController controller) {
         super(settings);
 
-        // Note {lang} is actually {id} in the first two handlers.  It appears
-        // parameters as part of the path must be of the same ordering relative
-        // to name or they will not work as expected.
-        controller.registerHandler(POST, "/_scripts/{lang}", this);
-        controller.registerHandler(PUT, "/_scripts/{lang}", this);
-        controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
-        controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
+        controller.registerHandler(POST, "/_scripts/{id}", this);
+        controller.registerHandler(PUT, "/_scripts/{id}", this);
+        controller.registerHandler(PUT, "/_scripts/{id}/{context}", this);
     }
 
     @Override
@@ -54,24 +52,14 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
-        String lang = request.param("lang");
         String context = request.param("context");
-
-        // In the case where only {lang} is not null, we make it {id} because of
-        // name ordering issues in the handlers' paths.
-        if (id == null) {
-            id = lang;
-            lang = null;
-        }
-
         BytesReference content = request.requiredContent();
+        XContentType xContentType = request.getXContentType();
+        StoredScriptSource source = StoredScriptSource.parse(content, xContentType);
 
-        if (lang != null) {
-            deprecationLogger.deprecated(
-                "specifying lang [" + lang + "] as part of the url path is deprecated, use request content instead");
-        }
-
-        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, lang, context, content, request.getXContentType());
+        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, context, content, request.getXContentType(), source);
+        putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
+        putRequest.timeout(request.paramAsTime("timeout", putRequest.timeout()));
         return channel -> client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
     }
 }

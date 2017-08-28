@@ -21,7 +21,6 @@ package org.elasticsearch.painless;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.painless.api.Augmentation;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -99,72 +98,22 @@ public final class Definition {
     public static final Type ARRAY_LIST_TYPE = BUILTINS.getType("ArrayList");
     public static final Type HASH_MAP_TYPE = BUILTINS.getType("HashMap");
 
-    public enum Sort {
-        VOID(       void.class      , Void.class      , null          , 0 , true  , false , false , false ),
-        BOOL(       boolean.class   , Boolean.class   , null          , 1 , true  , true  , false , true  ),
-        BYTE(       byte.class      , Byte.class      , null          , 1 , true  , false , true  , true  ),
-        SHORT(      short.class     , Short.class     , null          , 1 , true  , false , true  , true  ),
-        CHAR(       char.class      , Character.class , null          , 1 , true  , false , true  , true  ),
-        INT(        int.class       , Integer.class   , null          , 1 , true  , false , true  , true  ),
-        LONG(       long.class      , Long.class      , null          , 2 , true  , false , true  , true  ),
-        FLOAT(      float.class     , Float.class     , null          , 1 , true  , false , true  , true  ),
-        DOUBLE(     double.class    , Double.class    , null          , 2 , true  , false , true  , true  ),
-
-        VOID_OBJ(   Void.class      , null            , void.class    , 1 , true  , false , false , false ),
-        BOOL_OBJ(   Boolean.class   , null            , boolean.class , 1 , false , true  , false , false ),
-        BYTE_OBJ(   Byte.class      , null            , byte.class    , 1 , false , false , true  , false ),
-        SHORT_OBJ(  Short.class     , null            , short.class   , 1 , false , false , true  , false ),
-        CHAR_OBJ(   Character.class , null            , char.class    , 1 , false , false , true  , false ),
-        INT_OBJ(    Integer.class   , null            , int.class     , 1 , false , false , true  , false ),
-        LONG_OBJ(   Long.class      , null            , long.class    , 1 , false , false , true  , false ),
-        FLOAT_OBJ(  Float.class     , null            , float.class   , 1 , false , false , true  , false ),
-        DOUBLE_OBJ( Double.class    , null            , double.class  , 1 , false , false , true  , false ),
-
-        NUMBER(     Number.class    , null            , null          , 1 , false , false , false , false ),
-        STRING(     String.class    , null            , null          , 1 , false , false , false , true  ),
-
-        OBJECT(     null            , null            , null          , 1 , false , false , false , false ),
-        DEF(        null            , null            , null          , 1 , false , false , false , false ),
-        ARRAY(      null            , null            , null          , 1 , false , false , false , false );
-
-        public final Class<?> clazz;
-        public final Class<?> boxed;
-        public final Class<?> unboxed;
-        public final int size;
-        public final boolean primitive;
-        public final boolean bool;
-        public final boolean numeric;
-        public final boolean constant;
-
-        Sort(final Class<?> clazz, final Class<?> boxed, final Class<?> unboxed, final int size,
-             final boolean primitive, final boolean bool, final boolean numeric, final boolean constant) {
-            this.clazz = clazz;
-            this.boxed = boxed;
-            this.unboxed = unboxed;
-            this.size = size;
-            this.bool = bool;
-            this.primitive = primitive;
-            this.numeric = numeric;
-            this.constant = constant;
-        }
-    }
-
     public static final class Type {
         public final String name;
         public final int dimensions;
+        public final boolean dynamic;
         public final Struct struct;
         public final Class<?> clazz;
         public final org.objectweb.asm.Type type;
-        public final Sort sort;
 
-        private Type(final String name, final int dimensions, final Struct struct,
-                     final Class<?> clazz, final org.objectweb.asm.Type type, final Sort sort) {
+        private Type(final String name, final int dimensions, final boolean dynamic,
+                     final Struct struct, final Class<?> clazz, final org.objectweb.asm.Type type) {
             this.name = name;
             this.dimensions = dimensions;
             this.struct = struct;
             this.clazz = clazz;
             this.type = type;
-            this.sort = sort;
+            this.dynamic = dynamic;
         }
 
         @Override
@@ -199,14 +148,14 @@ public final class Definition {
     public static class Method {
         public final String name;
         public final Struct owner;
-        public final boolean augmentation;
+        public final Class<?> augmentation;
         public final Type rtn;
         public final List<Type> arguments;
         public final org.objectweb.asm.commons.Method method;
         public final int modifiers;
         public final MethodHandle handle;
 
-        public Method(String name, Struct owner, boolean augmentation, Type rtn, List<Type> arguments,
+        public Method(String name, Struct owner, Class<?> augmentation, Type rtn, List<Type> arguments,
                       org.objectweb.asm.commons.Method method, int modifiers, MethodHandle handle) {
             this.name = name;
             this.augmentation = augmentation;
@@ -232,10 +181,10 @@ public final class Definition {
             // otherwise compute it
             final Class<?> params[];
             final Class<?> returnValue;
-            if (augmentation) {
+            if (augmentation != null) {
                 // static method disguised as virtual/interface method
                 params = new Class<?>[1 + arguments.size()];
-                params[0] = Augmentation.class;
+                params[0] = augmentation;
                 for (int i = 0; i < arguments.size(); i++) {
                     params[i + 1] = arguments.get(i).clazz;
                 }
@@ -268,9 +217,9 @@ public final class Definition {
 
         public void write(MethodWriter writer) {
             final org.objectweb.asm.Type type;
-            if (augmentation) {
+            if (augmentation != null) {
                 assert java.lang.reflect.Modifier.isStatic(modifiers);
-                type = WriterConstants.AUGMENTATION_TYPE;
+                type = org.objectweb.asm.Type.getType(augmentation);
             } else {
                 type = owner.type;
             }
@@ -503,6 +452,62 @@ public final class Definition {
         return BUILTINS.getTypeInternal(struct, dimensions);
     }
 
+    public static Type getBoxedType(Type unboxed) {
+        if (unboxed.clazz == boolean.class) {
+            return BOOLEAN_OBJ_TYPE;
+        } else if (unboxed.clazz == byte.class) {
+            return BYTE_OBJ_TYPE;
+        } else if (unboxed.clazz == short.class) {
+            return SHORT_OBJ_TYPE;
+        } else if (unboxed.clazz == char.class) {
+            return CHAR_OBJ_TYPE;
+        } else if (unboxed.clazz == int.class) {
+            return INT_OBJ_TYPE;
+        } else if (unboxed.clazz == long.class) {
+            return LONG_OBJ_TYPE;
+        } else if (unboxed.clazz == float.class) {
+            return FLOAT_OBJ_TYPE;
+        } else if (unboxed.clazz == double.class) {
+            return DOUBLE_OBJ_TYPE;
+        }
+
+        return unboxed;
+    }
+
+    public static Type getUnboxedType(Type boxed) {
+        if (boxed.clazz == Boolean.class) {
+            return BOOLEAN_TYPE;
+        } else if (boxed.clazz == Byte.class) {
+            return BYTE_TYPE;
+        } else if (boxed.clazz == Short.class) {
+            return SHORT_TYPE;
+        } else if (boxed.clazz == Character.class) {
+            return CHAR_TYPE;
+        } else if (boxed.clazz == Integer.class) {
+            return INT_TYPE;
+        } else if (boxed.clazz == Long.class) {
+            return LONG_TYPE;
+        } else if (boxed.clazz == Float.class) {
+            return FLOAT_TYPE;
+        } else if (boxed.clazz == Double.class) {
+            return DOUBLE_TYPE;
+        }
+
+        return boxed;
+    }
+
+    public static boolean isConstantType(Type constant) {
+        return constant.clazz == boolean.class ||
+               constant.clazz == byte.class    ||
+               constant.clazz == short.class   ||
+               constant.clazz == char.class    ||
+               constant.clazz == int.class     ||
+               constant.clazz == long.class    ||
+               constant.clazz == float.class   ||
+               constant.clazz == double.class  ||
+               constant.clazz == String.class;
+    }
+
     public RuntimeClass getRuntimeClass(Class<?> clazz) {
         return BUILTINS.runtimeMap.get(clazz);
     }
@@ -731,7 +736,7 @@ public final class Definition {
                 " with arguments " + Arrays.toString(classes) + ".");
         }
 
-        final Method constructor = new Method(name, owner, false, returnType, Arrays.asList(args), asm, reflect.getModifiers(), handle);
+        final Method constructor = new Method(name, owner, null, returnType, Arrays.asList(args), asm, reflect.getModifiers(), handle);
 
         owner.constructors.put(methodKey, constructor);
     }
@@ -775,10 +780,14 @@ public final class Definition {
                 }
                 addConstructorInternal(className, "<init>", args);
             } else {
-                if (methodName.indexOf("*") >= 0) {
-                    addMethodInternal(className, methodName.substring(0, methodName.length() - 1), true, rtn, args);
+                int index = methodName.lastIndexOf(".");
+
+                if (index >= 0) {
+                    String augmentation = methodName.substring(0, index);
+                    methodName = methodName.substring(index + 1);
+                    addMethodInternal(className, methodName, augmentation, rtn, args);
                 } else {
-                    addMethodInternal(className, methodName, false, rtn, args);
+                    addMethodInternal(className, methodName, null, rtn, args);
                 }
             }
         } else {
@@ -787,8 +796,7 @@ public final class Definition {
         }
     }
 
-    private void addMethodInternal(String struct, String name, boolean augmentation,
-                                   Type rtn, Type[] args) {
+    private void addMethodInternal(String struct, String name, String augmentation, Type rtn, Type[] args) {
         final Struct owner = structsMap.get(struct);
 
         if (owner == null) {
@@ -817,14 +825,20 @@ public final class Definition {
         final Class<?> implClass;
         final Class<?>[] params;
 
-        if (augmentation == false) {
+        if (augmentation == null) {
             implClass = owner.clazz;
             params = new Class<?>[args.length];
             for (int count = 0; count < args.length; ++count) {
                 params[count] = args[count].clazz;
             }
         } else {
-            implClass = Augmentation.class;
+            try {
+                implClass = Class.forName(augmentation);
+            } catch (ClassNotFoundException cnfe) {
+                throw new IllegalArgumentException("Augmentation class [" + augmentation + "]" +
+                    " not found for struct [" + struct + "] using method name [" + name + "].", cnfe);
+            }
+
             params = new Class<?>[args.length + 1];
             params[0] = owner.clazz;
             for (int count = 0; count < args.length; ++count) {
@@ -862,9 +876,10 @@ public final class Definition {
         }
 
         final int modifiers = reflect.getModifiers();
-        final Method method = new Method(name, owner, augmentation, rtn, Arrays.asList(args), asm, modifiers, handle);
+        final Method method =
+            new Method(name, owner, augmentation == null ? null : implClass, rtn, Arrays.asList(args), asm, modifiers, handle);
 
-        if (augmentation == false && java.lang.reflect.Modifier.isStatic(modifiers)) {
+        if (augmentation == null && java.lang.reflect.Modifier.isStatic(modifiers)) {
             owner.staticMethods.put(methodKey, method);
         } else {
             owner.methods.put(methodKey, method);
@@ -966,8 +981,8 @@ public final class Definition {
                             // TODO: we *have* to remove all these public members and use getter methods to encapsulate!
                             final Class<?> impl;
                             final Class<?> arguments[];
-                            if (method.augmentation) {
-                                impl = Augmentation.class;
+                            if (method.augmentation != null) {
+                                impl = method.augmentation;
                                 arguments = new Class<?>[method.arguments.size() + 1];
                                 arguments[0] = method.owner.clazz;
                                 for (int i = 0; i < method.arguments.size(); i++) {
@@ -1126,7 +1141,6 @@ public final class Definition {
         String name = struct.name;
         org.objectweb.asm.Type type = struct.type;
         Class<?> clazz = struct.clazz;
-        Sort sort;
 
         if (dimensions > 0) {
             StringBuilder builder = new StringBuilder(name);
@@ -1148,27 +1162,9 @@ public final class Definition {
                 throw new IllegalArgumentException("The class [" + type.getInternalName() + "]" +
                     " could not be found to create type [" + name + "].");
             }
-
-            sort = Sort.ARRAY;
-        } else if ("def".equals(struct.name)) {
-            sort = Sort.DEF;
-        } else {
-            sort = Sort.OBJECT;
-
-            for (Sort value : Sort.values()) {
-                if (value.clazz == null) {
-                    continue;
-                }
-
-                if (value.clazz.equals(struct.clazz)) {
-                    sort = value;
-
-                    break;
-                }
-            }
         }
 
-        return new Type(name, dimensions, struct, clazz, type, sort);
+        return new Type(name, dimensions, "def".equals(name), struct, clazz, type);
     }
 
     private int getDimensions(String name) {

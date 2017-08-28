@@ -32,6 +32,7 @@ setup:
         snapshot: test_snapshot
 
   - is_true: snapshots
+  - is_true: snapshots.0.failures
 
   - do:
       snapshot.delete:
@@ -87,6 +88,8 @@ setup:
   - is_true: snapshots
   - match: { snapshots.0.snapshot: test_snapshot }
   - match: { snapshots.0.state: SUCCESS }
+  - is_false: snapshots.0.failures
+  - is_false: snapshots.0.shards
   - is_false: snapshots.0.version
 
   - do:

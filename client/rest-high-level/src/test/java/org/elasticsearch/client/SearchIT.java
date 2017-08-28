@@ -269,26 +269,27 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(5, matrixStats.getFieldCount("num2"));
         assertEquals(29d, matrixStats.getMean("num2"), 0d);
         assertEquals(330d, matrixStats.getVariance("num2"), 0d);
-        assertEquals(-0.13568039346585542, matrixStats.getSkewness("num2"), 0d);
+        assertEquals(-0.13568039346585542, matrixStats.getSkewness("num2"), 1.0e-16);
         assertEquals(1.3517561983471074, matrixStats.getKurtosis("num2"), 0d);
         assertEquals(-767.5, matrixStats.getCovariance("num", "num2"), 0d);
         assertEquals(-0.9876336291667923, matrixStats.getCorrelation("num", "num2"), 0d);
     }
 
     public void testSearchWithParentJoin() throws IOException {
+        final String indexName = "child_example";
         StringEntity parentMapping = new StringEntity("{\n" +
                 "    \"mappings\": {\n" +
-                "        \"answer\" : {\n" +
-                "            \"_parent\" : {\n" +
-                "                \"type\" : \"question\"\n" +
+                "        \"qa\" : {\n" +
+                "            \"properties\" : {\n" +
+                "                \"qa_join_field\" : {\n" +
+                "                    \"type\" : \"join\",\n" +
+                "                    \"relations\" : { \"question\" : \"answer\" }\n" +
+                "                }\n" +
                 "            }\n" +
                 "        }\n" +
-                "    },\n" +
-                "    \"settings\": {\n" +
-                "        \"index.mapping.single_type\": false" +
-                "    }\n" +
+                "    }" +
                 "}", ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "/child_example", Collections.emptyMap(), parentMapping);
+        client().performRequest("PUT", "/" + indexName, Collections.emptyMap(), parentMapping);
         StringEntity questionDoc = new StringEntity("{\n" +
                 "    \"body\": \"<p>I have Windows 2003 server and i bought a new Windows 2008 server...\",\n" +
                 "    \"title\": \"Whats the best way to file transfer my site from server to a newer one?\",\n" +
@@ -296,9 +297,10 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 "        \"windows-server-2003\",\n" +
                 "        \"windows-server-2008\",\n" +
                 "        \"file-transfer\"\n" +
-                "    ]\n" +
+                "    ],\n" +
+                "    \"qa_join_field\" : \"question\"\n" +
                 "}", ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "/child_example/question/1", Collections.emptyMap(), questionDoc);
+        client().performRequest("PUT", "/" + indexName + "/qa/1", Collections.emptyMap(), questionDoc);
         StringEntity answerDoc1 = new StringEntity("{\n" +
                 "    \"owner\": {\n" +
                 "        \"location\": \"Norfolk, United Kingdom\",\n" +
@@ -306,9 +308,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 "        \"id\": 48\n" +
                 "    },\n" +
                 "    \"body\": \"<p>Unfortunately you're pretty much limited to FTP...\",\n" +
+                "    \"qa_join_field\" : {\n" +
+                "        \"name\" : \"answer\",\n" +
+                "        \"parent\" : \"1\"\n" +
+                "    },\n" +
                 "    \"creation_date\": \"2009-05-04T13:45:37.030\"\n" +
                 "}", ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "child_example/answer/1", Collections.singletonMap("parent", "1"), answerDoc1);
+        client().performRequest("PUT", "/" + indexName + "/qa/2", Collections.singletonMap("routing", "1"), answerDoc1);
         StringEntity answerDoc2 = new StringEntity("{\n" +
                 "    \"owner\": {\n" +
                 "        \"location\": \"Norfolk, United Kingdom\",\n" +
@@ -316,9 +322,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 "        \"id\": 49\n" +
                 "    },\n" +
                 "    \"body\": \"<p>Use Linux...\",\n" +
+                "    \"qa_join_field\" : {\n" +
+                "        \"name\" : \"answer\",\n" +
+                "        \"parent\" : \"1\"\n" +
+                "    },\n" +
                 "    \"creation_date\": \"2009-05-05T13:45:37.030\"\n" +
                 "}", ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "/child_example/answer/2", Collections.singletonMap("parent", "1"), answerDoc2);
+        client().performRequest("PUT", "/" + indexName + "/qa/3", Collections.singletonMap("routing", "1"), answerDoc2);
         client().performRequest("POST", "/_refresh");
 
         TermsAggregationBuilder leafTermAgg = new TermsAggregationBuilder("top-names", ValueType.STRING)
@@ -328,7 +338,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 .size(10).subAggregation(childrenAgg);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.size(0).aggregation(termsAgg);
-        SearchRequest searchRequest = new SearchRequest("child_example");
+        SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.source(searchSourceBuilder);
 
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);

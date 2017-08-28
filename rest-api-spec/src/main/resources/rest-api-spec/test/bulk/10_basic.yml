@@ -50,27 +50,14 @@
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: illegal_argument_exception }
   - match: { items.0.index.error.reason: if _id is specified it must not be empty }
-  - match: { items.1.index.created: true }
-  - match: { items.2.index.created: true }
+  - match: { items.1.index.result: created }
+  - match: { items.2.index.result: created }
 
   - do:
       count:
         index: test
 
   - match: { count: 2 }
-
----
-"missing body":
-
-  - skip:
-      version: " - 5.4.99"
-      reason: NPE caused by missing body fixed in 5.5.0
-      
-  - do:
-      catch: /request body is required/
-      raw:
-        method: POST
-        path: _bulk
 
 ---
 "empty action":

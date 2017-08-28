@@ -19,15 +19,14 @@
 
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -66,8 +66,7 @@ import java.util.Objects;
  * <li> {@link ScriptType#STORED}
  * <ul>
  * <li> {@link Script#lang}     - the language will be specified when storing the script, so this should
- *                                be {@code null}; however, this can be specified to look up a stored
- *                                script as part of the deprecated API
+ *                                be {@code null}
  * <li> {@link Script#idOrCode} - specifies the id of the stored script to be looked up, must not be {@code null}
  * <li> {@link Script#options}  - compiler options will be specified when a stored script is stored,
  *                                so they have no meaning here and must be {@code null}
@@ -77,16 +76,6 @@ import java.util.Objects;
  * </ul>
  */
 public final class Script implements ToXContentObject, Writeable {
-
-    /**
-     * Standard logger necessary for allocation of the deprecation logger.
-     */
-    private static final Logger LOGGER = ESLoggerFactory.getLogger(ScriptMetaData.class);
-
-    /**
-     * Deprecation logger necessary for namespace changes related to stored scripts.
-     */
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LOGGER);
 
     /**
      * The name of the of the default scripting language.
@@ -233,7 +222,7 @@ public final class Script implements ToXContentObject, Writeable {
 
                 if (idOrCode == null) {
                     throw new IllegalArgumentException(
-                        "must specify <id> for an [" + ScriptType.INLINE.getParseField().getPreferredName() + "] script");
+                        "must specify <id> for an inline script");
                 }
 
                 if (options.size() > 1 || options.size() == 1 && options.get(CONTENT_TYPE_OPTION) == null) {
@@ -242,26 +231,21 @@ public final class Script implements ToXContentObject, Writeable {
                     throw new IllegalArgumentException("illegal compiler options [" + options + "] specified");
                 }
             } else if (type == ScriptType.STORED) {
-                // Only issue this deprecation warning if we aren't using a template.  Templates during
-                // this deprecation phase must always specify the default template language or they would
-                // possibly pick up a script in a different language as defined by the user under the new
-                // namespace unintentionally.
-                if (lang != null && lang.equals(DEFAULT_TEMPLATE_LANG) == false) {
-                    DEPRECATION_LOGGER.deprecated("specifying the field [" + LANG_PARSE_FIELD.getPreferredName() + "] " +
-                        "for executing " + ScriptType.STORED + " scripts is deprecated; use only the field " +
-                        "[" + ScriptType.STORED.getParseField().getPreferredName() + "] to specify an <id>");
+                if (lang != null) {
+                    throw new IllegalArgumentException(
+                        "illegally specified <lang> for a stored script");
                 }
 
                 if (idOrCode == null) {
                     throw new IllegalArgumentException(
-                        "must specify <code> for an [" + ScriptType.STORED.getParseField().getPreferredName() + "] script");
+                        "must specify <code> for a stored script");
                 }
 
                 if (options.isEmpty()) {
                     options = null;
                 } else {
                     throw new IllegalArgumentException("field [" + OPTIONS_PARSE_FIELD.getPreferredName() + "] " +
-                        "cannot be specified using a [" + ScriptType.STORED.getParseField().getPreferredName() + "] script");
+                        "cannot be specified using a stored script");
                 }
             }
 
@@ -286,6 +270,20 @@ public final class Script implements ToXContentObject, Writeable {
      */
     public static Script parse(XContentParser parser) throws IOException {
         return parse(parser, DEFAULT_SCRIPT_LANG);
+    }
+
+    /**
+     * Parse the script configured in the given settings.
+     */
+    public static Script parse(Settings settings) {
+        try {
+            XContentBuilder builder = JsonXContent.contentBuilder();
+            builder.map(settings.getAsStructuredMap());
+            return parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, builder.bytes()));
+        } catch (IOException e) {
+            // it should not happen since we are not actually reading from a stream but an in-memory byte[]
+            throw new IllegalStateException(e);
+        }
     }
 
     /**
@@ -423,11 +421,14 @@ public final class Script implements ToXContentObject, Writeable {
             this.lang = Objects.requireNonNull(lang);
             this.options = Collections.unmodifiableMap(Objects.requireNonNull(options));
         } else if (type == ScriptType.STORED) {
-            this.lang = lang;
+            if (lang != null) {
+                throw new IllegalArgumentException("lang cannot be specified for stored scripts");
+            }
+
+            this.lang = null;
 
             if (options != null) {
-                throw new IllegalStateException(
-                    "options must be null for [" + ScriptType.STORED.getParseField().getPreferredName() + "] scripts");
+                throw new IllegalStateException("options cannot be specified for stored scripts");
             }
 
             this.options = null;
@@ -455,7 +456,8 @@ public final class Script implements ToXContentObject, Writeable {
         // same order as the constructor.
         } else if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             this.type = ScriptType.readFrom(in);
-            this.lang = in.readString();
+            String lang = in.readString();
+            this.lang = this.type == ScriptType.STORED ? null : lang;
 
             this.idOrCode = in.readString();
             @SuppressWarnings("unchecked")
@@ -482,7 +484,7 @@ public final class Script implements ToXContentObject, Writeable {
             String lang = in.readOptionalString();
 
             if (lang == null) {
-                this.lang = DEFAULT_SCRIPT_LANG;
+                this.lang = this.type == ScriptType.STORED ? null : DEFAULT_SCRIPT_LANG;
             } else {
                 this.lang = lang;
             }

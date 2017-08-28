@@ -21,11 +21,11 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
 
-public interface QueryBuilder extends NamedWriteable, ToXContent {
+public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewriteable<QueryBuilder> {
 
     /**
      * Converts this QueryBuilder to a lucene {@link Query}.
@@ -86,20 +86,4 @@ public interface QueryBuilder extends NamedWriteable, ToXContent {
     default QueryBuilder rewrite(QueryRewriteContext queryShardContext) throws IOException {
         return this;
     }
-
-    /**
-     * Rewrites the given query into its primitive form. Queries that for instance fetch resources from remote hosts or
-     * can simplify / optimize itself should do their heavy lifting during {@link #rewrite(QueryRewriteContext)}. This method
-     * rewrites the query until it doesn't change anymore.
-     * @throws IOException if an {@link IOException} occurs
-     */
-    static QueryBuilder rewriteQuery(QueryBuilder original, QueryRewriteContext context) throws IOException {
-        QueryBuilder builder = original;
-        for (QueryBuilder rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
-             rewrittenBuilder = builder.rewrite(context)) {
-            builder = rewrittenBuilder;
-        }
-        return builder;
-    }
-
 }

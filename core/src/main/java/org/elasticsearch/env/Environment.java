@@ -46,16 +46,10 @@ import java.util.function.Function;
 // public+forbidden api!
 public class Environment {
     public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", Property.NodeScope);
-    public static final Setting<String> DEFAULT_PATH_CONF_SETTING = Setting.simpleString("default.path.conf", Property.NodeScope);
-    public static final Setting<String> PATH_CONF_SETTING =
-            new Setting<>("path.conf", DEFAULT_PATH_CONF_SETTING, Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> DEFAULT_PATH_DATA_SETTING =
-            Setting.listSetting("default.path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> PATH_DATA_SETTING =
-            Setting.listSetting("path.data", DEFAULT_PATH_DATA_SETTING, Function.identity(), Property.NodeScope);
-    public static final Setting<String> DEFAULT_PATH_LOGS_SETTING = Setting.simpleString("default.path.logs", Property.NodeScope);
+            Setting.listSetting("path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<String> PATH_LOGS_SETTING =
-            new Setting<>("path.logs", DEFAULT_PATH_LOGS_SETTING, Function.identity(), Property.NodeScope);
+            new Setting<>("path.logs", "", Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> PATH_REPO_SETTING =
         Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
@@ -92,6 +86,10 @@ public class Environment {
     private final Path tmpFile = PathUtils.get(System.getProperty("java.io.tmpdir"));
 
     public Environment(Settings settings) {
+        this(settings, null);
+    }
+
+    public Environment(final Settings settings, final Path configPath) {
         final Path homeFile;
         if (PATH_HOME_SETTING.exists(settings)) {
             homeFile = PathUtils.get(PATH_HOME_SETTING.get(settings)).normalize();
@@ -99,9 +97,8 @@ public class Environment {
             throw new IllegalStateException(PATH_HOME_SETTING.getKey() + " is not configured");
         }
 
-        // this is trappy, Setting#get(Settings) will get a fallback setting yet return false for Settings#exists(Settings)
-        if (PATH_CONF_SETTING.exists(settings) || DEFAULT_PATH_CONF_SETTING.exists(settings)) {
-            configFile = PathUtils.get(PATH_CONF_SETTING.get(settings)).normalize();
+        if (configPath != null) {
+            configFile = configPath.normalize();
         } else {
             configFile = homeFile.resolve("config");
         }
@@ -137,7 +134,7 @@ public class Environment {
         }
 
         // this is trappy, Setting#get(Settings) will get a fallback setting yet return false for Settings#exists(Settings)
-        if (PATH_LOGS_SETTING.exists(settings) || DEFAULT_PATH_LOGS_SETTING.exists(settings)) {
+        if (PATH_LOGS_SETTING.exists(settings)) {
             logsFile = PathUtils.get(PATH_LOGS_SETTING.get(settings)).normalize();
         } else {
             logsFile = homeFile.resolve("logs");
@@ -160,7 +157,6 @@ public class Environment {
         }
         finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile);
         this.settings = finalSettings.build();
-
     }
 
     /**

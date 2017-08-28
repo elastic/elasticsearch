@@ -91,6 +91,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         processors.put(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory());
         processors.put(JsonProcessor.TYPE, new JsonProcessor.Factory());
         processors.put(KeyValueProcessor.TYPE, new KeyValueProcessor.Factory());
+        processors.put(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory());
         return Collections.unmodifiableMap(processors);
     }
 

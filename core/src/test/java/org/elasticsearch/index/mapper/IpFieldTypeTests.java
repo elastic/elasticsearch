@@ -19,10 +19,14 @@
 package org.elasticsearch.index.mapper;
 
 import java.net.InetAddress;
+import java.util.Arrays;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 
@@ -76,6 +80,22 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.termQuery("::1", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+    }
+
+    public void testTermsQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+
+        assertEquals(InetAddressPoint.newSetQuery("field", InetAddresses.forString("::2"), InetAddresses.forString("::5")),
+                ft.termsQuery(Arrays.asList(InetAddresses.forString("::2"), InetAddresses.forString("::5")), null));
+        assertEquals(InetAddressPoint.newSetQuery("field", InetAddresses.forString("::2"), InetAddresses.forString("::5")),
+                ft.termsQuery(Arrays.asList("::2", "::5"), null));
+
+        // if the list includes a prefix query we fallback to a bool query
+        assertEquals(new ConstantScoreQuery(new BooleanQuery.Builder()
+                .add(ft.termQuery("::42", null), Occur.SHOULD)
+                .add(ft.termQuery("::2/16", null), Occur.SHOULD).build()),
+                ft.termsQuery(Arrays.asList("::42", "::2/16"), null));
     }
 
     public void testRangeQuery() {

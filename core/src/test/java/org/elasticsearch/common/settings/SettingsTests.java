@@ -21,6 +21,8 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
@@ -149,72 +151,6 @@ public class SettingsTests extends ESTestCase {
         assertEquals(2, fooSettings.size());
         assertThat(fooSettings.get("bar"), equalTo("def"));
         assertThat(fooSettings.get("baz"), equalTo("ghi"));
-    }
-
-    @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
-    public void testLenientBooleanForPreEs6Index() throws IOException {
-        // time to say goodbye?
-        assertTrue(
-            "It's time to implement #22298. Please delete this test and Settings#getAsBooleanLenientForPreEs6Indices().",
-            Version.CURRENT.minimumCompatibilityVersion().before(Version.V_6_0_0_alpha1));
-
-
-        String falsy = randomFrom("false", "off", "no", "0");
-        String truthy = randomFrom("true", "on", "yes", "1");
-
-        Settings settings = Settings.builder()
-            .put("foo", falsy)
-            .put("bar", truthy).build();
-
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("testLenientBooleanForPreEs6Index"));
-
-        assertFalse(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "foo", null, deprecationLogger));
-        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "bar", null, deprecationLogger));
-        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "baz", true, deprecationLogger));
-
-        List<String> expectedDeprecationWarnings = new ArrayList<>();
-        if (Booleans.isBoolean(falsy) == false) {
-            expectedDeprecationWarnings.add(
-                "The value [" + falsy + "] of setting [foo] is not coerced into boolean anymore. Please change this value to [false].");
-        }
-        if (Booleans.isBoolean(truthy) == false) {
-            expectedDeprecationWarnings.add(
-                "The value [" + truthy + "] of setting [bar] is not coerced into boolean anymore. Please change this value to [true].");
-        }
-
-        if (expectedDeprecationWarnings.isEmpty() == false) {
-            assertWarnings(expectedDeprecationWarnings.toArray(new String[1]));
-        }
-    }
-
-    @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
-    public void testInvalidLenientBooleanForCurrentIndexVersion() {
-        String falsy = randomFrom("off", "no", "0");
-        String truthy = randomFrom("on", "yes", "1");
-
-        Settings settings = Settings.builder()
-            .put("foo", falsy)
-            .put("bar", truthy).build();
-
-        final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(ESLoggerFactory.getLogger("testInvalidLenientBooleanForCurrentIndexVersion"));
-        expectThrows(IllegalArgumentException.class,
-            () -> settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "foo", null, deprecationLogger));
-        expectThrows(IllegalArgumentException.class,
-            () -> settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "bar", null, deprecationLogger));
-    }
-
-    @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
-    public void testValidLenientBooleanForCurrentIndexVersion() {
-        Settings settings = Settings.builder()
-            .put("foo", "false")
-            .put("bar", "true").build();
-
-        final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(ESLoggerFactory.getLogger("testValidLenientBooleanForCurrentIndexVersion"));
-        assertFalse(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "foo", null, deprecationLogger));
-        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "bar", null, deprecationLogger));
-        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "baz", true, deprecationLogger));
     }
 
     public void testMultLevelGetPrefix() {
@@ -588,6 +524,24 @@ public class SettingsTests extends ESTestCase {
         assertTrue(Settings.EMPTY.isEmpty());
         MockSecureSettings secureSettings = new MockSecureSettings();
         assertTrue(Settings.builder().setSecureSettings(secureSettings).build().isEmpty());
+    }
+
+    public void testWriteSettingsToStream() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("test.key1.foo", "somethingsecure");
+        secureSettings.setString("test.key1.bar", "somethingsecure");
+        secureSettings.setString("test.key2.foo", "somethingsecure");
+        secureSettings.setString("test.key2.bog", "somethingsecure");
+        Settings.Builder builder = Settings.builder();
+        builder.put("test.key1.baz", "blah1");
+        builder.setSecureSettings(secureSettings);
+        assertEquals(5, builder.build().size());
+        Settings.writeSettingsToStream(builder.build(), out);
+        StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+        Settings settings = Settings.readSettingsFromStream(in);
+        assertEquals(1, settings.size());
+        assertEquals("blah1", settings.get("test.key1.baz"));
     }
 
     public void testSecureSettingConflict() {

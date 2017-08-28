@@ -16,7 +16,7 @@ GET _cat/shards
 
 This will return
 
-[source,js]
+[source,txt]
 ---------------------------------------------------------------------------
 twitter 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 ---------------------------------------------------------------------------
@@ -42,7 +42,7 @@ GET _cat/shards/twitt*
 
 Which will return the following
 
-[source,js]
+[source,txt]
 ---------------------------------------------------------------------------
 twitter 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 ---------------------------------------------------------------------------
@@ -68,7 +68,7 @@ GET _cat/shards
 
 A relocating shard will be shown as follows
 
-[source,js]
+[source,txt]
 ---------------------------------------------------------------------------
 twitter 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.56.30 bGG90GE
 ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ GET _cat/shards
 
 You can get the initializing state in the response like this
 
-[source,js]
+[source,txt]
 ---------------------------------------------------------------------------
 twitter 0 p STARTED      3014 31.1mb 192.168.56.10 H5dfFeA
 twitter 0 r INITIALIZING    0 14.3mb 192.168.56.30 bGG90GE
@@ -112,7 +112,7 @@ GET _cat/shards?h=index,shard,prirep,state,unassigned.reason
 
 The reason for an unassigned shard will be listed as the last field
 
-[source,js]
+[source,txt]
 ---------------------------------------------------------------------------
 twitter 0 p STARTED    3014 31.1mb 192.168.56.10 H5dfFeA
 twitter 0 r STARTED    3014 31.1mb 192.168.56.30 bGG90GE

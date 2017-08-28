@@ -132,6 +132,7 @@ public class SuggestionTests extends ESTestCase {
             try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
                 parsed = Suggestion.fromXContent(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
                 assertNull(parser.nextToken());
@@ -145,19 +146,18 @@ public class SuggestionTests extends ESTestCase {
     }
 
     /**
-     * test that we throw error if RestSearchAction.TYPED_KEYS_PARAM isn't set while rendering xContent
+     * test that we parse nothing if RestSearchAction.TYPED_KEYS_PARAM isn't set while rendering xContent and we cannot find
+     * suggestion type information
      */
-    public void testFromXContentFailsWithoutTypeParam() throws IOException {
+    public void testFromXContentWithoutTypeParam() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toXContent(createTestItem(), xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
-            ParsingException e = expectThrows(ParsingException.class, () -> Suggestion.fromXContent(parser));
-            assertEquals(
-                    "Cannot parse object of class [Suggestion] without type information. "
-                    + "Set [typed_keys] parameter on the request to ensure the type information "
-                    + "is added to the response output", e.getMessage());
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+            assertNull(Suggestion.fromXContent(parser));
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
         }
     }
 
@@ -177,6 +177,7 @@ public class SuggestionTests extends ESTestCase {
         try (XContentParser parser = xContent.createParser(xContentRegistry(), suggestionString)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
             ParsingException e = expectThrows(ParsingException.class, () -> Suggestion.fromXContent(parser));
             assertEquals("Unknown Suggestion [unknownType]", e.getMessage());
         }

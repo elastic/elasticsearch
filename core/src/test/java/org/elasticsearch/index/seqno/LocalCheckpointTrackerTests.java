@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isOneOf;
 
@@ -45,16 +46,9 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
 
     private LocalCheckpointTracker tracker;
 
-    private final int SMALL_CHUNK_SIZE = 4;
+    private static final int SMALL_CHUNK_SIZE = 4;
 
-    @Override
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        tracker = getTracker();
-    }
-
-    private LocalCheckpointTracker getTracker() {
+    public static LocalCheckpointTracker createEmptyTracker() {
         return new LocalCheckpointTracker(
             IndexSettingsModule.newIndexSettings(
                 "test",
@@ -65,6 +59,13 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
             SequenceNumbersService.NO_OPS_PERFORMED,
             SequenceNumbersService.NO_OPS_PERFORMED
         );
+    }
+
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        tracker = createEmptyTracker();
     }
 
     public void testSimplePrimary() {
@@ -237,4 +238,22 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         thread.join();
     }
 
+    public void testResetCheckpoint() {
+        final int operations = 1024 - scaledRandomIntBetween(0, 1024);
+        int maxSeqNo = Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED);
+        for (int i = 0; i < operations; i++) {
+            if (!rarely()) {
+                tracker.markSeqNoAsCompleted(i);
+                maxSeqNo = i;
+            }
+        }
+
+        final int localCheckpoint =
+                randomIntBetween(Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED), Math.toIntExact(tracker.getCheckpoint()));
+        tracker.resetCheckpoint(localCheckpoint);
+        assertThat(tracker.getCheckpoint(), equalTo((long) localCheckpoint));
+        assertThat(tracker.getMaxSeqNo(), equalTo((long) maxSeqNo));
+        assertThat(tracker.processedSeqNo, empty());
+        assertThat(tracker.generateSeqNo(), equalTo((long) (maxSeqNo + 1)));
+    }
 }

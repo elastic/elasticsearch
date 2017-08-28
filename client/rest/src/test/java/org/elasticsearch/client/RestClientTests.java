@@ -23,16 +23,34 @@ import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 
+import java.io.IOException;
+import java.net.URI;
+import java.util.Collections;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class RestClientTests extends RestClientTestCase {
+
+    public void testCloseIsIdempotent() throws IOException {
+        HttpHost[] hosts = new HttpHost[]{new HttpHost("localhost", 9200)};
+        CloseableHttpAsyncClient closeableHttpAsyncClient = mock(CloseableHttpAsyncClient.class);
+        RestClient restClient =  new RestClient(closeableHttpAsyncClient, 1_000, new Header[0], hosts, null, null);
+        restClient.close();
+        verify(closeableHttpAsyncClient, times(1)).close();
+        restClient.close();
+        verify(closeableHttpAsyncClient, times(2)).close();
+        restClient.close();
+        verify(closeableHttpAsyncClient, times(3)).close();
+    }
 
     public void testPerformAsyncWithUnsupportedMethod() throws Exception {
         RestClient.SyncResponseListener listener = new RestClient.SyncResponseListener(10000);
         try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync("unsupported", randomAsciiOfLength(5), listener);
+            restClient.performRequestAsync("unsupported", randomAsciiLettersOfLength(5), listener);
             listener.get();
 
             fail("should have failed because of unsupported method");
@@ -44,7 +62,7 @@ public class RestClientTests extends RestClientTestCase {
     public void testPerformAsyncWithNullParams() throws Exception {
         RestClient.SyncResponseListener listener = new RestClient.SyncResponseListener(10000);
         try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync(randomAsciiOfLength(5), randomAsciiOfLength(5), null, listener);
+            restClient.performRequestAsync(randomAsciiLettersOfLength(5), randomAsciiLettersOfLength(5), null, listener);
             listener.get();
 
             fail("should have failed because of null parameters");
@@ -56,7 +74,7 @@ public class RestClientTests extends RestClientTestCase {
     public void testPerformAsyncWithNullHeaders() throws Exception {
         RestClient.SyncResponseListener listener = new RestClient.SyncResponseListener(10000);
         try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync("GET", randomAsciiOfLength(5), listener, (Header) null);
+            restClient.performRequestAsync("GET", randomAsciiLettersOfLength(5), listener, (Header) null);
             listener.get();
 
             fail("should have failed because of null headers");
@@ -74,6 +92,22 @@ public class RestClientTests extends RestClientTestCase {
             fail("should have failed because of wrong endpoint");
         } catch (IllegalArgumentException exception) {
             assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
+        }
+    }
+
+    public void testBuildUriLeavesPathUntouched() {
+        {
+            URI uri = RestClient.buildUri("/foo$bar", "/index/type/id", Collections.<String, String>emptyMap());
+            assertEquals("/foo$bar/index/type/id", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri(null, "/foo$bar/ty/pe/i/d", Collections.<String, String>emptyMap());
+            assertEquals("/foo$bar/ty/pe/i/d", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri(null, "/index/type/id", Collections.singletonMap("foo$bar", "x/y/z"));
+            assertEquals("/index/type/id", uri.getPath());
+            assertEquals("foo$bar=x/y/z", uri.getQuery());
         }
     }
 

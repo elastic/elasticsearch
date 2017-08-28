@@ -79,7 +79,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
         clusterService = createClusterService(threadPool);
         Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
                 new NoneCircuitBreakerService(), new NamedWriteableRegistry(Collections.emptyList()),
-                new NetworkService(settings, Collections.emptyList()));
+                new NetworkService(Collections.emptyList()));
         transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);

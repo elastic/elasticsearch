@@ -19,8 +19,11 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,19 +40,38 @@ public class MockTransportClient extends TransportClient {
     }
 
     public MockTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
-        this(settings, addMockTransportIfMissing(plugins), null);
+        this(settings, plugins, null);
     }
 
     public MockTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins, HostFailureListener listener) {
-        super(settings, DEFAULT_SETTINGS, addMockTransportIfMissing(plugins), listener);
+        super(settings, DEFAULT_SETTINGS, addMockTransportIfMissing(settings, plugins), listener);
     }
 
-    private static Collection<Class<? extends Plugin>> addMockTransportIfMissing(Collection<Class<? extends Plugin>> plugins) {
-        if (plugins.contains(MockTcpTransportPlugin.class)) {
-            return plugins;
+    private static Collection<Class<? extends Plugin>> addMockTransportIfMissing(Settings settings,
+                                                                                 Collection<Class<? extends Plugin>> plugins) {
+        boolean settingExists = NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings);
+        String transportType = NetworkModule.TRANSPORT_TYPE_SETTING.get(settings);
+        if (settingExists == false || MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME.equals(transportType)) {
+            if (plugins.contains(MockTcpTransportPlugin.class)) {
+                return plugins;
+            } else {
+                plugins = new ArrayList<>(plugins);
+                plugins.add(MockTcpTransportPlugin.class);
+                return plugins;
+            }
+        } else if (NioTransportPlugin.NIO_TRANSPORT_NAME.equals(transportType)) {
+            if (plugins.contains(NioTransportPlugin.class)) {
+                return plugins;
+            } else {
+                plugins = new ArrayList<>(plugins);
+                plugins.add(NioTransportPlugin.class);
+                return plugins;
+            }
         }
-        plugins = new ArrayList<>(plugins);
-        plugins.add(MockTcpTransportPlugin.class);
         return plugins;
+    }
+
+    public NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
     }
 }

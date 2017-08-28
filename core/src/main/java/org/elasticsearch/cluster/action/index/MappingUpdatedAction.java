@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.action.index;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -33,8 +34,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
-
-import java.util.concurrent.TimeoutException;
 
 /**
  * Called by shards in the cluster when their mapping was dynamically updated and it needs to be updated
@@ -77,7 +76,7 @@ public class MappingUpdatedAction extends AbstractComponent {
      * Same as {@link #updateMappingOnMaster(Index, String, Mapping, TimeValue)}
      * using the default timeout.
      */
-    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate) throws Exception {
+    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate) {
         updateMappingOnMaster(index, type, mappingUpdate, dynamicMappingUpdateTimeout);
     }
 
@@ -86,9 +85,9 @@ public class MappingUpdatedAction extends AbstractComponent {
      * {@code timeout}. When this method returns successfully mappings have
      * been applied to the master node and propagated to data nodes.
      */
-    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, TimeValue timeout) throws Exception {
+    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, TimeValue timeout) {
         if (updateMappingRequest(index, type, mappingUpdate, timeout).get().isAcknowledged() == false) {
-            throw new TimeoutException("Failed to acknowledge mapping update within [" + timeout + "]");
+            throw new ElasticsearchTimeoutException("Failed to acknowledge mapping update within [" + timeout + "]");
         }
     }
 }

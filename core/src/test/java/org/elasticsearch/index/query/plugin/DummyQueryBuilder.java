@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.plugin.DummyQueryParserPlugin.DummyQuery;
 
@@ -51,8 +50,8 @@ public class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
         builder.startObject(NAME).endObject();
     }
 
-    public static DummyQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser.Token token = parseContext.parser().nextToken();
+    public static DummyQueryBuilder fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
         assert token == XContentParser.Token.END_OBJECT;
         return new DummyQueryBuilder();
     }

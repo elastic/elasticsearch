@@ -22,15 +22,20 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterAggregationBuilder> {
     public static final String NAME = "filter";
@@ -67,11 +72,18 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     @Override
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryBuilder result = Rewriteable.rewrite(filter, queryShardContext);
+        if (result != filter) {
+            return new FilterAggregationBuilder(getName(), result);
+        }
+        return this;
+    }
+
+    @Override
     protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        // TODO this sucks we need a rewrite phase for aggregations too
-        final QueryBuilder rewrittenFilter = QueryBuilder.rewriteQuery(filter, context.getQueryShardContext());
-        return new FilterAggregatorFactory(name, rewrittenFilter, context, parent, subFactoriesBuilder, metaData);
+        return new FilterAggregatorFactory(name, filter, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
@@ -82,8 +94,8 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
         return builder;
     }
 
-    public static FilterAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        QueryBuilder filter = context.parseInnerQueryBuilder();
+    public static FilterAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        QueryBuilder filter = parseInnerQueryBuilder(parser);
         return new FilterAggregationBuilder(aggregationName, filter);
     }
 

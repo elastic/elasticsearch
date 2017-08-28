@@ -21,16 +21,6 @@ It is also exposed through an API, though its rarely needed to be performed
 manually.
 
 [float]
-=== Flush settings
-
-The following <<indices-update-settings,dynamically updatable>> settings
-control how often the in-memory buffer is flushed to disk:
-
-`index.translog.flush_threshold_size`::
-
-Once the translog hits this size, a flush will happen. Defaults to `512mb`.
-
-[float]
 === Translog settings
 
 The data in the transaction log is only persisted to disk when the translog is
@@ -71,6 +61,26 @@ update, or bulk request.  This setting accepts the following parameters:
     the event of hardware failure, all acknowledged writes since the last
     automatic commit will be discarded.
 --
+
+`index.translog.flush_threshold_size`::
+
+The translog stores all operations that are not yet safely persisted in Lucene (i.e., are
+not part of a lucene commit point). Although these operations are available for reads, they will
+need to be reindexed if the shard was to shutdown and has to be recovered. This settings controls
+the maximum total size of these operations, to prevent recoveries from taking too long. Once the
+maximum size has been reached a flush will happen, generating a new Lucene commit. Defaults to `512mb`.
+
+`index.translog.retention.size`::
+
+The total size of translog files to keep. Keeping more translog files increases the chance of performing
+an operation based sync when recovering replicas. If the translog files are not sufficient, replica recovery
+will fall back to a file based sync. Defaults to `512mb`
+
+
+`index.translog.retention.age`::
+
+The maximum duration for which translog files will be kept. Defaults to `12h`.
+
 
 [float]
 [[corrupt-translog-truncation]]

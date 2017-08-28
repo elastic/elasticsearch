@@ -47,7 +47,7 @@ public class ClientYamlTestResponse {
     private ObjectPath parsedResponse;
     private String bodyAsString;
 
-    ClientYamlTestResponse(Response response) throws IOException {
+    public ClientYamlTestResponse(Response response) throws IOException {
         this.response = response;
         if (response.getEntity() != null) {
             String contentType = response.getHeader("Content-Type");

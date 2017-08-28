@@ -26,10 +26,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -61,6 +60,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
@@ -102,7 +102,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                     .addMapping("grandchild", "_parent", "type=child"));
         } else {
             assertAcked(prepareCreate("test")
-                    .addMapping("doc", "join_field", "type=join,parent=child,child=grandchild"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                    "parent", "child", "child", "grandchild")));
         }
         ensureGreen();
 
@@ -164,7 +165,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                     .addMapping("test", "_parent", "type=foo"));
         } else {
             assertAcked(prepareCreate("test")
-                    .addMapping("doc", "join_field", "type=join,foo=test"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "foo", "test")));
         }
         ensureGreen();
 
@@ -188,7 +189,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                     .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                    .addMapping("doc", "join_field", "type=join,parent=child"));
+                    .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -216,8 +217,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
             assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("c1"));
-            assertThat(searchResponse.getHits().getAt(0).field("join_field").getValue(), equalTo("child"));
-            assertThat(searchResponse.getHits().getAt(0).field("join_field#parent").getValue(), equalTo("p1"));
+            assertThat(extractValue("join_field.name", searchResponse.getHits().getAt(0).getSourceAsMap()), equalTo("child"));
+            assertThat(extractValue("join_field.parent", searchResponse.getHits().getAt(0).getSourceAsMap()), equalTo("p1"));
         }
 
         // TEST matching on parent
@@ -236,11 +237,11 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
             assertThat(searchResponse.getHits().getAt(0).getId(), anyOf(equalTo("c1"), equalTo("c2")));
-            assertThat(searchResponse.getHits().getAt(0).field("join_field").getValue(), equalTo("child"));
-            assertThat(searchResponse.getHits().getAt(0).field("join_field#parent").getValue(), equalTo("p1"));
+            assertThat(extractValue("join_field.name", searchResponse.getHits().getAt(0).getSourceAsMap()), equalTo("child"));
+            assertThat(extractValue("join_field.parent", searchResponse.getHits().getAt(0).getSourceAsMap()), equalTo("p1"));
             assertThat(searchResponse.getHits().getAt(1).getId(), anyOf(equalTo("c1"), equalTo("c2")));
-            assertThat(searchResponse.getHits().getAt(1).field("join_field").getValue(), equalTo("child"));
-            assertThat(searchResponse.getHits().getAt(1).field("join_field#parent").getValue(), equalTo("p1"));
+            assertThat(extractValue("join_field.name", searchResponse.getHits().getAt(1).getSourceAsMap()), equalTo("child"));
+            assertThat(extractValue("join_field.parent", searchResponse.getHits().getAt(1).getSourceAsMap()), equalTo("p1"));
         }
 
         if (legacy()) {
@@ -295,7 +296,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -339,7 +340,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
         Map<String, Set<String>> parentToChildren = new HashMap<>();
@@ -393,7 +394,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -467,7 +468,9 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent", "c_field", "type=keyword"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child", "c_field", "type=keyword"));
+                .addMapping("doc",
+                    addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"),
+                        "c_field", "keyword")));
         }
         ensureGreen();
 
@@ -511,7 +514,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
         // index simple data
@@ -551,7 +554,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -584,7 +587,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -613,7 +616,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -650,7 +653,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -724,7 +727,9 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
                     .startObject("join_field")
                         .field("type", "join")
-                        .field("parent", new String[] {"child", "child1"})
+                        .startObject("relations")
+                            .field("parent", new String[] {"child", "child1"})
+                        .endObject()
                     .endObject()
                     .endObject().endObject().endObject()
                 ));
@@ -818,7 +823,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -863,7 +868,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -893,7 +898,6 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
     }
 
-    @AwaitsFix(bugUrl = "wait for inner hits to be fixed")
     public void testHasChildInnerHitsHighlighting() throws Exception {
         if (legacy()) {
             assertAcked(prepareCreate("test")
@@ -901,7 +905,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -931,7 +935,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -969,7 +973,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent", "c_field", "type=keyword"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child", "p_field", "type=keyword", "c_field", "type=keyword"));
+                .addMapping("doc", addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"),
+                    "c_field", "keyword", "p_field", "keyword")));
         }
         ensureGreen();
 
@@ -1022,7 +1027,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -1089,7 +1094,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -1124,7 +1129,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         } else {
             assertAcked(prepareCreate("test")
                 .setSettings("index.refresh_interval", -1)
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -1195,7 +1200,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                     .put(indexSettings())
                     .put("index.refresh_interval", -1)
                 )
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -1223,7 +1228,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -1294,9 +1299,11 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             assertAcked(prepareCreate("grandissue")
                 .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
                     .startObject("join_field")
-                    .field("type", "join")
-                    .field("grandparent", "parent")
-                    .field("parent", new String[] {"child_type_one", "child_type_two"})
+                        .field("type", "join")
+                        .startObject("relations")
+                            .field("grandparent", "parent")
+                            .field("parent", new String[] {"child_type_one", "child_type_two"})
+                        .endObject()
                     .endObject()
                     .endObject().endObject().endObject()
                 ));
@@ -1350,7 +1357,9 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child", "objects", "type=nested"));
+                .addMapping("doc",
+                    addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"),
+                        "objects", "nested")));
         }
         ensureGreen();
 
@@ -1396,7 +1405,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -1503,7 +1512,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         } else {
             assertAcked(prepareCreate("test")
                 .setSettings("index.refresh_interval", -1)
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -1551,7 +1560,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
         for (int i = 0; i < 10; i++) {
@@ -1599,7 +1608,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -1667,7 +1676,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                                     weightFactorFunction(1)),
                                 new FunctionScoreQueryBuilder.FilterFunctionBuilder(QueryBuilders.termQuery("foo", "four"),
                                     weightFactorFunction(1))
-                        }).boostMode(CombineFunction.REPLACE).scoreMode(FiltersFunctionScoreQuery.ScoreMode.SUM), scoreMode)
+                        }).boostMode(CombineFunction.REPLACE).scoreMode(FunctionScoreQuery.ScoreMode.SUM), scoreMode)
                 .minMaxChildren(minChildren, maxChildren != null ? maxChildren : HasChildQueryBuilder.DEFAULT_MAX_CHILDREN);
 
         return client()
@@ -1683,7 +1692,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
 
@@ -2001,7 +2010,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("parent-type").addMapping("child-type", "_parent", "type=parent-type"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent-type=child-type"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent-type", "child-type")));
         }
         createIndexRequest("test", "child-type", "child-id", "parent-id").get();
         createIndexRequest("test", "parent-type", "parent-id", null).get();
@@ -2017,7 +2026,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertSearchHits(searchResponse, "child-id");
     }
 
-    public void testHighlightersIgnoreParentChild() {
+    public void testHighlightersIgnoreParentChild() throws IOException {
         if (legacy()) {
             assertAcked(prepareCreate("test")
                 .addMapping("parent-type", "searchText", "type=text,term_vector=with_positions_offsets,index_options=offsets")
@@ -2025,8 +2034,20 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                     "type=text,term_vector=with_positions_offsets,index_options=offsets"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent-type=child-type",
-                    "searchText", "type=text,term_vector=with_positions_offsets,index_options=offsets"));
+                .addMapping("doc", jsonBuilder().startObject().startObject("properties")
+                    .startObject("join_field")
+                        .field("type", "join")
+                        .startObject("relations")
+                            .field("parent-type", "child-type")
+                        .endObject()
+                    .endObject()
+                    .startObject("searchText")
+                        .field("type", "text")
+                        .field("term_vector", "with_positions_offsets")
+                        .field("index_options", "offsets")
+                    .endObject()
+                    .endObject().endObject()
+                ));
         }
         createIndexRequest("test", "parent-type", "parent-id", null, "searchText", "quick brown fox").get();
         createIndexRequest("test", "child-type", "child-id", "parent-id", "searchText", "quick brown fox").get();
@@ -2069,8 +2090,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             );
         } else {
             assertAcked(prepareCreate("my-index")
-                .addMapping("doc", "join_field", "type=join,parent=child")
-            );
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         createIndexRequest("my-index", "parent", "1", null).get();
         createIndexRequest("my-index", "child", "2", "1").get();

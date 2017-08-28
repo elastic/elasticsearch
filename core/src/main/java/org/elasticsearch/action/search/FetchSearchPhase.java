@@ -69,7 +69,7 @@ final class FetchSearchPhase extends SearchPhase {
         }
         this.fetchResults = new AtomicArray<>(resultConsumer.getNumShards());
         this.searchPhaseController = searchPhaseController;
-        this.queryResults = resultConsumer.results;
+        this.queryResults = resultConsumer.getAtomicArray();
         this.nextPhaseFactory =  nextPhaseFactory;
         this.context = context;
         this.logger = context.getLogger();
@@ -105,7 +105,8 @@ final class FetchSearchPhase extends SearchPhase {
             -> moveToNextPhase(searchPhaseController, scrollId, reducedQueryPhase, queryAndFetchOptimization ?
             queryResults : fetchResults);
         if (queryAndFetchOptimization) {
-            assert phaseResults.isEmpty() || phaseResults.get(0).fetchResult() != null;
+            assert phaseResults.isEmpty() || phaseResults.get(0).fetchResult() != null : "phaseResults empty [" + phaseResults.isEmpty()
+                + "], single result: " +  phaseResults.get(0).fetchResult();
             // query AND fetch optimization
             finishPhase.run();
         } else {

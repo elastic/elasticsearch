@@ -98,8 +98,9 @@ public class SearchResponseTests extends ESTestCase {
         Boolean terminatedEarly = randomBoolean() ? null : randomBoolean();
         int numReducePhases = randomIntBetween(1, 10);
         long tookInMillis = randomNonNegativeLong();
-        int successfulShards = randomInt();
-        int totalShards = randomInt();
+        int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
+        int successfulShards = randomIntBetween(0, totalShards);
+        int skippedShards = randomIntBetween(0, totalShards);
         InternalSearchResponse internalSearchResponse;
         if (minimal == false) {
             SearchHits hits = SearchHitsTests.createTestItem();
@@ -111,7 +112,8 @@ public class SearchResponseTests extends ESTestCase {
         } else {
             internalSearchResponse = InternalSearchResponse.empty();
         }
-        return new SearchResponse(internalSearchResponse, null, totalShards, successfulShards, tookInMillis, shardSearchFailures);
+        return new SearchResponse(internalSearchResponse, null, totalShards, successfulShards, skippedShards, tookInMillis,
+            shardSearchFailures);
     }
 
     /**
@@ -192,7 +194,7 @@ public class SearchResponseTests extends ESTestCase {
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
         SearchResponse response = new SearchResponse(
-                new InternalSearchResponse(new SearchHits(hits, 100, 1.5f), null, null, null, false, null, 1), null, 0, 0, 0,
+                new InternalSearchResponse(new SearchHits(hits, 100, 1.5f), null, null, null, false, null, 1), null, 0, 0, 0, 0,
                 new ShardSearchFailure[0]);
         StringBuilder expectedString = new StringBuilder();
         expectedString.append("{");
@@ -203,6 +205,7 @@ public class SearchResponseTests extends ESTestCase {
             {
                 expectedString.append("{\"total\":0,");
                 expectedString.append("\"successful\":0,");
+                expectedString.append("\"skipped\":0,");
                 expectedString.append("\"failed\":0},");
             }
             expectedString.append("\"hits\":");

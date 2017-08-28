@@ -24,6 +24,7 @@ import org.apache.lucene.search.DocValuesTermsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -58,7 +59,7 @@ public class LegacyParentIdQueryBuilderTests extends AbstractQueryTestCase<Paren
     protected Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
-            .put("index.mapping.single_type", false)
+            .put("index.version.created", Version.V_5_6_0) // legacy needs multi type
             .build();
     }
 

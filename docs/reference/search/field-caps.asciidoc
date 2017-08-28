@@ -1,8 +1,6 @@
 [[search-field-caps]]
 == Field Capabilities API
 
-experimental[]
-
 The field capabilities API allows to retrieve the capabilities of fields among multiple indices.
 
 The field capabilities api by default executes on all indices:

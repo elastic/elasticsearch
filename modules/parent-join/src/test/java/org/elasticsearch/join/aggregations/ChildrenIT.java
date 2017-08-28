@@ -19,6 +19,7 @@
 package org.elasticsearch.join.aggregations;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -59,7 +60,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ChildrenIT extends ParentChildTestCase {
+
+
     private static final Map<String, Control> categoryToControl = new HashMap<>();
+
 
     @Before
     public void setupCluster() throws Exception {
@@ -73,8 +77,9 @@ public class ChildrenIT extends ParentChildTestCase {
         } else {
             assertAcked(
                 prepareCreate("test")
-                    .addMapping("doc", "category", "type=keyword", "join_field", "type=join,article=comment",
-                        "commenter", "type=keyword")
+                    .addMapping("doc",
+                        addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "article", "comment"),
+                            "commenter", "keyword", "category", "keyword"))
             );
         }
 
@@ -248,7 +253,9 @@ public class ChildrenIT extends ParentChildTestCase {
         } else {
             assertAcked(
                     prepareCreate(indexName)
-                            .addMapping("doc", "join_field", "type=join,parent=child", "count", "type=long")
+                        .addMapping("doc",
+                            addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"),
+                                "name", "keyword"))
             );
         }
 
@@ -318,17 +325,19 @@ public class ChildrenIT extends ParentChildTestCase {
                     prepareCreate(indexName)
                             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put("index.mapping.single_type", false))
+                                    .put("index.version.created", Version.V_5_6_0)) // multi type
                             .addMapping(masterType, "brand", "type=text", "name", "type=keyword", "material", "type=text")
                             .addMapping(childType, "_parent", "type=masterprod", "color", "type=keyword", "size", "type=keyword")
             );
         } else {
             assertAcked(
                     prepareCreate(indexName)
-                            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                            .addMapping("doc", "join_field", "type=join," + masterType + "=" + childType, "brand", "type=text",
-                                    "name", "type=keyword", "material", "type=text", "color", "type=keyword", "size", "type=keyword")
+                        .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                        .addMapping("doc",
+                            addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                                masterType, childType),
+                                "brand", "text", "name", "keyword", "material", "text", "color", "keyword", "size", "keyword"))
             );
         }
 
@@ -391,7 +400,7 @@ public class ChildrenIT extends ParentChildTestCase {
             assertAcked(
                     prepareCreate(indexName)
                             .setSettings(Settings.builder()
-                                    .put("index.mapping.single_type", false)
+                                .put("index.version.created", Version.V_5_6_0) // multi type
                             ).addMapping(grandParentType, "name", "type=keyword")
                             .addMapping(parentType, "_parent", "type=" + grandParentType)
                             .addMapping(childType, "_parent", "type=" + parentType)
@@ -400,8 +409,10 @@ public class ChildrenIT extends ParentChildTestCase {
         } else {
             assertAcked(
                     prepareCreate(indexName)
-                            .addMapping("doc", "join_field", "type=join," + grandParentType + "=" + parentType + "," +
-                                    parentType + "=" + childType, "name", "type=keyword")
+                        .addMapping("doc",
+                            addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                                grandParentType, parentType, parentType, childType),
+                                "name", "keyword"))
             );
         }
 
@@ -449,8 +460,10 @@ public class ChildrenIT extends ParentChildTestCase {
         } else {
             assertAcked(
                     prepareCreate("index")
-                            .addMapping("doc", "join_field", "type=join,parentType=childType", "name", "type=keyword",
-                                    "town", "type=keyword", "age", "type=integer")
+                        .addMapping("doc",
+                            addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                                "parentType", "childType"),
+                                "name", "keyword", "town", "keyword", "age", "integer"))
             );
         }
         List<IndexRequestBuilder> requests = new ArrayList<>();

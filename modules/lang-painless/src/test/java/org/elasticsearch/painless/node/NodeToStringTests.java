@@ -31,8 +31,8 @@ import org.elasticsearch.painless.FeatureTest;
 import org.elasticsearch.painless.GenericElasticsearchScript;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,6 +42,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
 
 /**
  * Tests {@link Object#toString} implementations on all extensions of {@link ANode}.
@@ -902,8 +903,8 @@ public class NodeToStringTests extends ESTestCase {
         CompilerSettings compilerSettings = new CompilerSettings();
         compilerSettings.setRegexesEnabled(true);
         try {
-            return Walker.buildPainlessTree(scriptClassInfo, getTestName(), code, compilerSettings,
-                    definition, null);
+            return Walker.buildPainlessTree(
+                scriptClassInfo, new MainMethodReserved(), getTestName(), code, compilerSettings, definition, null);
         } catch (Exception e) {
             throw new AssertionError("Failed to compile: " + code, e);
         }

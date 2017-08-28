@@ -1128,7 +1128,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : snapshotEntry.shards()) {
                             ShardSnapshotStatus status = shardEntry.value;
                             if (!status.state().completed()) {
-                                shardsBuilder.put(shardEntry.key, new ShardSnapshotStatus(status.nodeId(), State.ABORTED));
+                                shardsBuilder.put(shardEntry.key, new ShardSnapshotStatus(status.nodeId(), State.ABORTED,
+                                    "aborted by snapshot deletion"));
                             } else {
                                 shardsBuilder.put(shardEntry.key, status);
                             }
@@ -1180,7 +1181,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         @Override
                         public void onSnapshotCompletion(Snapshot completedSnapshot, SnapshotInfo snapshotInfo) {
                             if (completedSnapshot.equals(snapshot)) {
-                                logger.trace("deleted snapshot completed - deleting files");
+                                logger.debug("deleted snapshot completed - deleting files");
                                 removeListener(this);
                                 threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() ->
                                     deleteSnapshot(completedSnapshot.getRepository(), completedSnapshot.getSnapshotId().getName(),
@@ -1214,7 +1215,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
                     });
                 } else {
-                    logger.trace("deleted snapshot is not running - deleting files");
+                    logger.debug("deleted snapshot is not running - deleting files");
                     deleteSnapshotFromRepository(snapshot, listener, repositoryStateId);
                 }
             }

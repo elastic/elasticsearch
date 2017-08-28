@@ -33,12 +33,12 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.discovery.DiscoverySettings;
 
 import java.util.ArrayList;
@@ -49,6 +49,8 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
  * This class processes incoming join request (passed zia {@link ZenDiscovery}). Incoming nodes
@@ -433,28 +435,36 @@ public class NodeJoinController extends AbstractComponent {
 
             assert nodesBuilder.isLocalNodeElectedMaster();
 
-            Version minNodeVersion = Version.CURRENT;
+            Version minClusterNodeVersion = newState.nodes().getMinNodeVersion();
+            Version maxClusterNodeVersion = newState.nodes().getMaxNodeVersion();
+            // we only enforce major version transitions on a fully formed clusters
+            final boolean enforceMajorVersion = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
             // processing any joins
             for (final DiscoveryNode node : joiningNodes) {
-                minNodeVersion = Version.min(minNodeVersion, node.getVersion());
                 if (node.equals(BECOME_MASTER_TASK) || node.equals(FINISH_ELECTION_TASK)) {
                     // noop
                 } else if (currentNodes.nodeExists(node)) {
                     logger.debug("received a join request for an existing node [{}]", node);
                 } else {
                     try {
+                        if (enforceMajorVersion) {
+                            MembershipAction.ensureMajorVersionBarrier(node.getVersion(), minClusterNodeVersion);
+                        }
+                        MembershipAction.ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
+                        // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
+                        // we have to reject nodes that don't support all indices we have in this cluster
+                        MembershipAction.ensureIndexCompatibility(node.getVersion(), currentState.getMetaData());
                         nodesBuilder.add(node);
                         nodesChanged = true;
-                    } catch (IllegalArgumentException e) {
+                        minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
+                        maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
+                    } catch (IllegalArgumentException | IllegalStateException e) {
                         results.failure(node, e);
                         continue;
                     }
                 }
                 results.success(node);
             }
-            // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
-            // we have to reject nodes that don't support all indices we have in this cluster
-            MembershipAction.ensureIndexCompatibility(minNodeVersion, currentState.getMetaData());
             if (nodesChanged) {
                 newState.nodes(nodesBuilder);
                 return results.build(allocationService.reroute(newState.build(), "node_join"));

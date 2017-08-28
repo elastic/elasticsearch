@@ -54,6 +54,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         Map<String, Object> fizz = new HashMap<>();
         fizz.put("buzz", "hello world");
         config.put("fizz", fizz);
+        config.put("num", 1);
     }
 
     public void testReadStringProperty() {
@@ -91,6 +92,22 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void testOptional_InvalidType() {
         List<String> val = ConfigurationUtils.readList(null, null, config, "int");
         assertThat(val, equalTo(Collections.singletonList(2)));
+    }
+
+    public void testReadStringOrIntProperty() {
+        String val1 = ConfigurationUtils.readStringOrIntProperty(null, null, config, "foo", null);
+        String val2 = ConfigurationUtils.readStringOrIntProperty(null, null, config, "num", null);
+        assertThat(val1, equalTo("bar"));
+        assertThat(val2, equalTo("1"));
+    }
+
+    public void testReadStringOrIntPropertyInvalidType() {
+        try {
+            ConfigurationUtils.readStringOrIntProperty(null, null, config, "arr", null);
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), equalTo(
+                "[arr] property isn't a string or int, but of type [java.util.Arrays$ArrayList]"));
+        }
     }
 
     public void testReadProcessors() throws Exception {

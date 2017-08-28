@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -29,27 +31,32 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -85,17 +92,19 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             }
         }
 
-        int fieldCount = randomIntBetween(0, 10);
+        int fieldCount = randomIntBetween(0, 2);
         Map<String, Float> fields = new HashMap<>();
         for (int i = 0; i < fieldCount; i++) {
             if (randomBoolean()) {
-                fields.put(randomAlphaOfLengthBetween(1, 10), AbstractQueryBuilder.DEFAULT_BOOST);
+                fields.put(STRING_FIELD_NAME, AbstractQueryBuilder.DEFAULT_BOOST);
             } else {
-                fields.put(randomBoolean() ? STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10), 2.0f / randomIntBetween(1, 20));
+                fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
             }
         }
         result.fields(fields);
-
+        if (randomBoolean()) {
+            result.autoGenerateSynonymsPhraseQuery(randomBoolean());
+        }
         return result;
     }
 
@@ -232,52 +241,38 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, notNullValue());
 
-        if ("".equals(queryBuilder.value())) {
+        if (queryBuilder.value().isEmpty()) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else if (queryBuilder.fields().size() > 1) {
-            assertThat(query, anyOf(instanceOf(BooleanQuery.class), instanceOf(DisjunctionMaxQuery.class)));
-            if (query instanceof BooleanQuery) {
-                BooleanQuery boolQuery = (BooleanQuery) query;
-                for (BooleanClause clause : boolQuery.clauses()) {
-                    if (clause.getQuery() instanceof TermQuery) {
-                        TermQuery inner = (TermQuery) clause.getQuery();
-                        assertThat(inner.getTerm().bytes().toString(), is(inner.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
-                    }
+            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+            DisjunctionMaxQuery maxQuery = (DisjunctionMaxQuery) query;
+            for (Query disjunct : maxQuery.getDisjuncts()) {
+                assertThat(disjunct, either(instanceOf(TermQuery.class))
+                    .or(instanceOf(BoostQuery.class))
+                    .or(instanceOf(MatchNoDocsQuery.class)));
+                Query termQuery = disjunct;
+                if (disjunct instanceof BoostQuery) {
+                    termQuery = ((BoostQuery) disjunct).getQuery();
                 }
-                assertThat(boolQuery.clauses().size(), equalTo(queryBuilder.fields().size()));
-                Iterator<Map.Entry<String, Float>> fieldsIterator = queryBuilder.fields().entrySet().iterator();
-                for (BooleanClause booleanClause : boolQuery) {
-                    Map.Entry<String, Float> field = fieldsIterator.next();
-                    assertTermOrBoostQuery(booleanClause.getQuery(), field.getKey(), queryBuilder.value(), field.getValue());
-                }
-                if (queryBuilder.minimumShouldMatch() != null) {
-                    assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
-                }
-            } else if (query instanceof DisjunctionMaxQuery) {
-                DisjunctionMaxQuery maxQuery = (DisjunctionMaxQuery) query;
-                for (Query disjunct : maxQuery.getDisjuncts()) {
-                    if (disjunct instanceof TermQuery) {
-                        TermQuery inner = (TermQuery) disjunct;
-                        assertThat(inner.getTerm().bytes().toString(), is(inner.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
-                    }
-                }
-                assertThat(maxQuery.getDisjuncts().size(), equalTo(queryBuilder.fields().size()));
-                Iterator<Map.Entry<String, Float>> fieldsIterator = queryBuilder.fields().entrySet().iterator();
-                for (Query disjunct : maxQuery) {
-                    Map.Entry<String, Float> field = fieldsIterator.next();
-                    assertTermOrBoostQuery(disjunct, field.getKey(), queryBuilder.value(), field.getValue());
+                if (termQuery instanceof TermQuery) {
+                    TermQuery inner = (TermQuery) termQuery;
+                    assertThat(inner.getTerm().bytes().toString(), is(inner.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
+                } else {
+                    assertThat(termQuery, instanceOf(MatchNoDocsQuery.class));
                 }
             }
         } else if (queryBuilder.fields().size() == 1) {
             Map.Entry<String, Float> field = queryBuilder.fields().entrySet().iterator().next();
-            assertTermOrBoostQuery(query, field.getKey(), queryBuilder.value(), field.getValue());
+            if (query instanceof MatchNoDocsQuery == false) {
+                assertTermOrBoostQuery(query, field.getKey(), queryBuilder.value(), field.getValue());
+            }
         } else if (queryBuilder.fields().size() == 0) {
-            MapperService ms = context.mapperService();
-            if (ms.allEnabled()) {
-                assertTermQuery(query, MetaData.ALL, queryBuilder.value());
-            } else {
-                assertThat(query.getClass(),
-                    anyOf(equalTo(BooleanQuery.class), equalTo(DisjunctionMaxQuery.class), equalTo(MatchNoDocsQuery.class)));
+            assertThat(query, either(instanceOf(DisjunctionMaxQuery.class))
+                .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(TermQuery.class)));
+            if (query instanceof DisjunctionMaxQuery) {
+                for (Query disjunct : (DisjunctionMaxQuery) query) {
+                    assertThat(disjunct, either(instanceOf(TermQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+                }
             }
         } else {
             fail("Encountered lucene query type we do not have a validation implementation for in our "
@@ -333,13 +328,14 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "{\n" +
                 "  \"simple_query_string\" : {\n" +
                 "    \"query\" : \"\\\"fried eggs\\\" +(eggplant | potato) -frittata\",\n" +
-                "    \"fields\" : [ \"_all^1.0\", \"body^5.0\" ],\n" +
+                "    \"fields\" : [ \"body^5.0\" ],\n" +
                 "    \"analyzer\" : \"snowball\",\n" +
                 "    \"flags\" : -1,\n" +
                 "    \"default_operator\" : \"and\",\n" +
                 "    \"lenient\" : false,\n" +
                 "    \"analyze_wildcard\" : false,\n" +
                 "    \"quote_field_suffix\" : \".quote\",\n" +
+                "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -348,12 +344,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         checkGeneratedJson(json, parsed);
 
         assertEquals(json, "\"fried eggs\" +(eggplant | potato) -frittata", parsed.value());
-        assertEquals(json, 2, parsed.fields().size());
+        assertEquals(json, 1, parsed.fields().size());
         assertEquals(json, "snowball", parsed.analyzer());
         assertEquals(json, ".quote", parsed.quoteFieldSuffix());
     }
 
     public void testMinimumShouldMatch() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext shardContext = createShardContext();
         int numberOfTerms = randomIntBetween(1, 4);
         StringBuilder queryString = new StringBuilder();
@@ -366,7 +363,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         }
         int numberOfFields = randomIntBetween(1, 4);
         for (int i = 0; i < numberOfFields; i++) {
-            simpleQueryStringBuilder.field("f" + i);
+            simpleQueryStringBuilder.field(STRING_FIELD_NAME);
         }
         int percent = randomIntBetween(1, 100);
         simpleQueryStringBuilder.minimumShouldMatch(percent + "%");
@@ -376,7 +373,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         if (numberOfFields * numberOfTerms == 1) {
             assertThat(query, instanceOf(TermQuery.class));
         } else if (numberOfTerms == 1) {
-            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+            assertThat(query, either(instanceOf(DisjunctionMaxQuery.class)).or(instanceOf(TermQuery.class)));
         } else {
             assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery boolQuery = (BooleanQuery) query;
@@ -400,6 +397,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testExpandedTerms() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         // Prefix
         Query query = new SimpleQueryStringBuilder("aBc*")
                 .field(STRING_FIELD_NAME)
@@ -427,18 +425,152 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(expected, query);
     }
 
-    public void testAllFieldsWithFields() throws IOException {
-        String json =
-                "{\n" +
-                "  \"simple_query_string\" : {\n" +
-                "    \"query\" : \"this that thus\",\n" +
-                "    \"fields\" : [\"foo\"],\n" +
-                "    \"all_fields\" : true\n" +
-                "  }\n" +
-                "}";
+    public void testAnalyzeWildcard() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
+        settings.analyzeWildcard(true);
+        SimpleQueryStringQueryParser parser = new SimpleQueryStringQueryParser(new StandardAnalyzer(),
+            Collections.singletonMap(STRING_FIELD_NAME, 1.0f), -1, settings, createShardContext());
+        for (Operator op : Operator.values()) {
+            BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
+            parser.setDefaultOperator(defaultOp);
+            Query query = parser.parse("first foo-bar-foobar* last");
+            Query expectedQuery =
+                new BooleanQuery.Builder()
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "first")), defaultOp))
+                    .add(new BooleanQuery.Builder()
+                        .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "foo")), defaultOp))
+                        .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "bar")), defaultOp))
+                        .add(new BooleanClause(new PrefixQuery(new Term(STRING_FIELD_NAME, "foobar")), defaultOp))
+                        .build(), defaultOp)
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "last")), defaultOp))
+                    .build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+    }
 
-        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(e.getMessage(),
-                containsString("cannot use [all_fields] parameter in conjunction with [fields]"));
+    public void testAnalyzerWildcardWithSynonyms() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
+        settings.analyzeWildcard(true);
+        SimpleQueryStringQueryParser parser = new SimpleQueryStringQueryParser(new MockRepeatAnalyzer(),
+            Collections.singletonMap(STRING_FIELD_NAME, 1.0f), -1, settings, createShardContext());
+        for (Operator op : Operator.values()) {
+            BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
+            parser.setDefaultOperator(defaultOp);
+            Query query = parser.parse("first foo-bar-foobar* last");
+            Query expectedQuery = new BooleanQuery.Builder()
+                .add(new BooleanClause(new SynonymQuery(new Term(STRING_FIELD_NAME, "first"),
+                    new Term(STRING_FIELD_NAME, "first")), defaultOp))
+                .add(new BooleanQuery.Builder()
+                    .add(new BooleanClause(new SynonymQuery(new Term(STRING_FIELD_NAME, "foo"),
+                        new Term(STRING_FIELD_NAME, "foo")), defaultOp))
+                    .add(new BooleanClause(new SynonymQuery(new Term(STRING_FIELD_NAME, "bar"),
+                        new Term(STRING_FIELD_NAME, "bar")), defaultOp))
+                    .add(new BooleanQuery.Builder()
+                        .add(new BooleanClause(new PrefixQuery(new Term(STRING_FIELD_NAME, "foobar")),
+                            BooleanClause.Occur.SHOULD))
+                        .add(new BooleanClause(new PrefixQuery(new Term(STRING_FIELD_NAME, "foobar")),
+                            BooleanClause.Occur.SHOULD))
+                        .build(), defaultOp)
+                    .build(), defaultOp)
+                .add(new BooleanClause(new SynonymQuery(new Term(STRING_FIELD_NAME, "last"),
+                    new Term(STRING_FIELD_NAME, "last")), defaultOp))
+                .build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+    }
+
+    public void testAnalyzerWithGraph() {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
+        settings.analyzeWildcard(true);
+        SimpleQueryStringQueryParser parser = new SimpleQueryStringQueryParser(new MockSynonymAnalyzer(),
+            Collections.singletonMap(STRING_FIELD_NAME, 1.0f), -1, settings, createShardContext());
+        for (Operator op : Operator.values()) {
+            BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
+            parser.setDefaultOperator(defaultOp);
+            // non-phrase won't detect multi-word synonym because of whitespace splitting
+            Query query = parser.parse("guinea pig");
+
+            Query expectedQuery = new BooleanQuery.Builder()
+                .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), defaultOp))
+                .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), defaultOp))
+                .build();
+            assertThat(query, equalTo(expectedQuery));
+
+            // phrase will pick it up
+            query = parser.parse("\"guinea pig\"");
+            SpanTermQuery span1 = new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea"));
+            SpanTermQuery span2 = new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig"));
+            expectedQuery = new SpanOrQuery(
+                new SpanNearQuery(new SpanQuery[] { span1, span2 }, 0, true),
+                new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy")));
+
+            assertThat(query, equalTo(expectedQuery));
+
+            // phrase with slop
+            query = parser.parse("big \"tiny guinea pig\"~2");
+
+            expectedQuery = new BooleanQuery.Builder()
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "big")), defaultOp)
+                .add(new SpanNearQuery(new SpanQuery[] {
+                    new SpanTermQuery(new Term(STRING_FIELD_NAME, "tiny")),
+                    new SpanOrQuery(
+                        new SpanNearQuery(new SpanQuery[] { span1, span2 }, 0, true),
+                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))
+                    )
+                }, 2, true), defaultOp)
+                .build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+    }
+
+    public void testQuoteFieldSuffix() {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
+        settings.analyzeWildcard(true);
+        settings.quoteFieldSuffix("_2");
+        SimpleQueryStringQueryParser parser = new SimpleQueryStringQueryParser(new MockSynonymAnalyzer(),
+            Collections.singletonMap(STRING_FIELD_NAME, 1.0f), -1, settings, createShardContext());
+        assertEquals(new TermQuery(new Term(STRING_FIELD_NAME, "bar")), parser.parse("bar"));
+        assertEquals(new TermQuery(new Term(STRING_FIELD_NAME_2, "bar")), parser.parse("\"bar\""));
+
+        // Now check what happens if the quote field does not exist
+        settings.quoteFieldSuffix(".quote");
+        parser = new SimpleQueryStringQueryParser(new MockSynonymAnalyzer(),
+            Collections.singletonMap(STRING_FIELD_NAME, 1.0f), -1, settings, createShardContext());
+        assertEquals(new TermQuery(new Term(STRING_FIELD_NAME, "bar")), parser.parse("bar"));
+        assertEquals(new TermQuery(new Term(STRING_FIELD_NAME, "bar")), parser.parse("\"bar\""));
+    }
+
+    public void testDefaultField() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        context.getIndexSettings().updateIndexMetaData(
+            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putArray("index.query.default_field",
+                STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
+        );
+        Query query = new SimpleQueryStringBuilder("hello")
+            .toQuery(context);
+        Query expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
+            ), 1.0f
+        );
+        assertEquals(expected, query);
+        // Reset the default value
+        context.getIndexSettings().updateIndexMetaData(
+            newIndexMeta("index",
+                context.getIndexSettings().getSettings(), Settings.builder().putArray("index.query.default_field", "*").build())
+        );
+    }
+
+    private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
+        Settings build = Settings.builder().put(oldIndexSettings)
+            .put(indexSettings)
+            .build();
+        return IndexMetaData.builder(name).settings(build).build();
     }
 }

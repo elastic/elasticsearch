@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,9 +29,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -45,12 +42,9 @@ import java.util.Map;
 
 /**
  * {@link ScriptMetaData} is used to store user-defined scripts
- * as part of the {@link ClusterState}.  Currently scripts can
- * be stored as part of the new namespace for a stored script where
- * only an id is used or as part of the deprecated namespace where
- * both a language and an id are used.
+ * as part of the {@link ClusterState} using only an id as the key.
  */
-public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXContent {
+public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXContentFragment {
 
     /**
      * A builder used to modify the currently stored scripts data held within
@@ -71,72 +65,27 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
         }
 
         /**
-         * Add a new script to the existing stored scripts.  The script will be added under
-         * both the new namespace and the deprecated namespace, so that look ups under
-         * the deprecated namespace will continue to work.  Should a script already exist under
-         * the new namespace using a different language, it will be replaced and a deprecation
-         * warning will be issued.  The replaced script will still exist under the deprecated
-         * namespace and can continue to be looked up this way until it is deleted.
-         * <p>
-         * Take for example script 'A' with lang 'L0' and data 'D0'.  If we add script 'A' to the
-         * empty set, the scripts {@link Map} will be ["A" -- D0, "A#L0" -- D0].  If a script
-         * 'A' with lang 'L1' and data 'D1' is then added, the scripts {@link Map} will be
-         * ["A" -- D1, "A#L1" -- D1, "A#L0" -- D0].
+         * Add a new script to the existing stored scripts based on a user-specified id.  If
+         * a script with the same id already exists it will be overwritten.
          * @param id The user-specified id to use for the look up.
          * @param source The user-specified stored script data held in {@link StoredScriptSource}.
          */
         public Builder storeScript(String id, StoredScriptSource source) {
-            StoredScriptSource previous = scripts.put(id, source);
-            scripts.put(source.getLang() + "#" + id, source);
-
-            if (previous != null && previous.getLang().equals(source.getLang()) == false) {
-                DEPRECATION_LOGGER.deprecated("stored script [" + id + "] already exists using a different lang " +
-                    "[" + previous.getLang() + "], the new namespace for stored scripts will only use (id) instead of (lang, id)");
-            }
+            scripts.put(id, source);
 
             return this;
         }
 
         /**
-         * Delete a script from the existing stored scripts.  The script will be removed from the
-         * new namespace if the script language matches the current script under the same id or
-         * if the script language is {@code null}.  The script will be removed from the deprecated
-         * namespace on any delete either using using the specified lang parameter or the language
-         * found from looking up the script in the new namespace.
-         * <p>
-         * Take for example a scripts {@link Map} with {"A" -- D1, "A#L1" -- D1, "A#L0" -- D0}.
-         * If a script is removed specified by an id 'A' and lang {@code null} then the scripts
-         * {@link Map} will be {"A#L0" -- D0}.  To remove the final script, the deprecated
-         * namespace must be used, so an id 'A' and lang 'L0' would need to be specified.
+         * Delete a script from the existing stored scripts based on a user-specified id.
          * @param id The user-specified id to use for the look up.
-         * @param lang The user-specified language to use for the look up if using the deprecated
-         *             namespace, otherwise {@code null}.
          */
-        public Builder deleteScript(String id, String lang) {
-            StoredScriptSource source = scripts.get(id);
+        public Builder deleteScript(String id) {
+            StoredScriptSource deleted = scripts.remove(id);
 
-            if (lang == null) {
-                if (source == null) {
-                    throw new ResourceNotFoundException("stored script [" + id + "] does not exist and cannot be deleted");
-                }
-
-                lang = source.getLang();
+            if (deleted == null) {
+                throw new ResourceNotFoundException("stored script [" + id + "] does not exist and cannot be deleted");
             }
-
-            if (source != null) {
-                if (lang.equals(source.getLang())) {
-                    scripts.remove(id);
-                }
-            }
-
-            source = scripts.get(lang + "#" + id);
-
-            if (source == null) {
-                throw new ResourceNotFoundException(
-                    "stored script [" + id + "] using lang [" + lang + "] does not exist and cannot be deleted");
-            }
-
-            scripts.remove(lang + "#" + id);
 
             return this;
         }
@@ -193,22 +142,12 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
      * Convenience method to build and return a new
      * {@link ScriptMetaData} deleting the specified stored script.
      */
-    static ScriptMetaData deleteStoredScript(ScriptMetaData previous, String id, String lang) {
+    static ScriptMetaData deleteStoredScript(ScriptMetaData previous, String id) {
         Builder builder = new ScriptMetaData.Builder(previous);
-        builder.deleteScript(id, lang);
+        builder.deleteScript(id);
 
         return builder.build();
     }
-
-    /**
-     * Standard logger necessary for allocation of the deprecation logger.
-     */
-    private static final Logger LOGGER = ESLoggerFactory.getLogger(ScriptMetaData.class);
-
-    /**
-     * Deprecation logger necessary for namespace changes related to stored scripts.
-     */
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LOGGER);
 
     /**
      * The type of {@link ClusterState} data.
@@ -218,7 +157,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
     /**
      * This will parse XContent into {@link ScriptMetaData}.
      *
-     * The following format will be parsed for the new namespace:
+     * The following format will be parsed:
      *
      * {@code
      * {
@@ -228,23 +167,15 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
      * }
      * }
      *
-     * The following format will be parsed for the deprecated namespace:
-     *
-     * {@code
-     * {
-     *     "<id>" : "<code>",
-     *     "<id>" : "<code>",
-     *     ...
-     * }
-     * }
-     *
-     * Note when using the deprecated namespace, the language will be pulled from
-     * the id and options will be set to an empty {@link Map}.
+     * When loading from a source prior to 6.0, if multiple scripts
+     * using the old namespace id format of [lang#id] are found to have the
+     * same id but different languages an error will occur.
      */
     public static ScriptMetaData fromXContent(XContentParser parser) throws IOException {
         Map<String, StoredScriptSource> scripts = new HashMap<>();
         String id = null;
         StoredScriptSource source;
+        StoredScriptSource exists;
 
         Token token = parser.currentToken();
 
@@ -270,13 +201,25 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                     }
 
                     int split = id.indexOf('#');
+                    String lang;
 
                     if (split == -1) {
                         throw new IllegalArgumentException("illegal stored script id [" + id + "], does not contain lang");
                     } else {
-                        source = new StoredScriptSource(id.substring(0, split), parser.text(), Collections.emptyMap());
+                        lang = id.substring(0, split);
+                        id = id.substring(split + 1);
+                        source = new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
                     }
-                    scripts.put(id, source);
+
+                    exists = scripts.get(id);
+
+                    if (exists == null) {
+                        scripts.put(id, source);
+                    } else if (exists.getLang().equals(lang) == false) {
+                        throw new IllegalArgumentException("illegal stored script, id [" + id + "] used for multiple scripts with " +
+                            "different languages [" + exists.getLang() + "] and [" + lang + "]; scripts using the old namespace " +
+                            "of [lang#id] as a stored script id will have to be updated to use only the new namespace of [id]");
+                    }
 
                     id = null;
 
@@ -287,8 +230,18 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                             "unexpected token [" + token + "], expected [<id>, <code>, {]");
                     }
 
+                    exists = scripts.get(id);
                     source = StoredScriptSource.fromXContent(parser);
-                    scripts.put(id, source);
+
+                    if (exists == null) {
+                        scripts.put(id, source);
+                    } else if (exists.getLang().equals(source.getLang()) == false) {
+                        throw new IllegalArgumentException("illegal stored script, id [" + id + "] used for multiple scripts with " +
+                            "different languages [" + exists.getLang() + "] and [" + source.getLang() + "]; scripts using the old " +
+                            "namespace of [lang#id] as a stored script id will have to be updated to use only the new namespace of [id]");
+                    }
+
+                    id = null;
 
                     break;
                 default:
@@ -421,16 +374,10 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
     }
 
     /**
-     * Retrieves a stored script from the new namespace if lang is {@code null}.
-     * Otherwise, returns a stored script from the deprecated namespace.  Either
-     * way an id is required.
+     * Retrieves a stored script based on a user-specified id.
      */
-    StoredScriptSource getStoredScript(String id, String lang) {
-        if (lang == null) {
-            return scripts.get(id);
-        } else {
-            return scripts.get(lang + "#" + id);
-        }
+    StoredScriptSource getStoredScript(String id) {
+        return scripts.get(id);
     }
 
     @Override

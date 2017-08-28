@@ -108,7 +108,7 @@ verify_package_installation() {
 
     if is_dpkg; then
         # Env file
-        assert_file "/etc/default/elasticsearch" f root root 660
+        assert_file "/etc/default/elasticsearch" f root elasticsearch 660
 
         # Doc files
         assert_file "/usr/share/doc/elasticsearch" d root root 755
@@ -117,7 +117,7 @@ verify_package_installation() {
 
     if is_rpm; then
         # Env file
-        assert_file "/etc/sysconfig/elasticsearch" f root root 660
+        assert_file "/etc/sysconfig/elasticsearch" f root elasticsearch 660
         # License file
         assert_file "/usr/share/elasticsearch/LICENSE.txt" f root root 644
     fi

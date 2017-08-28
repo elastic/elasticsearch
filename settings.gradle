@@ -40,6 +40,7 @@ List projects = [
   'modules:reindex',
   'modules:repository-url',
   'modules:transport-netty4',
+  'modules:tribe',
   'plugins:analysis-icu',
   'plugins:analysis-kuromoji',
   'plugins:analysis-phonetic',
@@ -79,7 +80,8 @@ List projects = [
   'qa:smoke-test-tribe-node',
   'qa:vagrant',
   'qa:verify-version-constants',
-  'qa:wildfly'
+  'qa:wildfly',
+  'qa:query-builder-bwc'
 ]
 
 File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')

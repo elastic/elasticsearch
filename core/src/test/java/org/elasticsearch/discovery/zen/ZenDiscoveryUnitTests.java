@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -306,6 +307,11 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             @Override
             public void setInitialState(ClusterState initialState) {
 
+            }
+
+            @Override
+            public ClusterState.Builder newClusterStateBuilder() {
+                return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
             }
 
             @Override

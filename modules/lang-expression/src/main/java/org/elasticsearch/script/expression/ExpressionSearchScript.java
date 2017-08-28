@@ -54,7 +54,7 @@ class ExpressionSearchScript implements SearchScript.LeafFactory {
     }
 
     @Override
-    public boolean needsScores() {
+    public boolean needs_score() {
         return needsScores;
     }
 

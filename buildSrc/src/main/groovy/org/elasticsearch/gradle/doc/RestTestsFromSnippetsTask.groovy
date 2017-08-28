@@ -93,7 +93,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
          *
          * `sh` snippets that contain `curl` almost always should be marked
          * with `// CONSOLE`. In the exceptionally rare cases where they are
-         * not communicating with Elasticsearch, like the xamples in the ec2
+         * not communicating with Elasticsearch, like the examples in the ec2
          * and gce discovery plugins, the snippets should be marked
          * `// NOTCONSOLE`. */
         return snippet.language == 'js' || snippet.curl
@@ -128,6 +128,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         Set<String> unconvertedCandidates = new HashSet<>()
 
         /**
+         * The last non-TESTRESPONSE snippet.
+         */
+        Snippet previousTest
+
+        /**
          * Called each time a snippet is encountered. Tracks the snippets and
          * calls buildTest to actually build the test.
          */
@@ -142,6 +147,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             }
             if (snippet.testSetup) {
                 setup(snippet)
+                previousTest = snippet
                 return
             }
             if (snippet.testResponse) {
@@ -150,6 +156,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             }
             if (snippet.test || snippet.console) {
                 test(snippet)
+                previousTest = snippet
                 return
             }
             // Must be an unmarked snippet....
@@ -158,7 +165,18 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         private void test(Snippet test) {
             setupCurrent(test)
 
-            if (false == test.continued) {
+            if (test.continued) {
+                /* Catch some difficult to debug errors with // TEST[continued]
+                 * and throw a helpful error message. */
+                if (previousTest == null || previousTest.path != test.path) {
+                    throw new InvalidUserDataException("// TEST[continued] " +
+                        "cannot be on first snippet in a file: $test")
+                }
+                if (previousTest != null && previousTest.testSetup) {
+                    throw new InvalidUserDataException("// TEST[continued] " +
+                        "cannot immediately follow // TESTSETUP: $test")
+                }
+            } else {
                 current.println('---')
                 current.println("\"line_$test.start\":")
                 /* The Elasticsearch test runner doesn't support the warnings

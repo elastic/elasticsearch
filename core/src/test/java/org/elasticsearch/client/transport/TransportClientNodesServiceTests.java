@@ -270,7 +270,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     });
                 }, actionListener);
 
-                assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
+                latch.await();
 
                 //there can be only either one failure that causes the request to fail straightaway or success
                 assertThat(preSendFailures.get() + iteration.transport.failures() + iteration.transport.successes(), lessThanOrEqualTo(1));

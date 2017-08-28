@@ -22,21 +22,20 @@ package org.elasticsearch.search.slice;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.UidFieldMapper;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -53,11 +52,11 @@ import java.util.Objects;
  *  Otherwise the provided field must be a numeric and doc_values must be enabled. In that case a
  *  {@link org.elasticsearch.search.slice.DocValuesSliceQuery} is used to filter the results.
  */
-public class SliceBuilder extends ToXContentToBytes implements Writeable {
+public class SliceBuilder implements Writeable, ToXContentObject {
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
     public static final ParseField MAX_FIELD = new ParseField("max");
-    private static final ObjectParser<SliceBuilder, QueryParseContext> PARSER =
+    private static final ObjectParser<SliceBuilder, Void> PARSER =
         new ObjectParser<>("slice", SliceBuilder::new);
 
     static {
@@ -169,8 +168,8 @@ public class SliceBuilder extends ToXContentToBytes implements Writeable {
         builder.field(MAX_FIELD.getPreferredName(), max);
     }
 
-    public static SliceBuilder fromXContent(QueryParseContext context) throws IOException {
-        SliceBuilder builder = PARSER.parse(context.parser(), new SliceBuilder(), context);
+    public static SliceBuilder fromXContent(XContentParser parser) throws IOException {
+        SliceBuilder builder = PARSER.parse(parser, new SliceBuilder(), null);
         return builder;
     }
 
@@ -254,5 +253,10 @@ public class SliceBuilder extends ToXContentToBytes implements Writeable {
             return new MatchNoDocsQuery("this shard is not part of the slice");
         }
         return new MatchAllDocsQuery();
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

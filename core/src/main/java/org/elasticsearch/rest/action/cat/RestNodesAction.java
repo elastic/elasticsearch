@@ -35,6 +35,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -124,7 +125,10 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("version", "default:false;alias:v;desc:es version");
         table.addCell("build", "default:false;alias:b;desc:es build hash");
         table.addCell("jdk", "default:false;alias:j;desc:jdk version");
-        table.addCell("disk.avail", "default:false;alias:d,disk,diskAvail;text-align:right;desc:available disk space");
+        table.addCell("disk.total", "default:false;alias:dt,diskTotal;text-align:right;desc:total disk space");
+        table.addCell("disk.used", "default:false;alias:du,diskUsed;text-align:right;desc:used disk space");
+        table.addCell("disk.avail", "default:false;alias:d,da,disk,diskAvail;text-align:right;desc:available disk space");
+        table.addCell("disk.used_percent", "default:false;alias:dup,diskUsedPercent;text-align:right;desc:used disk space percentage");
         table.addCell("heap.current", "default:false;alias:hc,heapCurrent;text-align:right;desc:used heap");
         table.addCell("heap.percent", "alias:hp,heapPercent;text-align:right;desc:used heap ratio");
         table.addCell("heap.max", "default:false;alias:hm,heapMax;text-align:right;desc:max configured heap");
@@ -201,6 +205,8 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("script.compilations", "alias:scrcc,scriptCompilations;default:false;text-align:right;desc:script compilations");
         table.addCell("script.cache_evictions",
             "alias:scrce,scriptCacheEvictions;default:false;text-align:right;desc:script cache evictions");
+        table.addCell("script.compilation_limit_triggered", "alias:scrclt,scriptCacheCompilationLimitTriggered;default:false;" +
+                "text-align:right;desc:script cache compilation limit triggered");
 
         table.addCell("search.fetch_current", "alias:sfc,searchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops");
         table.addCell("search.fetch_time", "alias:sfti,searchFetchTime;default:false;text-align:right;desc:time spent in fetch phase");
@@ -267,7 +273,15 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(node.getVersion().toString());
             table.addCell(info == null ? null : info.getBuild().shortHash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
+            
+            long diskTotal = fsInfo.getTotal().getTotal().getBytes();
+            long diskUsed = diskTotal - fsInfo.getTotal().getAvailable().getBytes();
+            double diskUsedRatio = diskTotal == 0 ? 1.0 : (double) diskUsed / diskTotal;
+            table.addCell(fsInfo == null ? null : fsInfo.getTotal().getTotal());
+            table.addCell(fsInfo == null ? null : new ByteSizeValue(diskUsed));
             table.addCell(fsInfo == null ? null : fsInfo.getTotal().getAvailable());
+            table.addCell(fsInfo == null ? null : String.format(Locale.ROOT, "%.2f", 100.0 * diskUsedRatio));
+            
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsed());
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsedPercent());
             table.addCell(jvmInfo == null ? null : jvmInfo.getMem().getHeapMax());
@@ -355,6 +369,7 @@ public class RestNodesAction extends AbstractCatAction {
             ScriptStats scriptStats = stats == null ? null : stats.getScriptStats();
             table.addCell(scriptStats == null ? null : scriptStats.getCompilations());
             table.addCell(scriptStats == null ? null : scriptStats.getCacheEvictions());
+            table.addCell(scriptStats == null ? null : scriptStats.getCompilationLimitTriggered());
 
             SearchStats searchStats = indicesStats == null ? null : indicesStats.getSearch();
             table.addCell(searchStats == null ? null : searchStats.getTotal().getFetchCurrent());

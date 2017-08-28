@@ -1,6 +1,0 @@
-[[elasticsearch-reference]]
-= Elasticsearch Reference
-
-:include-xpack:             true
-
-include::index-shared.asciidoc[]

@@ -19,20 +19,24 @@
 
 package org.elasticsearch.cluster.allocation;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -50,6 +54,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockLogAppender;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -63,6 +68,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -302,6 +308,84 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(((MoveAllocationCommand)explanation.command()).fromNode(), equalTo(cmd.fromNode()));
         assertThat(((MoveAllocationCommand)explanation.command()).toNode(), equalTo(cmd.toNode()));
         assertThat(explanation.decisions().type(), equalTo(Decision.Type.YES));
+    }
+
+    public void testMessageLogging() throws Exception{
+        final Settings settings = Settings.builder()
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name())
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE.name())
+            .build();
+
+        final String nodeName1 = internalCluster().startNode(settings);
+        assertThat(cluster().size(), equalTo(1));
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("1")
+            .execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+
+        final String nodeName2 = internalCluster().startNode(settings);
+        assertThat(cluster().size(), equalTo(2));
+        healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+
+        final String indexName = "test_index";
+        client().admin().indices().prepareCreate(indexName).setWaitForActiveShards(ActiveShardCount.NONE)
+            .setSettings(Settings.builder()
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1))
+        .execute().actionGet();
+
+        Logger actionLogger = Loggers.getLogger(TransportClusterRerouteAction.class);
+
+        MockLogAppender dryRunMockLog = new MockLogAppender();
+        dryRunMockLog.start();
+        dryRunMockLog.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("no completed message logged on dry run",
+                TransportClusterRerouteAction.class.getName(), Level.INFO, "allocated an empty primary*")
+        );
+        Loggers.addAppender(actionLogger, dryRunMockLog);
+
+        AllocationCommand dryRunAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
+        ClusterRerouteResponse dryRunResponse = client().admin().cluster().prepareReroute()
+            .setExplain(randomBoolean())
+            .setDryRun(true)
+            .add(dryRunAllocation)
+            .execute().actionGet();
+
+        // during a dry run, messages exist but are not logged or exposed
+        assertThat(dryRunResponse.getExplanations().getYesDecisionMessages(), hasSize(1));
+        assertThat(dryRunResponse.getExplanations().getYesDecisionMessages().get(0), containsString("allocated an empty primary"));
+
+        dryRunMockLog.assertAllExpectationsMatched();
+        dryRunMockLog.stop();
+        Loggers.removeAppender(actionLogger, dryRunMockLog);
+
+        MockLogAppender allocateMockLog = new MockLogAppender();
+        allocateMockLog.start();
+        allocateMockLog.addExpectation(
+            new MockLogAppender.SeenEventExpectation("message for first allocate empty primary",
+                TransportClusterRerouteAction.class.getName(), Level.INFO, "allocated an empty primary*" + nodeName1 + "*")
+        );
+        allocateMockLog.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("no message for second allocate empty primary",
+                TransportClusterRerouteAction.class.getName(), Level.INFO, "allocated an empty primary*" + nodeName2 + "*")
+        );
+        Loggers.addAppender(actionLogger, allocateMockLog);
+
+        AllocationCommand yesDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
+        AllocationCommand noDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand("noexist", 1, nodeName2, true);
+        ClusterRerouteResponse response = client().admin().cluster().prepareReroute()
+            .setExplain(true) // so we get a NO decision back rather than an exception
+            .add(yesDecisionAllocation)
+            .add(noDecisionAllocation)
+            .execute().actionGet();
+
+        assertThat(response.getExplanations().getYesDecisionMessages(), hasSize(1));
+        assertThat(response.getExplanations().getYesDecisionMessages().get(0), containsString("allocated an empty primary"));
+        assertThat(response.getExplanations().getYesDecisionMessages().get(0), containsString(nodeName1));
+
+        allocateMockLog.assertAllExpectationsMatched();
+        allocateMockLog.stop();
+        Loggers.removeAppender(actionLogger, allocateMockLog);
     }
 
     public void testClusterRerouteWithBlocks() throws Exception {

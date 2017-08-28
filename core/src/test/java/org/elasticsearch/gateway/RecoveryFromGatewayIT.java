@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
@@ -318,7 +319,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         // clean two nodes
         internalCluster().startNodes(2, Settings.builder().put("gateway.recover_after_nodes", 2).build());
 
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings("index.mapping.single_type", false));
+        assertAcked(client().admin().indices().prepareCreate("test"));
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         client().admin().indices().prepareFlush().execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();
@@ -350,10 +351,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 3);
         }
 
-        logger.info("--> add some metadata, additional type and template");
-        client().admin().indices().preparePutMapping("test").setType("type2")
-            .setSource(jsonBuilder().startObject().startObject("type2").endObject().endObject())
-            .execute().actionGet();
+        logger.info("--> add some metadata and additional template");
         client().admin().indices().preparePutTemplate("template_1")
             .setTemplate("te*")
             .setOrder(0)
@@ -381,7 +379,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
 
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.metaData().index("test").mapping("type2"), notNullValue());
         assertThat(state.metaData().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
         assertThat(state.metaData().index("test").getAliases().get("test_alias"), notNullValue());
         assertThat(state.metaData().index("test").getAliases().get("test_alias").filter(), notNullValue());
@@ -432,6 +429,10 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                 }
 
                 // prevent a sequence-number-based recovery from being possible
+                client(primaryNode).admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                ).get();
                 client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
                 return super.onNodeStopped(nodeName);
             }

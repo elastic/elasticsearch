@@ -140,6 +140,8 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Ite
                         }
                     } else if (token == XContentParser.Token.VALUE_NULL) {
                         aggregation.addPercentile(Double.valueOf(parser.currentName()), Double.NaN);
+                    } else {
+                        parser.skipChildren(); // skip potential inner objects and arrays for forward compatibility
                     }
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
@@ -164,6 +166,8 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Ite
                             }
                         } else if (token == XContentParser.Token.VALUE_NULL) {
                             value = Double.NaN;
+                        } else {
+                            parser.skipChildren(); // skip potential inner objects and arrays for forward compatibility
                         }
                     }
                     if (key != null) {

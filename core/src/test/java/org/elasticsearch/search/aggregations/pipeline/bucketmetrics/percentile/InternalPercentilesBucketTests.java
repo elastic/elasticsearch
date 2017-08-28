@@ -21,16 +21,21 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentilesTestCase.randomPercents;
 
@@ -110,11 +115,71 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
 
     public void testParsedAggregationIteratorOrder() throws IOException {
         final InternalPercentilesBucket aggregation = createTestInstance();
-        final Iterable<Percentile> parsedAggregation = parseAndAssert(aggregation, false);
+        final Iterable<Percentile> parsedAggregation = parseAndAssert(aggregation, false, false);
         Iterator<Percentile> it = aggregation.iterator();
         Iterator<Percentile> parsedIt = parsedAggregation.iterator();
         while (it.hasNext()) {
             assertEquals(it.next(), parsedIt.next());
         }
+    }
+
+    @Override
+    protected Predicate<String> excludePathsFromXContentInsertion() {
+        return path -> path.endsWith(CommonFields.VALUES.getPreferredName());
+    }
+
+    @Override
+    protected InternalPercentilesBucket mutateInstance(InternalPercentilesBucket instance) {
+        String name = instance.getName();
+        double[] percents = extractPercents(instance);
+        double[] percentiles = extractPercentiles(instance);
+        ;
+        DocValueFormat formatter = instance.formatter();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 3)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            percents = Arrays.copyOf(percents, percents.length);
+            percents[percents.length - 1] = randomDouble();
+            break;
+        case 2:
+            percentiles = Arrays.copyOf(percentiles, percentiles.length);
+            percentiles[percentiles.length - 1] = randomDouble();
+            break;
+        case 3:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalPercentilesBucket(name, percents, percentiles, formatter, pipelineAggregators, metaData);
+    }
+
+    private double[] extractPercentiles(InternalPercentilesBucket instance) {
+        List<Double> values = new ArrayList<>();
+        instance.iterator().forEachRemaining(percentile -> values.add(percentile.getValue()));
+        double[] valuesArray = new double[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            valuesArray[i] = values.get(i);
+        }
+        return valuesArray;
+    }
+
+    private double[] extractPercents(InternalPercentilesBucket instance) {
+        List<Double> percents = new ArrayList<>();
+        instance.iterator().forEachRemaining(percentile -> percents.add(percentile.getPercent()));
+        double[] percentArray = new double[percents.size()];
+        for (int i = 0; i < percents.size(); i++) {
+            percentArray[i] = percents.get(i);
+        }
+        return percentArray;
     }
 }

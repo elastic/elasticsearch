@@ -353,12 +353,6 @@ final class DocumentParser {
             context = nestedContext(context, mapper);
         }
 
-        // update the default value of include_in_all if necessary
-        Boolean includeInAll = mapper.includeInAll();
-        if (includeInAll != null) {
-            context = context.setIncludeInAllDefault(includeInAll);
-        }
-
         // if we are at the end of the previous object, advance
         if (token == XContentParser.Token.END_OBJECT) {
             token = parser.nextToken();
@@ -436,7 +430,13 @@ final class DocumentParser {
             if (idField != null) {
                 // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
                 // delete it when the root document is deleted too.
-                nestedDoc.add(new Field(IdFieldMapper.NAME, idField.stringValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                if (idField.stringValue() != null) {
+                    // backward compat with 5.x
+                    // TODO: Remove on 7.0
+                    nestedDoc.add(new Field(IdFieldMapper.NAME, idField.stringValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                } else {
+                    nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                }
             } else {
                 throw new IllegalStateException("The root document of a nested document should have an id field");
             }
@@ -467,9 +467,7 @@ final class DocumentParser {
             if (update != null) {
                 context.addDynamicMapper(update);
             }
-            if (fieldMapper.copyTo() != null) {
-                parseCopyFields(context, fieldMapper.copyTo().copyToFields());
-            }
+            parseCopyFields(context, fieldMapper.copyTo().copyToFields());
         }
     }
 

@@ -24,14 +24,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class OsStats implements Writeable, ToXContent {
+public class OsStats implements Writeable, ToXContentFragment {
 
     private final long timestamp;
     private final Cpu cpu;
@@ -125,7 +125,7 @@ public class OsStats implements Writeable, ToXContent {
         return builder;
     }
 
-    public static class Cpu implements Writeable, ToXContent {
+    public static class Cpu implements Writeable, ToXContentFragment {
 
         private final short percent;
         private final double[] loadAverage;
@@ -185,7 +185,7 @@ public class OsStats implements Writeable, ToXContent {
         }
     }
 
-    public static class Swap implements Writeable, ToXContent {
+    public static class Swap implements Writeable, ToXContentFragment {
 
         private final long total;
         private final long free;
@@ -229,7 +229,7 @@ public class OsStats implements Writeable, ToXContent {
         }
     }
 
-    public static class Mem implements Writeable, ToXContent {
+    public static class Mem implements Writeable, ToXContentFragment {
 
         private final long total;
         private final long free;
@@ -286,7 +286,7 @@ public class OsStats implements Writeable, ToXContent {
     /**
      * Encapsulates basic cgroup statistics.
      */
-    public static class Cgroup implements Writeable, ToXContent {
+    public static class Cgroup implements Writeable, ToXContentFragment {
 
         private final String cpuAcctControlGroup;
         private final long cpuAcctUsageNanos;
@@ -415,7 +415,7 @@ public class OsStats implements Writeable, ToXContent {
         /**
          * Encapsulates CPU time statistics.
          */
-        public static class CpuStat implements Writeable, ToXContent {
+        public static class CpuStat implements Writeable, ToXContentFragment {
 
             private final long numberOfElapsedPeriods;
             private final long numberOfTimesThrottled;

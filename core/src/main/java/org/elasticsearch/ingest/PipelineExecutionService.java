@@ -160,8 +160,7 @@ public class PipelineExecutionService implements ClusterStateApplier {
             String routing = indexRequest.routing();
             String parent = indexRequest.parent();
             Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, parent,
-                sourceAsMap, store.isNewIngestDateFormat());
+            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, parent, sourceAsMap);
             pipeline.execute(ingestDocument);
 
             Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();

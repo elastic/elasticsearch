@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -65,7 +64,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
     public BucketSelectorPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
         int mapSize = in.readVInt();
-        bucketsPathsMap = new HashMap<String, String>(mapSize);
+        bucketsPathsMap = new HashMap<>(mapSize);
         for (int i = 0; i < mapSize; i++) {
             bucketsPathsMap.put(in.readString(), in.readString());
         }
@@ -123,8 +122,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
         return builder;
     }
 
-    public static BucketSelectorPipelineAggregationBuilder parse(String reducerName, QueryParseContext context) throws IOException {
-        XContentParser parser = context.parser();
+    public static BucketSelectorPipelineAggregationBuilder parse(String reducerName, XContentParser parser) throws IOException {
         XContentParser.Token token;
         Script script = null;
         String currentFieldName = null;
@@ -139,7 +137,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
                     bucketsPathsMap = new HashMap<>();
                     bucketsPathsMap.put("_value", parser.text());
                 } else if (GAP_POLICY.match(currentFieldName)) {
-                    gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
+                    gapPolicy = GapPolicy.parse(parser.text(), parser.getTokenLocation());
                 } else if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
                     script = Script.parse(parser);
                 } else {

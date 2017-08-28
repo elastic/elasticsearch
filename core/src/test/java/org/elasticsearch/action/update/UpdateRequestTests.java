@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -37,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.MockScriptEngine;
@@ -75,10 +75,8 @@ public class UpdateRequestTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        final Path genericConfigFolder = createTempDir();
         final Settings baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .build();
         final Map<String, Function<Map<String, Object>, Object>> scripts =  new HashMap<>();
         scripts.put(
@@ -534,9 +532,9 @@ public class UpdateRequestTests extends ESTestCase {
         assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
         assertNull(UpdateHelper.calculateParent(getResult, indexRequest));
 
-        Map<String, GetField> fields = new HashMap<>();
-        fields.put("_parent", new GetField("_parent", Collections.singletonList("parent1")));
-        fields.put("_routing", new GetField("_routing", Collections.singletonList("routing1")));
+        Map<String, DocumentField> fields = new HashMap<>();
+        fields.put("_parent", new DocumentField("_parent", Collections.singletonList("parent1")));
+        fields.put("_routing", new DocumentField("_routing", Collections.singletonList("routing1")));
 
         // Doc exists and has the parent and routing fields
         getResult = new GetResult("test", "type", "1", 0, true, null, fields);

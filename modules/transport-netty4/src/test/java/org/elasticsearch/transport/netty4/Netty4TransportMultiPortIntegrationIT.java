@@ -57,7 +57,7 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
     protected Settings nodeSettings(int nodeOrdinal) {
         if (randomPort == -1) {
             randomPort = randomIntBetween(49152, 65525);
-            randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort+10);
+            randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort + 10);
         }
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
@@ -75,8 +75,11 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
             .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
+        // we have to test all the ports that the data node might be bound to
         try (TransportClient transportClient = new MockTransportClient(settings, Netty4Plugin.class)) {
-            transportClient.addTransportAddress(new TransportAddress(InetAddress.getByName("127.0.0.1"), randomPort));
+            for (int i = 0; i <= 10; i++) {
+                transportClient.addTransportAddress(new TransportAddress(InetAddress.getByName("127.0.0.1"), randomPort + i));
+            }
             ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();
             assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));
         }

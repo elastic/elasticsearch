@@ -1,35 +1,40 @@
 [[query-dsl-parent-id-query]]
 === Parent Id Query
 
-added[5.0.0]
-
 The `parent_id` query can be used to find child documents which belong to a particular parent.
 Given the following mapping definition:
 
 [source,js]
 --------------------------------------------
-PUT /my_index
+PUT my_index
 {
-    "settings": {
-        "mapping.single_type": false
-    },
-    "mappings": {
-        "blog_post": {
-            "properties": {
-                "name": {
-                    "type": "keyword"
-                }
-            }
-        },
-        "blog_tag": {
-            "_parent": {
-                "type": "blog_post"
-            },
-            "_routing": {
-                "required": true
-            }
+  "mappings": {
+    "doc": {
+      "properties": {
+        "my_join_field": {
+          "type": "join",
+          "relations": {
+            "my_parent": "my_child"
+          }
         }
+      }
     }
+  }
+}
+
+PUT my_index/doc/1?refresh
+{
+  "text": "This is a parent document",
+  "my_join_field": "my_parent"
+}
+
+PUT my_index/doc/2?routing=1&refresh
+{
+  "text": "This is a child document",
+  "my_join_field": {
+    "name": "my_child",
+    "parent": "1"
+  }
 }
 
 --------------------------------------------
@@ -40,46 +45,24 @@ PUT /my_index
 --------------------------------------------------
 GET /my_index/_search
 {
-    "query": {
-        "parent_id" : {
-            "type" : "blog_tag",
-            "id" : "1"
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-The above is functionally equivalent to using the following
-<<query-dsl-has-parent-query, `has_parent`>> query, but performs
-better as it does not need to do a join:
-
-[source,js]
---------------------------------------------------
-GET /my_index/_search
-{
   "query": {
-    "has_parent": {
-      "parent_type": "blog_post",
-        "query": {
-          "term": {
-            "_id": "1"
-        }
-      }
+    "parent_id": {
+      "type": "my_child",
+      "id": "1"
     }
   }
 }
 --------------------------------------------------
 // CONSOLE
 
+
 ==== Parameters
 
 This query has two required parameters:
 
 [horizontal]
-`type`::  The **child** type. This must be a type with `_parent` field.
-
-`id`::    The required parent id select documents must referrer to.
+`type`::  The **child** type name, as specified in the <<parent-join,`join` field>>.
+`id`::    The ID of the parent document.
 
 `ignore_unmapped`::  When set to `true` this will ignore an unmapped `type` and will not match any
 documents for this query. This can be useful when querying multiple indexes

@@ -53,7 +53,6 @@ import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -243,12 +242,12 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected void closeChannels(List<MockChannel> channel) throws IOException {
+    protected void closeChannels(List<MockChannel> channel, boolean blocking) throws IOException {
         IOUtils.close(channel);
     }
 
     @Override
-    public long serverOpen() {
+    public long getNumOpenServerConnections() {
         return 1;
     }
 
@@ -306,7 +305,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                     configureSocket(incomingSocket);
                     synchronized (this) {
                         if (isOpen.get()) {
-                            incomingChannel = new MockChannel(incomingSocket, localAddress, profile, workerChannels::remove);
+                            incomingChannel = new MockChannel(incomingSocket,
+                                new InetSocketAddress(incomingSocket.getLocalAddress(), incomingSocket.getPort()), profile,
+                                workerChannels::remove);
                             //establish a happens-before edge between closing and accepting a new connection
                             workerChannels.add(incomingChannel);
 
@@ -387,10 +388,8 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         try {
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 // loop through all profiles and start them up, special handling for default one
-                for (Map.Entry<String, Settings> entry : buildProfileSettings().entrySet()) {
-                    final Settings settings = Settings.builder()
-                        .put(entry.getValue()).build();
-                    bindServer(entry.getKey(), settings);
+                for (ProfileSettings profileSettings : profileSettings) {
+                    bindServer(profileSettings);
                 }
             }
             super.doStart();

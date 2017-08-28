@@ -11,130 +11,72 @@ include::install_remove.asciidoc[]
 [[discovery-ec2-usage]]
 ==== Getting started with AWS
 
-The plugin will default to using
+The plugin provides a hosts provider for zen discovery named `ec2`. This hosts provider
+finds other Elasticsearch instances in EC2 through AWS metadata. Authentication is done using 
 http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[IAM Role]
-credentials for authentication. These can be overridden by, in increasing
-order of precedence, system properties `aws.accessKeyId` and `aws.secretKey`,
-environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_KEY`, or the
-elasticsearch config using `cloud.aws.access_key` and `cloud.aws.secret_key`:
+credentials by default. The only necessary configuration change to enable the plugin
+is setting the unicast host provider for zen discovery:
 
 [source,yaml]
 ----
-cloud:
-    aws:
-        access_key: AKVAIQBF2RECL7FJWGJQ
-        secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
+discovery.zen.hosts_provider: ec2
 ----
 
-[[discovery-ec2-usage-security]]
-===== Transport security
+==== Settings
 
-By default this plugin uses HTTPS for all API calls to AWS endpoints. If you wish to configure HTTP you can set
-`cloud.aws.protocol` in the elasticsearch config. You can optionally override this setting per individual service
-via: `cloud.aws.ec2.protocol` or `cloud.aws.s3.protocol`.
+EC2 host discovery supports a number of settings.  
+Some settings are sensitive and must be stored in the {ref}/secure-settings.html[elasticsearch keystore].
+For example, to use explicit AWS access keys:
 
-[source,yaml]
+[source,sh]
 ----
-cloud:
-    aws:
-        protocol: https
-        ec2:
-            protocol: https
+bin/elasticsearch-keystore add discovery.ec2.access_key
+bin/elasticsearch-keystore add discovery.ec2.secret_key
 ----
 
-In addition, a proxy can be configured with the `proxy.host`, `proxy.port`, `proxy.username` and `proxy.password` settings
-(note that protocol can be `http` or `https`):
+The following are the available discovery settings. All should be prefixed with `discovery.ec2.`.
+Those that must be stored in the keystore are marked as `Secure`.
 
-[source,yaml]
-----
-cloud:
-    aws:
-        protocol: https
-        proxy:
-            host: proxy1.company.com
-            port: 8083
-            username: myself
-            password: theBestPasswordEver!
-----
 
-You can also set different proxies for `ec2` and `s3`:
+`access_key`::
 
-[source,yaml]
-----
-cloud:
-    aws:
-        s3:
-            proxy:
-                host: proxy1.company.com
-                port: 8083
-                username: myself1
-                password: theBestPasswordEver1!
-        ec2:
-            proxy:
-                host: proxy2.company.com
-                port: 8083
-                username: myself2
-                password: theBestPasswordEver2!
-----
+    An s3 access key. The `secret_key` setting must also be specified. (Secure)
 
-[[discovery-ec2-usage-region]]
-===== Region
+`secret_key`::
 
-The `cloud.aws.region` can be set to a region and will automatically use the relevant settings for both `ec2` and `s3`.
-The available values are:
+    An s3 secret key. The `access_key` setting must also be specified. (Secure)
 
-* `us-east` (`us-east-1`) for US East (N. Virginia)
-* `us-east-2` for US East (Ohio)
-* `us-west` (`us-west-1`) for US West (N. California)
-* `us-west-2` for US West (Oregon)
-* `ap-south` (`ap-south-1`) for Asia Pacific (Mumbai)
-* `ap-southeast` (`ap-southeast-1`) for Asia Pacific (Singapore)
-* `ap-southeast-2` for Asia Pacific (Sydney)
-* `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
-* `ap-northeast-2` (`ap-northeast-2`) for Asia Pacific (Seoul)
-* `eu-west` (`eu-west-1`) for EU (Ireland)
-* `eu-west-2` (`eu-west-2`) for EU (London)
-* `eu-central` (`eu-central-1`) for EU (Frankfurt)
-* `sa-east` (`sa-east-1`) for South America (São Paulo)
-* `cn-north` (`cn-north-1`) for China (Beijing)
-* `ca-central` (`ca-central-1`) for Canada (Central)
+`endpoint`::
 
-[[discovery-ec2-usage-signer]]
-===== EC2 Signer API
+    The ec2 service endpoint to connect to. This will be automatically
+    figured out by the ec2 client based on the instance location, but
+    can be specified explicitly. See http://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region.
 
-If you are using a compatible EC2 service, they might be using an older API to sign the requests.
-You can set your compatible signer API using `cloud.aws.signer` (or `cloud.aws.ec2.signer`)
-with the right signer to use.
+`protocol`::
 
-===== Read timeout
+    The protocol to use to connect to ec2. Valid values are either `http`
+    or `https`. Defaults to `https`. 
 
-Read timeout determines the amount of time to wait for data to be transferred over an established,
-open connection before the connection is timed out. Defaults to AWS SDK default value (`50 s`).
-It can be configured with `cloud.aws.read_timeout` (or `cloud.aws.ec2.read_timeout`) setting:
+`proxy.host`::
 
-[source, yaml]
-----
-cloud.aws.read_timeout: 30s
-----
+    The host name of a proxy to connect to ec2 through.
 
-[[discovery-ec2-discovery]]
-==== EC2 Discovery
+`proxy.port`::
 
-ec2 discovery allows to use the ec2 APIs to perform automatic discovery (similar to multicast in non hostile multicast
-environments). Here is a simple sample configuration:
+    The port of a proxy to connect to ec2 through.
 
-[source,yaml]
-----
-discovery:
-    zen.hosts_provider: ec2
-----
+`proxy.username`::
 
-You must also set `cloud.aws.region` if you are not using default AWS region. See <<discovery-ec2-usage-region>> for details.
+    The username to connect to the `proxy.host` with. (Secure)    
 
-The ec2 discovery is using the same credentials as the rest of the AWS services provided by this plugin (`repositories`).
-See <<discovery-ec2-usage>> for details.
+`proxy.password`::
 
-The following are a list of settings (prefixed with `discovery.ec2`) that can further control the discovery:
+    The password to connect to the `proxy.host` with. (Secure)    
+
+`read_timeout`::
+
+    The socket timeout for connecting to ec2. The value should specify the unit. For example,
+    a value of `5s` specifies a 5 second timeout. The default value is 50 seconds.
 
 `groups`::
 
@@ -261,12 +203,6 @@ cloud.node.auto_attributes: true
 
 cluster.routing.allocation.awareness.attributes: aws_availability_zone
 ----
-
-[[discovery-ec2-endpoint]]
-===== Using other EC2 endpoint
-
-If you are using any EC2 api compatible service, you can set the endpoint you want to use by setting
-`cloud.aws.ec2.endpoint` to your URL provider.
 
 [[cloud-aws-best-practices]]
 ==== Best Practices in AWS

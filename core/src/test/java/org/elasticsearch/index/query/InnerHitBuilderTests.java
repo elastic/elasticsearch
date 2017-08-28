@@ -123,8 +123,7 @@ public class InnerHitBuilderTests extends ESTestCase {
             //fields is printed out as an object but parsed into a List where order matters, we disable shuffling
             XContentBuilder shuffled = shuffleXContent(builder, "fields");
             XContentParser parser = createParser(shuffled);
-            QueryParseContext context = new QueryParseContext(parser);
-            InnerHitBuilder secondInnerHits = InnerHitBuilder.fromXContent(context);
+            InnerHitBuilder secondInnerHits = InnerHitBuilder.fromXContent(parser);
             assertThat(innerHit, not(sameInstance(secondInnerHits)));
             assertThat(innerHit, equalTo(secondInnerHits));
             assertThat(innerHit.hashCode(), equalTo(secondInnerHits.hashCode()));

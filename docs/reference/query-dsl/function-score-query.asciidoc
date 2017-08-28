@@ -208,12 +208,25 @@ not. The number value is of type float.
 [[function-random]]
 ==== Random
 
-The `random_score` generates scores using a hash of the `_uid` field,
-with a `seed` for variation. If `seed` is not specified, the current
-time is used.
+The `random_score` generates scores that are uniformly distributed in [0, 1[.
+By default, it uses the internal Lucene doc ids as a source of randomness,
+which is very efficient but unfortunately not reproducible since documents might
+be renumbered by merges.
 
-NOTE: Using this feature will load field data for `_uid`, which can
-be a memory intensive operation since the values are unique.
+In case you want scores to be reproducible, it is possible to provide a `seed`
+and `field`. The final score will then be computed based on this seed, the
+minimum value of `field` for the considered document and a salt that is computed
+based on the index name and shard id so that documents that have the same
+value but are stored in different indexes get different scores. Note that
+documents that are within the same shard and have the same value for `field`
+will however get the same score, so it is usually desirable to use a field that
+has unique values for all documents. A good default choice might be to use the
+`_seq_no` field, whose only drawback is that scores will change if the document
+is updated since update operations also update the value of the `_seq_no` field.
+
+NOTE: It was possible to set a seed without setting a field, but this has been
+deprecated as this requires loading fielddata on the `_id` field which consumes
+a lot of memory.
 
 [source,js]
 --------------------------------------------------
@@ -222,7 +235,8 @@ GET /_search
     "query": {
         "function_score": {
             "random_score": {
-                "seed": 10
+                "seed": 10,
+                "field": "_seq_no"
             }
         }
     }
@@ -239,7 +253,7 @@ influence the score. It's similar to using the `script_score` function, however,
 it avoids the overhead of scripting. If used on a multi-valued field, only the
 first value of the field is used in calculations.
 
-As an example, imagine you have a document indexed with a numeric `popularity`
+As an example, imagine you have a document indexed with a numeric `likes`
 field and wish to influence the score of a document with this field, an example
 doing so would look like:
 

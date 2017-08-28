@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.state;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -171,21 +172,20 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/14932")
     public void testDeleteCreateInOneBulk() throws Exception {
-        internalCluster().startNodes(2);
+        internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
-        prepareCreate("test").setSettings(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, true).addMapping("type").get();
+        prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).addMapping("type").get();
         ensureGreen("test");
 
         // now that the cluster is stable, remove publishing timeout
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0")));
-
-        Set<String> nodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
-        nodes.remove(internalCluster().getMasterName());
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0")
+                .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s")));
 
         // block none master node.
-        BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(nodes.iterator().next(), random());
+        BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(dataNode, random());
         internalCluster().setDisruptionScheme(disruption);
         logger.info("--> indexing a doc");
         index("test", "type", "1");
@@ -193,7 +193,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         disruption.startDisrupting();
         logger.info("--> delete index and recreate it");
         assertFalse(client().admin().indices().prepareDelete("test").setTimeout("200ms").get().isAcknowledged());
-        assertFalse(prepareCreate("test").setTimeout("200ms").setSettings(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, true).get().isAcknowledged());
+        assertFalse(prepareCreate("test").setTimeout("200ms").setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0,
+            IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "0").get().isAcknowledged());
         logger.info("--> letting cluster proceed");
         disruption.stopDisrupting();
         ensureGreen(TimeValue.timeValueMinutes(30), "test");
@@ -266,23 +267,20 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
         });
         // ...and wait for mappings to be available on master
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ImmutableOpenMap<String, MappingMetaData> indexMappings = client().admin().indices().prepareGetMappings("index").get().getMappings().get("index");
-                assertNotNull(indexMappings);
-                MappingMetaData typeMappings = indexMappings.get("type");
-                assertNotNull(typeMappings);
-                Object properties;
-                try {
-                    properties = typeMappings.getSourceAsMap().get("properties");
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
-                assertNotNull(properties);
-                Object fieldMapping = ((Map<String, Object>) properties).get("field");
-                assertNotNull(fieldMapping);
+        assertBusy(() -> {
+            ImmutableOpenMap<String, MappingMetaData> indexMappings = client().admin().indices().prepareGetMappings("index").get().getMappings().get("index");
+            assertNotNull(indexMappings);
+            MappingMetaData typeMappings = indexMappings.get("type");
+            assertNotNull(typeMappings);
+            Object properties;
+            try {
+                properties = typeMappings.getSourceAsMap().get("properties");
+            } catch (ElasticsearchParseException e) {
+                throw new AssertionError(e);
             }
+            assertNotNull(properties);
+            Object fieldMapping = ((Map<String, Object>) properties).get("field");
+            assertNotNull(fieldMapping);
         });
 
         final AtomicReference<Object> docIndexResponse = new AtomicReference<>();
@@ -307,17 +305,14 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Now make sure the indexing request finishes successfully
         disruption.stopDisrupting();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(putMappingResponse.get(), instanceOf(PutMappingResponse.class));
-                PutMappingResponse resp = (PutMappingResponse) putMappingResponse.get();
-                assertTrue(resp.isAcknowledged());
-                assertThat(docIndexResponse.get(), instanceOf(IndexResponse.class));
-                IndexResponse docResp = (IndexResponse) docIndexResponse.get();
-                assertEquals(Arrays.toString(docResp.getShardInfo().getFailures()),
-                        1, docResp.getShardInfo().getTotal());
-            }
+        assertBusy(() -> {
+            assertThat(putMappingResponse.get(), instanceOf(PutMappingResponse.class));
+            PutMappingResponse resp = (PutMappingResponse) putMappingResponse.get();
+            assertTrue(resp.isAcknowledged());
+            assertThat(docIndexResponse.get(), instanceOf(IndexResponse.class));
+            IndexResponse docResp = (IndexResponse) docIndexResponse.get();
+            assertEquals(Arrays.toString(docResp.getShardInfo().getFailures()),
+                    1, docResp.getShardInfo().getTotal());
         });
     }
 
@@ -387,17 +382,14 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
         final Index index = resolveIndex("index");
         // Wait for mappings to be available on master
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, master);
-                final IndexService indexService = indicesService.indexServiceSafe(index);
-                assertNotNull(indexService);
-                final MapperService mapperService = indexService.mapperService();
-                DocumentMapper mapper = mapperService.documentMapper("type");
-                assertNotNull(mapper);
-                assertNotNull(mapper.mappers().getMapper("field"));
-            }
+        assertBusy(() -> {
+            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, master);
+            final IndexService indexService = indicesService.indexServiceSafe(index);
+            assertNotNull(indexService);
+            final MapperService mapperService = indexService.mapperService();
+            DocumentMapper mapper = mapperService.documentMapper("type");
+            assertNotNull(mapper);
+            assertNotNull(mapper.mappers().getMapper("field"));
         });
 
         final AtomicReference<Object> docIndexResponse = new AtomicReference<>();
@@ -414,12 +406,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
 
         // Wait for document to be indexed on primary
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertTrue(client().prepareGet("index", "type", "1").setPreference("_primary").get().isExists());
-            }
-        });
+        assertBusy(() -> assertTrue(client().prepareGet("index", "type", "1").setPreference("_primary").get().isExists()));
 
         // The mappings have not been propagated to the replica yet as a consequence the document count not be indexed
         // We wait on purpose to make sure that the document is not indexed because the shard operation is stalled
@@ -430,17 +417,14 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Now make sure the indexing request finishes successfully
         disruption.stopDisrupting();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(putMappingResponse.get(), instanceOf(PutMappingResponse.class));
-                PutMappingResponse resp = (PutMappingResponse) putMappingResponse.get();
-                assertTrue(resp.isAcknowledged());
-                assertThat(docIndexResponse.get(), instanceOf(IndexResponse.class));
-                IndexResponse docResp = (IndexResponse) docIndexResponse.get();
-                assertEquals(Arrays.toString(docResp.getShardInfo().getFailures()),
-                        2, docResp.getShardInfo().getTotal()); // both shards should have succeeded
-            }
+        assertBusy(() -> {
+            assertThat(putMappingResponse.get(), instanceOf(PutMappingResponse.class));
+            PutMappingResponse resp = (PutMappingResponse) putMappingResponse.get();
+            assertTrue(resp.isAcknowledged());
+            assertThat(docIndexResponse.get(), instanceOf(IndexResponse.class));
+            IndexResponse docResp = (IndexResponse) docIndexResponse.get();
+            assertEquals(Arrays.toString(docResp.getShardInfo().getFailures()),
+                    2, docResp.getShardInfo().getTotal()); // both shards should have succeeded
         });
     }
 

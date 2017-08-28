@@ -47,19 +47,25 @@ public class TermsLookupTests extends ESTestCase {
         String type = randomAlphaOfLength(5);
         String id = randomAlphaOfLength(5);
         String path = randomAlphaOfLength(5);
-        switch (randomIntBetween(0, 2)) {
-        case 0:
-            type = null;
-            break;
-        case 1:
-            id = null;
-            break;
-        case 2:
-            path = null;
-            break;
+        String index = randomAlphaOfLength(5);
+        switch (randomIntBetween(0, 3)) {
+            case 0:
+                type = null;
+                break;
+            case 1:
+                id = null;
+                break;
+            case 2:
+                path = null;
+                break;
+            case 3:
+                index = null;
+                break;
+            default:
+                fail("unknown case");
         }
         try {
-            new TermsLookup(null, type, id, path);
+            new TermsLookup(index, type, id, path);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("[terms] query lookup element requires specifying"));
         }
@@ -80,7 +86,7 @@ public class TermsLookupTests extends ESTestCase {
 
     public static TermsLookup randomTermsLookup() {
         return new TermsLookup(
-                randomBoolean() ? randomAlphaOfLength(10) : null,
+                randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10).replace('.', '_')

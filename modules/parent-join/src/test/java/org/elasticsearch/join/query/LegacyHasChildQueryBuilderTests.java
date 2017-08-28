@@ -114,7 +114,7 @@ public class LegacyHasChildQueryBuilderTests extends AbstractQueryTestCase<HasCh
     protected Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
-            .put("index.mapping.single_type", false)
+            .put("index.version.created", Version.V_5_6_0) // multi type
             .build();
     }
 
@@ -322,7 +322,8 @@ public class LegacyHasChildQueryBuilderTests extends AbstractQueryTestCase<HasCh
             hasChildQuery(CHILD_TYPE, new TermQueryBuilder("custom_string", "value"), ScoreMode.None);
         HasChildQueryBuilder.LateParsingQuery query = (HasChildQueryBuilder.LateParsingQuery) hasChildQueryBuilder.toQuery(shardContext);
         Similarity expected = SimilarityService.BUILT_IN.get(similarity)
-            .apply(similarity, Settings.EMPTY, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .create(similarity, Settings.EMPTY,
+                    Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), null)
             .get();
         assertThat(((PerFieldSimilarityWrapper) query.getSimilarity()).get("custom_string"), instanceOf(expected.getClass()));
     }

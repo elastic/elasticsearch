@@ -82,17 +82,19 @@ public final class SDeclaration extends AStatement {
         writer.writeStatementOffset(location);
 
         if (expression == null) {
-            switch (variable.type.sort) {
-                case VOID:   throw createError(new IllegalStateException("Illegal tree structure."));
-                case BOOL:
-                case BYTE:
-                case SHORT:
-                case CHAR:
-                case INT:    writer.push(0);    break;
-                case LONG:   writer.push(0L);   break;
-                case FLOAT:  writer.push(0.0F); break;
-                case DOUBLE: writer.push(0.0);  break;
-                default:     writer.visitInsn(Opcodes.ACONST_NULL);
+            Class<?> sort = variable.type.clazz;
+
+            if (sort == void.class || sort == boolean.class || sort == byte.class ||
+                sort == short.class || sort == char.class || sort == int.class) {
+                writer.push(0);
+            } else if (sort == long.class) {
+                writer.push(0L);
+            } else if (sort == float.class) {
+                writer.push(0F);
+            } else if (sort == double.class) {
+                writer.push(0D);
+            } else {
+                writer.visitInsn(Opcodes.ACONST_NULL);
             }
         } else {
             expression.write(writer, globals);

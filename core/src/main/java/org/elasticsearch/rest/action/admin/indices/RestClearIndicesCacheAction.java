@@ -85,17 +85,11 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
             if (Fields.QUERY.match(entry.getKey())) {
                 clearIndicesCacheRequest.queryCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.queryCache()));
-            }
-            if (Fields.REQUEST.match(entry.getKey())) {
+            } else if (Fields.REQUEST.match(entry.getKey())) {
                 clearIndicesCacheRequest.requestCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.requestCache()));
-            }
-            if (Fields.FIELD_DATA.match(entry.getKey())) {
+            } else if (Fields.FIELD_DATA.match(entry.getKey())) {
                 clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.fieldDataCache()));
-            }
-            if (Fields.RECYCLER.match(entry.getKey())) {
-                clearIndicesCacheRequest.recycler(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.recycler()));
-            }
-            if (Fields.FIELDS.match(entry.getKey())) {
+            } else  if (Fields.FIELDS.match(entry.getKey())) {
                 clearIndicesCacheRequest.fields(request.paramAsStringArray(entry.getKey(), clearIndicesCacheRequest.fields()));
             }
         }
@@ -107,7 +101,6 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         public static final ParseField QUERY = new ParseField("query", "filter", "filter_cache");
         public static final ParseField REQUEST = new ParseField("request", "request_cache");
         public static final ParseField FIELD_DATA = new ParseField("field_data", "fielddata");
-        public static final ParseField RECYCLER = new ParseField("recycler");
         public static final ParseField FIELDS = new ParseField("fields");
     }
 

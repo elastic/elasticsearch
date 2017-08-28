@@ -350,7 +350,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         Query query = LatLonPoint.newBoxQuery(fieldType.name(), luceneBottomRight.getLat(), luceneTopLeft.getLat(),
             luceneTopLeft.getLon(), luceneBottomRight.getLon());
         if (fieldType.hasDocValues()) {
-            Query dvQuery = LatLonDocValuesField.newBoxQuery(fieldType.name(),
+            Query dvQuery = LatLonDocValuesField.newSlowBoxQuery(fieldType.name(),
                     luceneBottomRight.getLat(), luceneTopLeft.getLat(),
                     luceneTopLeft.getLon(), luceneBottomRight.getLon());
             query = new IndexOrDocValuesQuery(query, dvQuery);
@@ -375,9 +375,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.endObject();
     }
 
-    public static GeoBoundingBoxQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static GeoBoundingBoxQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
 
         double top = Double.NaN;
@@ -406,9 +404,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                         token = parser.nextToken();
-                        if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                            // skip
-                        } else if (FIELD_FIELD.match(currentFieldName)) {
+                        if (FIELD_FIELD.match(currentFieldName)) {
                             fieldName = parser.text();
                         } else if (TOP_FIELD.match(currentFieldName)) {
                             top = parser.doubleValue();

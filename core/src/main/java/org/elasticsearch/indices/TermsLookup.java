@@ -19,11 +19,13 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -34,17 +36,12 @@ import java.util.Objects;
 /**
  * Encapsulates the parameters needed to fetch terms.
  */
-public class TermsLookup implements Writeable, ToXContent {
-    private String index;
+public class TermsLookup implements Writeable, ToXContentFragment {
+    private final String index;
     private final String type;
     private final String id;
     private final String path;
     private String routing;
-
-    public TermsLookup(TermsLookup copy) {
-        this(copy.index, copy.type, copy.id, copy.path);
-        this.routing = copy.routing;
-    }
 
     public TermsLookup(String index, String type, String id, String path) {
         if (id == null) {
@@ -55,6 +52,9 @@ public class TermsLookup implements Writeable, ToXContent {
         }
         if (path == null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the path.");
+        }
+        if (index == null) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the index.");
         }
         this.index = index;
         this.type = type;
@@ -69,7 +69,14 @@ public class TermsLookup implements Writeable, ToXContent {
         type = in.readString();
         id = in.readString();
         path = in.readString();
-        index = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            index = in.readString();
+        } else {
+            index = in.readOptionalString();
+            if (index == null) {
+                throw new IllegalStateException("index must not be null in a terms lookup");
+            }
+        }
         routing = in.readOptionalString();
     }
 
@@ -78,17 +85,16 @@ public class TermsLookup implements Writeable, ToXContent {
         out.writeString(type);
         out.writeString(id);
         out.writeString(path);
-        out.writeOptionalString(index);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            out.writeString(index);
+        } else {
+            out.writeOptionalString(index);
+        }
         out.writeOptionalString(routing);
     }
 
     public String index() {
         return index;
-    }
-
-    public TermsLookup index(String index) {
-        this.index = index;
-        return this;
     }
 
     public String type() {
@@ -126,7 +132,7 @@ public class TermsLookup implements Writeable, ToXContent {
             } else if (token.isValue()) {
                 switch (currentFieldName) {
                 case "index":
-                    index = parser.textOrNull();
+                    index = parser.text();
                     break;
                 case "type":
                     type = parser.text();
@@ -159,9 +165,7 @@ public class TermsLookup implements Writeable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (index != null) {
-            builder.field("index", index);
-        }
+        builder.field("index", index);
         builder.field("type", type);
         builder.field("id", id);
         builder.field("path", path);

@@ -27,13 +27,13 @@ public interface MappingUpdatePerformer {
     /**
      * Update the mappings on the master.
      */
-    void updateMappings(Mapping update, ShardId shardId, String type) throws Exception;
+    void updateMappings(Mapping update, ShardId shardId, String type);
 
     /**
      *  Throws a {@code ReplicationOperation.RetryOnPrimaryException} if the operation needs to be
      * retried on the primary due to the mappings not being present yet, or a different exception if
      * updating the mappings on the master failed.
      */
-    void verifyMappings(Mapping update, ShardId shardId) throws Exception;
+    void verifyMappings(Mapping update, ShardId shardId);
 
 }

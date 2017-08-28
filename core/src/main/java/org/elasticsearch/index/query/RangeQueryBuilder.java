@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
@@ -37,6 +37,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -343,9 +344,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         builder.endObject();
     }
 
-    public static RangeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static RangeQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
         Object from = null;
         Object to = null;
@@ -362,8 +361,6 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
                 fieldName = currentFieldName;
@@ -444,20 +441,20 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     // Overridable for testing only
     protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
-        IndexReader reader = queryRewriteContext.getIndexReader();
-        // If the reader is null we are not on the shard and cannot
+        QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
+        // If the context is null we are not on the shard and cannot
         // rewrite so just pretend there is an intersection so that the rewrite is a noop
-        if (reader == null) {
+        if (shardContext == null || shardContext.getIndexReader() == null) {
             return MappedFieldType.Relation.INTERSECTS;
         }
-        final MapperService mapperService = queryRewriteContext.getMapperService();
+        final MapperService mapperService = shardContext.getMapperService();
         final MappedFieldType fieldType = mapperService.fullName(fieldName);
         if (fieldType == null) {
             // no field means we have no values
             return MappedFieldType.Relation.DISJOINT;
         } else {
             DateMathParser dateMathParser = format == null ? null : new DateMathParser(format);
-            return fieldType.isFieldWithinQuery(queryRewriteContext.getIndexReader(), from, to, includeLower,
+            return fieldType.isFieldWithinQuery(shardContext.getIndexReader(), from, to, includeLower,
                     includeUpper, timeZone, dateMathParser, queryRewriteContext);
         }
     }
@@ -488,6 +485,21 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (from == null && to == null) {
+            /**
+             * Open bounds on both side, we can rewrite to an exists query
+             * if the {@link FieldNamesFieldMapper} is enabled.
+             */
+            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
+                (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
+            if (fieldNamesFieldType == null) {
+                return new MatchNoDocsQuery("No mappings yet");
+            }
+            // Exists query would fail if the fieldNames field is disabled.
+            if (fieldNamesFieldType.isEnabled()) {
+                return ExistsQueryBuilder.newFilter(context, fieldName);
+            }
+        }
         Query query = null;
         MappedFieldType mapper = context.fieldMapper(this.fieldName);
         if (mapper != null) {

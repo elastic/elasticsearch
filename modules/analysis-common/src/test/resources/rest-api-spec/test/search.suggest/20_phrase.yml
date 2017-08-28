@@ -19,6 +19,9 @@ setup:
                 ngram:
                   tokenizer: standard
                   filter: [lowercase, ngram]
+                reverse:
+                  tokenizer: standard
+                  filter: [lowercase, reverse]
               filter:
                 bigram:
                   type: shingle
@@ -43,6 +46,9 @@ setup:
                     ngram:
                       type: text
                       analyzer: ngram
+                    reverse:
+                      type: text
+                      analyzer: reverse
 
   - do:
       bulk:
@@ -54,6 +60,40 @@ setup:
           { "body": "Xorr the God-Jewel" }
           { "index": {} }
           { "body": "Xorn" }
+          { "index": {} }
+          { "body": "Arthur, King of the Britons" }
+          { "index": {} }
+          { "body": "Sir Lancelot the Brave" }
+          { "index": {} }
+          { "body": "Patsy, Arthur's Servant" }
+          { "index": {} }
+          { "body": "Sir Robin the Not-Quite-So-Brave-as-Sir-Lancelot" }
+          { "index": {} }
+          { "body": "Sir Bedevere the Wise" }
+          { "index": {} }
+          { "body": "Sir Galahad the Pure" }
+          { "index": {} }
+          { "body": "Miss Islington, the Witch" }
+          { "index": {} }
+          { "body": "Zoot" }
+          { "index": {} }
+          { "body": "Leader of Robin's Minstrels" }
+          { "index": {} }
+          { "body": "Old Crone" }
+          { "index": {} }
+          { "body": "Frank, the Historian" }
+          { "index": {} }
+          { "body": "Frank's Wife" }
+          { "index": {} }
+          { "body": "Dr. Piglet" }
+          { "index": {} }
+          { "body": "Dr. Winston" }
+          { "index": {} }
+          { "body": "Sir Robin (Stand-in)" }
+          { "index": {} }
+          { "body": "Knight Who Says Ni" }
+          { "index": {} }
+          { "body": "Police sergeant who stops the film" }
 
 ---
 "sorts by score":
@@ -156,3 +196,27 @@ setup:
                 field: body.bigram
                 analyzer: bigram
                 force_unigrams: false
+
+---
+"reverse suggestions":
+  - do:
+      search:
+        size: 0
+        index: test
+        body:
+          suggest:
+            text: Artur, Ging of the Britons
+            test:
+              phrase:
+                field: body.ngram
+                force_unigrams: true
+                max_errors: 0.5
+                direct_generator:
+                  - field: body.reverse
+                    min_word_length: 1
+                    suggest_mode: always
+                    pre_filter: reverse
+                    post_filter: reverse
+
+  - match: {suggest.test.0.options.0.text: arthur king of the britons}
+

@@ -58,7 +58,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     static final String CONTEXT_VALUE = "context";
     static final String CONTEXT_BOOST = "boost";
     static final String CONTEXT_PREFIX = "prefix";
-    static final String CONTEXT_OPERATION = "operation";
+    static final String CONTEXT_OCCUR = "occur";
 
     private final String fieldName;
 
@@ -184,7 +184,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
         List<InternalQueryContext> internalInternalQueryContexts = new ArrayList<>(queryContexts.size());
         internalInternalQueryContexts.addAll(
             queryContexts.stream()
-                .map(queryContext -> new InternalQueryContext(queryContext.getCategory(), queryContext.getBoost(), queryContext.isPrefix(), queryContext.getOperation()))
+                .map(queryContext -> new InternalQueryContext(queryContext.getCategory(), queryContext.getBoost(), queryContext.isPrefix(), queryContext.getOccur()))
                 .collect(Collectors.toList()));
         return internalInternalQueryContexts;
     }

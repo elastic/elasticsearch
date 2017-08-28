@@ -36,7 +36,7 @@ import org.elasticsearch.search.suggest.completion.context.CategoryContextMappin
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
-import org.elasticsearch.search.suggest.completion.context.ContextMapping.InternalQueryContext.Operation;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping.InternalQueryContext.Occur;
 import org.elasticsearch.search.suggest.completion.context.GeoContextMapping;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -330,8 +330,8 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         CompletionSuggestionBuilder multiContextFilterSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         // query context order should never matter
         Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
-        contextMap.put("type", Collections.singletonList(CategoryQueryContext.builder().setCategory("type0").setOperation(Operation.AND).build()));
-        contextMap.put("cat", Collections.singletonList(CategoryQueryContext.builder().setCategory("cat0").setOperation(Operation.AND).build()));
+        contextMap.put("type", Collections.singletonList(CategoryQueryContext.builder().setCategory("type0").setOccur(Occur.MUST).build()));
+        contextMap.put("cat", Collections.singletonList(CategoryQueryContext.builder().setCategory("cat0").setOccur(Occur.MUST).build()));
         multiContextFilterSuggest.contexts(contextMap);
         assertSuggestions("foo", multiContextFilterSuggest,
                 "suggestion36", "suggestion32", "suggestion28", "suggestion24", "suggestion20");
@@ -365,14 +365,13 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
         contextMap.put("type",
                 Arrays.asList(
-                        CategoryQueryContext.builder().setCategory("type0").setOperation(Operation.AND).build(),
-                        CategoryQueryContext.builder().setCategory("type1").setOperation(Operation.AND).build()
+                        CategoryQueryContext.builder().setCategory("type0").setOccur(Occur.MUST).build(),
+                        CategoryQueryContext.builder().setCategory("type1").setOccur(Occur.MUST).build()
                 )
         );
         multiContextFilterSuggest.contexts(contextMap);
         assertSuggestions("foo", multiContextFilterSuggest,
                 "suggestion36", "suggestion32", "suggestion28", "suggestion24", "suggestion20");
-
     }
 
     @AwaitsFix(bugUrl = "multiple context boosting is broken, as a suggestion, contexts pair is treated as (num(context) entries)")
@@ -652,8 +651,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testGeoField() throws Exception {
-//        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_0_0_alpha5);
-//        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
         mapping.startObject(TYPE);

@@ -278,7 +278,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                                 location,
                                 queryContext.getBoost(),
                                location.length() < this.precision,
-                                queryContext.getOperation()
+                                queryContext.getOccur()
                             )
                     )
                     .collect(Collectors.toList()));

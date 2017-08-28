@@ -156,6 +156,12 @@ public class ContextMappings implements ToXContent {
      */
     public ContextQuery toContextQuery(CompletionQuery query, Map<String, List<ContextMapping.InternalQueryContext>> queryContexts) {
         ContextQuery typedContextQuery = new ContextQuery(query);
+        if (queryContexts.values().stream()
+                .flatMap(List::stream)
+                .allMatch(ctx -> ctx.occur == ContextMapping.InternalQueryContext.Occur.MUST_NOT)) {
+            typedContextQuery.addAllContexts();
+        }
+
         if (queryContexts.isEmpty() == false) {
             CharsRefBuilder scratch = new CharsRefBuilder();
             scratch.grow(1);

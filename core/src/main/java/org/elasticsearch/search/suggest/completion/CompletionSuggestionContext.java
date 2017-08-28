@@ -25,7 +25,7 @@ import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
-import org.elasticsearch.search.suggest.completion.context.ContextMapping.InternalQueryContext.Operation;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping.InternalQueryContext.Occur;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.util.Collections;
@@ -35,13 +35,14 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionContext {
+public class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionContext {
+
     private CompletionFieldMapper.CompletionFieldType fieldType;
     private FuzzyOptions fuzzyOptions;
     private RegexOptions regexOptions;
     private Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = Collections.emptyMap();
 
-    CompletionSuggestionContext(QueryShardContext shardContext) {
+    protected CompletionSuggestionContext(QueryShardContext shardContext) {
         super(CompletionSuggester.INSTANCE, shardContext);
     }
 
@@ -63,6 +64,18 @@ class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionCont
 
     CompletionFieldMapper.CompletionFieldType getFieldType() {
         return this.fieldType;
+    }
+
+    public FuzzyOptions getFuzzyOptions() {
+        return fuzzyOptions;
+    }
+
+    public RegexOptions getRegexOptions() {
+        return regexOptions;
+    }
+
+    public Map<String, List<ContextMapping.InternalQueryContext>> getQueryContexts() {
+        return queryContexts;
     }
 
     /**
@@ -111,7 +124,7 @@ class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionCont
             boolean hasAllRequiredContextTypes = requiredContextTypes.stream().allMatch(documentContextTypes::contains);
             if (hasAllRequiredContextTypes) {
                 for (String requiredContextType : requiredContextTypes) {
-                    final List<String> requiredContextValues = getContexts(requiredContextType, Operation.AND);
+                    final List<String> requiredContextValues = getContexts(requiredContextType, Occur.MUST);
                     final Set<CharSequence> documentContextValues = documentContexts.get(requiredContextType);
                     boolean hasAllRequiredContextValues = requiredContextValues.stream().allMatch(documentContextValues::contains);
                     if (hasAllRequiredContextValues == false) {
@@ -164,16 +177,16 @@ class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionCont
         return query;
     }
 
-    private List<String> getContexts(final String type, final Operation operation) {
+    private List<String> getContexts(final String type, final Occur occur) {
         return queryContexts.get(type).stream()
-                .filter(context -> context.operation == operation)
+                .filter(context -> context.occur == occur)
                 .map(context -> context.context)
                 .collect(Collectors.toList());
     }
 
     private Set<String> getRequiredContextTypes() {
         return queryContexts.keySet().stream()
-                .filter(context -> getContexts(context, Operation.AND).size() > 0)
+                .filter(context -> getContexts(context, Occur.MUST).size() > 0)
                 .collect(Collectors.toSet());
     }
 

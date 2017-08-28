@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.suggest.completion.context.ContextMapping.InternalQueryContext.Operation;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping.InternalQueryContext.Occur;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -49,14 +49,14 @@ public final class GeoQueryContext implements ToXContentObject {
     private final int boost;
     private final int precision;
     private final List<Integer> neighbours;
-    private Operation operation;
+    private Occur occur;
 
-    private GeoQueryContext(GeoPoint geoPoint, int boost, int precision, List<Integer> neighbours, Operation operation) {
+    private GeoQueryContext(GeoPoint geoPoint, int boost, int precision, List<Integer> neighbours, Occur occur) {
         this.geoPoint = geoPoint;
         this.boost = boost;
         this.precision = precision;
         this.neighbours = neighbours;
-        this.operation = operation;
+        this.occur = occur;
     }
 
     /**
@@ -87,8 +87,8 @@ public final class GeoQueryContext implements ToXContentObject {
         return neighbours;
     }
 
-    public Operation getOperation() {
-        return operation;
+    public Occur getOccur() {
+        return occur;
     }
 
     @Override
@@ -101,7 +101,7 @@ public final class GeoQueryContext implements ToXContentObject {
         if (boost != that.boost) return false;
         if (precision != that.precision) return false;
         if (geoPoint != null ? !geoPoint.equals(that.geoPoint) : that.geoPoint != null) return false;
-        if (operation != that.operation) return false;
+        if (occur != that.occur) return false;
         return neighbours != null ? neighbours.equals(that.neighbours) : that.neighbours == null;
 
     }
@@ -112,7 +112,7 @@ public final class GeoQueryContext implements ToXContentObject {
         result = 31 * result + boost;
         result = 31 * result + precision;
         result = 31 * result + (neighbours != null ? neighbours.hashCode() : 0);
-        result = 31 * result + operation.ordinal();
+        result = 31 * result + occur.ordinal();
         return result;
     }
 
@@ -164,7 +164,7 @@ public final class GeoQueryContext implements ToXContentObject {
         private int boost = 1;
         private int precision = 12;
         private List<Integer> neighbours = Collections.emptyList();
-        private Operation operation = Operation.OR;
+        private Occur occur = Occur.SHOULD;
 
         public Builder() {
         }
@@ -217,8 +217,8 @@ public final class GeoQueryContext implements ToXContentObject {
             return this;
         }
 
-        public Builder setOperation(Operation operation) {
-            this.operation = operation;
+        public Builder setOccur(Occur occur) {
+            this.occur = occur;
             return this;
         }
 
@@ -239,7 +239,7 @@ public final class GeoQueryContext implements ToXContentObject {
                 }
             }
             Objects.requireNonNull(geoPoint, "geoPoint must not be null");
-            return new GeoQueryContext(geoPoint, boost, precision, neighbours, operation);
+            return new GeoQueryContext(geoPoint, boost, precision, neighbours, occur);
         }
     }
 }

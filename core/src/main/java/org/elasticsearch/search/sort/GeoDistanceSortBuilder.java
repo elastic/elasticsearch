@@ -90,7 +90,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     private QueryBuilder nestedFilter;
     private String nestedPath;
 
-    private NestedSort nestedSort;
+    private NestedSortBuilder nestedSort;
 
     private GeoValidationMethod validation = DEFAULT_VALIDATION;
 
@@ -165,7 +165,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nestedPath = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            nestedSort = in.readOptionalWriteable(NestedSort::new);
+            nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
         }
         validation = GeoValidationMethod.readFromStream(in);
     }
@@ -331,11 +331,11 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         return this.nestedPath;
     }
 
-    public NestedSort getNestedSort() {
+    public NestedSortBuilder getNestedSort() {
         return this.nestedSort;
     }
 
-    public GeoDistanceSortBuilder setNestedSort(final NestedSort nestedSort) {
+    public GeoDistanceSortBuilder setNestedSort(final NestedSortBuilder nestedSort) {
         this.nestedSort = nestedSort;
         return this;
     }
@@ -429,7 +429,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         SortMode sortMode = null;
         QueryBuilder nestedFilter = null;
         String nestedPath = null;
-        NestedSort nestedSort = null;
+        NestedSortBuilder nestedSort = null;
         GeoValidationMethod validation = null;
 
         XContentParser.Token token;
@@ -446,7 +446,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     DEPRECATION_LOGGER.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
                     nestedFilter = parseInnerQueryBuilder(parser);
                 } else if (NESTED_FIELD.match(currentName)) {
-                    nestedSort = NestedSort.fromXContent(parser);
+                    nestedSort = NestedSortBuilder.fromXContent(parser);
                 } else {
                     // the json in the format of -> field : { lat : 30, lon : 12 }
                     if (fieldName != null && fieldName.equals(currentName) == false) {

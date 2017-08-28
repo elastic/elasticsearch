@@ -81,7 +81,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     private String nestedPath;
 
-    private NestedSort nestedSort;
+    private NestedSortBuilder nestedSort;
 
     /**
      * Constructs a script sort builder with the given script.
@@ -120,7 +120,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         nestedPath = in.readOptionalString();
         nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            nestedSort = in.readOptionalWriteable(NestedSort::new);
+            nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
         }
     }
 
@@ -204,11 +204,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return this.nestedPath;
     }
 
-    public NestedSort getNestedSort() {
+    public NestedSortBuilder getNestedSort() {
         return this.nestedSort;
     }
 
-    public ScriptSortBuilder setNestedSort(final NestedSort nestedSort) {
+    public ScriptSortBuilder setNestedSort(final NestedSortBuilder nestedSort) {
         this.nestedSort = nestedSort;
         return this;
     }
@@ -254,7 +254,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             DEPRECATION_LOGGER.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
             return SortBuilder.parseNestedFilter(p);
         }, NESTED_FILTER_FIELD);
-        PARSER.declareObject(ScriptSortBuilder::setNestedSort, (p, c) -> NestedSort.fromXContent(p), NESTED_FIELD);
+        PARSER.declareObject(ScriptSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
     }
 
     /**

@@ -78,15 +78,15 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         PARSERS = unmodifiableMap(parsers);
     }
 
-    public static class NestedSort implements Writeable, Reader<NestedSort>, ToXContentObject {
+    public static class NestedSortBuilder implements Writeable, Reader<NestedSortBuilder>, ToXContentObject {
         private String path;
         private QueryBuilder filter;
-        private NestedSort nestedSort;
+        private NestedSortBuilder nestedSort;
 
-        public NestedSort() {
+        public NestedSortBuilder() {
         }
 
-        public NestedSort(StreamInput in) throws IOException {
+        public NestedSortBuilder(StreamInput in) throws IOException {
             read(in);
         }
 
@@ -94,7 +94,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
             return path;
         }
 
-        public NestedSort setPath(final String path) {
+        public NestedSortBuilder setPath(final String path) {
             this.path = path;
             return this;
         }
@@ -103,17 +103,17 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
             return filter;
         }
 
-        public NestedSort setFilter(final QueryBuilder filter) {
+        public NestedSortBuilder setFilter(final QueryBuilder filter) {
             this.filter = filter;
             return this;
         }
 
-        public NestedSort getNestedSort() {
+        public NestedSortBuilder getNestedSort() {
             return nestedSort;
         }
 
-        public NestedSort setNestedSort(final NestedSort nestedSort) {
-            this.nestedSort = nestedSort;
+        public NestedSortBuilder setNestedSort(final NestedSortBuilder nestedSortBuilder) {
+            this.nestedSort = nestedSortBuilder;
             return this;
         }
 
@@ -133,10 +133,10 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
          * @param in Input to read the value from
          */
         @Override
-        public NestedSort read(final StreamInput in) throws IOException {
+        public NestedSortBuilder read(final StreamInput in) throws IOException {
             path = in.readOptionalString();
             filter = in.readOptionalNamedWriteable(QueryBuilder.class);
-            nestedSort = in.readOptionalWriteable(NestedSort::new);
+            nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
             return this;
         }
 
@@ -156,8 +156,8 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
             return builder;
         }
 
-        public static NestedSort fromXContent(XContentParser parser) throws IOException {
-            NestedSort nestedSort = new NestedSort();
+        public static NestedSortBuilder fromXContent(XContentParser parser) throws IOException {
+            NestedSortBuilder nestedSortBuilder = new NestedSortBuilder();
             XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.START_OBJECT) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -165,11 +165,11 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
                         String currentName = parser.currentName();
                         parser.nextToken();
                         if (currentName.equals(PATH_FIELD.getPreferredName())) {
-                            nestedSort.setPath(parser.text());
+                            nestedSortBuilder.setPath(parser.text());
                         } else if (currentName.equals(FILTER_FIELD.getPreferredName())) {
-                            nestedSort.setFilter(parseNestedFilter(parser));
+                            nestedSortBuilder.setFilter(parseNestedFilter(parser));
                         } else if (currentName.equals(NESTED_FIELD.getPreferredName())) {
-                            nestedSort.setNestedSort(NestedSort.fromXContent(parser));
+                            nestedSortBuilder.setNestedSort(NestedSortBuilder.fromXContent(parser));
                         } else {
                             throw new IllegalArgumentException("malformed nested sort format, unknown field name [" + currentName + "]");
                         }
@@ -181,7 +181,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
                 throw new IllegalArgumentException("malformed nested sort format, must start with an object");
             }
 
-            return nestedSort;
+            return nestedSortBuilder;
         }
 
         @Override
@@ -192,7 +192,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
             if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            NestedSort that = (NestedSort) obj;
+            NestedSortBuilder that = (NestedSortBuilder) obj;
             return Objects.equals(path, that.path)
                 && Objects.equals(filter, that.filter)
                 && Objects.equals(nestedSort, that.nestedSort);
@@ -313,25 +313,25 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     }
 
     protected static Nested resolveNested(QueryShardContext context, String nestedPath, QueryBuilder nestedFilter) throws IOException {
-        NestedSort nestedSort = new NestedSort();
-        nestedSort.setPath(nestedPath);
-        nestedSort.setFilter(nestedFilter);
+        NestedSortBuilder nestedSortBuilder = new NestedSortBuilder();
+        nestedSortBuilder.setPath(nestedPath);
+        nestedSortBuilder.setFilter(nestedFilter);
 
-        return resolveNested(context, nestedSort);
+        return resolveNested(context, nestedSortBuilder);
     }
 
-    protected static Nested resolveNested(QueryShardContext context, NestedSort nestedSort) throws IOException {
-        return resolveNested(context, nestedSort, null);
+    protected static Nested resolveNested(QueryShardContext context, NestedSortBuilder nestedSortBuilder) throws IOException {
+        return resolveNested(context, nestedSortBuilder, null);
     }
 
-    protected static Nested resolveNested(QueryShardContext context, NestedSort nestedSort, Nested nested) throws IOException {
-        if (nestedSort == null || nestedSort.getPath() == null) {
+    protected static Nested resolveNested(QueryShardContext context, NestedSortBuilder nestedSortBuilder, Nested nested) throws IOException {
+        if (nestedSortBuilder == null || nestedSortBuilder.getPath() == null) {
             return null;
         }
 
-        String nestedPath = nestedSort.getPath();
-        QueryBuilder nestedFilter = nestedSort.getFilter();
-        NestedSort nestedNestedSort = nestedSort.getNestedSort();
+        String nestedPath = nestedSortBuilder.getPath();
+        QueryBuilder nestedFilter = nestedSortBuilder.getFilter();
+        NestedSortBuilder nestedNestedSort = nestedSortBuilder.getNestedSort();
 
         // verify our nested path
         ObjectMapper nestedObjectMapper = context.getObjectMapper(nestedPath);

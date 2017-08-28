@@ -76,7 +76,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     private String nestedPath;
 
-    private NestedSort nestedSort;
+    private NestedSortBuilder nestedSort;
 
     /** Copy constructor. */
     public FieldSortBuilder(FieldSortBuilder template) {
@@ -117,7 +117,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         unmappedType = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            nestedSort = in.readOptionalWriteable(NestedSort::new);
+            nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
         }
     }
 
@@ -235,11 +235,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return this.nestedPath;
     }
 
-    public NestedSort getNestedSort() {
+    public NestedSortBuilder getNestedSort() {
         return this.nestedSort;
     }
 
-    public FieldSortBuilder setNestedSort(final NestedSort nestedSort) {
+    public FieldSortBuilder setNestedSort(final NestedSortBuilder nestedSort) {
         this.nestedSort = nestedSort;
         return this;
     }
@@ -374,7 +374,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             DEPRECATION_LOGGER.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
             return SortBuilder.parseNestedFilter(p);
         }, NESTED_FILTER_FIELD);
-        PARSER.declareObject(FieldSortBuilder::setNestedSort, (p, c) -> NestedSort.fromXContent(p), NESTED_FIELD);
+        PARSER.declareObject(FieldSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
     }
 
     @Override

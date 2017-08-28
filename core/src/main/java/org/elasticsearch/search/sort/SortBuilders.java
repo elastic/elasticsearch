@@ -60,8 +60,8 @@ public class SortBuilders {
      * Constructs a new nested sort builder.
      *
      */
-    public static SortBuilder.NestedSort nestedSort() {
-        return new SortBuilder.NestedSort();
+    public static SortBuilder.NestedSortBuilder nestedSort() {
+        return new SortBuilder.NestedSortBuilder();
     }
 
     /**

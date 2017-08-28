@@ -11,14 +11,13 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aware.TimeZoneAware;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.DateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
-import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 
 import java.time.temporal.ChronoField;
 import java.util.Locale;
@@ -86,26 +85,16 @@ public abstract class DateTimeFunction extends ScalarFunction implements TimeZon
     }
 
     @Override
-    public ColumnProcessor asProcessor() {
-        return l -> {
-            ReadableDateTime dt = null;
-            // most dates are returned as long
-            if (l instanceof Long) {
-                dt = new DateTime((Long) l, DateTimeZone.UTC);
-            }
-            else {
-                dt = (ReadableDateTime) l;
-            }
-            return Integer.valueOf(extract(dt));
-        };
+    public final ColumnProcessor asProcessor() {
+        return new DateTimeProcessor(extractor());
     }
+
+    protected abstract DateTimeExtractor extractor();
 
     @Override
     public DataType dataType() {
         return DataTypes.INTEGER;
     }
-
-    protected abstract int extract(ReadableDateTime dt);
 
     // used for aggregration (date histogram)
     public abstract String interval();

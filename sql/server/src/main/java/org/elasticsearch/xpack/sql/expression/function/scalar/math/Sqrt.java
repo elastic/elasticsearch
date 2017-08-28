@@ -9,13 +9,12 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Sqrt extends MathFunction {
-
     public Sqrt(Location location, Expression argument) {
         super(location, argument);
     }
 
     @Override
-    protected Double math(double d) {
-        return Math.sqrt(d);
+    protected MathProcessor processor() {
+        return MathProcessor.SQRT;
     }
 }

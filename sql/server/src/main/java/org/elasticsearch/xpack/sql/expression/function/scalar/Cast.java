@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
@@ -14,7 +12,9 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.script.Params;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConvertion;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
+
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
@@ -43,12 +43,12 @@ public class Cast extends ScalarFunction {
 
     @Override
     public boolean nullable() {
-        return argument().nullable() || DataTypeConvertion.nullable(from(), to());
+        return argument().nullable() || DataTypeConversion.nullable(from(), to());
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return DataTypeConvertion.canConvert(from(), to()) ? 
+        return DataTypeConversion.canConvert(from(), to()) ?
             TypeResolution.TYPE_RESOLVED : 
             new TypeResolution("Cannot cast %s to %s", from(), to());
     }
@@ -78,7 +78,7 @@ public class Cast extends ScalarFunction {
 
     @Override
     public ColumnProcessor asProcessor() {
-        return c -> DataTypeConvertion.convert(c, from(), to());
+        return new CastProcessor(DataTypeConversion.conversionFor(from(), to()));
     }
 
     @Override

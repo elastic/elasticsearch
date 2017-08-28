@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 
 import java.time.temporal.ChronoField;
 
@@ -29,12 +28,12 @@ public class MinuteOfDay extends DateTimeFunction {
     }
 
     @Override
-    protected int extract(ReadableDateTime dt) {
-        return dt.getMinuteOfDay();
+    protected ChronoField chronoField() {
+        return ChronoField.MINUTE_OF_DAY;
     }
 
     @Override
-    protected ChronoField chronoField() {
-        return ChronoField.MINUTE_OF_DAY;
+    protected DateTimeExtractor extractor() {
+        return DateTimeExtractor.MINUTE_OF_DAY;
     }
 }

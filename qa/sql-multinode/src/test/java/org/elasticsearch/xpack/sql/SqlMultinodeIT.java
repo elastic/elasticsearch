@@ -26,6 +26,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableMap;
 
 public class SqlMultinodeIT extends ESRestTestCase {
     /**
@@ -96,8 +97,8 @@ public class SqlMultinodeIT extends ESRestTestCase {
 
     private void assertCount(RestClient client, int count) throws IOException {
         Map<String, Object> expected = new HashMap<>();
-        expected.put("columns", singletonMap("COUNT(1)", singletonMap("type", "long")));
-        expected.put("rows", singletonList(singletonMap("COUNT(1)", count)));
+        expected.put("columns", singletonList(columnInfo("COUNT(1)", "long")));
+        expected.put("rows", singletonList(singletonList(count)));
         expected.put("size", 1);
 
         Map<String, Object> actual = responseToMap(client.performRequest("POST", "/_sql", emptyMap(),
@@ -109,4 +110,12 @@ public class SqlMultinodeIT extends ESRestTestCase {
             fail("Response does not match:\n" + message.toString());
         }
     }
+
+    private Map<String, Object> columnInfo(String name, String type) {
+        Map<String, Object> column = new HashMap<>();
+        column.put("name", name);
+        column.put("type", type);
+        return unmodifiableMap(column);
+    }
+
 }

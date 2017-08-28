@@ -9,13 +9,12 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class ACos extends MathFunction {
-
     public ACos(Location location, Expression argument) {
         super(location, argument);
     }
 
     @Override
-    protected Double math(double d) {
-        return Math.acos(d);
+    protected MathProcessor processor() {
+        return MathProcessor.ACOS;
     }
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.plugin.sql.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.xpack.sql.session.Cursor;
 import org.joda.time.DateTimeZone;
 
 import static org.elasticsearch.xpack.sql.plugin.sql.action.SqlRequest.DEFAULT_TIME_ZONE;
@@ -14,11 +15,11 @@ import static org.elasticsearch.xpack.sql.plugin.sql.action.SqlRequest.DEFAULT_T
 public class SqlRequestBuilder extends ActionRequestBuilder<SqlRequest, SqlResponse, SqlRequestBuilder> {
 
     public SqlRequestBuilder(ElasticsearchClient client, SqlAction action) {
-        this(client, action, null, DEFAULT_TIME_ZONE, null);
+        this(client, action, "", DEFAULT_TIME_ZONE, Cursor.EMPTY);
     }
 
-    public SqlRequestBuilder(ElasticsearchClient client, SqlAction action, String query, DateTimeZone timeZone, String sessionId) {
-        super(client, action, new SqlRequest(query, timeZone, sessionId));
+    public SqlRequestBuilder(ElasticsearchClient client, SqlAction action, String query, DateTimeZone timeZone, Cursor nextPageInfo) {
+        super(client, action, new SqlRequest(query, timeZone, nextPageInfo));
     }
 
     public SqlRequestBuilder query(String query) {
@@ -26,8 +27,8 @@ public class SqlRequestBuilder extends ActionRequestBuilder<SqlRequest, SqlRespo
         return this;
     }
 
-    public SqlRequestBuilder sessionId(String sessionId) {
-        request.sessionId(sessionId);
+    public SqlRequestBuilder nextPageKey(Cursor nextPageInfo) {
+        request.cursor(nextPageInfo);
         return this;
     }
 

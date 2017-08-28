@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.xpack.sql.type.Schema;
 
-class SingletonRowSet extends AbstractRowSetCursor {
+class SingletonRowSet extends AbstractRowSetCursor { // NOCOMMIT is it worth keeping this when we have ListRowSet?
 
     private final Object[] values;
 
@@ -39,5 +39,10 @@ class SingletonRowSet extends AbstractRowSetCursor {
     @Override
     public int size() {
         return 1;
+    }
+
+    @Override
+    public Cursor nextPageCursor() {
+        return Cursor.EMPTY;
     }
 }

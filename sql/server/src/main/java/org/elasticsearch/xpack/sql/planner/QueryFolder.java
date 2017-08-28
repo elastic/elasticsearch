@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumeric
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ComposeProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.MatrixFieldProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.plan.physical.AggregateExec;
@@ -370,7 +372,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 String aggPath = AggPath.metricValue(cAggPath, ia.innerId());
                 // FIXME: concern leak - hack around MatrixAgg which is not generalized (afaik)
                 if (ia.innerKey() != null) {
-                    proc = QueryTranslator.matrixFieldExtractor(ia.innerKey()).andThen(proc);
+                    proc = new ComposeProcessor(new MatrixFieldProcessor(QueryTranslator.nameOf(ia.innerKey())), proc);
                 }
 
                 return queryC.addAggRef(aggPath, proc);

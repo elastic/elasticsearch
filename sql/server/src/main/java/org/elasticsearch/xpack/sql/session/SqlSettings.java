@@ -22,6 +22,7 @@ public class SqlSettings {
     private final Settings cfg;
 
     public SqlSettings(Settings cfg) {
+        // NOCOMMIT investigate taking the arguments we need instead of Settings
         this.cfg = cfg;
     }
 

@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.Params;
@@ -389,12 +388,6 @@ abstract class QueryTranslator {
             return ((NamedExpression) e).id().toString();
         }
         throw new SqlIllegalArgumentException("Cannot determine id for %s", e);
-    }
-
-    @SuppressWarnings("rawtypes")
-    static ColumnProcessor matrixFieldExtractor(Expression exp) {
-        String key = nameOf(exp);
-        return r -> r instanceof Map ? ((Map) r).get(key) : r;
     }
 
     static String dateFormat(Expression e) {

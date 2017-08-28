@@ -541,6 +541,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         entries.addAll(machineLearning.getNamedWriteables());
         entries.addAll(licensing.getNamedWriteables());
         entries.addAll(Security.getNamedWriteables());
+        entries.addAll(SqlPlugin.getNamedWriteables());
         return entries;
     }
 

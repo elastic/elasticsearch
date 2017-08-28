@@ -9,13 +9,12 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Sinh extends MathFunction {
-
     public Sinh(Location location, Expression argument) {
         super(location, argument);
     }
 
     @Override
-    protected Double math(double d) {
-        return Math.sinh(d);
+    protected MathProcessor processor() {
+        return MathProcessor.SINH;
     }
 }

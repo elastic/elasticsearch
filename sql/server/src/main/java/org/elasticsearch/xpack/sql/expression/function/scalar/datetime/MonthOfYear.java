@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 
 import java.time.temporal.ChronoField;
 
 public class MonthOfYear extends DateTimeFunction {
-
     public MonthOfYear(Location location, Expression argument, DateTimeZone timeZone) {
         super(location, argument, timeZone);
     }
@@ -29,12 +27,12 @@ public class MonthOfYear extends DateTimeFunction {
     }
 
     @Override
-    protected int extract(ReadableDateTime dt) {
-        return dt.getMonthOfYear();
+    protected ChronoField chronoField() {
+        return ChronoField.MONTH_OF_YEAR;
     }
 
     @Override
-    protected ChronoField chronoField() {
-        return ChronoField.MONTH_OF_YEAR;
+    protected DateTimeExtractor extractor() {
+        return DateTimeExtractor.MONTH_OF_YEAR;
     }
 }

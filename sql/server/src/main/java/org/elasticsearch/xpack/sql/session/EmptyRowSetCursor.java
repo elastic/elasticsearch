@@ -37,4 +37,9 @@ class EmptyRowSetCursor extends AbstractRowSetCursor {
     public int size() {
         return 0;
     }
+
+    @Override
+    public Cursor nextPageCursor() {
+        return Cursor.EMPTY;
+    }
 }

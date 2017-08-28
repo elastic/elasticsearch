@@ -6,37 +6,21 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 public class Abs extends MathFunction {
-
     public Abs(Location location, Expression argument) {
         super(location, argument);
     }
 
     @Override
-    public ColumnProcessor asProcessor() {
-        return l -> {
-            if (l instanceof Float) {
-                return Math.abs(((Float) l).floatValue());
-            }
-            if (l instanceof Double) {
-                return Math.abs(((Double) l).doubleValue());
-            }
-            long lo = ((Number) l).longValue();
-            return lo >= 0 ? lo : lo == Long.MIN_VALUE ? Long.MAX_VALUE : -lo;
-        };
+    protected MathProcessor processor() {
+        return MathProcessor.ABS;
     }
 
     @Override
     public DataType dataType() {
         return argument().dataType();
-    }
-
-    @Override
-    protected Object math(double d) {
-        throw new UnsupportedOperationException("unused");
     }
 }

@@ -6,14 +6,11 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 public class Pi extends MathFunction {
-
     public Pi(Location location) {
         super(location);
     }
@@ -28,17 +25,12 @@ public class Pi extends MathFunction {
     }
 
     @Override
-    public ColumnProcessor asProcessor() {
-        return l -> Math.PI;
-    }
-
-    @Override
-    protected Object math(double d) {
-        throw new SqlIllegalArgumentException("unused");
-    }
-
-    @Override
     protected ScriptTemplate asScript() {
         return new ScriptTemplate(StringUtils.EMPTY);
+    }
+
+    @Override
+    protected MathProcessor processor() {
+        return MathProcessor.PI;
     }
 }

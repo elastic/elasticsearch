@@ -53,7 +53,7 @@ public class Scroller {
     private final Client client;
 
     public Scroller(Client client, SqlSettings settings) {
-        // TODO: use better defaults (maybe use the sql settings)?
+        // NOCOMMIT the scroll time should be available in the request somehow. Rest is going to fail badly unless they set it.
         this(client, TimeValue.timeValueSeconds(90), TimeValue.timeValueSeconds(45), settings.pageSize());
     }
 
@@ -253,7 +253,7 @@ public class Scroller {
         }
     }
     
-    abstract static class SearchHitsActionListener extends ScrollerActionListener {
+    public abstract static class SearchHitsActionListener extends ScrollerActionListener {
     
         final int limit;
         int docsRead;

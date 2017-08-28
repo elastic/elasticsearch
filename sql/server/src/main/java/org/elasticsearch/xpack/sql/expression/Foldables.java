@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConvertion;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.ArrayList;
@@ -15,9 +15,10 @@ import java.util.List;
 
 public abstract class Foldables {
 
+    @SuppressWarnings("unchecked")
     public static <T> T valueOf(Expression e, DataType to) {
         if (e.foldable()) {
-            return DataTypeConvertion.convert(e.fold(), e.dataType(), to);
+            return (T) DataTypeConversion.conversionFor(e.dataType(), to).convert(e.fold());
         }
         throw new SqlIllegalArgumentException("Cannot determine value for %s", e);
     }
@@ -46,14 +47,9 @@ public abstract class Foldables {
     }
 
     public static <T> List<T> valuesOf(List<Expression> list, DataType to) {
-        List<T> l = new ArrayList<>();
+        List<T> l = new ArrayList<>(list.size());
         for (Expression e : list) {
-            if (e.foldable()) {
-                l.add(DataTypeConvertion.convert(e.fold(), e.dataType(), to));
-            }
-            else {
-                throw new SqlIllegalArgumentException("Cannot determine value for %s", e);
-            }
+            l.add(valueOf(e, to));
         }
         return l;
     }

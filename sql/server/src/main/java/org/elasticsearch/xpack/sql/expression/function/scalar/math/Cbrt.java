@@ -9,13 +9,12 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Cbrt extends MathFunction {
-
     public Cbrt(Location location, Expression argument) {
         super(location, argument);
     }
 
     @Override
-    protected Double math(double d) {
-        return Math.cbrt(d);
+    protected MathProcessor processor() {
+        return MathProcessor.CBRT;
     }
 }

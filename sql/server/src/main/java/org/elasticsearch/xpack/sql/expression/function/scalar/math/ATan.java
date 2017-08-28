@@ -9,13 +9,12 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class ATan extends MathFunction {
-
     public ATan(Location location, Expression argument) {
         super(location, argument);
     }
 
     @Override
-    protected Double math(double d) {
-        return Math.atan(d);
+    protected MathProcessor processor() {
+        return MathProcessor.ATAN;
     }
 }

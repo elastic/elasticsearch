@@ -9,13 +9,12 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Cosh extends MathFunction {
-
     public Cosh(Location location, Expression argument) {
         super(location, argument);
     }
 
     @Override
-    protected Double math(double d) {
-        return Math.cosh(d);
+    protected MathProcessor processor() {
+        return MathProcessor.COSH;
     }
 }

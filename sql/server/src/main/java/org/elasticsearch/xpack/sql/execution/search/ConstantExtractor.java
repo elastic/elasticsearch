@@ -5,19 +5,60 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
 
-class ConstantExtractor implements HitExtractor {
+import java.io.IOException;
+import java.util.Objects;
 
+/**
+ * Returns the a constant for every search hit against which it is run.
+ */
+class ConstantExtractor implements HitExtractor {
+    static final String NAME = "c";
     private final Object constant;
 
     ConstantExtractor(Object constant) {
         this.constant = constant;
     }
 
+    ConstantExtractor(StreamInput in) throws IOException {
+        constant = in.readGenericValue();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeGenericValue(constant);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
     @Override
     public Object get(SearchHit hit) {
         return constant;
+    }
+
+    @Override
+    public String innerHitName() {
+        return null;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        ConstantExtractor other = (ConstantExtractor) obj;
+        return Objects.equals(constant, other.constant);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(constant);
     }
 
     @Override

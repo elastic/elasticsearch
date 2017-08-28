@@ -9,13 +9,12 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Exp extends MathFunction {
-
     public Exp(Location location, Expression argument) {
         super(location, argument);
     }
 
     @Override
-    protected Double math(double d) {
-        return Math.exp(d);
+    protected MathProcessor processor() {
+        return MathProcessor.EXP;
     }
 }

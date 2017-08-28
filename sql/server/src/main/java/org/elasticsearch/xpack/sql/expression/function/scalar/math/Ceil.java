@@ -9,13 +9,12 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Ceil extends MathFunction {
-
     public Ceil(Location location, Expression argument) {
         super(location, argument);
     }
 
     @Override
-    protected Double math(double d) {
-        return Math.ceil(d);
+    protected MathProcessor processor() {
+        return MathProcessor.CEIL;
     }
 }

@@ -9,13 +9,12 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class ASin extends MathFunction {
-
     public ASin(Location location, Expression argument) {
         super(location, argument);
     }
 
     @Override
-    protected Double math(double d) {
-        return Math.asin(d);
+    protected MathProcessor processor() {
+        return MathProcessor.ASIN;
     }
 }

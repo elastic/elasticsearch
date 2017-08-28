@@ -10,6 +10,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.session.AbstractRowSetCursor;
+import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
 import org.elasticsearch.xpack.sql.type.Schema;
 
@@ -25,7 +26,6 @@ import java.util.function.Consumer;
 // and eventually carries that over to the top level
 
 public class SearchHitRowSetCursor extends AbstractRowSetCursor {
-
     private final SearchHit[] hits;
     private final String scrollId;
     private final List<HitExtractor> extractors;
@@ -46,12 +46,11 @@ public class SearchHitRowSetCursor extends AbstractRowSetCursor {
         this.scrollId = scrollId;
         this.extractors = exts;
 
-        String innerH = null;
+        String innerHit = null;
         for (HitExtractor ex : exts) {
-            InnerHitExtractor ie = getInnerHitExtractor(ex);
-            if (ie != null) {
-                innerH = ie.parent();
-                innerHits.add(innerH);
+            innerHit = ex.innerHitName();
+            if (innerHit != null) {
+                innerHits.add(innerHit);
             }
         }
 
@@ -77,13 +76,13 @@ public class SearchHitRowSetCursor extends AbstractRowSetCursor {
         }
         size = limitHits < 0 ? sz : Math.min(sz, limitHits);
         indexPerLevel = new int[maxDepth + 1];
-        innerHit = innerH;
+        this.innerHit = innerHit;
     }
 
     @Override
     protected Object getColumn(int column) {
         HitExtractor e = extractors.get(column);
-        int extractorLevel = isInnerHitExtractor(e) ? 1 : 0;
+        int extractorLevel = e.innerHitName() == null ? 0 : 1;
         
         SearchHit hit = null;
         SearchHit[] sh = hits;
@@ -97,20 +96,6 @@ public class SearchHitRowSetCursor extends AbstractRowSetCursor {
         }
         
         return e.get(hit);
-    }
-
-    private boolean isInnerHitExtractor(HitExtractor he) {
-        return getInnerHitExtractor(he) != null;
-    }
-
-    private InnerHitExtractor getInnerHitExtractor(HitExtractor he) {
-        if (he instanceof ProcessingHitExtractor) {
-            return getInnerHitExtractor(((ProcessingHitExtractor) he).delegate);
-        }
-        if (he instanceof InnerHitExtractor) {
-            return (InnerHitExtractor) he;
-        }
-        return null;
     }
 
     @Override
@@ -165,5 +150,19 @@ public class SearchHitRowSetCursor extends AbstractRowSetCursor {
 
     public String scrollId() {
         return scrollId;
+    }
+
+    @Override
+    public Cursor nextPageCursor() {
+        if (scrollId == null) {
+            /* SearchResponse can contain a null scroll when you start a
+             * scroll but all results fit in the first page. */
+            return Cursor.EMPTY;
+        }
+        if (hits.length == 0) {
+            // NOCOMMIT handle limit
+            return Cursor.EMPTY;
+        }
+        return new ScrollCursor(scrollId, extractors);
     }
 }

@@ -7,22 +7,22 @@ package org.elasticsearch.xpack.sql.execution;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
-import org.elasticsearch.xpack.sql.analysis.catalog.EsCatalog;
+import org.elasticsearch.xpack.sql.execution.search.Scroller.SearchHitsActionListener;
 import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.planner.Planner;
+import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.session.SqlSettings;
 
 import java.io.IOException;
-import java.util.function.Supplier;
+import java.util.List;
 
 public class PlanExecutor extends AbstractLifecycleComponent {
     // NOCOMMIT prefer not to use AbstractLifecycleComponent because the reasons for its tradeoffs is lost to the mists of time
@@ -64,6 +64,10 @@ public class PlanExecutor extends AbstractLifecycleComponent {
     public void sql(SqlSettings sqlSettings, String sql, ActionListener<RowSetCursor> listener) {
         SqlSession session = newSession(sqlSettings);
         session.executable(sql).execute(session, listener);
+    }
+
+    public void nextPage(Cursor cursor, ActionListener<RowSetCursor> listener) {
+        cursor.nextPage(client, listener);
     }
 
     @Override

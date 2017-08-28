@@ -9,7 +9,6 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Degrees extends MathFunction {
-
     public Degrees(Location location, Expression argument) {
         super(location, argument);
     }
@@ -20,7 +19,7 @@ public class Degrees extends MathFunction {
     }
 
     @Override
-    protected Double math(double d) {
-        return Math.toDegrees(d);
+    protected MathProcessor processor() {
+        return MathProcessor.DEGREES;
     }
 }

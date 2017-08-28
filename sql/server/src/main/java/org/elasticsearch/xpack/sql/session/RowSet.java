@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+
 import java.util.function.Consumer;
 
 /**
@@ -21,9 +24,14 @@ public interface RowSet extends RowView {
 
     boolean advanceRow();
 
-    int size();
+    int size(); // NOCOMMIT why do we have this? It looks like the count of the rows in this chunk.
 
     void reset();
+
+    /**
+     * Return the key used by {@link PlanExecutor#nextPage(Cursor, ActionListener)} to fetch the next page.
+     */
+    Cursor nextPageCursor();
 
     default void forEachRow(Consumer<? super RowView> action) {
         for (boolean hasRows = hasCurrentRow(); hasRows; hasRows = advanceRow()) {

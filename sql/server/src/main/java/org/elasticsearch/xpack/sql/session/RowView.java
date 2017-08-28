@@ -37,14 +37,10 @@ public interface RowView extends Iterable<Object> {
     }
 
     default void forEachColumn(Consumer<? super Object> action) {
-        forEachColumn((c, e) -> action.accept(c));
-    }
-
-    default void forEachColumn(BiConsumer<? super Object, Schema.Entry> action) {
         Objects.requireNonNull(action);
         int rowSize = rowSize();
         for (int i = 0; i < rowSize; i++) {
-            action.accept(column(i), schema().get(i));
+            action.accept(column(i));
         }
     }
 

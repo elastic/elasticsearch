@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.sql.plugin.jdbc.action.TransportJdbcAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.TransportSqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.rest.RestSqlAction;
+import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -39,6 +41,9 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class SqlPlugin implements ActionPlugin {
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Cursor.getNamedWriteables();
+    }
 
     private final SqlLicenseChecker sqlLicenseChecker;
 

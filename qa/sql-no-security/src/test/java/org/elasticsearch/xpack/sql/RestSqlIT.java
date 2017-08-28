@@ -22,8 +22,11 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 
@@ -42,10 +45,53 @@ public class RestSqlIT extends ESRestTestCase {
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
         Map<String, Object> expected = new HashMap<>();
-        expected.put("columns", singletonMap("test", singletonMap("type", "text")));
-        expected.put("rows", Arrays.asList(singletonMap("test", "test"), singletonMap("test", "test")));
+        expected.put("columns", singletonList(columnInfo("test", "text")));
+        expected.put("rows", Arrays.asList(singletonList("test"), singletonList("test")));
         expected.put("size", 2);
         assertResponse(expected, runSql("SELECT * FROM test"));
+    }
+
+    public void testNextPage() throws IOException {
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < 20; i++) {
+            // NOCOMMIT we need number2 because we can't process the same column twice in two ways
+            bulk.append("{\"index\":{\"_id\":\"" + i + "\"}}\n");
+            bulk.append("{\"text\":\"text" + i + "\", \"number\":" + i + ", \"number2\": " + i + "}\n");
+        }
+        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+
+        // NOCOMMIT we need tests for inner hits extractor and const extractor
+        String request = "{\"query\":\"SELECT text, number, SIN(number2) FROM test ORDER BY number\", \"fetch_size\":2}";
+
+        String cursor = null;
+        for (int i = 0; i < 20; i += 2) {
+            Map<String, Object> response;
+            if (i == 0) {
+                response = runSql(new StringEntity(request, ContentType.APPLICATION_JSON));
+            } else {
+                response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON));
+            }
+
+            Map<String, Object> expected = new HashMap<>();
+            if (i == 0) {
+                expected.put("columns", Arrays.asList(
+                        columnInfo("text", "text"),
+                        columnInfo("number", "long"),
+                        columnInfo("SIN(number2)", "double")));
+            }
+            expected.put("rows", Arrays.asList(
+                    Arrays.asList("text" + i, i, Math.sin(i)),
+                    Arrays.asList("text" + (i + 1), i + 1, Math.sin(i + 1))));
+            expected.put("size", 2);
+            cursor = (String) response.remove("cursor");
+            assertResponse(expected, response);
+            assertNotNull(cursor);
+        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("size", 0);
+        expected.put("rows", emptyList());
+        assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON)));
     }
 
     @AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/2074")
@@ -65,7 +111,7 @@ public class RestSqlIT extends ESRestTestCase {
 
         // Default TimeZone is UTC
         assertResponse(expected, runSql(
-                new StringEntity("{\"query\":\"SELECT DAY_OF_YEAR(test), COUNT(*) FROM test.test\"}", ContentType.APPLICATION_JSON)));
+                new StringEntity("{\"query\":\"SELECT DAY_OF_YEAR(test), COUNT(*) FROM test\"}", ContentType.APPLICATION_JSON)));
     }
 
     public void testMissingIndex() throws IOException {
@@ -118,5 +164,12 @@ public class RestSqlIT extends ESRestTestCase {
             message.compareMaps(actual, expected);
             fail("Response does not match:\n" + message.toString());
         }
+    }
+
+    private Map<String, Object> columnInfo(String name, String type) {
+        Map<String, Object> column = new HashMap<>();
+        column.put("name", name);
+        column.put("type", type);
+        return unmodifiableMap(column);
     }
 }

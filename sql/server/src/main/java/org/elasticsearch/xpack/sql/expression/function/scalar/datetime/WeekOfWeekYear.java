@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 
 import java.time.temporal.ChronoField;
 
 public class WeekOfWeekYear extends DateTimeFunction {
-
     public WeekOfWeekYear(Location location, Expression argument, DateTimeZone timeZone) {
         super(location, argument, timeZone);
     }
@@ -29,12 +27,12 @@ public class WeekOfWeekYear extends DateTimeFunction {
     }
 
     @Override
-    protected int extract(ReadableDateTime dt) {
-        return dt.getWeekOfWeekyear();
+    protected ChronoField chronoField() {
+        return ChronoField.ALIGNED_WEEK_OF_YEAR; // NOCOMMIT is this right?
     }
 
     @Override
-    protected ChronoField chronoField() {
-        return ChronoField.ALIGNED_WEEK_OF_YEAR; // NOCOMMIT is this right?
+    protected DateTimeExtractor extractor() {
+        return DateTimeExtractor.WEEK_OF_YEAR;
     }
 }

@@ -25,7 +25,7 @@ public class Schema implements Iterable<Entry> {
         DataType type();
     }
 
-    private static class DefaultEntry implements Entry {
+    static class DefaultEntry implements Entry {
         private final String name;
         private final DataType type;
 

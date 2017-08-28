@@ -24,4 +24,9 @@ public class ProcessingRef implements Reference {
     public Reference ref() {
         return ref;
     }
+
+    @Override
+    public String toString() {
+        return processor + "(" + ref + ")";
+    }
 }

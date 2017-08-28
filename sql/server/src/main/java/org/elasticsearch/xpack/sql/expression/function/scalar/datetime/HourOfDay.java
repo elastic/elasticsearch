@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 
 import java.time.temporal.ChronoField;
 
 public class HourOfDay extends DateTimeFunction {
-
     public HourOfDay(Location location, Expression argument, DateTimeZone timeZone) {
         super(location, argument, timeZone);
     }
@@ -29,12 +27,12 @@ public class HourOfDay extends DateTimeFunction {
     }
 
     @Override
-    protected int extract(ReadableDateTime dt) {
-        return dt.getHourOfDay();
+    protected ChronoField chronoField() {
+        return ChronoField.HOUR_OF_DAY;
     }
 
     @Override
-    protected ChronoField chronoField() {
-        return ChronoField.HOUR_OF_DAY;
+    protected DateTimeExtractor extractor() {
+        return DateTimeExtractor.HOUR_OF_DAY;
     }
 }

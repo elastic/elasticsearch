@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConvertion;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
 public abstract class BinaryOperator extends BinaryExpression {
 
@@ -26,7 +26,7 @@ public abstract class BinaryOperator extends BinaryExpression {
         if (!l.same(r)) {
             return new TypeResolution("Different types (%s and %s) used in '%s'", l.sqlName(), r.sqlName(), symbol());
         }
-        if (!DataTypeConvertion.canConvert(accepted, left().dataType())) {
+        if (!DataTypeConversion.canConvert(accepted, left().dataType())) {
             return new TypeResolution("'%s' requires type %s not %s", symbol(), accepted.sqlName(), l.sqlName());
         }
         else {

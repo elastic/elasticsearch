@@ -37,6 +37,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 
@@ -110,20 +111,13 @@ public class SqlSecurityIT extends ESRestTestCase {
 
     public void testSqlWorksAsAdmin() throws Exception {
         Map<String, Object> expected = new HashMap<>();
-        Map<String, Object> columns = new HashMap<>();
-        columns.put("a", singletonMap("type", "long"));
-        columns.put("b", singletonMap("type", "long"));
-        columns.put("c", singletonMap("type", "long"));
-        expected.put("columns", columns);
-        Map<String, Object> row1 = new HashMap<>();
-        row1.put("a", 1);
-        row1.put("b", 2);
-        row1.put("c", 3);
-        Map<String, Object> row2 = new HashMap<>();
-        row2.put("a", 4);
-        row2.put("b", 5);
-        row2.put("c", 6);
-        expected.put("rows", Arrays.asList(row1, row2));
+        expected.put("columns", Arrays.asList(
+                columnInfo("a", "long"),
+                columnInfo("b", "long"),
+                columnInfo("c", "long")));
+        expected.put("rows", Arrays.asList(
+                Arrays.asList(1, 2, 3),
+                Arrays.asList(4, 5, 6)));
         expected.put("size", 2);
         assertResponse(expected, runSql("SELECT * FROM test ORDER BY a", null));
         assertAuditForSqlGranted("test_admin", "test");
@@ -316,4 +310,12 @@ public class SqlSecurityIT extends ESRestTestCase {
             throw e;
         }
     }
+
+    private Map<String, Object> columnInfo(String name, String type) {
+        Map<String, Object> column = new HashMap<>();
+        column.put("name", name);
+        column.put("type", type);
+        return unmodifiableMap(column);
+    }
+
 }

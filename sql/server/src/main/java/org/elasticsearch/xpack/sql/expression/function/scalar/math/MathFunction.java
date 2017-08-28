@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import java.util.Locale;
-
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.MathFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
@@ -18,8 +17,9 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-import static java.lang.String.format;
+import java.util.Locale;
 
+import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
@@ -79,12 +79,9 @@ public abstract class MathFunction extends ScalarFunction {
     }
 
     @Override
-    public ColumnProcessor asProcessor() {
-        return l -> {
-            double d = ((Number) l).doubleValue();
-            return math(d);
-        };
+    public final ColumnProcessor asProcessor() {
+        return new MathFunctionProcessor(processor());
     }
 
-    protected abstract Object math(double d);
+    protected abstract MathProcessor processor();
 }

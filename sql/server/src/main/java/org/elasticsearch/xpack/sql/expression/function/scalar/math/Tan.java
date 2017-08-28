@@ -9,13 +9,12 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Tan extends MathFunction {
-
     public Tan(Location location, Expression argument) {
         super(location, argument);
     }
 
     @Override
-    protected Double math(double d) {
-        return Math.tan(d);
+    protected MathProcessor processor() {
+        return MathProcessor.TAN;
     }
 }

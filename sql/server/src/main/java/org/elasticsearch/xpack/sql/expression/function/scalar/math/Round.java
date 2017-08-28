@@ -11,18 +11,17 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 public class Round extends MathFunction {
-
     public Round(Location location, Expression argument) {
         super(location, argument);
     }
 
     @Override
-    protected Long math(double d) {
-        return Long.valueOf(Math.round(d));
+    public DataType dataType() {
+        return DataTypes.LONG;
     }
 
     @Override
-    public DataType dataType() {
-        return DataTypes.LONG;
+    protected MathProcessor processor() {
+        return MathProcessor.ROUND;
     }
 }

@@ -5,15 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ComposeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -86,7 +87,7 @@ public abstract class Functions {
             if (e instanceof ScalarFunction) {
                 ScalarFunction sf = (ScalarFunction) e;
                 // A(B(C)) is applied backwards first C then B then A, the last function first
-                proc = sf.asProcessor().andThen(proc);
+                proc = proc == null ? sf.asProcessor() : new ComposeProcessor(sf.asProcessor(), proc);
             }
             else {
                 return proc;

@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import java.util.List;
-
 import org.elasticsearch.xpack.sql.type.Schema;
+
+import java.util.List;
 
 class ListRowSetCursor extends AbstractRowSetCursor {
 
@@ -46,5 +46,10 @@ class ListRowSetCursor extends AbstractRowSetCursor {
     @Override
     public int size() {
         return list.size();
+    }
+
+    @Override
+    public Cursor nextPageCursor() {
+        return Cursor.EMPTY;
     }
 }

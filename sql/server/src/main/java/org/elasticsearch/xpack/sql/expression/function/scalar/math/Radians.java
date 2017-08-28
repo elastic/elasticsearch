@@ -9,7 +9,6 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Radians extends MathFunction {
-
     public Radians(Location location, Expression argument) {
         super(location, argument);
     }
@@ -20,7 +19,7 @@ public class Radians extends MathFunction {
     }
 
     @Override
-    protected Double math(double d) {
-        return Math.toRadians(d);
+    protected MathProcessor processor() {
+        return MathProcessor.RADIANS;
     }
 }

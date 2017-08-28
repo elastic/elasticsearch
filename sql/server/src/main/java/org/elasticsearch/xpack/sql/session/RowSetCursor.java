@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import java.util.Objects;
-import java.util.function.Consumer;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.SqlException;
+
+import java.util.Objects;
+import java.util.function.Consumer;
 
 public interface RowSetCursor extends RowSet {
 

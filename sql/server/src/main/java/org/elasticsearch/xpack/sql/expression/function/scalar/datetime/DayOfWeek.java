@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 
 import java.time.temporal.ChronoField;
 
 public class DayOfWeek extends DateTimeFunction {
-
     public DayOfWeek(Location location, Expression argument, DateTimeZone timeZone) {
         super(location, argument, timeZone);
     }
@@ -29,12 +27,12 @@ public class DayOfWeek extends DateTimeFunction {
     }
 
     @Override
-    protected int extract(ReadableDateTime dt) {
-        return dt.getDayOfWeek();
+    protected ChronoField chronoField() {
+        return ChronoField.DAY_OF_WEEK;
     }
 
     @Override
-    protected ChronoField chronoField() {
-        return ChronoField.DAY_OF_WEEK;
+    protected DateTimeExtractor extractor() {
+        return DateTimeExtractor.DAY_OF_WEEK;
     }
 }

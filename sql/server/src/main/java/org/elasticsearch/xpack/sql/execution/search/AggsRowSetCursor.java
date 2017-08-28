@@ -8,7 +8,10 @@ package org.elasticsearch.xpack.sql.execution.search;
 import java.util.Arrays;
 import java.util.List;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.sql.session.AbstractRowSetCursor;
+import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.type.Schema;
 
 //
@@ -129,5 +132,10 @@ class AggsRowSetCursor extends AbstractRowSetCursor {
     @Override
     public int size() {
         return size;
+    }
+
+    @Override
+    public Cursor nextPageCursor() {
+        return Cursor.EMPTY;
     }
 }

@@ -30,3 +30,8 @@ Previously Elasticsearch would silently ignore any dynamic templates that
 included a `match_mapping_type` type that was unrecognized. An exception is now
 thrown on an unrecognized type.
 
+==== Validation of `locale` on date fields
+
+The `locale` option of `date` fields previously allowed almost any string values,
+and unrecognized values would simply be ignored. Unrecognized values are now
+rejected on indices created with Elasticsearch 6.0 or newer.

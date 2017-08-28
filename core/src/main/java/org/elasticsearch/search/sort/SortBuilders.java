@@ -60,8 +60,8 @@ public class SortBuilders {
      * Constructs a new nested sort builder.
      *
      */
-    public static NestedSortBuilder nestedSort() {
-        return new NestedSortBuilder();
+    public static NestedSortBuilder nestedSort(String path) {
+        return new NestedSortBuilder(path);
     }
 
     /**

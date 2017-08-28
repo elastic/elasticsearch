@@ -180,8 +180,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     }
 
     protected static Nested resolveNested(QueryShardContext context, String nestedPath, QueryBuilder nestedFilter) throws IOException {
-        NestedSortBuilder nestedSortBuilder = new NestedSortBuilder();
-        nestedSortBuilder.setPath(nestedPath);
+        NestedSortBuilder nestedSortBuilder = new NestedSortBuilder(nestedPath);
         nestedSortBuilder.setFilter(nestedFilter);
 
         return resolveNested(context, nestedSortBuilder);

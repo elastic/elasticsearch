@@ -23,7 +23,8 @@ public class NestedSortBuilder implements Writeable, Writeable.Reader<NestedSort
     private QueryBuilder filter;
     private NestedSortBuilder nestedSort;
 
-    public NestedSortBuilder() {
+    public NestedSortBuilder(String path) {
+        this.path = path;
     }
 
     public NestedSortBuilder(StreamInput in) throws IOException {
@@ -97,7 +98,10 @@ public class NestedSortBuilder implements Writeable, Writeable.Reader<NestedSort
     }
 
     public static NestedSortBuilder fromXContent(XContentParser parser) throws IOException {
-        NestedSortBuilder nestedSortBuilder = new NestedSortBuilder();
+        String path = null;
+        QueryBuilder filter = null;
+        NestedSortBuilder nestedSort = null;
+
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -105,11 +109,11 @@ public class NestedSortBuilder implements Writeable, Writeable.Reader<NestedSort
                     String currentName = parser.currentName();
                     parser.nextToken();
                     if (currentName.equals(PATH_FIELD.getPreferredName())) {
-                        nestedSortBuilder.setPath(parser.text());
+                        path = parser.text();
                     } else if (currentName.equals(FILTER_FIELD.getPreferredName())) {
-                        nestedSortBuilder.setFilter(parseNestedFilter(parser));
+                        filter = parseNestedFilter(parser);
                     } else if (currentName.equals(NESTED_FIELD.getPreferredName())) {
-                        nestedSortBuilder.setNestedSort(NestedSortBuilder.fromXContent(parser));
+                        nestedSort = NestedSortBuilder.fromXContent(parser);
                     } else {
                         throw new IllegalArgumentException("malformed nested sort format, unknown field name [" + currentName + "]");
                     }
@@ -121,7 +125,7 @@ public class NestedSortBuilder implements Writeable, Writeable.Reader<NestedSort
             throw new IllegalArgumentException("malformed nested sort format, must start with an object");
         }
 
-        return nestedSortBuilder;
+        return new NestedSortBuilder(path).setFilter(filter).setNestedSort(nestedSort);
     }
 
     @Override

@@ -62,8 +62,7 @@ The following role definition grants read access only to the `category`,
 }
 --------------------------------------------------
 
-To allow access to the `_all` meta field, you must explicitly list it as an
-allowed field. Access to the following meta fields is always allowed: `_id`,
+Access to the following meta fields is always allowed: `_id`,
 `_type`, `_parent`, `_routing`, `_timestamp`, `_ttl`, `_size` and `_index`. If
 you specify an empty list of fields, only these meta fields are accessible.
 

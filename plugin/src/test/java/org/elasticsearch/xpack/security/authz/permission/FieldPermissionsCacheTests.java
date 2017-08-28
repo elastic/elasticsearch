@@ -88,21 +88,6 @@ public class FieldPermissionsCacheTests extends ESTestCase {
         assertTrue(mergedFieldPermissions.grantsAccessTo("a"));
         assertTrue(mergedFieldPermissions.grantsAccessTo("b"));
 
-        // test merge does not remove _all
-        allowed1 = new String[]{"_all"};
-        allowed2 = new String[]{};
-        denied1 = null;
-        denied2 = null;
-        fieldPermissions1 = randomBoolean() ? fieldPermissionsCache.getFieldPermissions(allowed1, denied1) :
-                new FieldPermissions(fieldPermissionDef(allowed1, denied1));
-        fieldPermissions2 = randomBoolean() ? fieldPermissionsCache.getFieldPermissions(allowed2, denied2) :
-                new FieldPermissions(fieldPermissionDef(allowed2, denied2));
-        mergedFieldPermissions =
-                fieldPermissionsCache.getFieldPermissions(Arrays.asList(fieldPermissions1, fieldPermissions2));
-        assertTrue(fieldPermissions1.grantsAccessTo("_all"));
-        assertFalse(fieldPermissions2.grantsAccessTo("_all"));
-        assertTrue(mergedFieldPermissions.grantsAccessTo("_all"));
-
         allowed1 = new String[] { "a*" };
         allowed2 = new String[] { "b*" };
         denied1 = new String[] { "aa*" };

@@ -224,25 +224,4 @@ public class FieldPermissionsTests extends ESTestCase {
             assertEquals((Integer) hashCode, hashCodes.get(i));
         }
     }
-
-    public void testAllFieldIsAutomaticallyExcludedIfNotExplicitlyGranted() throws Exception {
-        final FieldPermissions fieldPermissions = new FieldPermissions(
-                new FieldPermissionsDefinition(new String[] { "_a*" }, new String[0]));
-        assertTrue(fieldPermissions.grantsAccessTo("_animal"));
-        assertFalse(fieldPermissions.grantsAccessTo("_all"));
-    }
-
-    public void testAllFieldIsNotExcludedIfExplicitlyGranted() throws Exception {
-        final String[] grant = { "foo", "bar", "baz", "_all" };
-        Collections.shuffle(Arrays.asList(grant), random());
-
-        final FieldPermissions fieldPermissions = new FieldPermissions(
-                new FieldPermissionsDefinition(grant, new String[0]));
-
-        assertTrue(fieldPermissions.grantsAccessTo("_all"));
-        assertTrue(fieldPermissions.grantsAccessTo("foo"));
-        assertTrue(fieldPermissions.grantsAccessTo("bar"));
-        assertTrue(fieldPermissions.grantsAccessTo("baz"));
-        assertFalse(fieldPermissions.grantsAccessTo(randomAlphaOfLengthBetween(5, 8)));
-    }
 }

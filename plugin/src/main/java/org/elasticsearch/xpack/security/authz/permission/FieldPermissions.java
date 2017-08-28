@@ -16,7 +16,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.xpack.security.authz.accesscontrol.FieldSubsetReader;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.security.support.Automatons;
@@ -153,22 +152,8 @@ public final class FieldPermissions implements Accountable {
                     Strings.arrayToCommaDelimitedString(grantedFields));
         }
 
-        if (!containsAllField(grantedFields) && !containsAllField(deniedFields)) {
-            // It is not explicitly stated whether _all should be allowed/denied
-            // In that case we automatically disable _all, unless all fields would match
-            if (Operations.isTotal(grantedFieldsAutomaton) && Operations.isEmpty(deniedFieldsAutomaton)) {
-                // all fields are accepted, so using _all is fine
-            } else {
-                deniedFieldsAutomaton = Operations.union(deniedFieldsAutomaton, Automata.makeString(AllFieldMapper.NAME));
-            }
-        }
-
         grantedFieldsAutomaton = minusAndMinimize(grantedFieldsAutomaton, deniedFieldsAutomaton);
         return grantedFieldsAutomaton;
-    }
-
-    private static boolean containsAllField(String[] fields) {
-        return fields != null && Arrays.stream(fields).anyMatch(AllFieldMapper.NAME::equals);
     }
 
     /**

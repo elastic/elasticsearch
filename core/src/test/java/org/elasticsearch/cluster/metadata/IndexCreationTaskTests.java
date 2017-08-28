@@ -50,13 +50,10 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.BaseMatcher;
-import org.hamcrest.Description;
-import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
@@ -65,9 +62,10 @@ import java.util.Arrays;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasAllKeys;
+import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyObject;
@@ -119,8 +117,8 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertThat(result.metaData().index("test").getAliases(), containsAllKeys("alias_from_template_1", "alias_from_template_2"));
-        assertThat(result.metaData().index("test").getAliases(), not(containsKey("alias_from_template_3")));
+        assertThat(result.metaData().index("test").getAliases(), hasAllKeys("alias_from_template_1", "alias_from_template_2"));
+        assertThat(result.metaData().index("test").getAliases(), not(hasKey("alias_from_template_3")));
     }
 
     public void testApplyDataFromTemplate() throws Exception {
@@ -133,10 +131,10 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertThat(result.metaData().index("test").getAliases(), containsKey("alias1"));
-        assertThat(result.metaData().index("test").getCustoms(), containsKey("custom1"));
+        assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
+        assertThat(result.metaData().index("test").getCustoms(), hasKey("custom1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
-        assertThat(getMappingsFromResponse(), hasKey("mapping1"));
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("mapping1"));
     }
 
     public void testApplyDataFromRequest() throws Exception {
@@ -147,10 +145,10 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertThat(result.metaData().index("test").getAliases(), containsKey("alias1"));
-        assertThat(result.metaData().index("test").getCustoms(), containsKey("custom1"));
+        assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
+        assertThat(result.metaData().index("test").getCustoms(), hasKey("custom1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
-        assertThat(getMappingsFromResponse(), hasKey("mapping1"));
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("mapping1"));
     }
 
     public void testRequestDataHavePriorityOverTemplateData() throws Exception {
@@ -278,10 +276,10 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertThat(result.metaData().index("test").getAliases(), not(containsKey("alias1")));
-        assertThat(result.metaData().index("test").getCustoms(), not(containsKey("custom1")));
-        assertThat(result.metaData().index("test").getSettings().getAsMap(), not(hasKey("key1")));
-        assertThat(getMappingsFromResponse(), not(hasKey("mapping1")));
+        assertThat(result.metaData().index("test").getAliases(), not(hasKey("alias1")));
+        assertThat(result.metaData().index("test").getCustoms(), not(hasKey("custom1")));
+        assertThat(result.metaData().index("test").getSettings().getAsMap(), not(Matchers.hasKey("key1")));
+        assertThat(getMappingsFromResponse(), not(Matchers.hasKey("mapping1")));
     }
 
     public void testValidateWaitForActiveShardsFailure() throws Exception {
@@ -446,53 +444,5 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(service.getIndexEventListener()).thenReturn(mock(IndexEventListener.class));
 
         when(indicesService.createIndex(anyObject(), anyObject())).thenReturn(service);
-    }
-
-    private <K> Matcher<ImmutableOpenMap<K, ?>> containsKey(final K key) {
-        return new BaseMatcher<ImmutableOpenMap<K, ?>>() {
-
-            @Override
-            @SuppressWarnings("unchecked")
-            public boolean matches(final Object item) {
-                return ((ImmutableOpenMap<K, ?>)item).containsKey(key);
-            }
-
-            @Override
-            public void describeTo(final Description description) {
-                description.appendText("ImmutableOpenMap should contain key [").appendValue(key).appendText("]");
-            }
-        };
-    }
-
-    private <K> Matcher<ImmutableOpenMap<K, ?>> containsAllKeys(final K... keys) {
-        return new BaseMatcher<ImmutableOpenMap<K, ?>>() {
-
-            private K missingKey;
-
-            @Override
-            @SuppressWarnings("unchecked")
-            public boolean matches(final Object item) {
-                final List<K> expectedKeys = Arrays.asList(keys);
-                final ImmutableOpenMap<K, ?> map = ((ImmutableOpenMap<K, ?>)item);
-
-                for (K key: expectedKeys) {
-                    if (!map.containsKey(key)) {
-                        missingKey = key;
-                        return false;
-                    }
-                }
-
-                return true;
-            }
-            @Override
-            public void describeTo(final Description description) {
-                description
-                    .appendText("ImmutableOpenMap should contain all keys ")
-                    .appendValue(keys)
-                    .appendText(", but key [")
-                    .appendValue(missingKey)
-                    .appendText("] is missing");
-            }
-        };
     }
 }

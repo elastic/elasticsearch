@@ -31,11 +31,13 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -66,6 +68,15 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
     @Override
     protected GetIndexResponse newResponse() {
         return new GetIndexResponse();
+    }
+
+    @Override
+    protected void validateRequest(GetIndexRequest request, ClusterState state) throws Exception {
+        for(String index: request.indices()) {
+            // Create index service also does validation on the index name which does not require
+            // cluster state, so it does not check if things like the index already exists in the cluster
+            MetaDataCreateIndexService.validateIndexOrAliasName(index, InvalidIndexNameException::new);
+        }
     }
 
     @Override

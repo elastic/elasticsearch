@@ -2,13 +2,41 @@
 [[info-api]]
 == Info API
 
-The info API provides general information on the installed {xpack}. This
-information includes:
+The info API provides general information about the installed {xpack}.
+
+[float]
+=== Request
+
+`GET /_xpack`
+
+[float]
+=== Description
+
+The information provided by this API includes:
 
 * Build Information - including the build number and timestamp.
 * License Information - basic information about the currently installed license.
 * Features Information - The features that are currently enabled and available
   under the current license.
+
+[float]
+=== Path Parameters
+
+`categories`::
+  (list) A comma-separated list of the information categories to include in the
+  response. For example, `build,license,features`.
+
+`human`::
+  (boolean) Defines whether additional human-readable information is included in
+  the response. In particular, it adds descriptions and a tag line. The
+  default value is `true`.
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
 
 The following example queries the info API:
 
@@ -79,9 +107,6 @@ Example response:
 // TESTRESPONSE[s/"version" : "6.0.0-alpha1-SNAPSHOT",/"version": "$body.features.ml.native_code_info.version",/]
 // TESTRESPONSE[s/"build_hash" : "d081461967d61a"/"build_hash": "$body.features.ml.native_code_info.build_hash"/]
 // So much s/// but at least we test that the layout is close to matching....
-
-You can also control what information is returned using the `categories` and
-`human` parameters.
 
 The following example only returns the build and features information:
 

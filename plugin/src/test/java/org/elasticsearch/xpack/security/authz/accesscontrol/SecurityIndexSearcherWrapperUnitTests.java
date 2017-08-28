@@ -45,7 +45,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
@@ -108,14 +107,13 @@ import static org.mockito.Mockito.when;
 
 public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
-    private static final Set<String> META_FIELDS_WITHOUT_ALL;
+    private static final Set<String> META_FIELDS;
     static {
-        final Set<String> metaFieldsWithoutAll = new HashSet<>(Arrays.asList(MapperService.getAllMetaFields()));
-        metaFieldsWithoutAll.add(SourceFieldMapper.NAME);
-        metaFieldsWithoutAll.add(FieldNamesFieldMapper.NAME);
-        metaFieldsWithoutAll.add(SeqNoFieldMapper.NAME);
-        metaFieldsWithoutAll.remove(AllFieldMapper.NAME);
-        META_FIELDS_WITHOUT_ALL = Collections.unmodifiableSet(metaFieldsWithoutAll);
+        final Set<String> metaFields = new HashSet<>(Arrays.asList(MapperService.getAllMetaFields()));
+        metaFields.add(SourceFieldMapper.NAME);
+        metaFields.add(FieldNamesFieldMapper.NAME);
+        metaFields.add(SeqNoFieldMapper.NAME);
+        META_FIELDS = Collections.unmodifiableSet(metaFields);
     }
 
     private ThreadContext threadContext;
@@ -178,8 +176,6 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         assertThat(result.getFilter().run("_index"), is(true));
         assertThat(result.getFilter().run("_field_names"), is(true));
         assertThat(result.getFilter().run("_seq_no"), is(true));
-        // _all contains actual user data and therefor can't be included by default
-        assertThat(result.getFilter().run("_all"), is(false));
         assertThat(result.getFilter().run("_some_random_meta_field"), is(true));
         assertThat(result.getFilter().run("some_random_regular_field"), is(false));
     }
@@ -201,7 +197,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     }
 
     public void testWildcards() throws Exception {
-        Set<String> expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        Set<String> expected = new HashSet<>(META_FIELDS);
         expected.add("field1_a");
         expected.add("field1_b");
         expected.add("field1_c");
@@ -209,17 +205,17 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     }
 
     public void testDotNotion() throws Exception {
-        Set<String> expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        Set<String> expected = new HashSet<>(META_FIELDS);
         expected.add("foo.bar");
         assertResolved(new FieldPermissions(fieldPermissionDef(new String[] {"foo.bar"}, null)), expected, "foo", "foo.baz", "bar.foo");
 
-        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected = new HashSet<>(META_FIELDS);
         expected.add("foo.bar");
         assertResolved(new FieldPermissions(fieldPermissionDef(new String[] {"foo.*"}, null)), expected, "foo", "bar");
     }
 
     public void testParentChild() throws Exception {
-        Set<String> expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        Set<String> expected = new HashSet<>(META_FIELDS);
         expected.add(ParentFieldMapper.joinField("parent1"));
         expected.add("foo");
         assertResolved(new FieldPermissions(fieldPermissionDef(new String[] {"foo"}, null)), expected, "bar");
@@ -340,20 +336,19 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                 new SecurityIndexSearcherWrapper(indexSettings, null, null, threadContext, licenseState, null);
         String[] grantedFields = new String[]{};
         String[] deniedFields;
-        Set<String> expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        Set<String> expected = new HashSet<>(META_FIELDS);
         // Presence of fields in a role with an empty array implies access to no fields except the meta fields
         assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, randomBoolean() ? null : new String[]{})),
                 expected, "foo", "bar");
 
         // make sure meta fields cannot be denied access to
-        deniedFields = META_FIELDS_WITHOUT_ALL.toArray(new String[0]);
+        deniedFields = META_FIELDS.toArray(new String[0]);
         assertResolved(new FieldPermissions(fieldPermissionDef(null, deniedFields)),
                 new HashSet<>(Arrays.asList("foo", "bar", "_some_plugin_meta_field")));
 
         // check we can add all fields with *
         grantedFields = new String[]{"*"};
-        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
-        expected.add(AllFieldMapper.NAME);
+        expected = new HashSet<>(META_FIELDS);
         expected.add("foo");
         assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, randomBoolean() ? null : new String[]{})), expected);
 
@@ -364,57 +359,49 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         // check we remove only excluded fields
         grantedFields = new String[]{"*"};
         deniedFields = new String[]{"xfield"};
-        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected = new HashSet<>(META_FIELDS);
         expected.add("foo");
-        assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)), expected, "xfield", "_all");
+        assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)), expected, "xfield");
 
         // same with null
         grantedFields = null;
-        assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)), expected, "xfield", "_all");
+        assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)), expected, "xfield");
 
         // some other checks
         grantedFields = new String[]{"field*"};
         deniedFields = new String[]{"field1", "field2"};
-        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected = new HashSet<>(META_FIELDS);
         expected.add("field3");
-        assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)), expected, "field1", "field2", "_all");
+        assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)), expected, "field1", "field2");
 
         grantedFields = new String[]{"field1", "field2"};
         deniedFields = new String[]{"field2"};
-        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected = new HashSet<>(META_FIELDS);
         expected.add("field1");
-        assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)), expected, "field1", "field2", "_all");
+        assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)), expected, "field1", "field2");
 
         grantedFields = new String[]{"field*"};
         deniedFields = new String[]{"field2"};
-        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected = new HashSet<>(META_FIELDS);
         expected.add("field1");
-        assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)), expected, "field2", "_all");
+        assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)), expected, "field2");
 
         deniedFields = new String[]{"field*"};
         assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)),
-                META_FIELDS_WITHOUT_ALL, "field1", "field2");
+                META_FIELDS, "field1", "field2");
 
         // empty array for allowed fields always means no field is allowed
         grantedFields = new String[]{};
         deniedFields = new String[]{};
         assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)),
-                META_FIELDS_WITHOUT_ALL, "field1", "field2");
+                META_FIELDS, "field1", "field2");
 
         // make sure all field can be explicitly allowed
-        grantedFields = new String[]{"_all", "*"};
+        grantedFields = new String[]{"*"};
         deniedFields = randomBoolean() ? null : new String[]{};
-        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
-        expected.add("_all");
+        expected = new HashSet<>(META_FIELDS);
         expected.add("field1");
         assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)), expected);
-
-        // make sure all field can be explicitly allowed
-        grantedFields = new String[]{"_all"};
-        deniedFields = randomBoolean() ? null : new String[]{};
-        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
-        expected.add("_all");
-        assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)), expected, "field1", "_source");
     }
 
     private SparseFixedBitSet query(LeafReaderContext leaf, String field, String value) throws IOException {

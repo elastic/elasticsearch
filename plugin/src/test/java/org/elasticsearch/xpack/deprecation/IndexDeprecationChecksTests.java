@@ -34,10 +34,6 @@ public class IndexDeprecationChecksTests extends ESTestCase {
     public void testCoerceBooleanDeprecation() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject(); {
-            mapping.startObject("_all"); {
-                mapping.field("enabled", false);
-            }
-            mapping.endObject();
             mapping.startObject("properties"); {
                 mapping.startObject("my_boolean"); {
                     mapping.field("type", "boolean");
@@ -86,73 +82,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertEquals(singletonList(expected), issues);
     }
 
-    public void testAllMetaFieldIsDisabledByDefaultCheck() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder();
-        mapping.startObject(); {
-            mapping.startObject("_all"); {
-                mapping.field("enabled", randomFrom("1", 1, "true", true));
-            }
-            mapping.endObject();
-        }
-        mapping.endObject();
-
-        IndexMetaData indexMetaData = IndexMetaData.builder("test")
-            .putMapping("testAllEnabled", mapping.string())
-            .settings(settings(Version.V_5_6_0))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-
-        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.INFO,
-            "The _all meta field is disabled by default on indices created in 6.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                "breaking_60_mappings_changes.html#_the_literal__all_literal_meta_field_is_now_disabled_by_default",
-            "types: [testAllEnabled]");
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
-        assertEquals(singletonList(expected), issues);
-    }
-
-    public void testIncludeInAllCheck() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder();
-        mapping.startObject(); {
-            mapping.startObject("_all"); {
-                mapping.field("enabled", false);
-            }
-            mapping.endObject();
-            mapping.startObject("properties"); {
-                mapping.startObject("my_field"); {
-                    mapping.field("type", "text");
-                    mapping.field("include_in_all", false);
-                }
-                mapping.endObject();
-            }
-            mapping.endObject();
-        }
-        mapping.endObject();
-
-        IndexMetaData indexMetaData = IndexMetaData.builder("test")
-            .putMapping("testIncludeInAll", mapping.string())
-            .settings(settings(Version.V_5_6_0))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-
-        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-            "The [include_in_all] mapping parameter is now disallowed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                "breaking_60_mappings_changes.html#_the_literal_include_in_all_literal_mapping_parameter_is_now_disallowed",
-            "[[type: testIncludeInAll, field: my_field]]");
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
-        assertEquals(singletonList(expected), issues);
-    }
-
     public void testMatchMappingTypeCheck() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject(); {
-            mapping.startObject("_all"); {
-                mapping.field("enabled", false);
-            }
-            mapping.endObject();
             mapping.startArray("dynamic_templates");
             {
                 mapping.startObject();

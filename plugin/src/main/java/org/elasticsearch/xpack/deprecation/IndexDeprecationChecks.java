@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.DynamicTemplate;
 
 import java.util.ArrayList;
@@ -89,50 +88,6 @@ public class IndexDeprecationChecks {
                 return new DeprecationIssue(DeprecationIssue.Level.INFO, "Coercion of boolean fields",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
                         "breaking_60_mappings_changes.html#_coercion_of_boolean_fields",
-                    issues.toString());
-            }
-        }
-        return null;
-    }
-
-    @SuppressWarnings("unchecked")
-    static DeprecationIssue allMetaFieldIsDisabledByDefaultCheck(IndexMetaData indexMetaData) {
-        if (indexMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
-            List<String> issues = new ArrayList<>();
-            fieldLevelMappingIssue(indexMetaData, (mappingMetaData, sourceAsMap) -> {
-                Map<String, Object> allMetaData = (Map<String, Object>) sourceAsMap.getOrDefault("_all", Collections.emptyMap());
-                Object enabledObj = allMetaData.get("enabled");
-                if (enabledObj != null) {
-                    enabledObj = Booleans.parseBooleanLenient(enabledObj.toString(),
-                        AllFieldMapper.Defaults.ENABLED.enabled);
-                }
-                if (Boolean.TRUE.equals(enabledObj)) {
-                    issues.add(mappingMetaData.type());
-                }
-            });
-            if (issues.size() > 0) {
-                return new DeprecationIssue(DeprecationIssue.Level.INFO,
-                    "The _all meta field is disabled by default on indices created in 6.0",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                        "breaking_60_mappings_changes.html#_the_literal__all_literal_meta_field_is_now_disabled_by_default",
-                    "types: " + issues.toString());
-            }
-        }
-        return null;
-    }
-
-    static DeprecationIssue includeInAllCheck(IndexMetaData indexMetaData) {
-        if (indexMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
-            List<String> issues = new ArrayList<>();
-            fieldLevelMappingIssue(indexMetaData, (mappingMetaData, sourceAsMap) -> {
-                issues.addAll(findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap,
-                    property -> property.containsKey("include_in_all")));
-            });
-            if (issues.size() > 0) {
-                return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                    "The [include_in_all] mapping parameter is now disallowed",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                        "breaking_60_mappings_changes.html#_the_literal_include_in_all_literal_mapping_parameter_is_now_disallowed",
                     issues.toString());
             }
         }

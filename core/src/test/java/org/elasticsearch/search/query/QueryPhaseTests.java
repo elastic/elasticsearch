@@ -483,7 +483,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
-    public void testIndexSortScrollOptimization() throws Exception {
+    public void testIndexSortOptimization() throws Exception {
         Directory dir = newDirectory();
         final Sort sort = new Sort(
             new SortField("rank", SortField.Type.INT),
@@ -502,16 +502,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
         w.forceMerge(3);
         w.close();
 
-        TestSearchContext context = new TestSearchContext(null, indexShard);
-        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-        ScrollContext scrollContext = new ScrollContext();
-        scrollContext.lastEmittedDoc = null;
-        scrollContext.maxScore = Float.NaN;
-        scrollContext.totalHits = -1;
-        context.scrollContext(scrollContext);
-        context.setTask(new SearchTask(123L, "", "", "", null));
-        context.setSize(10);
-        context.sort(new SortAndFormats(sort, new DocValueFormat[] {DocValueFormat.RAW, DocValueFormat.RAW}));
 
         final AtomicBoolean collected = new AtomicBoolean();
         final IndexReader reader = DirectoryReader.open(dir);
@@ -522,15 +512,55 @@ public class QueryPhaseTests extends IndexShardTestCase {
             }
         };
 
+        TestSearchContext context = new TestSearchContext(null, indexShard);
+
+        // Test without scroll context
+        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        context.setTask(new SearchTask(123L, "", "", "", null));
+        context.setSize(10);
+        context.sort(new SortAndFormats(sort, new DocValueFormat[] {DocValueFormat.RAW, DocValueFormat.RAW}));
+
         QueryPhase.execute(context, contextSearcher, checkCancelled -> {}, sort);
         assertThat(context.queryResult().topDocs().totalHits, equalTo((long) numDocs));
         assertTrue(collected.get());
-        assertNull(context.queryResult().terminatedEarly());
+        assertTrue(context.queryResult().terminatedEarly());
+        assertThat(context.terminateAfter(), equalTo(0));
+        assertThat(context.queryResult().getTotalHits(), equalTo((long) numDocs));
+
+        // Test without scroll context and trackTotalHits
+        collected.set(false);
+        context.trackTotalHits(false);
+        QueryPhase.execute(context, contextSearcher, checkCancelled -> {}, sort);
+        context.trackTotalHits(true);
+        assertThat(context.queryResult().topDocs().totalHits, equalTo(1L));
+        assertTrue(collected.get());
+        assertTrue(context.queryResult().terminatedEarly());
+        assertThat(context.terminateAfter(), equalTo(0));
+        assertThat(context.queryResult().getTotalHits(), equalTo(1L));
+
+        // Test with initial scroll context
+        collected.set(false);
+        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        ScrollContext scrollContext = new ScrollContext();
+        scrollContext.lastEmittedDoc = null;
+        scrollContext.maxScore = Float.NaN;
+        scrollContext.totalHits = -1;
+        context.scrollContext(scrollContext);
+        context.setTask(new SearchTask(123L, "", "", "", null));
+        context.setSize(10);
+        context.sort(new SortAndFormats(sort, new DocValueFormat[] {DocValueFormat.RAW, DocValueFormat.RAW}));
+
+        QueryPhase.execute(context, contextSearcher, checkCancelled -> {}, sort);
+        assertThat(context.queryResult().topDocs().totalHits, equalTo((long) numDocs));
+        assertTrue(collected.get());
+        assertTrue(context.queryResult().terminatedEarly());
         assertThat(context.terminateAfter(), equalTo(0));
         assertThat(context.queryResult().getTotalHits(), equalTo((long) numDocs));
         int sizeMinus1 = context.queryResult().topDocs().scoreDocs.length - 1;
         FieldDoc lastDoc = (FieldDoc) context.queryResult().topDocs().scoreDocs[sizeMinus1];
 
+        // Test scroll context pagination
+        collected.set(false);
         QueryPhase.execute(context, contextSearcher, checkCancelled -> {}, sort);
         assertThat(context.queryResult().topDocs().totalHits, equalTo((long) numDocs));
         assertTrue(collected.get());
@@ -548,6 +578,36 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(cmp, equalTo(1));
             break;
         }
+
+        // Test search after pagination
+        for (boolean trackTotalHits : new boolean[] {true, false}) {
+            collected.set(false);
+            context.scrollContext(null);
+            context.trackTotalHits(trackTotalHits);
+            context.searchAfter(new FieldDoc(Integer.MAX_VALUE, Float.NaN, firstDoc.fields));
+            QueryPhase.execute(context, contextSearcher, checkCancelled -> {
+            }, sort);
+            if (trackTotalHits) {
+                assertThat(context.queryResult().topDocs().totalHits, equalTo((long) numDocs));
+            }
+            assertTrue(collected.get());
+            assertTrue(context.queryResult().terminatedEarly());
+            assertThat(context.terminateAfter(), equalTo(0));
+            if (trackTotalHits) {
+                assertThat(context.queryResult().getTotalHits(), equalTo((long) numDocs));
+            }
+            for (int i = 0; i < sort.getSort().length; i++) {
+                @SuppressWarnings("unchecked")
+                FieldComparator<Object> comparator = (FieldComparator<Object>) sort.getSort()[i].getComparator(1, i);
+                int cmp = comparator.compareValues(firstDoc.fields[i], lastDoc.fields[i]);
+                if (cmp == 0) {
+                    continue;
+                }
+                assertThat(cmp, equalTo(1));
+                break;
+            }
+        }
+
         reader.close();
         dir.close();
     }

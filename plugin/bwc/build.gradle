@@ -126,23 +126,61 @@ subprojects {
       commandLine = ['git', 'fetch', '--all']
     }
 
+    String esBuildMetadataKey = "bwc_refspec_${project.path.substring(1)}_elasticsearch"
     task checkoutElasticsearchBwcBranch(type: LoggedExec) {
       dependsOn fetchElasticsearchLatest
-      def String refspec = System.getProperty("tests.bwc.refspec", "upstream/${bwcBranch}")
+      def String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(esBuildMetadataKey, "upstream/${bwcBranch}"))
       workingDir = esCheckoutDir
       commandLine = ['git', 'checkout', refspec]
     }
 
+    String xpackBuildMetadataKey = "bwc_refspec_${project.path.substring(1)}_xpack"
     task checkoutXPackBwcBranch(type: LoggedExec) {
       dependsOn fetchXPackLatest
-      def String refspec = System.getProperty("tests.bwc.refspec", "upstream/${bwcBranch}")
+      def String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(xpackBuildMetadataKey, "upstream/${bwcBranch}"))
       workingDir = xpackCheckoutDir
       commandLine = ['git', 'checkout', refspec]
     }
 
+    File esBuildMetadataFile = project.file("build/${project.name}_elasticsearch/build_metadata")
+    task writeElasticsearchBuildMetadata(type: LoggedExec) {
+      dependsOn checkoutElasticsearchBwcBranch
+      workingDir = esCheckoutDir
+      commandLine = ['git', 'rev-parse', 'HEAD']
+      ignoreExitValue = true
+      ByteArrayOutputStream output = new ByteArrayOutputStream()
+      standardOutput = output
+      doLast {
+        if (execResult.exitValue != 0) {
+          output.toString('UTF-8').eachLine { line -> logger.error(line) }
+          execResult.assertNormalExitValue()
+        }
+        project.mkdir(esBuildMetadataFile.parent)
+        esBuildMetadataFile.setText("${esBuildMetadataKey}=${output.toString('UTF-8')}", 'UTF-8')
+      }
+    }
+
+    File xpackBuildMetadataFile = project.file("build/${project.name}_xpack/build_metadata")
+    task writeXPackBuildMetadata(type: LoggedExec) {
+      dependsOn checkoutXPackBwcBranch
+      workingDir = xpackCheckoutDir
+      commandLine = ['git', 'rev-parse', 'HEAD']
+      ignoreExitValue = true
+      ByteArrayOutputStream output = new ByteArrayOutputStream()
+      standardOutput = output
+      doLast {
+        if (execResult.exitValue != 0) {
+          output.toString('UTF-8').eachLine { line -> logger.error(line) }
+          execResult.assertNormalExitValue()
+        }
+        project.mkdir(xpackBuildMetadataFile.parent)
+        xpackBuildMetadataFile.setText("${xpackBuildMetadataKey}=${output.toString('UTF-8')}", 'UTF-8')
+      }
+    }
+
     File bwcZip = file("${xpackCheckoutDir}/plugin/build/distributions/x-pack-${bwcVersion}.zip")
     task buildBwcVersion(type: GradleBuild) {
-      dependsOn checkoutXPackBwcBranch, checkoutElasticsearchBwcBranch
+      dependsOn checkoutXPackBwcBranch, checkoutElasticsearchBwcBranch, writeElasticsearchBuildMetadata, writeXPackBuildMetadata
       dir = xpackCheckoutDir
       tasks = [':x-pack-elasticsearch:plugin:assemble']
     }

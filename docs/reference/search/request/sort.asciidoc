@@ -131,6 +131,15 @@ field support has a `nested` sort option with the following properties:
     Same as top-level `nested` but applies to another nested path within the
     current nested object.
 
+[WARNING]
+.Nested sort options before Elasticseach 6.1
+============================================
+
+The `nested_path` and `nested_filter` options have been deprecated in
+favor of the options documented above.
+
+============================================
+
 ===== Nested sorting examples
 
 In the below example `offer` is a field of type `nested`.

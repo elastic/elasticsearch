@@ -101,7 +101,17 @@ public class LocaleUtils {
             return new Locale(parts[0]);
         default:
             throw new IllegalArgumentException("Locales can have at most 3 parts but got " + parts.length + ": " + Arrays.asList(parts));
-    }
+        }
     }
 
+    /**
+     * Validate a {@link Locale} object
+     */
+    public static boolean isValid(Locale locale) {
+        try {
+            return locale.getISO3Language() != null && locale.getISO3Country() != null;
+        } catch (MissingResourceException e) {
+            return false;
+        }
+    }
 }

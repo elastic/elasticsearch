@@ -532,11 +532,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.trackTotalHits(false);
         QueryPhase.execute(context, contextSearcher, checkCancelled -> {}, sort);
         context.trackTotalHits(true);
-        assertThat(context.queryResult().topDocs().totalHits, equalTo(1L));
         assertTrue(collected.get());
         assertTrue(context.queryResult().terminatedEarly());
         assertThat(context.terminateAfter(), equalTo(0));
-        assertThat(context.queryResult().getTotalHits(), equalTo(1L));
 
         // Test with initial scroll context
         collected.set(false);
@@ -580,9 +578,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
 
         // Test search after pagination
+        context.scrollContext(null);
         for (boolean trackTotalHits : new boolean[] {true, false}) {
             collected.set(false);
-            context.scrollContext(null);
             context.trackTotalHits(trackTotalHits);
             context.searchAfter(new FieldDoc(Integer.MAX_VALUE, Float.NaN, firstDoc.fields));
             QueryPhase.execute(context, contextSearcher, checkCancelled -> {

@@ -50,7 +50,7 @@ public class SearchAfterSortedDocQuery extends Query {
 
     public SearchAfterSortedDocQuery(Sort sort, FieldDoc after) {
         if (sort.getSort().length < after.fields.length) {
-            throw new IllegalArgumentException("after doc  has " + after.fields.length + " value(s) but sort has "
+            throw new IllegalArgumentException("after doc has " + after.fields.length + " value(s) but sort has "
                     + sort.getSort().length);
         }
         this.sort = sort;

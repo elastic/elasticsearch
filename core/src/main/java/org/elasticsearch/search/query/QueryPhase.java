@@ -245,7 +245,7 @@ public class QueryPhase implements SearchPhase {
 
             if (canEarlyTerminate(indexSort, searchContext)) {
                 // top docs collection can be early terminated based on index sort
-                int numHits = Math.min(1, topDocsFactory.numHits());
+                int numHits = Math.max(1, topDocsFactory.numHits());
                 // add the collector context first so we don't early terminate aggs but only top docs
                 collectors.addFirst(createEarlySortingTerminationCollectorContext(reader, scrollContext, searchContext.query(), indexSort,
                     numHits, searchContext.trackTotalHits(), shouldCollect));

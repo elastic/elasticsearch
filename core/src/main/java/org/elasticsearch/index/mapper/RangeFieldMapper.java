@@ -180,7 +180,13 @@ public class RangeFieldMapper extends FieldMapper {
                     builder.coerce(TypeParsers.nodeBooleanValue(name, "coerce", propNode, parserContext));
                     iterator.remove();
                 } else if (propName.equals("locale")) {
-                    builder.locale(LocaleUtils.parse(propNode.toString()));
+                    Locale locale;
+                    if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_beta2)) {
+                        locale = LocaleUtils.parse(propNode.toString());
+                    } else {
+                        locale = LocaleUtils.parse5x(propNode.toString());
+                    }
+                    builder.locale(locale);
                     iterator.remove();
                 } else if (propName.equals("format")) {
                     builder.dateTimeFormatter(parseDateTimeFormatter(propNode));

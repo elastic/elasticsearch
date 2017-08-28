@@ -104,6 +104,16 @@ if (currentVersion.bugfix == 0) {
       true, last.unreleased)
 }
 
+// build metadata from previous build, contains eg hashes for bwc builds
+String buildMetadataValue = System.getenv('BUILD_METADATA')
+if (buildMetadataValue == null) {
+  buildMetadataValue = ''
+}
+Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectEntries {
+  def (String key, String value) = it.split('=')
+  return [key, value]
+}
+
 // injecting groovy property variables into all projects
 allprojects {
   // injecting groovy property variables into all projects
@@ -114,6 +124,7 @@ allprojects {
     // for backcompat testing
     indexCompatVersions = versions
     wireCompatVersions = versions.subList(firstMajorIndex, versions.size())
+    buildMetadata = buildMetadataMap
   }
 }
 

@@ -528,28 +528,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(resp, 2L);
     }
 
-    public void testExplicitAllFieldsRequested() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index-with-all.json");
-        prepareCreate("test")
-                .setSource(indexBody, XContentType.JSON)
-                // .setSettings(Settings.builder().put("index.version.created", Version.V_5_0_0.id)).get();
-                .get();
-        ensureGreen("test");
-
-        List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo", "f2", "eggplant"));
-        indexRandom(true, false, reqs);
-
-        SearchResponse resp = client().prepareSearch("test").setQuery(
-                simpleQueryStringQuery("foo eggplant").defaultOperator(Operator.AND)).get();
-        assertHitCount(resp, 0L);
-
-        resp = client().prepareSearch("test").setQuery(
-                simpleQueryStringQuery("foo eggplant").defaultOperator(Operator.AND).useAllFields(true)).get();
-        assertHits(resp.getHits(), "1");
-        assertHitCount(resp, 1L);
-    }
-
     public void testAllFieldsWithSpecifiedLeniency() throws IOException {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();

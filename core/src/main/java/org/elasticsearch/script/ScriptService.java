@@ -336,6 +336,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         if (scriptsPerMinCounter >= 1) {
             scriptsPerMinCounter -= 1.0;
         } else {
+            scriptMetrics.onCompilationLimit();
             // Otherwise reject the request
             throw new CircuitBreakingException("[script] Too many dynamic script compilations within one minute, max: [" +
                             totalCompilesPerMinute + "/min]; please use on-disk, indexed, or scripts with parameters instead; " +

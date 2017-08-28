@@ -61,44 +61,6 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
 
     }
 
-    public void testUpdatingAllSettingsOnOlderIndex() throws Exception {
-        XContentBuilder mapping = jsonBuilder()
-                .startObject()
-                .startObject("mappings")
-                .startObject(TYPE)
-                .startObject("_all").field("enabled", "true").endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        XContentBuilder mappingUpdate = jsonBuilder()
-                .startObject()
-                .startObject("_all").field("enabled", "false").endObject()
-                .startObject("properties").startObject("text").field("type", "text").endObject()
-                .endObject()
-                .endObject();
-        String errorMessage = "[_all] enabled is true now encountering false";
-        testConflict(mapping.string(), mappingUpdate.string(), Version.V_5_0_0, errorMessage);
-    }
-
-    public void testUpdatingAllSettingsOnOlderIndexDisabledToEnabled() throws Exception {
-        XContentBuilder mapping = jsonBuilder()
-                .startObject()
-                .startObject("mappings")
-                .startObject(TYPE)
-                .startObject("_all").field("enabled", "false").endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        XContentBuilder mappingUpdate = jsonBuilder()
-                .startObject()
-                .startObject("_all").field("enabled", "true").endObject()
-                .startObject("properties").startObject("text").field("type", "text").endObject()
-                .endObject()
-                .endObject();
-        String errorMessage = "[_all] enabled is false now encountering true";
-        testConflict(mapping.string(), mappingUpdate.string(), Version.V_5_0_0, errorMessage);
-    }
-
     private void compareMappingOnNodes(GetMappingsResponse previousMapping) {
         // make sure all nodes have same cluster state
         for (Client client : cluster().getClients()) {

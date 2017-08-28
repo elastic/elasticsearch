@@ -109,7 +109,6 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         parser = indexService.mapperService().documentMapperParser();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_all").field("enabled", false).endObject()
             .startObject("properties").startObject("field").field("type", FIELD_TYPE).endObject().endObject()
             .endObject().endObject().string();
 

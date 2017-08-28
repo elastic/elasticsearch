@@ -50,13 +50,6 @@ public class BootstrapTests extends ESTestCase {
         env = KeyStoreCommandTestCase.setupEnv(true, fileSystems);
     }
 
-    public void testLoadSecureSettingsCreatesKeystore() throws BootstrapException {
-        final Path configPath = env.configFile();
-        assertFalse(Files.exists(configPath.resolve("elasticsearch.keystore")));
-        Bootstrap.loadSecureSettings(env);
-        assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));
-    }
-
     public void testLoadSecureSettings() throws Exception {
         final Path configPath = env.configFile();
         final SecureString seed;

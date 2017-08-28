@@ -68,8 +68,7 @@ Defaults to `true`.
 
 |`all_fields` |  deprecated[6.0.0, set `fields` to `*` instead]
 Perform the query on all fields detected in the mapping that can
-be queried. Will be used by default when the `_all` field is disabled and no
-`default_field` is specified index settings, and no `fields` are specified.
+be queried.
 |=======================================================================
 
 [float]
@@ -116,7 +115,7 @@ documents that contain "baz".
 ==== Default Field
 When not explicitly specifying the field to search on in the query
 string syntax, the `index.query.default_field` will be used to derive
-which field to search on. It defaults to `*` and the query will automatically
+which fields to search on. It defaults to `*` and the query will automatically
 attempt to determine the existing fields in the index's mapping that are queryable,
 and perform the search on those fields.
 

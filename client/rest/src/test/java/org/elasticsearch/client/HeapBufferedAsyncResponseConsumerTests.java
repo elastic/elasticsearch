@@ -19,19 +19,19 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.http.ContentTooLongException;
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.HttpResponse;
-import org.elasticsearch.client.http.ProtocolVersion;
-import org.elasticsearch.client.http.StatusLine;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.entity.StringEntity;
-import org.elasticsearch.client.http.message.BasicHttpResponse;
-import org.elasticsearch.client.http.message.BasicStatusLine;
-import org.elasticsearch.client.http.nio.ContentDecoder;
-import org.elasticsearch.client.http.nio.IOControl;
-import org.elasticsearch.client.http.nio.protocol.HttpAsyncResponseConsumer;
-import org.elasticsearch.client.http.protocol.HttpContext;
+import org.apache.http.ContentTooLongException;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.ProtocolVersion;
+import org.apache.http.StatusLine;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHttpResponse;
+import org.apache.http.message.BasicStatusLine;
+import org.apache.http.nio.ContentDecoder;
+import org.apache.http.nio.IOControl;
+import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.apache.http.protocol.HttpContext;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;

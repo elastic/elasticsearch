@@ -44,6 +44,12 @@ public class InternalScrollSearchRequest extends TransportRequest {
         this.scroll = request.scroll();
     }
 
+    public InternalScrollSearchRequest(StreamInput in) throws IOException {
+        super(in);
+        id = in.readLong();
+        scroll = in.readOptionalWriteable(Scroll::new);
+    }
+
     public long id() {
         return id;
     }
@@ -59,9 +65,7 @@ public class InternalScrollSearchRequest extends TransportRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readLong();
-        scroll = in.readOptionalWriteable(Scroll::new);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

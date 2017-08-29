@@ -52,6 +52,13 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = originalIndices;
     }
 
+    public QuerySearchRequest(StreamInput in) throws IOException {
+        super(in);
+        id = in.readLong();
+        dfs = readAggregatedDfs(in);
+        originalIndices = OriginalIndices.readOriginalIndices(in);
+    }
+
     public long id() {
         return id;
     }
@@ -72,10 +79,7 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readLong();
-        dfs = readAggregatedDfs(in);
-        originalIndices = OriginalIndices.readOriginalIndices(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

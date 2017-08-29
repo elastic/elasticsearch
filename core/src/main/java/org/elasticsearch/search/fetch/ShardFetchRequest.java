@@ -56,6 +56,24 @@ public class ShardFetchRequest extends TransportRequest {
         this.lastEmittedDoc = lastEmittedDoc;
     }
 
+    public ShardFetchRequest(StreamInput in) throws IOException {
+        super(in);
+        id = in.readLong();
+        size = in.readVInt();
+        docIds = new int[size];
+        for (int i = 0; i < size; i++) {
+            docIds[i] = in.readVInt();
+        }
+        byte flag = in.readByte();
+        if (flag == 1) {
+            lastEmittedDoc = Lucene.readFieldDoc(in);
+        } else if (flag == 2) {
+            lastEmittedDoc = Lucene.readScoreDoc(in);
+        } else if (flag != 0) {
+            throw new IOException("Unknown flag: " + flag);
+        }
+    }
+
     public long id() {
         return id;
     }
@@ -74,21 +92,7 @@ public class ShardFetchRequest extends TransportRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readLong();
-        size = in.readVInt();
-        docIds = new int[size];
-        for (int i = 0; i < size; i++) {
-            docIds[i] = in.readVInt();
-        }
-        byte flag = in.readByte();
-        if (flag == 1) {
-            lastEmittedDoc = Lucene.readFieldDoc(in);
-        } else if (flag == 2) {
-            lastEmittedDoc = Lucene.readScoreDoc(in);
-        } else if (flag != 0) {
-            throw new IOException("Unknown flag: " + flag);
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

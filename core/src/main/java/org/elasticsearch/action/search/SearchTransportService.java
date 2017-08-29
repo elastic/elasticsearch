@@ -203,14 +203,18 @@ public class SearchTransportService extends AbstractComponent {
             this.id = id;
         }
 
+        ScrollFreeContextRequest(StreamInput in) throws IOException {
+            super(in);
+            id = in.readLong();
+        }
+
         public long id() {
             return this.id;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            id = in.readLong();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -231,6 +235,11 @@ public class SearchTransportService extends AbstractComponent {
             this.originalIndices = originalIndices;
         }
 
+        SearchFreeContextRequest(StreamInput in) throws IOException {
+            super(in);
+            originalIndices = OriginalIndices.readOriginalIndices(in);
+        }
+
         @Override
         public String[] indices() {
             if (originalIndices == null) {
@@ -249,8 +258,7 @@ public class SearchTransportService extends AbstractComponent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            originalIndices = OriginalIndices.readOriginalIndices(in);
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -289,7 +297,7 @@ public class SearchTransportService extends AbstractComponent {
     }
 
     public static void registerRequestHandler(TransportService transportService, SearchService searchService) {
-        transportService.registerRequestHandler(FREE_CONTEXT_SCROLL_ACTION_NAME, ScrollFreeContextRequest::new, ThreadPool.Names.SAME,
+        transportService.registerRequestHandler(FREE_CONTEXT_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, ScrollFreeContextRequest::new,
             new TaskAwareTransportRequestHandler<ScrollFreeContextRequest>() {
                 @Override
                 public void messageReceived(ScrollFreeContextRequest request, TransportChannel channel, Task task) throws Exception {
@@ -298,7 +306,7 @@ public class SearchTransportService extends AbstractComponent {
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME, SearchFreeContextResponse::new);
-        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, SearchFreeContextRequest::new, ThreadPool.Names.SAME,
+        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, ThreadPool.Names.SAME, SearchFreeContextRequest::new,
             new TaskAwareTransportRequestHandler<SearchFreeContextRequest>() {
                 @Override
                 public void messageReceived(SearchFreeContextRequest request, TransportChannel channel, Task task) throws Exception {
@@ -318,7 +326,7 @@ public class SearchTransportService extends AbstractComponent {
         TransportActionProxy.registerProxyAction(transportService, CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
             () -> TransportResponse.Empty.INSTANCE);
 
-        transportService.registerRequestHandler(DFS_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SAME,
+        transportService.registerRequestHandler(DFS_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
                 @Override
                 public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) throws Exception {
@@ -346,7 +354,7 @@ public class SearchTransportService extends AbstractComponent {
             });
         TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, DfsSearchResult::new);
 
-        transportService.registerRequestHandler(QUERY_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SAME,
+        transportService.registerRequestHandler(QUERY_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
                 @Override
                 public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) throws Exception {
@@ -373,7 +381,7 @@ public class SearchTransportService extends AbstractComponent {
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_ACTION_NAME, QuerySearchResult::new);
 
-        transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, QuerySearchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, ThreadPool.Names.SEARCH, QuerySearchRequest::new,
             new TaskAwareTransportRequestHandler<QuerySearchRequest>() {
                 @Override
                 public void messageReceived(QuerySearchRequest request, TransportChannel channel, Task task) throws Exception {
@@ -383,7 +391,7 @@ public class SearchTransportService extends AbstractComponent {
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, QuerySearchResult::new);
 
-        transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, ThreadPool.Names.SEARCH, InternalScrollSearchRequest::new,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {
                 @Override
                 public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel, Task task) throws Exception {
@@ -393,7 +401,7 @@ public class SearchTransportService extends AbstractComponent {
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);
 
-        transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, ThreadPool.Names.SEARCH, InternalScrollSearchRequest::new,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {
                 @Override
                 public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel, Task task) throws Exception {
@@ -403,7 +411,7 @@ public class SearchTransportService extends AbstractComponent {
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, ScrollQueryFetchSearchResult::new);
 
-        transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ShardFetchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ThreadPool.Names.SEARCH, ShardFetchRequest::new,
             new TaskAwareTransportRequestHandler<ShardFetchRequest>() {
                 @Override
                 public void messageReceived(ShardFetchRequest request, TransportChannel channel, Task task) throws Exception {
@@ -413,7 +421,7 @@ public class SearchTransportService extends AbstractComponent {
             });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, FetchSearchResult::new);
 
-        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ShardFetchSearchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ThreadPool.Names.SEARCH, ShardFetchSearchRequest::new,
             new TaskAwareTransportRequestHandler<ShardFetchSearchRequest>() {
                 @Override
                 public void messageReceived(ShardFetchSearchRequest request, TransportChannel channel, Task task) throws Exception {
@@ -424,7 +432,7 @@ public class SearchTransportService extends AbstractComponent {
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
 
         // this is super cheap and should not hit thread-pool rejections
-        transportService.registerRequestHandler(QUERY_CAN_MATCH_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SAME,
+        transportService.registerRequestHandler(QUERY_CAN_MATCH_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
                 @Override
                 public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) throws Exception {

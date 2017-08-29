@@ -1,5 +1,9 @@
 ---
 "Test put and reset transient settings":
+  - skip:
+      version: "- 5.99.99"
+      reason:  prevent script.max_compilations_per_minute depreciation exceptions in mixed cluster test
+
   - do:
       cluster.put_settings:
         body:
@@ -31,6 +35,10 @@
   - match: {transient: {}}
 ---
 "Test put and reset persistent settings":
+  - skip:
+      version: "- 5.99.99"
+      reason:  prevent script.max_compilations_per_minute depreciation exceptions in mixed cluster test
+
   - do:
       cluster.put_settings:
         body:

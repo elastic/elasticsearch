@@ -51,6 +51,18 @@ public class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent impleme
     private final Atomic[] atomicReaders;
     private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
 
+    // per instance per thread globalOrdinalValues
+    private final ThreadLocal<SortedSetDocValues[]> globalOrdinalValues =
+            new ThreadLocal<SortedSetDocValues[]>() {
+                @Override
+                protected SortedSetDocValues[] initialValue() {
+                    final SortedSetDocValues[] bytesValues = new SortedSetDocValues[atomicReaders.length];
+                    for (int i = 0; i < bytesValues.length; i++) {
+                        bytesValues[i] = atomicReaders[i].afd.getOrdinalsValues();
+                    }
+                    return bytesValues;
+                }
+            };
 
     protected GlobalOrdinalsIndexFieldData(IndexSettings indexSettings, String fieldName, AtomicOrdinalsFieldData[] segmentAfd,
                                            MultiDocValues.OrdinalMap ordinalMap, long memorySizeInBytes, Function<SortedSetDocValues,
@@ -137,11 +149,7 @@ public class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent impleme
                 // segment ordinals match global ordinals
                 return values;
             }
-            final SortedSetDocValues[] bytesValues = new SortedSetDocValues[atomicReaders.length];
-            for (int i = 0; i < bytesValues.length; i++) {
-                bytesValues[i] = atomicReaders[i].afd.getOrdinalsValues();
-            }
-            return new GlobalOrdinalMapping(ordinalMap, bytesValues, segmentIndex);
+            return new GlobalOrdinalMapping(ordinalMap, globalOrdinalValues.get(), segmentIndex);
         }
 
         @Override

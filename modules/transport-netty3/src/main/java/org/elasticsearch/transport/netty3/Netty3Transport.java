@@ -485,20 +485,20 @@ public class Netty3Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void closeChannels(List<Channel> channels) {
-        List<ChannelFuture> futures = new ArrayList<>();
-
-        for (Channel channel : channels) {
-            try {
+    protected void closeChannels(List<Channel> channels, boolean blocking) throws IOException {
+        if (blocking) {
+            Netty3Utils.closeChannels(channels);
+        } else {
+            for (final Channel channel : channels) {
                 if (channel != null && channel.isOpen()) {
-                    futures.add(channel.close());
+                    final ChannelFuture closeFuture = channel.close();
+                    closeFuture.addListener(f -> {
+                        if (f.isSuccess() == false) {
+                            logger.warn("failed to close channel", f.getCause());
+                        }
+                    });
                 }
-            } catch (Exception e) {
-                logger.trace("failed to close channel", e);
             }
-        }
-        for (ChannelFuture future : futures) {
-            future.awaitUninterruptibly();
         }
     }
 

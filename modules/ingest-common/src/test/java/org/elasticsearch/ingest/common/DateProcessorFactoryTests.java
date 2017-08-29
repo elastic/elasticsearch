@@ -81,6 +81,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26425")
     public void testParseLocale() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();

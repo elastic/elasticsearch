@@ -69,6 +69,13 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        shardSearchLocalRequest.innerWriteTo(out, false);
+        OriginalIndices.writeOriginalIndices(originalIndices, out);
+    }
+
     public void searchType(SearchType searchType) {
         shardSearchLocalRequest.setSearchType(searchType);
     }
@@ -152,14 +159,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     @Override
     public void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        shardSearchLocalRequest.innerWriteTo(out, false);
-        OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 
     @Override

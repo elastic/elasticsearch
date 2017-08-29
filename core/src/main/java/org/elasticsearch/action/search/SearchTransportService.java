@@ -208,6 +208,12 @@ public class SearchTransportService extends AbstractComponent {
             id = in.readLong();
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeLong(id);
+        }
+
         public long id() {
             return this.id;
         }
@@ -215,12 +221,6 @@ public class SearchTransportService extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeLong(id);
         }
     }
 
@@ -238,6 +238,12 @@ public class SearchTransportService extends AbstractComponent {
         SearchFreeContextRequest(StreamInput in) throws IOException {
             super(in);
             originalIndices = OriginalIndices.readOriginalIndices(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            OriginalIndices.writeOriginalIndices(originalIndices, out);
         }
 
         @Override
@@ -259,12 +265,6 @@ public class SearchTransportService extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            OriginalIndices.writeOriginalIndices(originalIndices, out);
         }
     }
 

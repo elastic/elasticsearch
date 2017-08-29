@@ -186,18 +186,18 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         return resolveNested(context, nestedSortBuilder);
     }
 
-    protected static Nested resolveNested(QueryShardContext context, NestedSortBuilder nestedSortBuilder) throws IOException {
-        return resolveNested(context, nestedSortBuilder, null);
+    protected static Nested resolveNested(QueryShardContext context, NestedSortBuilder nestedSort) throws IOException {
+        return resolveNested(context, nestedSort, null);
     }
 
-    protected static Nested resolveNested(QueryShardContext context, NestedSortBuilder nestedSortBuilder, Nested nested) throws IOException {
-        if (nestedSortBuilder == null || nestedSortBuilder.getPath() == null) {
+    protected static Nested resolveNested(QueryShardContext context, NestedSortBuilder nestedSort, Nested nested) throws IOException {
+        if (nestedSort == null || nestedSort.getPath() == null) {
             return null;
         }
 
-        String nestedPath = nestedSortBuilder.getPath();
-        QueryBuilder nestedFilter = nestedSortBuilder.getFilter();
-        NestedSortBuilder nestedNestedSort = nestedSortBuilder.getNestedSort();
+        String nestedPath = nestedSort.getPath();
+        QueryBuilder nestedFilter = nestedSort.getFilter();
+        NestedSortBuilder nestedNestedSort = nestedSort.getNestedSort();
 
         // verify our nested path
         ObjectMapper nestedObjectMapper = context.getObjectMapper(nestedPath);

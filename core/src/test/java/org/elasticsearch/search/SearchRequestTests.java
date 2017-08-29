@@ -43,8 +43,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             searchRequest.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                SearchRequest deserializedRequest = new SearchRequest();
-                deserializedRequest.readFrom(in);
+                SearchRequest deserializedRequest = new SearchRequest(in);
                 assertEquals(deserializedRequest, searchRequest);
                 assertEquals(deserializedRequest.hashCode(), searchRequest.hashCode());
                 assertNotSame(deserializedRequest, searchRequest);

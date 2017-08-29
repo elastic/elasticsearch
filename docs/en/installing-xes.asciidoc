@@ -138,22 +138,7 @@ the correct value for your environment, you may consider setting the value to
  `*` which will allow automatic creation of all indices.
 =============================================================================
 
-. Change the passwords for the built-in users. For more information,
-see {xpack-ref}/setting-up-authentication.html[Setting Up User Authentication].
-.. If you have not already done so, bootstrap the password for the `elastic`
-user by placing a password in the keystore of at least one node.
-+
---
-[source,shell]
---------------------------------------------------
-bin/elasticsearch-keystore create
-bin/elasticsearch-keystore add "bootstrap.password"
---------------------------------------------------
-After you run the "add" command, you will be prompted to enter a password. This
-bootstrap password is only intended to be a transient password that is used to
-help you set all the built-in user passwords.
---
-
+. Configure passwords and SSL/TLS.
 .. If you have more than one node or a single node that listens on an external
 interface, you must configure SSL/TLS for inter-node communication. Single-node
 instances that use a loopback interface do not have this requirement.  For more
@@ -189,14 +174,12 @@ directory. For example,
 xpack.ssl.key: certs/${node.name}/${node.name}.key <1>
 xpack.ssl.certificate: certs/${node.name}/${node.name}.crt <2>
 xpack.ssl.certificate_authorities: certs/ca/ca.crt <3>
-xpack.security.authc.token.enabled: false <4>
 -----------------------------------------------------------
 <1> If this path does not exist on every node or the file name does not match
 the `node.name` configuration setting, you must specify the full path to the
 node key file.
 <2> Alternatively, specify the full path to the node certificate.
 <3> Alternatively specify the full path to the CA certificate.
-<4> Disables the built-in token service.
 --
 
 .. Start {es}.
@@ -219,7 +202,8 @@ bin/x-pack/setup-passwords interactive
 --------------------------------------------------
 If you prefer to have randomly generated passwords, specify `auto` instead of
 `interactive`. If the node is not listening on "http://localhost:9200", use the
-`-u` parameter to specify the appropriate URL.
+`-u` parameter to specify the appropriate URL. For more information,
+see {xpack-ref}/setting-up-authentication.html[Setting Up User Authentication].
 --
 
 . {kibana-ref}/installing-xpack-kb.html[Install {xpack} on {kib}].

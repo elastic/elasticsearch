@@ -74,8 +74,8 @@
 
 # this can't be bumped to 5.0.2 until snapshots are published
  - skip:
-        version: " - 5.0.3"
-        reason:  Fetching default group setting was buggy until 5.0.3
+      version: "- 5.99.99"
+      reason:  prevent script.max_compilations_per_minute depreciation exceptions in mixed cluster test
 
  - do:
       cluster.get_settings:

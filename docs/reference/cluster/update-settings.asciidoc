@@ -15,6 +15,7 @@ PUT /_cluster/settings
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 
 Or:
 
@@ -28,6 +29,7 @@ PUT /_cluster/settings?flat_settings=true
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 
 The cluster responds with the settings updated. So the response for the
 last example will be:
@@ -87,6 +89,7 @@ PUT /_cluster/settings
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 
 Cluster wide settings can be returned using:
 

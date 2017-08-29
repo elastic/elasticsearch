@@ -125,6 +125,7 @@ PUT _cluster/settings
 }
 ------------------------------------------------------
 // CONSOLE
+// TEST[warning:[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 
 The cluster will now start allocating replica shards to all data nodes. At this
 point it is safe to resume indexing and searching, but your cluster will

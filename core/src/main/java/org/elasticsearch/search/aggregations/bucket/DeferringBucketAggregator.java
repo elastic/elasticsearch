@@ -19,12 +19,9 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -33,7 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class DeferringBucketAggregator extends BucketsAggregator {
+public abstract class DeferringBucketAggregator extends BucketsAggregator {
 
     private DeferringBucketCollector recordingWrapper;
 
@@ -93,21 +90,6 @@ public class DeferringBucketAggregator extends BucketsAggregator {
         if (recordingWrapper != null) {
             recordingWrapper.replay(bucketOrds);
         }
-    }
-
-    @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        return null;
-    }
-
-    @Override
-    public InternalAggregation buildAggregation(long bucket) throws IOException {
-        return null;
-    }
-
-    @Override
-    public InternalAggregation buildEmptyAggregation() {
-        return null;
     }
 
 }

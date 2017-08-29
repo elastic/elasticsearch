@@ -29,6 +29,7 @@ import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -173,10 +174,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     @Override
     public final void preCollection() throws IOException {
-        List<BucketCollector> collectors = new ArrayList<>();
-        for (int i = 0; i < subAggregators.length; ++i) {
-            collectors.add(subAggregators[i]);
-        }
+        List<BucketCollector> collectors = Arrays.asList(subAggregators);
         collectableSubAggregators = BucketCollector.wrap(collectors);
         doPreCollection();
         collectableSubAggregators.preCollection();

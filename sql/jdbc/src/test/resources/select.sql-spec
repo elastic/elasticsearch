@@ -3,7 +3,9 @@
 //
 
 wildcardWithOrder
-SELECT * FROM "test_emp" ORDER BY emp_no;
+// tag::wildcardWithOrder
+SELECT * FROM test_emp ORDER BY emp_no;
+// end::wildcardWithOrder
 column
 SELECT last_name FROM "test_emp" ORDER BY emp_no;
 columnWithAlias

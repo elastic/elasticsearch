@@ -2,6 +2,8 @@
 [[xpack-sql]]
 = SQL Access
 
+:jdbc-tests: {docdir}/../../sql/jdbc/src/test/resources
+
 [partintro]
 --
 Overview
@@ -12,3 +14,5 @@ include::sql-query-dsl.asciidoc[]
 include::sql-rest.asciidoc[]
 include::sql-jdbc.asciidoc[]
 include::sql-cli.asciidoc[]
+
+:jdbc-tests!:

@@ -3,3 +3,11 @@
 == SQL Query DSL
 
 Content
+
+Example!
+
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{jdbc-tests}/select.sql-spec[wildcardWithOrder]
+--------------------------------------------------

@@ -385,6 +385,13 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         // adjust the non-winner nodes' stats so they will get a chance to receive queries
         adjustStats(collector, nodeStats, minNode, minStats);
+        if (minNode != null) {
+            // Increase the number of searches for the "winning" node by one.
+            // Note that this doesn't actually affect the "real" counts, instead
+            // it only affects the captured node search counts, which is
+            // captured once for each query in TransportSearchAction
+            nodeSearchCounts.compute(minNode, (id, conns) -> conns == null ? 1 : conns + 1);
+        }
 
         return sortedShards;
     }

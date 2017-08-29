@@ -776,7 +776,6 @@ public class ElasticsearchAssertions {
         try {
             Class<? extends Streamable> clazz = streamable.getClass();
             Constructor<? extends Streamable> constructor = clazz.getConstructor(StreamInput.class);
-            assertThat(constructor, Matchers.notNullValue());
             return constructor.newInstance(in);
         } catch (NoSuchMethodException e) {
             return null;

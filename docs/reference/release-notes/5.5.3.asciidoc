@@ -11,3 +11,12 @@ Also see <<breaking-changes-5.5>>.
 
 Mapping::
 * Add deprecation logging when _all is enabled {pull}26228[#26228] (issue: {issue}22144[#22144])
+
+
+
+[[bug-5.5.3]]
+[float]
+=== Bug fixes
+
+Packaging::
+* setgid on /etc/elasticearch on package install {pull}26412[#26412] (issue: {issue}26410[#26410])

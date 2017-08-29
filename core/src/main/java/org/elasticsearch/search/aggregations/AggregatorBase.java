@@ -18,12 +18,10 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
-import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -52,7 +50,6 @@ public abstract class AggregatorBase extends Aggregator {
     protected BucketCollector collectableSubAggregators;
 
     private Map<String, Aggregator> subAggregatorbyName;
-    private DeferringBucketCollector recordingWrapper;
     private final List<PipelineAggregator> pipelineAggregators;
     private final CircuitBreakerService breakerService;
     private long requestBytesUsed;
@@ -177,53 +174,12 @@ public abstract class AggregatorBase extends Aggregator {
     @Override
     public final void preCollection() throws IOException {
         List<BucketCollector> collectors = new ArrayList<>();
-        List<BucketCollector> deferredCollectors = new ArrayList<>();
         for (int i = 0; i < subAggregators.length; ++i) {
-            if (shouldDefer(subAggregators[i])) {
-                if (recordingWrapper == null) {
-                    recordingWrapper = getDeferringCollector();
-                }
-                deferredCollectors.add(subAggregators[i]);
-                subAggregators[i] = recordingWrapper.wrap(subAggregators[i]);
-            } else {
-                collectors.add(subAggregators[i]);
-            }
-        }
-        if (recordingWrapper != null) {
-            recordingWrapper.setDeferredCollector(deferredCollectors);
-            collectors.add(recordingWrapper);
+            collectors.add(subAggregators[i]);
         }
         collectableSubAggregators = BucketCollector.wrap(collectors);
         doPreCollection();
         collectableSubAggregators.preCollection();
-    }
-
-    public DeferringBucketCollector getDeferringCollector() {
-        // Default impl is a collector that selects the best buckets
-        // but an alternative defer policy may be based on best docs.
-        return new BestBucketsDeferringCollector(context());
-    }
-
-    /**
-     * This method should be overridden by subclasses that want to defer calculation
-     * of a child aggregation until a first pass is complete and a set of buckets has
-     * been pruned.
-     * Deferring collection will require the recording of all doc/bucketIds from the first
-     * pass and then the sub class should call {@link #runDeferredCollections(long...)}
-     * for the selected set of buckets that survive the pruning.
-     * @param aggregator the child aggregator
-     * @return true if the aggregator should be deferred
-     * until a first pass at collection has completed
-     */
-    protected boolean shouldDefer(Aggregator aggregator) {
-        return false;
-    }
-
-    protected final void runDeferredCollections(long... bucketOrds) throws IOException{
-        // Being lenient here - ignore calls where there are no deferred collections to playback
-        if (recordingWrapper != null) {
-            recordingWrapper.replay(bucketOrds);
-        }
     }
 
     /**

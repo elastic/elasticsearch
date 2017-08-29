@@ -52,6 +52,12 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     }
 
     @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        OriginalIndices.writeOriginalIndices(originalIndices, out);
+    }
+
+    @Override
     public String[] indices() {
         if (originalIndices == null) {
             return null;
@@ -70,11 +76,5 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     @Override
     public void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 }

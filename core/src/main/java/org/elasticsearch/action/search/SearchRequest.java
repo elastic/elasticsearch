@@ -137,6 +137,28 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeByte(searchType.id());
+        out.writeVInt(indices.length);
+        for (String index : indices) {
+            out.writeString(index);
+        }
+        out.writeOptionalString(routing);
+        out.writeOptionalString(preference);
+        out.writeOptionalWriteable(scroll);
+        out.writeOptionalWriteable(source);
+        out.writeStringArray(types);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeOptionalBoolean(requestCache);
+        out.writeVInt(batchedReduceSize);
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
+            out.writeVInt(maxConcurrentShardRequests);
+            out.writeVInt(preFilterShardSize);
+        }
+    }
+
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (source != null && source.trackTotalHits() == false && scroll() != null) {
@@ -425,28 +447,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     @Override
     public void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeByte(searchType.id());
-        out.writeVInt(indices.length);
-        for (String index : indices) {
-            out.writeString(index);
-        }
-        out.writeOptionalString(routing);
-        out.writeOptionalString(preference);
-        out.writeOptionalWriteable(scroll);
-        out.writeOptionalWriteable(source);
-        out.writeStringArray(types);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeOptionalBoolean(requestCache);
-        out.writeVInt(batchedReduceSize);
-        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
-            out.writeVInt(maxConcurrentShardRequests);
-            out.writeVInt(preFilterShardSize);
-        }
     }
 
     @Override

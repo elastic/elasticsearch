@@ -74,6 +74,25 @@ public class ShardFetchRequest extends TransportRequest {
         }
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeLong(id);
+        out.writeVInt(size);
+        for (int i = 0; i < size; i++) {
+            out.writeVInt(docIds[i]);
+        }
+        if (lastEmittedDoc == null) {
+            out.writeByte((byte) 0);
+        } else if (lastEmittedDoc instanceof FieldDoc) {
+            out.writeByte((byte) 1);
+            Lucene.writeFieldDoc(out, (FieldDoc) lastEmittedDoc);
+        } else {
+            out.writeByte((byte) 2);
+            Lucene.writeScoreDoc(out, lastEmittedDoc);
+        }
+    }
+
     public long id() {
         return id;
     }
@@ -93,25 +112,6 @@ public class ShardFetchRequest extends TransportRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeLong(id);
-        out.writeVInt(size);
-        for (int i = 0; i < size; i++) {
-            out.writeVInt(docIds[i]);
-        }
-        if (lastEmittedDoc == null) {
-            out.writeByte((byte) 0);
-        } else if (lastEmittedDoc instanceof FieldDoc) {
-            out.writeByte((byte) 1);
-            Lucene.writeFieldDoc(out, (FieldDoc) lastEmittedDoc);
-        } else {
-            out.writeByte((byte) 2);
-            Lucene.writeScoreDoc(out, lastEmittedDoc);
-        }
     }
 
     @Override

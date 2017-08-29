@@ -755,15 +755,27 @@ public class ElasticsearchAssertions {
         }
     }
 
+    /**
+     * This attemps to construct a new {@link Streamable} object that is in the process of
+     * being converted from {@link Streamable} to {@link Writeable}. Assuming this constructs
+     * the object successfully, #readFrom should not be called on the constructed object.
+     *
+     * @param streamable the object to retrieve the type of class to construct the new instance from
+     * @param in the stream to read the object from
+     * @return the newly constructed object from reading the stream
+     * @throws NoSuchMethodException
+     * @throws InstantiationException
+     * @throws IllegalAccessException
+     * @throws InvocationTargetException
+     */
     private static Streamable tryCreateFromStream(Streamable streamable, StreamInput in) throws NoSuchMethodException,
-        InstantiationException, IllegalAccessException, InvocationTargetException {
+            InstantiationException, IllegalAccessException, InvocationTargetException {
         try {
             Class<? extends Streamable> clazz = streamable.getClass();
             Constructor<? extends Streamable> constructor = clazz.getConstructor(StreamInput.class);
             assertThat(constructor, Matchers.notNullValue());
-            Streamable newInstance = constructor.newInstance(in);
-            return newInstance;
-        } catch (Exception e) {
+            return constructor.newInstance(in);
+        } catch (NoSuchMethodException e) {
             return null;
         }
     }

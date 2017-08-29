@@ -763,10 +763,13 @@ public class ElasticsearchAssertions {
      * @param streamable the object to retrieve the type of class to construct the new instance from
      * @param in the stream to read the object from
      * @return the newly constructed object from reading the stream
-     * @throws NoSuchMethodException
-     * @throws InstantiationException
-     * @throws IllegalAccessException
-     * @throws InvocationTargetException
+     * @throws NoSuchMethodException if constuctor cannot be found
+     * @throws InstantiationException if the class represents an abstract class
+     * @throws IllegalAccessException if this {@code Constructor} object
+     *              is enforcing Java language access control and the underlying
+     *              constructor is inaccessible.
+     * @throws InvocationTargetException if the underlying constructor
+     *              throws an exception.
      */
     private static Streamable tryCreateFromStream(Streamable streamable, StreamInput in) throws NoSuchMethodException,
             InstantiationException, IllegalAccessException, InvocationTargetException {

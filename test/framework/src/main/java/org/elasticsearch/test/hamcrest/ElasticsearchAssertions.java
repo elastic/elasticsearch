@@ -55,6 +55,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -688,7 +689,12 @@ public class ElasticsearchAssertions {
                 input = new NamedWriteableAwareStreamInput(input, namedWriteableRegistry);
             }
             input.setVersion(version);
-            newInstance.readFrom(input);
+            // This is here since some Streamables are being converted into Writeables
+            // and the readFrom method throws an exception if called
+            Streamable newInstanceFromStream = tryCreateFromStream(streamable, input);
+            if (newInstanceFromStream == null) {
+                newInstance.readFrom(input);
+            }
             assertThat("Stream should be fully read with version [" + version + "] for streamable [" + streamable + "]", input.available(),
                     equalTo(0));
             BytesReference newBytes = serialize(version, streamable);
@@ -743,6 +749,19 @@ public class ElasticsearchAssertions {
             Constructor<? extends Streamable> constructor = clazz.getConstructor();
             assertThat(constructor, Matchers.notNullValue());
             Streamable newInstance = constructor.newInstance();
+            return newInstance;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static Streamable tryCreateFromStream(Streamable streamable, StreamInput in) throws NoSuchMethodException,
+        InstantiationException, IllegalAccessException, InvocationTargetException {
+        try {
+            Class<? extends Streamable> clazz = streamable.getClass();
+            Constructor<? extends Streamable> constructor = clazz.getConstructor(StreamInput.class);
+            assertThat(constructor, Matchers.notNullValue());
+            Streamable newInstance = constructor.newInstance(in);
             return newInstance;
         } catch (Exception e) {
             return null;

@@ -12,11 +12,6 @@ to start setting things up. This `elastic` user has full access
 to the cluster, including all indices and data, so the `elastic` user
 does not have a password set by default.
 
-In order for the `elastic` user to be usable, its <<bootstrap-elastic-passwords,password must be bootstrapped>>
-by at least one of the nodes in your cluster. The bootstrap password is intended
-to be a temporary password to help you setup your cluster. The `elastic` user password
-will be changed during the setup process.
-
 To get started with {security}:
 
 . <<installing-xpack, Install X-Pack>>.

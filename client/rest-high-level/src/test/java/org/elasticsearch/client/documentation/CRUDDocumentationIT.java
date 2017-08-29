@@ -19,6 +19,10 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -45,10 +49,6 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.client.methods.HttpPost;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.nio.entity.NStringEntity;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;

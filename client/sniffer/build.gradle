@@ -40,6 +40,8 @@ publishing {
 
 dependencies {
   compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"

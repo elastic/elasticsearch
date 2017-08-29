@@ -19,10 +19,10 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.entity.StringEntity;
-import org.elasticsearch.client.http.nio.entity.NStringEntity;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.search.ClearScrollRequest;
@@ -437,8 +437,10 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         } finally {
             ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
             clearScrollRequest.addScrollId(searchResponse.getScrollId());
-            ClearScrollResponse clearScrollResponse = execute(clearScrollRequest, highLevelClient()::clearScroll,
-                    highLevelClient()::clearScrollAsync);
+            ClearScrollResponse clearScrollResponse = execute(clearScrollRequest,
+                    // Not using a method reference to work around https://bugs.eclipse.org/bugs/show_bug.cgi?id=517951
+                    (request, headers) -> highLevelClient().clearScroll(request, headers),
+                    (request, listener, headers) -> highLevelClient().clearScrollAsync(request, listener, headers));
             assertThat(clearScrollResponse.getNumFreed(), greaterThan(0));
             assertTrue(clearScrollResponse.isSucceeded());
 

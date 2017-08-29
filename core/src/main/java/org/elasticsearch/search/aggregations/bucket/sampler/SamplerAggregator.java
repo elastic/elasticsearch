@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
@@ -47,7 +48,7 @@ import java.util.Map;
  * values would be preferable to users having to recreate this logic in a
  * 'script' e.g. to turn a datetime in milliseconds into a month key value.
  */
-public class SamplerAggregator extends DeferringBucketAggregator {
+public class SamplerAggregator extends DeferringBucketAggregator implements SingleBucketAggregator {
 
     public static final ParseField SHARD_SIZE_FIELD = new ParseField("shard_size");
     public static final ParseField MAX_DOCS_PER_VALUE_FIELD = new ParseField("max_docs_per_value");

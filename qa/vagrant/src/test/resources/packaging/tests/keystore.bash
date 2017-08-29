@@ -51,5 +51,3 @@ fi
         assert_file "$ESCONFIG/elasticsearch.keystore" f root elasticsearch 660
     fi
 }
-
-

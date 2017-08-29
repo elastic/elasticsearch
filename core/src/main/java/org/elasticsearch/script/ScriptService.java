@@ -66,7 +66,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
         Setting.intSetting("script.max_size_in_bytes", 65535, Property.NodeScope);
-    public static final Setting<Integer> SCRIPT_MAX_COMPILATIONS_PER_MINUTE =
+    public static final Setting<Integer> SCRIPT_MAX_COMPILATIONS_RATE =
         Setting.intSetting("script.max_compilations_rate", 75, 0, Property.Dynamic, Property.NodeScope);
 
     public static final String ALLOW_NONE = "none";
@@ -188,11 +188,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
         this.lastInlineCompileTime = System.nanoTime();
-        this.setMaxCompilationRate(SCRIPT_MAX_COMPILATIONS_PER_MINUTE.get(settings));
+        this.setMaxCompilationRate(SCRIPT_MAX_COMPILATIONS_RATE.get(settings));
     }
 
     void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
-        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_PER_MINUTE, this::setMaxCompilationRate);
+        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_RATE, this::setMaxCompilationRate);
     }
 
     @Override
@@ -345,7 +345,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             // Otherwise reject the request
             throw new CircuitBreakingException("[script] Too many dynamic script compilations within five minute window, max: [" +
                     totalCompilesPerFiveMinutes + "/min]; please use indexed, or scripts with parameters instead; " +
-                            "this limit can be changed by the [" + SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey() + "] setting");
+                            "this limit can be changed by the [" + SCRIPT_MAX_COMPILATIONS_RATE.getKey() + "] setting");
         }
     }
 

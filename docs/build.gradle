@@ -19,21 +19,6 @@
 
 apply plugin: 'elasticsearch.docs-test'
 
-/* List of files that have snippets that probably should be converted to
- * `// CONSOLE` and `// TESTRESPONSE` but have yet to be converted. Try and
- * only remove entries from this list. When it is empty we'll remove it
- * entirely and have a party! There will be cake and everything.... */
-buildRestTests.expectedUnconvertedCandidates = [
-  'reference/aggregations/bucket/nested-aggregation.asciidoc',
-  'reference/aggregations/bucket/range-aggregation.asciidoc',
-  'reference/aggregations/bucket/reverse-nested-aggregation.asciidoc',
-  'reference/aggregations/bucket/significantterms-aggregation.asciidoc',
-  'reference/aggregations/bucket/terms-aggregation.asciidoc',
-  'reference/aggregations/matrix/stats-aggregation.asciidoc',
-  'reference/aggregations/metrics/tophits-aggregation.asciidoc',
-  'reference/cluster/allocation-explain.asciidoc',
-]
-
 integTestCluster {
   setting 'script.max_compilations_per_minute', '1000'
   /* Enable regexes in painless so our tests don't complain about example

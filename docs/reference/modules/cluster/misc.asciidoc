@@ -1,4 +1,4 @@
-[misc-cluster]]
+[[misc-cluster]]
 === Miscellaneous cluster settings
 
 [[cluster-read-only]]
@@ -56,4 +56,3 @@ PUT /_cluster/settings
 }
 -------------------------------
 // CONSOLE
-// TEST[warning:[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]

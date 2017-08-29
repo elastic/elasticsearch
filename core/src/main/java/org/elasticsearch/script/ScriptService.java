@@ -90,7 +90,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
         Setting.intSetting("script.max_size_in_bytes", 65535, Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_COMPILATIONS_PER_MINUTE =
-        Setting.intSetting("script.max_compilations_per_minute", 15, 0, Property.Dynamic, Property.NodeScope, Property.Deprecated);
+        Setting.intSetting("script.max_compilations_per_minute", 15, 0, Property.Dynamic, Property.NodeScope);
 
     private final Collection<ScriptEngineService> scriptEngines;
     private final Map<String, ScriptEngineService> scriptEnginesByLang;

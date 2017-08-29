@@ -168,7 +168,6 @@ PUT _cluster/settings
 ----------------------------
 // CONSOLE
 // TEST[catch:/cannot set discovery.zen.minimum_master_nodes to more than the current master nodes/]
-// TEST[warning:[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 
 TIP: An advantage of splitting the master and data roles between dedicated
 nodes is that you can have just three master-eligible nodes and set

@@ -86,12 +86,6 @@ public class RetryTests extends ESSingleNodeTestCase {
         }
     }
 
-    // disabling, this one conflicts with the executor blocking
-    @Override
-    protected boolean enableWarningsCheck() {
-        return false;
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(

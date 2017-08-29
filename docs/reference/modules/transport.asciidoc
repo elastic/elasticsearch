@@ -96,7 +96,6 @@ PUT _cluster/settings
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 
 You can also control which actions will be traced, using a set of include and exclude wildcard patterns. By default every request will be traced
 except for fault detection pings:
@@ -112,6 +111,5 @@ PUT _cluster/settings
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 
 

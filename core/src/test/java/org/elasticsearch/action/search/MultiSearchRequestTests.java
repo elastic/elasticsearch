@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -85,7 +86,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             "{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(requestContent), XContentType.JSON).build();
-        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true);
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true, new ByteSizeValue(16_384));
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
@@ -177,13 +178,13 @@ public class MultiSearchRequestTests extends ESTestCase {
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
                 .withContent(new BytesArray(mserchAction.getBytes(StandardCharsets.UTF_8)), XContentType.JSON).build();
         IllegalArgumentException expectThrows = expectThrows(IllegalArgumentException.class,
-                () -> RestMultiSearchAction.parseRequest(restRequest, true));
+                () -> RestMultiSearchAction.parseRequest(restRequest, true, new ByteSizeValue(16_384)));
         assertEquals("The msearch request must be terminated by a newline [\n]", expectThrows.getMessage());
 
         String mserchActionWithNewLine = mserchAction + "\n";
         RestRequest restRequestWithNewLine = new FakeRestRequest.Builder(xContentRegistry())
                 .withContent(new BytesArray(mserchActionWithNewLine.getBytes(StandardCharsets.UTF_8)), XContentType.JSON).build();
-        MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(restRequestWithNewLine, true);
+        MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(restRequestWithNewLine, true, new ByteSizeValue(16_384));
         assertEquals(3, msearchRequest.requests().size());
     }
 
@@ -191,7 +192,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(data), XContentType.JSON).build();
-        return RestMultiSearchAction.parseRequest(restRequest, true);
+        return RestMultiSearchAction.parseRequest(restRequest, true, new ByteSizeValue(16_384));
     }
 
     @Override

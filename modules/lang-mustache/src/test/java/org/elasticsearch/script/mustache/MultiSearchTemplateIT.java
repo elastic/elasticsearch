@@ -19,12 +19,17 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -174,5 +179,54 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         assertThat(searchTemplateResponse5.hasResponse(), is(false));
         assertThat(searchTemplateResponse5.getSource().utf8ToString(),
                 equalTo("{\"query\":{\"terms\":{\"group\":[1,2,3,]}}}"));
+    }
+
+    public void testMaxContentLength() throws Exception {
+        indexRandom(true, client().prepareIndex("test", "doc").setSource());
+        try {
+            client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(ActionModule.SETTING_SEARCH_MAX_CONTENT_LENGTH.getKey(), "30B")
+                    .build()).get();
+            
+            MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
+
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.indices("test");
+            String query =
+                      "{" + "  \"source\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
+                    + "  \"params\":{"
+                    + "    \"size\": 1"
+                    + "  }"
+                    + "}";
+            SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, query));
+            request.setRequest(searchRequest);
+            multiRequest.add(request);
+
+            searchRequest = new SearchRequest();
+            searchRequest.indices("test");
+            query =
+                      "{" + "  \"source\" : \"{ \\\"size\\\": \\\"{{size}}\\\"}\","
+                    + "  \"params\":{"
+                    + "    \"size\": 1"
+                    + "  }"
+                    + "}";
+            request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, query));
+            request.setRequest(searchRequest);
+            multiRequest.add(request);
+
+            MultiSearchTemplateResponse response = client().execute(MultiSearchTemplateAction.INSTANCE, multiRequest).get();
+            assertThat(response.getResponses(), arrayWithSize(2));
+
+            assertTrue(response.getResponses()[0].isFailure());
+            assertFalse(response.getResponses()[1].isFailure());
+
+            assertThat(response.getResponses()[0].getFailureMessage(), Matchers.containsString("Generated search request body has a size"
+                    + " of [40b] which is larger than the configured limit of [30b]."));
+        } finally {
+            // reset cluster setting
+            client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(ActionModule.SETTING_SEARCH_MAX_CONTENT_LENGTH.getKey(), (String) null)
+                    .build()).get();
+        }
     }
 }

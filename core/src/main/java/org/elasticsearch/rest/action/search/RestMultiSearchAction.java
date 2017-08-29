@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -42,6 +44,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -55,9 +58,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TYPED_KEYS_PARAM);
 
     private final boolean allowExplicitIndex;
+    private final AtomicReference<ByteSizeValue> maxSearchContentLength;
 
-    public RestMultiSearchAction(Settings settings, RestController controller) {
+    public RestMultiSearchAction(Settings settings, RestController controller, AtomicReference<ByteSizeValue> maxSearchContentLength) {
         super(settings);
+        this.maxSearchContentLength = maxSearchContentLength;
 
         controller.registerHandler(GET, "/_msearch", this);
         controller.registerHandler(POST, "/_msearch", this);
@@ -76,14 +81,15 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex);
+        MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex, maxSearchContentLength.get());
         return channel -> client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
     }
 
     /**
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchRequest}
      */
-    public static MultiSearchRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
+    public static MultiSearchRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex,
+            ByteSizeValue maxSearchContentLength) throws IOException {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
@@ -92,14 +98,15 @@ public class RestMultiSearchAction extends BaseRestHandler {
         int preFilterShardSize = restRequest.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE);
 
 
-        parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
-            try {
-                searchRequest.source(SearchSourceBuilder.fromXContent(parser));
-                multiRequest.add(searchRequest);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("Exception when parsing search request", e);
-            }
-        });
+        parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, maxSearchContentLength,
+                (searchRequest, parser) -> {
+                    try {
+                        searchRequest.source(SearchSourceBuilder.fromXContent(parser));
+                        multiRequest.add(searchRequest);
+                    } catch (IOException e) {
+                        throw new ElasticsearchParseException("Exception when parsing search request", e);
+                    }
+                });
         List<SearchRequest> requests = multiRequest.requests();
         preFilterShardSize = Math.max(1, preFilterShardSize / (requests.size()+1));
         for (SearchRequest request : requests) {
@@ -113,7 +120,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
      * Parses a multi-line {@link RestRequest} body, instantiating a {@link SearchRequest} for each line and applying the given consumer.
      */
     public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
-            BiConsumer<SearchRequest, XContentParser> consumer) throws IOException {
+            ByteSizeValue maxSearchContentLength, BiConsumer<SearchRequest, XContentParser> consumer) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
@@ -193,7 +200,14 @@ public class RestMultiSearchAction extends BaseRestHandler {
             if (nextMarker == -1) {
                 break;
             }
-            BytesReference bytes = data.slice(from, nextMarker - from);
+            final int reqLength = nextMarker - from;
+            if (reqLength > maxSearchContentLength.getBytes()) {
+                throw new IllegalArgumentException("Search request body has a size of [" + new ByteSizeValue(reqLength)
+                        + "] which is larger than the configured limit of [" + maxSearchContentLength
+                        + "]. If you really need to send such large requests, you can update the ["
+                        + ActionModule.SETTING_SEARCH_MAX_CONTENT_LENGTH.getKey() +"] cluster setting to a higher value.");
+            }
+            BytesReference bytes = data.slice(from, reqLength);
             try (XContentParser parser = xContent.createParser(request.getXContentRegistry(), bytes)) {
                 consumer.accept(searchRequest, parser);
             }

@@ -1,0 +1,36 @@
+---
+setup:
+  - do:
+      index:
+        index:  test
+        type:   doc
+        id:     1
+        body:   {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            http.search.max_content_length: "10b"
+
+---
+teardown:
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            http.search.max_content_length: null
+
+---
+"Max content length limit":
+  - do:
+      catch: /Search request body .* is larger than the configured limit/
+      search:
+        index: test
+        body:
+          query:
+            match_all: {}

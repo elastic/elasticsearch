@@ -20,6 +20,7 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -28,7 +29,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,17 +47,20 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
     private final TransportMultiSearchAction multiSearchAction;
+    private volatile ByteSizeValue maxSearchContentLength;
 
     @Inject
     public TransportMultiSearchTemplateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                               ActionFilters actionFilters, IndexNameExpressionResolver resolver,
                                               ScriptService scriptService, NamedXContentRegistry xContentRegistry,
-                                              TransportMultiSearchAction multiSearchAction) {
+                                              TransportMultiSearchAction multiSearchAction, ClusterSettings clusterSettings) {
         super(settings, MultiSearchTemplateAction.NAME, threadPool, transportService, actionFilters, resolver,
                 MultiSearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.multiSearchAction = multiSearchAction;
+        this.maxSearchContentLength = clusterSettings.get(ActionModule.SETTING_SEARCH_MAX_CONTENT_LENGTH);
+        clusterSettings.addSettingsUpdateConsumer(ActionModule.SETTING_SEARCH_MAX_CONTENT_LENGTH, value -> maxSearchContentLength = value);
     }
 
     @Override
@@ -72,7 +78,8 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
             SearchRequest searchRequest;
             try {
-                searchRequest = convert(searchTemplateRequest, searchTemplateResponse, scriptService, xContentRegistry);
+                searchRequest = convert(searchTemplateRequest, searchTemplateResponse, scriptService, xContentRegistry,
+                        maxSearchContentLength);
             } catch (Exception e) {
                 items[i] = new MultiSearchTemplateResponse.Item(null, e);
                 continue;

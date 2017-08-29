@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -410,6 +411,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
                     FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
                     Node.BREAKER_TYPE_KEY,
-                    IndexGraveyard.SETTING_MAX_TOMBSTONES
+                    IndexGraveyard.SETTING_MAX_TOMBSTONES,
+                    ActionModule.SETTING_SEARCH_MAX_CONTENT_LENGTH
             )));
 }

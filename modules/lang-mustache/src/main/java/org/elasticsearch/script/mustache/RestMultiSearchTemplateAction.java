@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -75,8 +76,10 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
 
+        // ignore the limit for now, we will evaluate it after the script is executed
+        ByteSizeValue limit = new ByteSizeValue(Long.MAX_VALUE);
         RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex,
-                (searchRequest, bytes) -> {
+                limit, (searchRequest, bytes) -> {
                     try {
                         SearchTemplateRequest searchTemplateRequest = RestSearchTemplateAction.parse(bytes);
                         if (searchTemplateRequest.getScript() != null) {

@@ -203,8 +203,12 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
@@ -318,6 +322,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -333,6 +338,10 @@ public class ActionModule extends AbstractModule {
 
     private static final Logger logger = ESLoggerFactory.getLogger(ActionModule.class);
 
+    public static final Setting<ByteSizeValue> SETTING_SEARCH_MAX_CONTENT_LENGTH =
+            Setting.byteSizeSetting("http.search.max_content_length", new ByteSizeValue(1, ByteSizeUnit.MB),
+                    Property.NodeScope, Property.Dynamic);
+
     private final boolean transportClient;
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -345,6 +354,7 @@ public class ActionModule extends AbstractModule {
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
+    private final AtomicReference<ByteSizeValue> maxSearchContentLength;
 
     public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
@@ -378,8 +388,9 @@ public class ActionModule extends AbstractModule {
         } else {
             restController = new RestController(settings, headers, restWrapper, nodeClient, circuitBreakerService, usageService);
         }
+        maxSearchContentLength = new AtomicReference<>(clusterSettings.get(SETTING_SEARCH_MAX_CONTENT_LENGTH));
+        clusterSettings.addSettingsUpdateConsumer(SETTING_SEARCH_MAX_CONTENT_LENGTH, maxSearchContentLength::set);
     }
-
 
     public Map<String, ActionHandler<?, ?>> getActions() {
         return actions;
@@ -587,10 +598,10 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestBulkAction(settings, restController));
         registerHandler.accept(new RestUpdateAction(settings, restController));
 
-        registerHandler.accept(new RestSearchAction(settings, restController));
+        registerHandler.accept(new RestSearchAction(settings, restController, maxSearchContentLength));
         registerHandler.accept(new RestSearchScrollAction(settings, restController));
         registerHandler.accept(new RestClearScrollAction(settings, restController));
-        registerHandler.accept(new RestMultiSearchAction(settings, restController));
+        registerHandler.accept(new RestMultiSearchAction(settings, restController, maxSearchContentLength));
 
         registerHandler.accept(new RestValidateQueryAction(settings, restController));
 

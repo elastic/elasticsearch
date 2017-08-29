@@ -19,16 +19,20 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -340,4 +344,30 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         assertHitCount(searchResponse.getResponse(), 5);
     }
 
+    public void testMaxContentLength() throws Exception {
+        try {
+            client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(ActionModule.SETTING_SEARCH_MAX_CONTENT_LENGTH.getKey(), "10B")
+                    .build()).get();
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.indices("test");
+            String query =
+                      "{" + "  \"source\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
+                    + "  \"params\":{"
+                    + "    \"size\": 1"
+                    + "  }"
+                    + "}";
+            SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, query));
+            request.setRequest(searchRequest);
+            ActionFuture<SearchTemplateResponse> future = client().execute(SearchTemplateAction.INSTANCE, request);
+            Exception e = expectThrows(Exception.class, future::get);
+            assertThat(e.getMessage(), Matchers.containsString("Generated search request body has a size of [40b] which is larger than "
+                    + "the configured limit of [10b]."));
+        } finally {
+            // reset cluster setting
+            client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(ActionModule.SETTING_SEARCH_MAX_CONTENT_LENGTH.getKey(), (String) null)
+                    .build()).get();
+        }
+    }
 }

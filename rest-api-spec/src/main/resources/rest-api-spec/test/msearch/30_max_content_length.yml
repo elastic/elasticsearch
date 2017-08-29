@@ -1,0 +1,36 @@
+---
+setup:
+  - do:
+      index:
+        index:  test
+        type:   doc
+        id:     1
+        body:   {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            http.search.max_content_length: "30b"
+
+---
+teardown:
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            http.search.max_content_length: null
+
+---
+"Max content length limit":
+  - do:
+      catch: /Search request body .* is larger than the configured limit/
+      msearch:
+        body:
+          - index: test
+          - query:
+              term: { some_feld: "some_value" }

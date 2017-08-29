@@ -19,11 +19,13 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -44,6 +46,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -55,8 +58,11 @@ public class RestSearchAction extends BaseRestHandler {
     public static final String TYPED_KEYS_PARAM = "typed_keys";
     private static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
 
-    public RestSearchAction(Settings settings, RestController controller) {
+    private final AtomicReference<ByteSizeValue> maxSearchContentLength;
+
+    public RestSearchAction(Settings settings, RestController controller, AtomicReference<ByteSizeValue> maxSearchContentLength) {
         super(settings);
+        this.maxSearchContentLength = maxSearchContentLength;
         controller.registerHandler(GET, "/_search", this);
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);
@@ -72,6 +78,17 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.hasContent()) {
+            final int length = request.requiredContent().length();
+            final ByteSizeValue maxSearchContentLength = this.maxSearchContentLength.get();
+            if (length > maxSearchContentLength.getBytes()) {
+                throw new IllegalArgumentException("Search request body has a size of [" + new ByteSizeValue(length)
+                        + "] which is larger than the configured limit of [" + maxSearchContentLength
+                        + "]. If you really need to send such large requests, you can update the ["
+                        + ActionModule.SETTING_SEARCH_MAX_CONTENT_LENGTH.getKey() +"] cluster setting to a higher value.");
+            }
+        }
+
         SearchRequest searchRequest = new SearchRequest();
         request.withContentOrSourceParamParserOrNull(parser ->
             parseSearchRequest(searchRequest, request, parser));

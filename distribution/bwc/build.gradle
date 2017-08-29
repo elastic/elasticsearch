@@ -106,14 +106,11 @@ if (enabled) {
 
   // this is an Exec task so that the SHA that is checked out is logged
   String buildMetadataKey = "bwc_refspec_${project.path.substring(1)}"
-  task checkoutBwcBranch(type: LoggedExec) {
-    String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(buildMetadataKey, "upstream/${bwcBranch}"))
+  task checkoutBwcBranch(type: Exec) {
+    def String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(buildMetadataKey, "upstream/${bwcBranch}"))
     dependsOn fetchLatest
     workingDir = checkoutDir
     commandLine = ['git', 'checkout', refspec]
-    doFirst {
-      println "Checking out elasticsearch ${refspec} for branch ${bwcBranch}"
-    }
   }
 
   File buildMetadataFile = project.file("build/${project.name}/build_metadata")
@@ -130,9 +127,7 @@ if (enabled) {
         execResult.assertNormalExitValue()
       }
       project.mkdir(buildMetadataFile.parent)
-      String commit = output.toString('UTF-8')
-      buildMetadataFile.setText("${buildMetadataKey}=${commit}", 'UTF-8')
-      println "Checked out elasticsearch commit ${commit}"
+      buildMetadataFile.setText("${buildMetadataKey}=${output.toString('UTF-8')}", 'UTF-8')
     }
   }
 
@@ -153,8 +148,6 @@ if (enabled) {
     }
   }
 
-  // ensure build metadata is written, even if nothing uses it in this build
-  check.dependsOn writeBuildMetadata
 
   artifacts {
     'default' file: bwcDeb, name: 'elasticsearch', type: 'deb', builtBy: buildBwcVersion

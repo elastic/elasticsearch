@@ -12,7 +12,7 @@ might be reported by both task api and pending cluster tasks API.
 
 [source,js]
 --------------------------------------------------
-GET _cluster/pending_tasks
+GET /_cluster/pending_tasks
 --------------------------------------------------
 // CONSOLE
 

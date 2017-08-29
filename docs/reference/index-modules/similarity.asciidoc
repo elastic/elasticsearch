@@ -20,7 +20,7 @@ settings.
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT /index
 {
     "settings" : {
         "index" : {
@@ -44,7 +44,7 @@ Here we configure the DFRSimilarity so it can be referenced as
 
 [source,js]
 --------------------------------------------------
-PUT index/_mapping/book
+PUT /index/_mapping/book
 {
   "properties" : {
     "title" : { "type" : "text", "similarity" : "my_similarity" }
@@ -183,7 +183,7 @@ TF-IDF:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT /index
 {
   "settings": {
     "number_of_shards": 1, 
@@ -208,19 +208,19 @@ PUT index
   }
 }
 
-PUT index/doc/1
+PUT /index/doc/1
 {
   "field": "foo bar foo"
 }
 
-PUT index/doc/2
+PUT /index/doc/2
 {
   "field": "bar baz"
 }
 
-POST index/_refresh
+POST /index/_refresh
 
-GET index/_search?explain=true
+GET /index/_search?explain=true
 {
   "query": {
     "query_string": {
@@ -338,7 +338,7 @@ more efficient:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT /index
 {
   "settings": {
     "number_of_shards": 1, 
@@ -372,19 +372,19 @@ PUT index
 
 [source,js]
 --------------------------------------------------
-PUT index/doc/1
+PUT /index/doc/1
 {
   "field": "foo bar foo"
 }
 
-PUT index/doc/2
+PUT /index/doc/2
 {
   "field": "bar baz"
 }
 
-POST index/_refresh
+POST /index/_refresh
 
-GET index/_search?explain=true
+GET /index/_search?explain=true
 {
   "query": {
     "query_string": {
@@ -504,7 +504,7 @@ it is <<indices-create-index,created>>:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT /index
 {
   "settings": {
     "index": {
@@ -523,20 +523,11 @@ If you want to change the default similarity after creating the index
 you must <<indices-open-close,close>> your index, send the following
 request and <<indices-open-close,open>> it again afterwards:
 
-////////////////////
-
 [source,js]
 --------------------------------------------------
-POST index/_close
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+POST /index/_close
 
-////////////////////
-
-[source,js]
---------------------------------------------------
-PUT index/_settings
+PUT /index/_settings
 {
   "index": {
     "similarity": {
@@ -546,6 +537,8 @@ PUT index/_settings
     }
   }
 }
+
+POST /index/_open
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

@@ -105,7 +105,7 @@ In order to run the `elasticsearch-translog` tool, specify the `truncate`
 subcommand as well as the directory for the corrupted translog with the `-d`
 option:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 $ bin/elasticsearch-translog truncate -d /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/
 Checking existing translog files
@@ -131,7 +131,6 @@ Creating new empty checkpoint at [data/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/
 Creating new empty translog at [data/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/translog-3.tlog]
 Done.
 --------------------------------------------------
-// NOTCONSOLE
 
 You can also use the `-h` option to get a list of all options and parameters
 that the `elasticsearch-translog` tool supports.

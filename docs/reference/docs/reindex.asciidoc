@@ -558,25 +558,49 @@ starting the next set. This is "bursty" instead of "smooth". The default is `-1`
 [[docs-reindex-response-body]]
 === Response body
 
+//////////////////////////
+[source,js]
+--------------------------------------------------
+POST /_reindex?wait_for_completion
+{
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+//////////////////////////
+
 The JSON response looks like this:
 
 [source,js]
 --------------------------------------------------
 {
-  "took" : 639,
+  "took": 639,
+  "timed_out": false,
+  "total": 5,
   "updated": 0,
   "created": 123,
+  "deleted": 0,
   "batches": 1,
+  "noops": 0,
   "version_conflicts": 2,
   "retries": {
     "bulk": 0,
     "search": 0
-  }
+  },
   "throttled_millis": 0,
-  "failures" : [ ]
+  "requests_per_second": 1,
+  "throttled_until_millis": 0,
+  "failures": [ ]
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TESTRESPONSE[s/: [0-9]+/: $body.$_path/]
 
 `took`::
 

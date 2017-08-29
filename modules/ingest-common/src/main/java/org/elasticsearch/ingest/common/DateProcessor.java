@@ -118,8 +118,7 @@ public final class DateProcessor extends AbstractProcessor {
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "timezone");
             DateTimeZone timezone = timezoneString == null ? DateTimeZone.UTC : DateTimeZone.forID(timezoneString);
             String localeString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "locale");
-            // TODO: default to Locale.ROOT?
-            Locale locale = Locale.ENGLISH;
+            Locale locale = Locale.ROOT;
             if (localeString != null) {
                 locale = LocaleUtils.parse(localeString);
             }

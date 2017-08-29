@@ -46,7 +46,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo(sourceField));
         assertThat(processor.getTargetField(), equalTo(DateProcessor.DEFAULT_TARGET_FIELD));
         assertThat(processor.getFormats(), equalTo(Collections.singletonList("dd/MM/yyyyy")));
-        assertThat(processor.getLocale(), equalTo(Locale.ENGLISH));
+        assertThat(processor.getLocale(), equalTo(Locale.ROOT));
         assertThat(processor.getTimezone(), equalTo(DateTimeZone.UTC));
     }
 

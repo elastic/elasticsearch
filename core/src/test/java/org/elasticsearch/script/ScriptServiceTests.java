@@ -151,6 +151,7 @@ public class ScriptServiceTests extends ESTestCase {
         for (int i = 0; i < largeLimit; i++) {
             scriptService.checkCompilationLimit();
         }
+        assertScriptCompilationWarning();
     }
 
     public void testNotSupportedDisableDynamicSetting() throws IOException {
@@ -184,7 +185,9 @@ public class ScriptServiceTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), containsString("unable to find file script [test_script] using lang [test]"));
         }
-        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
+        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.", "[script.max_compilations_per_minute] " +
+                "setting was deprecated in Elasticsearch and will be removed in a future " +
+                "release! See the breaking changes documentation for the next major version.");
     }
 
     public void testScriptCompiledOnceHiddenFileDetected() throws IOException {
@@ -204,7 +207,9 @@ public class ScriptServiceTests extends ESTestCase {
         Files.delete(testHiddenFile);
         Files.delete(testFileScript);
         resourceWatcherService.notifyNow();
-        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
+        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.", "[script.max_compilations_per_minute] " +
+                "setting was deprecated in Elasticsearch and will be removed in a future " +
+                "release! See the breaking changes documentation for the next major version.");
     }
 
     public void testInlineScriptCompiledOnceCache() throws IOException {
@@ -214,6 +219,7 @@ public class ScriptServiceTests extends ESTestCase {
         CompiledScript compiledScript2 = scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()),
                 randomFrom(scriptContexts));
         assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
+        assertScriptCompilationWarning();
     }
 
     public void testAllowAllScriptTypeSettings() throws IOException {
@@ -221,6 +227,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
         assertCompileAccepted("painless", "script", ScriptType.STORED, ScriptContext.Standard.SEARCH);
+        assertScriptCompilationWarning();
     }
 
     public void testAllowAllScriptContextSettings() throws IOException {
@@ -230,6 +237,7 @@ public class ScriptServiceTests extends ESTestCase {
         assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.AGGS);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.UPDATE);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.INGEST);
+        assertScriptCompilationWarning();
     }
 
     public void testAllowSomeScriptTypeSettings() throws IOException {
@@ -242,7 +250,9 @@ public class ScriptServiceTests extends ESTestCase {
         assertCompileRejected("painless", "script", ScriptType.STORED, ScriptContext.Standard.SEARCH);
 
         assertSettingDeprecationsAndWarnings(
-            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.engine.painless.stored"));
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.engine.painless.stored"),
+            "[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a " +
+                    "future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testAllowSomeScriptContextSettings() throws IOException {
@@ -256,7 +266,9 @@ public class ScriptServiceTests extends ESTestCase {
         assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.UPDATE);
 
         assertSettingDeprecationsAndWarnings(
-            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.update"));
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.update"),
+                "[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a " +
+                        "future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testAllowNoScriptTypeSettings() throws IOException {
@@ -266,6 +278,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
         assertCompileRejected("painless", "script", ScriptType.STORED, ScriptContext.Standard.SEARCH);
+        assertScriptCompilationWarning();
     }
 
     public void testAllowNoScriptContextSettings() throws IOException {
@@ -277,6 +290,7 @@ public class ScriptServiceTests extends ESTestCase {
         assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.AGGS);
         assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.UPDATE);
         assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.INGEST);
+        assertScriptCompilationWarning();
     }
 
     public void testDefaultBehaviourFineGrainedSettings() throws IOException {
@@ -298,9 +312,13 @@ public class ScriptServiceTests extends ESTestCase {
         }
         if (deprecate) {
             assertSettingDeprecationsAndWarnings(ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.file"),
-                "File scripts are deprecated. Use stored or inline scripts instead.");
+                "File scripts are deprecated. Use stored or inline scripts instead.", "[script.max_compilations_per_minute] " +
+                            "setting was deprecated in Elasticsearch and will be removed in a future " +
+                            "release! See the breaking changes documentation for the next major version.");
         } else {
-            assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
+            assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.", "[script.max_compilations_per_minute] " +
+                    "setting was deprecated in Elasticsearch and will be removed in a future " +
+                    "release! See the breaking changes documentation for the next major version.");
         }
     }
 
@@ -398,7 +416,9 @@ public class ScriptServiceTests extends ESTestCase {
         }
         assertSettingDeprecationsAndWarnings(
             ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})),
-            "File scripts are deprecated. Use stored or inline scripts instead.");
+            "File scripts are deprecated. Use stored or inline scripts instead.", "[script.max_compilations_per_minute] setting was " +
+                        "deprecated in Elasticsearch and will be removed in a future " +
+                        "release! See the breaking changes documentation for the next major version.");
     }
 
     public void testCompileNonRegisteredContext() throws IOException {
@@ -418,12 +438,14 @@ public class ScriptServiceTests extends ESTestCase {
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] not supported"));
         }
+        assertScriptCompilationWarning();
     }
 
     public void testCompileCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
         scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
+        assertScriptCompilationWarning();
     }
 
     public void testExecutableCountedInCompilationStats() throws IOException {
@@ -432,12 +454,14 @@ public class ScriptServiceTests extends ESTestCase {
         CompiledScript compiledScript = scriptService.compile(script, randomFrom(scriptContexts));
         scriptService.executable(compiledScript, script.getParams());
         assertEquals(1L, scriptService.stats().getCompilations());
+        assertScriptCompilationWarning();
     }
 
     public void testSearchCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
         scriptService.search(null, new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
+        assertScriptCompilationWarning();
     }
 
     public void testMultipleCompilationsCountedInCompilationStats() throws IOException {
@@ -448,6 +472,7 @@ public class ScriptServiceTests extends ESTestCase {
                     .compile(new Script(ScriptType.INLINE, "test", i + " + " + i, Collections.emptyMap()), randomFrom(scriptContexts));
         }
         assertEquals(numberOfCompilations, scriptService.stats().getCompilations());
+        assertScriptCompilationWarning();
     }
 
     public void testCompilationStatsOnCacheHit() throws IOException {
@@ -460,7 +485,9 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.compile(script, randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
         assertSettingDeprecationsAndWarnings(
-            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.inline"), "[script.max_compilations_per_minute] " +
+                        "setting was deprecated in Elasticsearch and will be removed in a future " +
+                        "release! See the breaking changes documentation for the next major version.");
     }
 
     public void testFileScriptCountedInCompilationStats() throws IOException {
@@ -468,13 +495,16 @@ public class ScriptServiceTests extends ESTestCase {
         createFileScripts("test");
         scriptService.compile(new Script(ScriptType.FILE, "test", "file_script", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
-        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
+        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.", "[script.max_compilations_per_minute] " +
+                "setting was deprecated in Elasticsearch and will be removed in a future " +
+                "release! See the breaking changes documentation for the next major version.");
     }
 
     public void testIndexedScriptCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
         scriptService.compile(new Script(ScriptType.STORED, "test", "script", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
+        assertScriptCompilationWarning();
     }
 
     public void testCacheEvictionCountedInCacheEvictionsStats() throws IOException {
@@ -487,7 +517,10 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(2L, scriptService.stats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
         assertSettingDeprecationsAndWarnings(
-            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.inline"), "[script.max_compilations_per_minute] " +
+                        "setting was deprecated in Elasticsearch and will be removed in a future " +
+                        "release! See the breaking changes documentation for the next major version."
+                );
     }
 
     public void testDefaultLanguage() throws IOException {
@@ -498,7 +531,10 @@ public class ScriptServiceTests extends ESTestCase {
             new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1 + 1", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(script.lang(), Script.DEFAULT_SCRIPT_LANG);
         assertSettingDeprecationsAndWarnings(
-            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.inline"), "[script.max_compilations_per_minute] " +
+                        "setting was deprecated in Elasticsearch and will be removed in a future " +
+                        "release! See the breaking changes documentation for the next major version.");
+
     }
 
     public void testStoreScript() throws Exception {
@@ -540,6 +576,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         cs = ClusterState.builder(new ClusterName("_name")).build();
         assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id", "_lang")));
+        assertScriptCompilationWarning();
     }
 
     private void createFileScripts(String... langs) throws IOException {
@@ -564,6 +601,11 @@ public class ScriptServiceTests extends ESTestCase {
                 scriptService.compile(new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext),
                 notNullValue()
         );
+    }
+
+    private void assertScriptCompilationWarning() {
+        assertWarnings("[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a " +
+                "future release! See the breaking changes documentation for the next major version.");
     }
 
     public static class TestEngineService implements ScriptEngineService {

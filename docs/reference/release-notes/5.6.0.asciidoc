@@ -32,6 +32,7 @@ Query DSL::
 * Deprecate omitting terms lookup index name in 5.6 {pull}25755[#25755] (issue: {issue}25750[#25750])
 
 Scripting::
+* Scripting: Deprecate scripts.max_compilation_per_minute setting {pull}26402[#26402]
 * Scripting: Change keys for inline/stored scripts to source/id {pull}25127[#25127]
 
 Tribe Node::
@@ -207,6 +208,10 @@ Internal::
 * Fix race condition in RemoteClusterConnection node supplier {pull}25432[#25432]
 * Initialise empty lists in BaseTaskResponse constructor {pull}25290[#25290]
 
+Java High Level REST Client::
+* Register ip_range aggregation with the high level client {pull}26383[#26383]
+* add top hits as a parsed aggregation to the rest high level client {pull}26370[#26370]
+
 Logging::
 * Lazy initialize deprecation logger in parser {pull}26210[#26210] (issue: {issue}25879[#25879])
 * Allow not configure logging without config {pull}26209[#26209] (issues: {issue}20575[#20575], {issue}24076[#24076])
@@ -230,6 +235,7 @@ Network::
 * Ensure pending transport handlers are invoked for all channel failures {pull}25150[#25150]
 
 Packaging::
+* setgid on /etc/elasticearch on package install {pull}26412[#26412] (issue: {issue}26410[#26410])
 * Stop disabling explicit GC {pull}25759[#25759]
 * Avoid failing install if system-sysctl is masked {pull}25657[#25657] (issue: {issue}24234[#24234])
 * Get short path name for native controllers {pull}25344[#25344]

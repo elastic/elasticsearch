@@ -28,6 +28,8 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.logging.InternalLogger;
 import org.jboss.netty.logging.InternalLoggerFactory;
 import org.jboss.netty.util.ThreadNameDeterminer;
@@ -40,6 +42,8 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -174,6 +178,30 @@ public class Netty3Utils {
      */
     public static BytesReference toBytesReference(ChannelBuffer channelBuffer, int size) {
         return new ChannelBufferBytesReference(channelBuffer, size);
+    }
+
+    public static void closeChannels(Collection<Channel> channels) throws IOException {
+        IOException closingExceptions = null;
+        final List<ChannelFuture> futures = new ArrayList<>();
+        for (final Channel channel : channels) {
+            try {
+                if (channel != null && channel.isOpen()) {
+                    futures.add(channel.close());
+                }
+            } catch (final Exception e) {
+                if (closingExceptions == null) {
+                    closingExceptions = new IOException("failed to close channels");
+                }
+                closingExceptions.addSuppressed(e);
+            }
+        }
+        for (ChannelFuture future : futures) {
+            future.awaitUninterruptibly();
+        }
+
+        if (closingExceptions != null) {
+            throw closingExceptions;
+        }
     }
 
     /**

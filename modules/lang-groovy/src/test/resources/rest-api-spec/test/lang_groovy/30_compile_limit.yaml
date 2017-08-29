@@ -11,14 +11,6 @@ setup:
           refresh: wait_for
 
 ---
-teardown:
-  - do:
-      cluster.put_settings:
-        body:
-          transient:
-            script.max_compilations_per_minute: null
-
----
 "circuit breaking with too many scripts":
 
   - skip:
@@ -27,6 +19,8 @@ teardown:
         - warnings
 
   - do:
+      warnings:
+        - "[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
       cluster.put_settings:
         body:
           transient:
@@ -60,6 +54,15 @@ teardown:
               script:
                 source: "\"aoeuaoeu\""
                 lang: groovy
+
+  - do:
+      warnings:
+        - "[script.max_compilations_per_minute] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+      cluster.put_settings:
+        body:
+          transient:
+            script.max_compilations_per_minute: null
+
 
 ---
 "no bad settings":

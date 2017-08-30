@@ -9,27 +9,17 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
-import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.execution.Wid;
-import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchResponse;
-import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
@@ -82,149 +72,6 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
         assertValue(record, "result.actions.0.status", is("success"));
         assertValue(record, "result.actions.0.logging.logged_text", is("_text"));
         assertValue(record, "status.actions.log.ack.state", is("ackable"));
-    }
-
-    public void testExecuteCustomTriggerData() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-
-        PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
-                .setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(cron("0/5 * * * * ? 2099")))
-                        .input(simpleInput("foo", "bar"))
-                        .condition(AlwaysCondition.INSTANCE)
-                        .addAction("log", loggingAction("_text")))
-                .get();
-
-        assertThat(putWatchResponse.isCreated(), is(true));
-
-        DateTime triggeredTime = DateTime.now(DateTimeZone.UTC);
-        DateTime scheduledTime = randomBoolean() ? triggeredTime.minusDays(1) : triggeredTime;
-
-        ExecuteWatchRequestBuilder requestBuilder = watcherClient.prepareExecuteWatch("_id");
-        if (randomBoolean()) {
-            Map<String, Object> data = new HashMap<>();
-            data.put("triggered_time", WatcherDateTimeUtils.formatDate(triggeredTime));
-            if (scheduledTime != triggeredTime) {
-                data.put("scheduled_time", WatcherDateTimeUtils.formatDate(scheduledTime));
-            }
-            requestBuilder.setTriggerData(data);
-        } else {
-            ScheduleTriggerEvent event = new ScheduleTriggerEvent(triggeredTime, scheduledTime);
-            requestBuilder.setTriggerEvent(event);
-        }
-        ExecuteWatchResponse response = requestBuilder.get();
-
-        assertThat(response, notNullValue());
-        assertThat(response.getRecordId(), notNullValue());
-        Wid wid = new Wid(response.getRecordId());
-        assertThat(wid.watchId(), is("_id"));
-
-        XContentSource record = response.getRecordSource();
-        assertValue(record, "watch_id", is("_id"));
-        assertValue(record, "trigger_event.type", is("manual"));
-        assertValue(record, "trigger_event.triggered_time", is(WatcherDateTimeUtils.formatDate(triggeredTime)));
-        assertValue(record, "trigger_event.manual.schedule.scheduled_time", is(WatcherDateTimeUtils.formatDate(scheduledTime)));
-        assertValue(record, "state", is("executed"));
-        assertValue(record, "input.simple.foo", is("bar"));
-        assertValue(record, "condition.always", notNullValue());
-        assertValue(record, "result.execution_time", notNullValue());
-        assertValue(record, "result.execution_duration", notNullValue());
-        assertValue(record, "result.input.type", is("simple"));
-        assertValue(record, "result.input.payload.foo", is("bar"));
-        assertValue(record, "result.condition.type", is("always"));
-        assertValue(record, "result.condition.met", is(true));
-        assertValue(record, "result.actions.0.id", is("log"));
-        assertValue(record, "result.actions.0.type", is("logging"));
-        assertValue(record, "result.actions.0.status", is("success"));
-        assertValue(record, "result.actions.0.logging.logged_text", is("_text"));
-    }
-
-    public void testExecuteAlternativeInput() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-
-        PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
-                .setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(cron("0/5 * * * * ? 2099")))
-                        .input(simpleInput("foo", "bar"))
-                        .condition(AlwaysCondition.INSTANCE)
-                        .addAction("log", loggingAction("_text")))
-                .get();
-
-        assertThat(putWatchResponse.isCreated(), is(true));
-
-        ExecuteWatchResponse response = watcherClient.prepareExecuteWatch("_id")
-                .setAlternativeInput(singletonMap("foo1", "bar1"))
-                .get();
-        assertThat(response, notNullValue());
-        assertThat(response.getRecordId(), notNullValue());
-        Wid wid = new Wid(response.getRecordId());
-        assertThat(wid.watchId(), is("_id"));
-
-        XContentSource record = response.getRecordSource();
-        assertValue(record, "watch_id", is("_id"));
-        assertValue(record, "trigger_event.type", is("manual"));
-        assertValue(record, "trigger_event.triggered_time", notNullValue());
-        String triggeredTime = record.getValue("trigger_event.triggered_time");
-        assertValue(record, "trigger_event.manual.schedule.scheduled_time", is(triggeredTime));
-        assertValue(record, "state", is("executed"));
-        assertValue(record, "input.simple.foo", is("bar")); // this is the original input
-        assertValue(record, "condition.always", notNullValue());
-        assertValue(record, "result.execution_time", notNullValue());
-        assertValue(record, "result.execution_duration", notNullValue());
-        assertValue(record, "result.input.type", is("simple"));
-        assertValue(record, "result.input.payload.foo1", is("bar1")); // this is the alternative one
-        assertValue(record, "result.condition.type", is("always"));
-        assertValue(record, "result.condition.met", is(true));
-        assertValue(record, "result.actions.0.id", is("log"));
-        assertValue(record, "result.actions.0.type", is("logging"));
-        assertValue(record, "result.actions.0.status", is("success"));
-        assertValue(record, "result.actions.0.logging.logged_text", is("_text"));
-    }
-
-    public void testExecuteIgnoreCondition() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-
-        PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
-                .setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(cron("0/5 * * * * ? 2099")))
-                        .input(simpleInput("foo", "bar"))
-                        .condition(NeverCondition.INSTANCE)
-                        .addAction("log", loggingAction("_text")))
-                .get();
-
-        assertThat(putWatchResponse.isCreated(), is(true));
-
-        ExecuteWatchResponse response = watcherClient.prepareExecuteWatch("_id")
-                .setIgnoreCondition(true)
-                .get();
-
-        assertThat(response, notNullValue());
-        assertThat(response.getRecordId(), notNullValue());
-        Wid wid = new Wid(response.getRecordId());
-        assertThat(wid.watchId(), is("_id"));
-
-        XContentSource record = response.getRecordSource();
-        assertValue(record, "watch_id", is("_id"));
-        assertValue(record, "trigger_event.type", is("manual"));
-        assertValue(record, "trigger_event.triggered_time", notNullValue());
-        String triggeredTime = record.getValue("trigger_event.triggered_time");
-        assertValue(record, "trigger_event.manual.schedule.scheduled_time", is(triggeredTime));
-        assertValue(record, "state", is("executed"));
-        assertValue(record, "input.simple.foo", is("bar"));
-        assertValue(record, "condition.never", notNullValue()); // the original condition
-        assertValue(record, "result.execution_time", notNullValue());
-        assertValue(record, "result.execution_duration", notNullValue());
-        assertValue(record, "result.input.type", is("simple"));
-        assertValue(record, "result.input.payload.foo", is("bar"));
-        assertValue(record, "result.condition.type", is("always")); // when ignored, the condition is replaced with "always"
-        assertValue(record, "result.condition.met", is(true));
-        assertValue(record, "result.actions.0.id", is("log"));
-        assertValue(record, "result.actions.0.type", is("logging"));
-        assertValue(record, "result.actions.0.status", is("success"));
-        assertValue(record, "result.actions.0.logging.logged_text", is("_text"));
     }
 
     public void testExecuteActionMode() throws Exception {

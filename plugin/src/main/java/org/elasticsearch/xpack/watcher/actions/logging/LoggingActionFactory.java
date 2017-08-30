@@ -28,6 +28,5 @@ public class LoggingActionFactory extends ActionFactory {
     public ExecutableLoggingAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
         LoggingAction action = LoggingAction.parse(watchId, actionId, parser);
         return new ExecutableLoggingAction(action, actionLogger, settings, templateEngine);
-
     }
 }

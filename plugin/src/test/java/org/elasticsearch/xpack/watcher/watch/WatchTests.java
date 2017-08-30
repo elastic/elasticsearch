@@ -50,6 +50,9 @@ import org.elasticsearch.xpack.watcher.actions.email.ExecutableEmailAction;
 import org.elasticsearch.xpack.watcher.actions.index.ExecutableIndexAction;
 import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.actions.index.IndexActionFactory;
+import org.elasticsearch.xpack.watcher.actions.logging.ExecutableLoggingAction;
+import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
+import org.elasticsearch.xpack.watcher.actions.logging.LoggingActionFactory;
 import org.elasticsearch.xpack.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.watcher.actions.webhook.ExecutableWebhookAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
@@ -68,6 +71,7 @@ import org.elasticsearch.xpack.watcher.input.InputBuilders;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
+import org.elasticsearch.xpack.watcher.input.none.NoneInput;
 import org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.xpack.watcher.input.search.SearchInput;
 import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
@@ -76,6 +80,7 @@ import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
+import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.TransformFactory;
@@ -132,7 +137,9 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -375,6 +382,76 @@ public class WatchTests extends ESTestCase {
         assertThat(((ScriptQueryBuilder) searchRequest.source().query()).script().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
     }
 
+    public void testParseWatchWithoutInput() throws Exception {
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+
+            builder.startObject("trigger").startObject("schedule").field("interval", "99w").endObject().endObject();
+            builder.startObject("condition").startObject("always").endObject().endObject();
+            builder.startObject("actions").startObject("logme")
+                    .startObject("logging").field("text", "foo").endObject()
+                    .endObject().endObject();
+            builder.endObject();
+
+            Watch.Parser parser = createWatchparser();
+            Watch watch = parser.parse("_id", false, builder.bytes(), XContentType.JSON);
+            assertThat(watch, is(notNullValue()));
+            assertThat(watch.input().type(), is(NoneInput.TYPE));
+        }
+    }
+
+    public void testParseWatchWithoutAction() throws Exception {
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+
+            builder.startObject("trigger").startObject("schedule").field("interval", "99w").endObject().endObject();
+            builder.startObject("input").startObject("simple").endObject().endObject();
+            builder.startObject("condition").startObject("always").endObject().endObject();
+            builder.endObject();
+
+            Watch.Parser parser = createWatchparser();
+            Watch watch = parser.parse("_id", false, builder.bytes(), XContentType.JSON);
+            assertThat(watch, is(notNullValue()));
+            assertThat(watch.actions(), hasSize(0));
+        }
+    }
+
+    public void testParseWatchWithoutTriggerDoesNotWork() throws Exception {
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+
+            builder.startObject("input").startObject("simple").endObject().endObject();
+            builder.startObject("condition").startObject("always").endObject().endObject();
+            builder.startObject("actions").startObject("logme")
+                    .startObject("logging").field("text", "foo").endObject()
+                    .endObject().endObject();
+            builder.endObject();
+
+            Watch.Parser parser = createWatchparser();
+            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+                    () -> parser.parse("_id", false, builder.bytes(), XContentType.JSON));
+            assertThat(e.getMessage(), is("could not parse watch [_id]. missing required field [trigger]"));
+        }
+    }
+
+    private Watch.Parser createWatchparser() throws Exception {
+        LoggingAction loggingAction = new LoggingAction(new TextTemplate("foo"), null, null);
+        List<ActionWrapper> actions = Collections.singletonList(new ActionWrapper("_logging_", randomThrottler(), null, null,
+                new ExecutableLoggingAction(loggingAction, logger, settings, new MockTextTemplateEngine())));
+
+        ScheduleRegistry scheduleRegistry = registry(new IntervalSchedule(new IntervalSchedule.Interval(1,
+                IntervalSchedule.Interval.Unit.SECONDS)));
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, Clock.systemUTC());
+        TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
+
+        ConditionRegistry conditionRegistry = conditionRegistry();
+        InputRegistry inputRegistry = registry(SimpleInput.TYPE);
+        TransformRegistry transformRegistry = transformRegistry();
+        ActionRegistry actionRegistry = registry(actions, conditionRegistry, transformRegistry);
+
+        return new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
+    }
+
     private static Schedule randomSchedule() {
         String type = randomFrom(CronSchedule.TYPE, HourlySchedule.TYPE, DailySchedule.TYPE, WeeklySchedule.TYPE, MonthlySchedule.TYPE,
                 YearlySchedule.TYPE, IntervalSchedule.TYPE);
@@ -540,6 +617,9 @@ public class WatchTests extends ESTestCase {
                 case WebhookAction.TYPE:
                     parsers.put(WebhookAction.TYPE, new WebhookActionFactory(settings,  httpClient,
                             new HttpRequestTemplate.Parser(authRegistry), templateEngine));
+                    break;
+                case LoggingAction.TYPE:
+                    parsers.put(LoggingAction.TYPE, new LoggingActionFactory(settings, new MockTextTemplateEngine()));
                     break;
             }
         }

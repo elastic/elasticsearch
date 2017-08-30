@@ -11,11 +11,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
@@ -29,42 +27,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
-import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
-
-    public void testDelete() throws Exception {
-        ensureWatcherStarted();
-        PutWatchResponse putResponse = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
-                .trigger(schedule(interval("5m")))
-                .input(simpleInput())
-                .condition(AlwaysCondition.INSTANCE)
-                .addAction("_action1", loggingAction("anything")))
-                .get();
-
-        assertThat(putResponse, notNullValue());
-        assertThat(putResponse.isCreated(), is(true));
-
-        DeleteWatchResponse deleteResponse = watcherClient().deleteWatch(new DeleteWatchRequest("_name")).get();
-        assertThat(deleteResponse, notNullValue());
-        assertThat(deleteResponse.getId(), is("_name"));
-        assertThat(deleteResponse.getVersion(), is(putResponse.getVersion() + 1));
-        assertThat(deleteResponse.isFound(), is(true));
-    }
-
-    public void testDeleteNotFound() throws Exception {
-        DeleteWatchResponse response = watcherClient().deleteWatch(new DeleteWatchRequest("_name")).get();
-        assertThat(response, notNullValue());
-        assertThat(response.getId(), is("_name"));
-        assertThat(response.getVersion(), is(1L));
-        assertThat(response.isFound(), is(false));
-    }
 
     // This is a special case, since locking is removed
     // Deleting a watch while it is being executed is possible now

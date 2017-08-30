@@ -1,9 +1,18 @@
 ---
-"Test delete watch api":
+setup:
   - do:
       cluster.health:
           wait_for_status: yellow
 
+---
+teardown:
+  - do:
+      xpack.watcher.delete_watch:
+        id: "my_watch"
+        ignore: 404
+
+---
+"Test delete watch api":
   - do:
       xpack.watcher.put_watch:
         id: "my_watch"
@@ -37,6 +46,7 @@
             }
           }
   - match: { _id: "my_watch" }
+  - match: { created: true }
 
   - do:
       xpack.watcher.delete_watch:
@@ -51,10 +61,6 @@
 
 ---
 "Non existent watch returns 404":
-  - do:
-      cluster.health:
-          wait_for_status: yellow
-
   - do:
       xpack.watcher.delete_watch:
         id: "non-existent-watch"

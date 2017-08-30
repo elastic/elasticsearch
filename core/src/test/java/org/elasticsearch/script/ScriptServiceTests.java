@@ -120,6 +120,7 @@ public class ScriptServiceTests extends ESTestCase {
         expectThrows(NumberFormatException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("foo/bar"));
         expectThrows(NumberFormatException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("6.0/1m"));
         expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("6/-1m"));
+        expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("6/0m"));
         expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("10"));
         expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("anything"));
         expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("/1m"));

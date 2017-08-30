@@ -77,7 +77,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     throw new IllegalArgumentException("rate ["+ rate +"] must be positive");
                 }
                 TimeValue timeValue = TimeValue.parseTimeValue(time, "script.max_compilations_rate");
-                if (timeValue.nanos() < 0) {
+                if (timeValue.nanos() <= 0) {
                     throw new IllegalArgumentException("time value ["+ time +"] must be positive");
                 }
                 return Tuple.tuple(rate, timeValue);

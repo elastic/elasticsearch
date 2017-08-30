@@ -62,11 +62,11 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
 
         if (randomBoolean()) {
-            builder.setNestedFilter(randomNestedFilter());
-        }
-
-        if (randomBoolean()) {
-            builder.setNestedPath(randomAlphaOfLengthBetween(1, 10));
+            NestedSortBuilder nestedSort = SortBuilders.nestedSort(randomAlphaOfLengthBetween(1, 10));
+            if (randomBoolean()) {
+                nestedSort.setFilter(randomNestedFilter());
+            }
+            builder.setNestedSort(nestedSort);
         }
 
         return builder;
@@ -77,16 +77,18 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         FieldSortBuilder mutated = new FieldSortBuilder(original);
         int parameter = randomIntBetween(0, 5);
         switch (parameter) {
-        case 0:
-            mutated.setNestedPath(randomValueOtherThan(
-                    original.getNestedPath(),
-                    () -> randomAlphaOfLengthBetween(1, 10)));
+        case 0: {
+            NestedSortBuilder nestedSort = new NestedSortBuilder(mutated.getNestedSort());
+            nestedSort.setPath(randomValueOtherThan(nestedSort.getPath(), () -> randomAlphaOfLengthBetween(1, 10)));
+            mutated.setNestedSort(nestedSort);
             break;
-        case 1:
-            mutated.setNestedFilter(randomValueOtherThan(
-                    original.getNestedFilter(),
-                    () -> randomNestedFilter()));
+        }
+        case 1: {
+            NestedSortBuilder nestedSort = new NestedSortBuilder(mutated.getNestedSort());
+            nestedSort.setFilter(randomValueOtherThan(nestedSort.getFilter(), AbstractSortTestCase::randomNestedFilter));
+            mutated.setNestedSort(nestedSort);
             break;
+        }
         case 2:
             mutated.sortMode(randomValueOtherThan(original.sortMode(), () -> randomFrom(SortMode.values())));
             break;

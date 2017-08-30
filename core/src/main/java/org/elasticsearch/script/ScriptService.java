@@ -39,6 +39,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -60,14 +61,37 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
+    // a parsing function that requires a non negative int and a timevalue as arguments split by a slash
+    // this allows you to easily define rates
+    static final Function<String, Tuple<Integer, TimeValue>> MAX_COMPILATION_RATE_FUNCTION =
+            (String value) -> {
+                if (value.contains("/") == false || value.startsWith("/") || value.endsWith("/")) {
+                    throw new IllegalArgumentException("parameter must contain a positive number and a timevalue, i.e. 10/1m");
+                }
+                int idx = value.indexOf("/");
+                String count = value.substring(0, idx);
+                String time = value.substring(idx + 1);
+
+                int rate = Integer.parseInt(count);
+                if (rate < 0) {
+                    throw new IllegalArgumentException("rate ["+ rate +"] must be positive");
+                }
+                TimeValue timeValue = TimeValue.parseTimeValue(time, "script.max_compilations_rate");
+                if (timeValue.nanos() < 0) {
+                    throw new IllegalArgumentException("time value ["+ time +"] must be positive");
+                }
+                return Tuple.tuple(rate, timeValue);
+            };
+
     public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING =
         Setting.intSetting("script.cache.max_size", 100, 0, Property.NodeScope);
     public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
         Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
         Setting.intSetting("script.max_size_in_bytes", 65535, Property.NodeScope);
-    public static final Setting<Integer> SCRIPT_MAX_COMPILATIONS_RATE =
-        Setting.intSetting("script.max_compilations_rate", 75, 0, Property.Dynamic, Property.NodeScope);
+    // public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
+    public static final Setting<Tuple<Integer, TimeValue>> SCRIPT_MAX_COMPILATIONS_RATE =
+            new Setting<>("script.max_compilations_rate", "75/5m", MAX_COMPILATION_RATE_FUNCTION, Property.Dynamic, Property.NodeScope);
 
     public static final String ALLOW_NONE = "none";
 
@@ -88,9 +112,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     private ClusterState clusterState;
 
-    private int totalCompilesPerFiveMinutes;
+    private Tuple<Integer, TimeValue> rate;
     private long lastInlineCompileTime;
-    private double scriptsPerFiveMinsCounter;
+    private double scriptsPerTimeWindow;
     private double compilesAllowedPerNano;
 
     public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
@@ -213,11 +237,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
      *
      * @param newRate the new expected maximum number of compilations per five minute window
      */
-    void setMaxCompilationRate(Integer newRate) {
-        this.totalCompilesPerFiveMinutes = newRate;
+    void setMaxCompilationRate(Tuple<Integer, TimeValue> newRate) {
+        this.rate = newRate;
         // Reset the counter to allow new compilations
-        this.scriptsPerFiveMinsCounter = totalCompilesPerFiveMinutes;
-        this.compilesAllowedPerNano = ((double) totalCompilesPerFiveMinutes) / TimeValue.timeValueMinutes(5).nanos();
+        this.scriptsPerTimeWindow = rate.v1();
+        this.compilesAllowedPerNano = ((double) rate.v1()) / newRate.v2().nanos();
     }
 
     /**
@@ -330,21 +354,21 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         long timePassed = now - lastInlineCompileTime;
         lastInlineCompileTime = now;
 
-        scriptsPerFiveMinsCounter += (timePassed) * compilesAllowedPerNano;
+        scriptsPerTimeWindow += (timePassed) * compilesAllowedPerNano;
 
         // It's been over the time limit anyway, readjust the bucket to be level
-        if (scriptsPerFiveMinsCounter > totalCompilesPerFiveMinutes) {
-            scriptsPerFiveMinsCounter = totalCompilesPerFiveMinutes;
+        if (scriptsPerTimeWindow > rate.v1()) {
+            scriptsPerTimeWindow = rate.v1();
         }
 
         // If there is enough tokens in the bucket, allow the request and decrease the tokens by 1
-        if (scriptsPerFiveMinsCounter >= 1) {
-            scriptsPerFiveMinsCounter -= 1.0;
+        if (scriptsPerTimeWindow >= 1) {
+            scriptsPerTimeWindow -= 1.0;
         } else {
             scriptMetrics.onCompilationLimit();
             // Otherwise reject the request
-            throw new CircuitBreakingException("[script] Too many dynamic script compilations within five minute window, max: [" +
-                    totalCompilesPerFiveMinutes + "/min]; please use indexed, or scripts with parameters instead; " +
+            throw new CircuitBreakingException("[script] Too many dynamic script compilations within, max: [" +
+                    rate.v1() + "/" + rate.v2() +"]; please use indexed, or scripts with parameters instead; " +
                             "this limit can be changed by the [" + SCRIPT_MAX_COMPILATIONS_RATE.getKey() + "] setting");
         }
     }

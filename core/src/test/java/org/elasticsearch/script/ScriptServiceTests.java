@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.script;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.cluster.ClusterName;
@@ -26,7 +27,9 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -39,9 +42,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.script.ScriptService.MAX_COMPILATION_RATE_FUNCTION;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.is;
 
 public class ScriptServiceTests extends ESTestCase {
 
@@ -55,7 +60,7 @@ public class ScriptServiceTests extends ESTestCase {
     public void setup() throws IOException {
         baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), 10000)
+                .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "10000/1m")
                 .build();
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
         for (int i = 0; i < 20; ++i) {
@@ -86,26 +91,40 @@ public class ScriptServiceTests extends ESTestCase {
     // simply by multiplying by five, so even setting it to one, requires five compilations to break
     public void testCompilationCircuitBreaking() throws Exception {
         buildScriptService(Settings.EMPTY);
-        scriptService.setMaxCompilationRate(1);
+        scriptService.setMaxCompilationRate(Tuple.tuple(1, TimeValue.timeValueMinutes(1)));
         scriptService.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationRate(2);
+        scriptService.setMaxCompilationRate(Tuple.tuple(2, TimeValue.timeValueMinutes(1)));
         scriptService.checkCompilationLimit(); // should pass
         scriptService.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
         int count = randomIntBetween(5, 50);
-        scriptService.setMaxCompilationRate(count);
+        scriptService.setMaxCompilationRate(Tuple.tuple(count, TimeValue.timeValueMinutes(1)));
         for (int i = 0; i < count; i++) {
             scriptService.checkCompilationLimit(); // should pass
         }
         expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationRate(0);
+        scriptService.setMaxCompilationRate(Tuple.tuple(0, TimeValue.timeValueMinutes(1)));
         expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationRate(Integer.MAX_VALUE);
+        scriptService.setMaxCompilationRate(Tuple.tuple(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1)));
         int largeLimit = randomIntBetween(1000, 10000);
         for (int i = 0; i < largeLimit; i++) {
             scriptService.checkCompilationLimit();
         }
+    }
+
+    public void testMaxCompilationRateSetting() throws Exception {
+        assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/1m"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
+        expectThrows(ElasticsearchParseException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("10/m"));
+        expectThrows(ElasticsearchParseException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("6/1.6m"));
+        expectThrows(NumberFormatException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("foo/bar"));
+        expectThrows(NumberFormatException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("6.0/1m"));
+        expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("6/-1m"));
+        expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("10"));
+        expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("anything"));
+        expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("/1m"));
+        expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("10/"));
+        expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("-1/1m"));
     }
 
     public void testNotSupportedDisableDynamicSetting() throws IOException {

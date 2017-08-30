@@ -35,7 +35,7 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 integTestCluster {
-  setting 'script.max_compilations_rate', '1000'
+  setting 'script.max_compilations_rate', '1000/1m'
   /* Enable regexes in painless so our tests don't complain about example
    * snippets that use them. */
   setting 'script.painless.regex.enabled', 'true'

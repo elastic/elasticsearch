@@ -38,7 +38,7 @@ test {
 }
 
 integTestCluster {
-  setting 'script.max_compilations_rate', '1000'
+  setting 'script.max_compilations_rate', '1000/1m'
 }
 
 /* Build Javadoc for the Java classes in Painless's public API that are in the

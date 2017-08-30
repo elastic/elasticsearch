@@ -330,7 +330,7 @@ class ClusterFormationTasks {
         }
         // increase script compilation limit since tests can rapid-fire script compilations
         if (Version.fromString(node.nodeVersion).major > 6) {
-          esConfig['script.max_compilations_rate'] = 2048
+          esConfig['script.max_compilations_rate'] = '2048/1m'
         } else {
           esConfig['script.max_compilations_per_minute'] = 2048
         }

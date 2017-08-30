@@ -56,7 +56,6 @@ teardown:
   - match: { watch_record.status.actions.logging.ack.state: "ackable" }
   - is_true: watch_record.condition.never
   - is_true: watch_record.result.execution_time
-  - is_true: watch_record.result.execution_duration
   - match: { watch_record.result.input.type: "simple" }
   - match: { watch_record.result.input.payload.foo: "bar" }
   - match: { watch_record.result.condition.type: "always" }

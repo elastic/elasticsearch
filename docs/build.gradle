@@ -32,15 +32,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/matrix/stats-aggregation.asciidoc',
   'reference/aggregations/metrics/tophits-aggregation.asciidoc',
   'reference/cluster/allocation-explain.asciidoc',
-  'reference/cluster/pending.asciidoc',
-  'reference/cluster/tasks.asciidoc',
-  'reference/docs/delete-by-query.asciidoc',
-  'reference/docs/reindex.asciidoc',
-  'reference/docs/update-by-query.asciidoc',
-  'reference/index-modules/similarity.asciidoc',
-  'reference/index-modules/store.asciidoc',
-  'reference/index-modules/translog.asciidoc',
-  'reference/search/profile.asciidoc',
 ]
 
 integTestCluster {

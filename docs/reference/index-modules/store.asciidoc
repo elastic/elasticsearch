@@ -31,6 +31,7 @@ PUT /my_index
   }
 }
 ---------------------------------
+// CONSOLE
 
 WARNING: This is an expert-only setting and may be removed in the future.
 
@@ -108,6 +109,7 @@ PUT /my_index
   }
 }
 ---------------------------------
+// CONSOLE
 
 The default value is the empty array, which means that nothing will be loaded
 into the file-system cache eagerly. For indices that are actively searched,

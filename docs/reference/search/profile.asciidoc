@@ -469,6 +469,17 @@ value is cumulative and contains the total time for all queries being rewritten.
 
 ==== A more complex example
 
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT test
+{"settings": {"index.number_of_shards": 1, "number_of_replicas": 0}}
+-------------------------------------------------
+// CONSOLE
+
+//////////////////////////
+
 To demonstrate a slightly more complex query and the associated results, we can profile the following query:
 
 [source,js]
@@ -484,29 +495,17 @@ GET /test/_search
     }
   },
   "aggs": {
-    "non_global_term": {
+    "my_scoped_agg": {
       "terms": {
-        "field": "agg"
-      },
-      "aggs": {
-        "second_term": {
-          "terms": {
-            "field": "sub_agg"
-          }
-        }
+        "field": "level"
       }
     },
-    "another_agg": {
-      "cardinality": {
-        "field": "aggB"
-      }
-    },
-    "global_agg": {
+    "my_global_agg": {
       "global": {},
       "aggs": {
-        "my_agg2": {
+        "my_level_agg": {
           "terms": {
-            "field": "globalAgg"
+            "field": "level"
           }
         }
       }
@@ -514,13 +513,14 @@ GET /test/_search
   },
   "post_filter": {
     "term": {
-      "my_field": "foo"
+      "tag": "elastic"
     }
   }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT test\n/]
+// TEST[s/GET \/test\/_search/GET \/test\/_search\?filter_path=profile.shards.id,profile.shards.searches/]
+// TEST[continued]
 
 This example has:
 
@@ -531,10 +531,10 @@ This example has:
 
 And the response:
 
-
 [source,js]
 --------------------------------------------------
 {
+   ...
    "profile": {
          "shards": [
             {
@@ -548,15 +548,15 @@ And the response:
                            "time_in_nanos": "409456",
                            "breakdown": {
                               "score": 0,
-                              "score_count": 1,
-                              "next_doc": 0,
-                              "next_doc_count": 2,
-                              "match": 0,
+                              "build_scorer_count": 1,
                               "match_count": 0,
                               "create_weight": 31584,
+                              "next_doc": 0,
+                              "match": 0,
                               "create_weight_count": 1,
+                              "next_doc_count": 2,
+                              "score_count": 1,
                               "build_scorer": 377872,
-                              "build_scorer_count": 1,
                               "advance": 0,
                               "advance_count": 0
                            }
@@ -567,15 +567,15 @@ And the response:
                            "time_in_nanos": "303702",
                            "breakdown": {
                               "score": 0,
-                              "score_count": 1,
-                              "next_doc": 5936,
-                              "next_doc_count": 2,
-                              "match": 0,
+                              "build_scorer_count": 1,
                               "match_count": 0,
                               "create_weight": 185215,
+                              "next_doc": 5936,
+                              "match": 0,
                               "create_weight_count": 1,
+                              "next_doc_count": 2,
+                              "score_count": 1,
                               "build_scorer": 112551,
-                              "build_scorer_count": 1,
                               "advance": 0,
                               "advance_count": 0
                            }
@@ -584,59 +584,35 @@ And the response:
                      "rewrite_time": 7208,
                      "collector": [
                         {
-                           "name": "MultiCollector",
-                           "reason": "search_multi",
-                           "time_in_nanos": "1378943",
-                           "children": [
-                              {
-                                 "name": "FilteredCollector",
-                                 "reason": "search_post_filter",
-                                 "time_in_nanos": "403659",
-                                 "children": [
+                          "name": "CancellableCollector",
+                          "reason": "search_cancelled",
+                          "time_in_nanos": 2390,
+                          "children": [
+                            {
+                              "name": "MultiCollector",
+                              "reason": "search_multi",
+                              "time_in_nanos": 1820,
+                              "children": [
+                                {
+                                  "name": "FilteredCollector",
+                                  "reason": "search_post_filter",
+                                  "time_in_nanos": 7735,
+                                  "children": [
                                     {
-                                       "name": "SimpleTopScoreDocCollector",
-                                       "reason": "search_top_hits",
-                                       "time_in_nanos": "6391"
+                                      "name": "SimpleTopScoreDocCollector",
+                                      "reason": "search_top_hits",
+                                      "time_in_nanos": 1328
                                     }
-                                 ]
-                              },
-                              {
-                                 "name": "BucketCollector: [[non_global_term, another_agg]]",
-                                 "reason": "aggregation",
-                                 "time_in_nanos": "954602"
-                              }
-                           ]
-                        }
-                     ]
-                  },
-                  {
-                     "query": [
-                        {
-                           "type": "MatchAllDocsQuery",
-                           "description": "*:*",
-                           "time_in_nanos": "48293",
-                           "breakdown": {
-                              "score": 0,
-                              "score_count": 1,
-                              "next_doc": 3672,
-                              "next_doc_count": 2,
-                              "match": 0,
-                              "match_count": 0,
-                              "create_weight": 6311,
-                              "create_weight_count": 1,
-                              "build_scorer": 38310,
-                              "build_scorer_count": 1,
-                              "advance": 0,
-                              "advance_count": 0
-                           }
-                        }
-                     ],
-                     "rewrite_time": 1067,
-                     "collector": [
-                        {
-                           "name": "GlobalAggregator: [global_agg]",
-                           "reason": "aggregation_global",
-                           "time_in_nanos": "122631"
+                                  ]
+                                },
+                                {
+                                  "name": "BucketCollector: [[org.elasticsearch.search.profile.aggregation.ProfilingAggregator@222b076, org.elasticsearch.search.profile.aggregation.ProfilingAggregator@3000ab31]]",
+                                  "reason": "aggregation",
+                                  "time_in_nanos": 8273
+                                }
+                              ]
+                            }
+                          ]
                         }
                      ]
                   }
@@ -646,18 +622,19 @@ And the response:
       }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
+// TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 
 As you can see, the output is significantly verbose from before.  All the major portions of the query are
 represented:
 
 1. The first `TermQuery` (message:search) represents the main `term` query
 2. The second `TermQuery` (my_field:foo) represents the `post_filter` query
-3. There is a  `MatchAllDocsQuery` (\*:*) query which is being executed as a second, distinct search.  This was
-not part of the query specified by the user, but is auto-generated by the global aggregation to provide a global query scope
 
-The Collector tree is fairly straightforward, showing how a single MultiCollector wraps a FilteredCollector
-to execute the post_filter (and in turn wraps the normal scoring SimpleCollector), a BucketCollector to run
-all scoped aggregations.  In the MatchAll search, there is a single GlobalAggregator to run the global aggregation.
+The Collector tree is fairly straightforward, showing how a single CancellableCollector wraps a MultiCollector
+ which also wraps a FilteredCollector to execute the post_filter (and in turn wraps the normal scoring SimpleCollector),
+ a BucketCollector to run all scoped aggregations.
 
 ==== Understanding MultiTermQuery output
 
@@ -681,6 +658,17 @@ Hopefully this will be fixed in future iterations, but it is a tricky problem to
 === Profiling Aggregations
 
 ==== `aggregations` Section
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT house-prices
+{"settings": {"index.number_of_shards": 1, "number_of_replicas": 0}}
+-------------------------------------------------
+// CONSOLE
+
+//////////////////////////
 
 The `aggregations` section contains detailed timing of the aggregation tree executed by a particular shard.
 The overall structure of this aggregation tree will resemble your original Elasticsearch request.  Let's consider
@@ -709,47 +697,59 @@ GET /house-prices/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT house-prices\n/]
+// TEST[s/GET \/house-prices\/_search/GET \/house-prices\/_search\?filter_path=profile.shards.aggregations/]
+// TEST[continued]
 
 Which yields the following aggregation profile output
 
 [source,js]
 --------------------------------------------------
-"aggregations": [
-  {
-    "type": "org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator",
-    "description": "property_type",
-    "time_in_nanos": "4280456978",
-    "breakdown": {
-      "reduce": 0,
-      "reduce_count": 0,
-      "build_aggregation": 49765,
-      "build_aggregation_count": 300,
-      "initialise": 52785,
-      "initialize_count": 300,
-      "collect": 3155490036,
-      "collect_count": 1800
-    },
-    "children": [
+{
+  "profile": {
+    "shards": [
       {
-        "type": "org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator",
-        "description": "avg_price",
-        "time_in_nanos": "1124864392",
-        "breakdown": {
-          "reduce": 0,
-          "reduce_count": 0,
-          "build_aggregation": 1394,
-          "build_aggregation_count": 150,
-          "initialise": 2883,
-          "initialize_count": 150,
-          "collect": 1124860115,
-          "collect_count": 900
-        }
+        ...
+        "aggregations": [
+          {
+            "type": "org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory$1",
+            "description": "property_type",
+            "time_in_nanos": 26234,
+            "breakdown": {
+              "reduce": 0,
+              "build_aggregation": 817,
+              "build_aggregation_count": 1,
+              "initialize": 25415,
+              "initialize_count": 1,
+              "reduce_count": 0,
+              "collect": 0,
+              "collect_count": 0
+            },
+            "children": [
+              {
+                "type": "org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator",
+                "description": "avg_price",
+                "time_in_nanos": 5610,
+                "breakdown": {
+                  "reduce": 0,
+                  "build_aggregation": 0,
+                  "build_aggregation_count": 0,
+                  "initialize": 5609,
+                  "initialize_count": 1,
+                  "reduce_count": 0,
+                  "collect": 0,
+                  "collect_count": 0
+                }
+              }
+            ]
+          }
+        ]
       }
     ]
   }
-]
+}
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 
 From the profile structure we can see our `property_type` terms aggregation which is internally represented by the
 `GlobalOrdinalsStringTermsAggregator` class and the sub aggregator `avg_price` which is internally represented by the `AvgAggregator` class. The `type` field displays the class used internally to represent the aggregation. The `description` field displays the name of the aggregation.
@@ -772,12 +772,14 @@ The `breakdown` component lists detailed timing statistics about low-level Lucen
   "reduce_count": 0,
   "build_aggregation": 49765,
   "build_aggregation_count": 300,
-  "initialise": 52785,
+  "initialize": 52785,
   "initialize_count": 300,
+  "reduce_count": 0,
   "collect": 3155490036,
   "collect_count": 1800
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 Timings are listed in wall-clock nanoseconds and are not normalized at all.  All caveats about the overall
 `time` apply here.  The intention of the breakdown is to give you a feel for A) what machinery in Elasticsearch is

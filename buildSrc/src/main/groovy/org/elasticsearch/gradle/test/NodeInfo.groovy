@@ -24,6 +24,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
@@ -150,12 +151,16 @@ class NodeInfo {
             esScript = binPath().resolve('elasticsearch')
         }
         if (config.daemonize) {
-            args.add("${wrapperScript}")
+            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                args.add("${-> getShortPathName(wrapperScript.toString())}")
+            } else {
+                args.add("${wrapperScript}")
+            }
         } else {
             args.add("${esScript}")
         }
 
-        env = [ 'JAVA_HOME' : project.javaHome ]
+        env = ['JAVA_HOME': project.javaHome]
         args.addAll("-E", "node.portsfile=true")
         String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
         String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
@@ -169,10 +174,23 @@ class NodeInfo {
                 args.add("${property.key.substring('tests.es.'.size())}=${property.value}")
             }
         }
-        env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
-        args.addAll("-E", "path.conf=${confDir}")
+        final File jvmOptionsFile = new File(confDir, 'jvm.options')
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            env.put('ES_JVM_OPTIONS', "${-> getShortPathName(jvmOptionsFile.toString())}")
+        } else {
+            env.put('ES_JVM_OPTIONS', jvmOptionsFile)
+        }
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            args.addAll("-E", "path.conf=${-> getShortPathName(confDir.toString())}")
+        } else {
+            args.addAll("-E", "path.conf=${confDir}")
+        }
         if (!System.properties.containsKey("tests.es.path.data")) {
-            args.addAll("-E", "path.data=${-> dataDir.toString()}")
+            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                args.addAll("-E", "path.data=${-> Files.createDirectories(Paths.get(dataDir.toString())); getShortPathName(dataDir.toString())}")
+            } else {
+                args.addAll("-E", "path.data=${-> dataDir.toString()}")
+            }
         }
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted

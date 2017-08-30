@@ -71,19 +71,11 @@ if (enabled) {
     commandLine = ['git', 'clone', rootDir, checkoutDir]
   }
 
-  // we use regular Exec here to ensure we always get output, regardless of logging level
-  task findUpstream(type: Exec) {
+  task findUpstream(type: LoggedExec) {
     dependsOn createClone
     workingDir = checkoutDir
     commandLine = ['git', 'remote', '-v']
-    ignoreExitValue = true
-    ByteArrayOutputStream output = new ByteArrayOutputStream()
-    standardOutput = output
     doLast {
-      if (execResult.exitValue != 0) {
-        output.toString('UTF-8').eachLine { line -> logger.error(line) }
-        execResult.assertNormalExitValue()
-      }
       project.ext.upstreamExists = false
       output.toString('UTF-8').eachLine {
         if (it.contains("upstream")) {
@@ -107,13 +99,15 @@ if (enabled) {
     commandLine = ['git', 'fetch', '--all']
   }
 
-  // this is an Exec task so that the SHA that is checked out is logged
   String buildMetadataKey = "bwc_refspec_${project.path.substring(1)}"
-  task checkoutBwcBranch(type: Exec) {
-    def String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(buildMetadataKey, "upstream/${bwcBranch}"))
+  task checkoutBwcBranch(type: LoggedExec) {
+    String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(buildMetadataKey, "upstream/${bwcBranch}"))
     dependsOn fetchLatest
     workingDir = checkoutDir
     commandLine = ['git', 'checkout', refspec]
+    doFirst {
+      println "Checking out elasticsearch ${refspec} for branch ${bwcBranch}"
+    }
   }
 
   File buildMetadataFile = project.file("build/${project.name}/build_metadata")
@@ -130,7 +124,9 @@ if (enabled) {
         execResult.assertNormalExitValue()
       }
       project.mkdir(buildMetadataFile.parent)
-      buildMetadataFile.setText("${buildMetadataKey}=${output.toString('UTF-8')}", 'UTF-8')
+      String commit = output.toString('UTF-8')
+      buildMetadataFile.setText("${buildMetadataKey}=${commit}", 'UTF-8')
+      println "Checked out elasticsearch commit ${commit}"
     }
   }
 
@@ -142,7 +138,6 @@ if (enabled) {
     dir = checkoutDir
     tasks = [':distribution:deb:assemble', ':distribution:rpm:assemble', ':distribution:zip:assemble']
   }
-
 
   artifacts {
     'default' file: bwcDeb, name: 'elasticsearch', type: 'deb', builtBy: buildBwcVersion

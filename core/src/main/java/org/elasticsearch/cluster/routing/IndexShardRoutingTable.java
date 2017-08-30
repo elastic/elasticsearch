@@ -276,13 +276,16 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                                                           @Nullable Map<String, Long> nodeSearchCounts) {
         final int seed = shuffler.nextSeed();
         if (allInitializingShards.isEmpty()) {
-            return new PlainShardIterator(shardId, rank(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts));
+            return new PlainShardIterator(shardId,
+                    rankShardsAndUpdateStats(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts));
         }
 
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
-        List<ShardRouting> rankedActiveShards = rank(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts);
+        List<ShardRouting> rankedActiveShards =
+                rankShardsAndUpdateStats(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts);
         ordered.addAll(rankedActiveShards);
-        List<ShardRouting> rankedInitializingShards = rank(allInitializingShards, collector, nodeSearchCounts);
+        List<ShardRouting> rankedInitializingShards =
+                rankShardsAndUpdateStats(allInitializingShards, collector, nodeSearchCounts);
         ordered.addAll(rankedInitializingShards);
         return new PlainShardIterator(shardId, ordered);
     }
@@ -348,8 +351,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
     }
 
-    private static List<ShardRouting> rank(List<ShardRouting> shards, final ResponseCollectorService collector,
-                                           final Map<String, Long> nodeSearchCounts) {
+    private static List<ShardRouting> rankShardsAndUpdateStats(List<ShardRouting> shards, final ResponseCollectorService collector,
+                                                               final Map<String, Long> nodeSearchCounts) {
         if (collector == null || nodeSearchCounts == null || shards.size() <= 1) {
             return shards;
         }

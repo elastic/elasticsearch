@@ -187,20 +187,47 @@ starting the next set. This is "bursty" instead of "smooth". The default is `-1`
 [float]
 === Response body
 
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_delete_by_query
+{
+  "query": { <1>
+    "match": {
+      "message": "some message"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+//////////////////////////
+
 The JSON response looks like this:
 
 [source,js]
 --------------------------------------------------
 {
-  "took" : 639,
-  "deleted": 0,
+  "took" : 147,
+  "timed_out": false,
+  "deleted": 119,
   "batches": 1,
-  "version_conflicts": 2,
-  "retries": 0,
+  "version_conflicts": 0,
+  "noops": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  },
   "throttled_millis": 0,
+  "requests_per_second": -1.0,
+  "throttled_until_millis": 0,
+  "total": 119,
   "failures" : [ ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/: [0-9]+/: $body.$_path/]
 
 `took`::
 
@@ -285,6 +312,8 @@ The responses looks like:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
+// We can't test tasks output
 
 <1> this object contains the actual status. It is just like the response json
 with the important addition of the `total` field. `total` is the total number

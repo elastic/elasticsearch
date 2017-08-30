@@ -50,7 +50,7 @@ For example, previously one might have stored a search template with the followi
 
 [source,js]
 --------------------------------------------------
-PUT /_search/template/my_template
+PUT /_search/template/custom_template
 {
   "query": {
     "match": {
@@ -59,12 +59,13 @@ PUT /_search/template/my_template
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 And instead one would now use the following:
 
 [source,js]
 --------------------------------------------------
-PUT /_scripts/my_template
+PUT /_scripts/custom_template
 {
   "script": {
     "lang": "mustache",
@@ -78,4 +79,5 @@ PUT /_scripts/my_template
   }
 }
 --------------------------------------------------
+// CONSOLE
 

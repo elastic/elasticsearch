@@ -141,7 +141,7 @@ public class OperationRouting extends AbstractComponent {
         if (preference == null || preference.isEmpty()) {
             if (awarenessAttributes.length == 0) {
                 if (useAdaptiveReplicaSelection) {
-                    return indexShard.rankedActiveInitializingShardsIt(collectorService, nodeCounts);
+                    return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
                 } else {
                     return indexShard.activeInitializingShardsRandomIt();
                 }
@@ -176,7 +176,7 @@ public class OperationRouting extends AbstractComponent {
                 if (index == -1 || index == preference.length() - 1) {
                     if (awarenessAttributes.length == 0) {
                         if (useAdaptiveReplicaSelection) {
-                            return indexShard.rankedActiveInitializingShardsIt(collectorService, nodeCounts);
+                            return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
                         } else {
                             return indexShard.activeInitializingShardsRandomIt();
                         }

@@ -272,7 +272,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      * selection forumla. Making sure though that its random within the active shards of the same
      * (or missing) rank, and initializing shards are the last to iterate through.
      */
-    public ShardIterator rankedActiveInitializingShardsIt(@Nullable ResponseCollectorService collector,
+    public ShardIterator activeInitializingShardsRankedIt(@Nullable ResponseCollectorService collector,
                                                           @Nullable Map<String, Long> nodeSearchCounts) {
         final int seed = shuffler.nextSeed();
         if (allInitializingShards.isEmpty()) {

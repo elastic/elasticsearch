@@ -36,7 +36,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
-import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -98,8 +97,10 @@ public abstract class MappedFieldType extends FieldType {
      *  @throws IllegalArgumentException if the fielddata is not supported on this type.
      *  An IllegalArgumentException is needed in order to return an http error 400
      *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
-     **/
-    public IndexFieldData.Builder fielddataBuilder() {
+     *
+     * @param fullyQualifiedIndexName the name of the index this field-data is build for
+     * */
+    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
@@ -291,7 +292,7 @@ public abstract class MappedFieldType extends FieldType {
         return nullValue;
     }
 
-    /** Returns the null value stringified, so it can be used for e.g. _all field, or null if there is no null value */
+    /** Returns the null value stringified or null if there is no null value */
     public String nullValueAsString() {
         return nullValueAsString;
     }
@@ -322,7 +323,7 @@ public abstract class MappedFieldType extends FieldType {
      */
     public boolean isAggregatable() {
         try {
-            fielddataBuilder();
+            fielddataBuilder("");
             return true;
         } catch (IllegalArgumentException e) {
             return false;
@@ -447,9 +448,7 @@ public abstract class MappedFieldType extends FieldType {
         while (termQuery instanceof BoostQuery) {
             termQuery = ((BoostQuery) termQuery).getQuery();
         }
-        if (termQuery instanceof AllTermQuery) {
-            return ((AllTermQuery) termQuery).getTerm();
-        } else if (termQuery instanceof TypeFieldMapper.TypesQuery) {
+        if (termQuery instanceof TypeFieldMapper.TypesQuery) {
             assert ((TypeFieldMapper.TypesQuery) termQuery).getTerms().length == 1;
             return new Term(TypeFieldMapper.NAME, ((TypeFieldMapper.TypesQuery) termQuery).getTerms()[0]);
         }

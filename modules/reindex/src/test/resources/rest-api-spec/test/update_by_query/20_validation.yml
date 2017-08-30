@@ -108,7 +108,7 @@
 ---
 "junk in slices fails":
   - do:
-      catch: /Failed to parse int parameter \[slices\] with value \[junk\]/
+      catch: /\[slices\] must be a positive integer or the string "auto"/
       update_by_query:
         slices: junk
         index: test
@@ -116,7 +116,7 @@
 ---
 "zero slices fails":
   - do:
-      catch: /\[slices\] must be at least 1/
+      catch: /\[slices\] must be a positive integer or the string "auto"/
       update_by_query:
         slices: 0
         index: test

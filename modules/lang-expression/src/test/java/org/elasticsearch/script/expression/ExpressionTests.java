@@ -21,6 +21,7 @@ package org.elasticsearch.script.expression;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -38,7 +39,8 @@ public class ExpressionTests extends ESSingleNodeTestCase {
         super.setUp();
         IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
         service = new ExpressionScriptEngine(Settings.EMPTY);
-        lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
+        QueryShardContext shardContext = index.newQueryShardContext(0, null, () -> 0, null);
+        lookup = new SearchLookup(index.mapperService(), shardContext::getForField, null);
     }
 
     private SearchScript.LeafFactory compile(String expression) {

@@ -337,12 +337,8 @@ public class VersionTests extends ESTestCase {
         assertTrue(isCompatible(Version.V_5_6_0, Version.V_6_0_0_alpha2));
         assertFalse(isCompatible(Version.fromId(2000099), Version.V_6_0_0_alpha2));
         assertFalse(isCompatible(Version.fromId(2000099), Version.V_5_0_0));
-        assertTrue(isCompatible(Version.fromString("6.0.0"), Version.fromString("7.0.0")));
-        if (Version.CURRENT.isRelease()) {
-            assertTrue(isCompatible(Version.CURRENT, Version.fromString("7.0.0")));
-        } else {
-            assertFalse(isCompatible(Version.CURRENT, Version.fromString("7.0.0")));
-        }
+        assertTrue(isCompatible(Version.fromString("6.1.0"), Version.fromString("7.0.0")));
+        assertFalse(isCompatible(Version.fromString("6.0.0-alpha1"), Version.fromString("7.0.0")));
         assertFalse("only compatible with the latest minor",
             isCompatible(VersionUtils.getPreviousMinorVersion(), Version.fromString("7.0.0")));
         assertFalse(isCompatible(Version.V_5_0_0, Version.fromString("6.0.0")));
@@ -376,6 +372,18 @@ public class VersionTests extends ESTestCase {
     public void testUnreleasedVersion() {
         Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
         VersionTests.assertUnknownVersion(VERSION_5_1_0_UNRELEASED);
+    }
+
+    public void testDisplayVersion() {
+        final Version version = randomVersion(random());
+        {
+            final String displayVersion = Version.displayVersion(version, true);
+            assertThat(displayVersion, equalTo(version.toString() + "-SNAPSHOT"));
+        }
+        {
+            final String displayVersion = Version.displayVersion(version, false);
+            assertThat(displayVersion, equalTo(version.toString()));
+        }
     }
 
 }

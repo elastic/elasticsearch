@@ -31,6 +31,7 @@ PUT /my_index
   }
 }
 ---------------------------------
+// CONSOLE
 
 WARNING: This is an expert-only setting and may be removed in the future.
 
@@ -39,8 +40,8 @@ The following sections lists all the different storage types supported.
 `fs`::
 
 Default file system implementation. This will pick the best implementation
-depending on the operating environment: `simplefs` on Windows 32bit, `niofs`
-on other 32bit systems and `mmapfs` on 64bit systems.
+depending on the operating environment, which is currently `mmapfs` on all
+supported systems but is subject to change.
 
 [[simplefs]]`simplefs`::
 
@@ -108,6 +109,7 @@ PUT /my_index
   }
 }
 ---------------------------------
+// CONSOLE
 
 The default value is the empty array, which means that nothing will be loaded
 into the file-system cache eagerly. For indices that are actively searched,

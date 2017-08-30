@@ -33,7 +33,7 @@ public class SimilarityServiceTests extends ESTestCase {
     public void testDefaultSimilarity() {
         Settings settings = Settings.builder().build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        SimilarityService service = new SimilarityService(indexSettings, Collections.emptyMap());
+        SimilarityService service = new SimilarityService(indexSettings, null, Collections.emptyMap());
         assertThat(service.getDefaultSimilarity(), instanceOf(BM25Similarity.class));
     }
 
@@ -42,7 +42,7 @@ public class SimilarityServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put("index.similarity.BM25.type", "classic").build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
         try {
-            new SimilarityService(indexSettings, Collections.emptyMap());
+            new SimilarityService(indexSettings, null, Collections.emptyMap());
             fail("can't override bm25");
         } catch (IllegalArgumentException ex) {
             assertEquals(ex.getMessage(), "Cannot redefine built-in Similarity [BM25]");
@@ -53,7 +53,7 @@ public class SimilarityServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put("index.similarity.default.type", "classic")
                 .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        SimilarityService service = new SimilarityService(indexSettings, Collections.emptyMap());
+        SimilarityService service = new SimilarityService(indexSettings, null, Collections.emptyMap());
         assertTrue(service.getDefaultSimilarity() instanceof ClassicSimilarity);
     }
 }

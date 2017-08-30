@@ -34,7 +34,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -58,7 +58,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
@@ -175,9 +175,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     /**
      * @return list of all rescore contexts.  empty if there aren't any.
      */
-    public abstract List<RescoreSearchContext> rescore();
+    public abstract List<RescoreContext> rescore();
 
-    public abstract void addRescore(RescoreSearchContext rescore);
+    public abstract void addRescore(RescoreContext rescore);
 
     public abstract boolean hasScriptFields();
 
@@ -210,7 +210,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract BitsetFilterCache bitsetFilterCache();
 
-    public abstract IndexFieldDataService fieldData();
+    public abstract <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType);
 
     public abstract TimeValue timeout();
 

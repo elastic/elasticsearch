@@ -21,6 +21,9 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -47,6 +50,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -59,7 +63,18 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     @BeforeClass
     public static void setupThreadPool() {
-        threadPool = new TestThreadPool("IndexShardOperationsLockTests");
+        int bulkThreadPoolSize = randomIntBetween(1, 2);
+        int bulkThreadPoolQueueSize = randomIntBetween(1, 2);
+        threadPool = new TestThreadPool("IndexShardOperationsLockTests",
+            Settings.builder()
+                .put("thread_pool." + ThreadPool.Names.BULK + ".size", bulkThreadPoolSize)
+                .put("thread_pool." + ThreadPool.Names.BULK + ".queue_size", bulkThreadPoolQueueSize)
+                .build());
+        assertThat(threadPool.executor(ThreadPool.Names.BULK), instanceOf(EsThreadPoolExecutor.class));
+        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.BULK)).getCorePoolSize(), equalTo(bulkThreadPoolSize));
+        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.BULK)).getMaximumPoolSize(), equalTo(bulkThreadPoolSize));
+        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.BULK)).getQueue().remainingCapacity(),
+            equalTo(bulkThreadPoolQueueSize));
     }
 
     @AfterClass
@@ -82,33 +97,53 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public void testAllOperationsInvoked() throws InterruptedException, TimeoutException, ExecutionException {
         int numThreads = 10;
 
+        class DummyException extends RuntimeException {}
+
         List<PlainActionFuture<Releasable>> futures = new ArrayList<>();
         List<Thread> operationThreads = new ArrayList<>();
-        CountDownLatch latch = new CountDownLatch(numThreads / 2);
+        CountDownLatch latch = new CountDownLatch(numThreads / 4);
+        boolean forceExecution = randomBoolean();
         for (int i = 0; i < numThreads; i++) {
+            // the bulk thread pool uses a bounded size and can get rejections, see setupThreadPool
+            String threadPoolName = randomFrom(ThreadPool.Names.BULK, ThreadPool.Names.GENERIC);
+            boolean failingListener = randomBoolean();
             PlainActionFuture<Releasable> future = new PlainActionFuture<Releasable>() {
                 @Override
                 public void onResponse(Releasable releasable) {
                     releasable.close();
-                    super.onResponse(releasable);
+                    if (failingListener) {
+                        throw new DummyException();
+                    } else {
+                        super.onResponse(releasable);
+                    }
                 }
             };
             Thread thread = new Thread() {
                 public void run() {
                     latch.countDown();
-                    permits.acquire(future, ThreadPool.Names.GENERIC, true);
+                    try {
+                        permits.acquire(future, threadPoolName, forceExecution);
+                    } catch (DummyException dummyException) {
+                        // ok, notify future
+                        assertTrue(failingListener);
+                        future.onFailure(dummyException);
+                    }
                 }
             };
             futures.add(future);
             operationThreads.add(thread);
         }
 
+        boolean closeAfterBlocking = randomBoolean();
         CountDownLatch blockFinished = new CountDownLatch(1);
         threadPool.generic().execute(() -> {
             try {
                 latch.await();
                 blockAndWait().close();
                 blockFinished.countDown();
+                if (closeAfterBlocking) {
+                    permits.close();
+                }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -119,7 +154,16 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
 
         for (PlainActionFuture<Releasable> future : futures) {
-            assertNotNull(future.get(1, TimeUnit.MINUTES));
+            try {
+                assertNotNull(future.get(1, TimeUnit.MINUTES));
+            } catch (ExecutionException e) {
+                if (closeAfterBlocking) {
+                    assertThat(e.getCause(), either(instanceOf(DummyException.class)).or(instanceOf(EsRejectedExecutionException.class))
+                        .or(instanceOf(IndexShardClosedException.class)));
+                } else {
+                    assertThat(e.getCause(), either(instanceOf(DummyException.class)).or(instanceOf(EsRejectedExecutionException.class)));
+                }
+            }
         }
 
         for (Thread thread : operationThreads) {

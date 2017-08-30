@@ -239,7 +239,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         );
         final MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         Supplier<QueryShardContext> queryShardContext = () -> {
-            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
+            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         MapperService mapperService = new MapperService(indexService.getIndexSettings(), indexService.getIndexAnalyzers(),
                 indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext);

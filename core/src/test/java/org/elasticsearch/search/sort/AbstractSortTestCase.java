@@ -190,8 +190,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
         });
         long nowInMillis = randomNonNegativeLong();
-        return new QueryShardContext(0, idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                xContentRegistry(), null, null, () -> nowInMillis) {
+        return new QueryShardContext(0, idxSettings, bitsetFilterCache, ifds::getForField, null, null, scriptService,
+                xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);

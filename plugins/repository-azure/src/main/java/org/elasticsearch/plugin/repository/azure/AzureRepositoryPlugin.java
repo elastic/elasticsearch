@@ -21,6 +21,7 @@ package org.elasticsearch.plugin.repository.azure;
 
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
+import org.elasticsearch.cloud.azure.storage.AzureStorageSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -40,9 +41,16 @@ import java.util.Map;
  */
 public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
+    private final Map<String, AzureStorageSettings> clientsSettings;
+
     // overridable for tests
     protected AzureStorageService createStorageService(Settings settings) {
-        return new AzureStorageServiceImpl(settings);
+        return new AzureStorageServiceImpl(settings, clientsSettings);
+    }
+
+    public AzureRepositoryPlugin(Settings settings) {
+        // eagerly load client settings so that secure settings are read
+        clientsSettings = AzureStorageSettings.load(settings);
     }
 
     @Override
@@ -53,7 +61,12 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.singletonList(AzureStorageService.Storage.STORAGE_ACCOUNTS);
+        return Arrays.asList(
+            AzureStorageService.Storage.STORAGE_ACCOUNTS,
+            AzureStorageSettings.ACCOUNT_SETTING,
+            AzureStorageSettings.KEY_SETTING,
+            AzureStorageSettings.TIMEOUT_SETTING
+        );
     }
 
     @Override

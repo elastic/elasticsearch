@@ -22,11 +22,12 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -108,7 +109,7 @@ public final class IpRangeAggregationBuilder
         }
     }
 
-    public static class Range implements ToXContent {
+    public static class Range implements ToXContentObject {
 
         private final String key;
         private final String from;
@@ -127,21 +128,12 @@ public final class IpRangeAggregationBuilder
         }
 
         Range(String key, String mask) {
-            String[] splits = mask.split("/");
-            if (splits.length != 2) {
-                throw new IllegalArgumentException("Expected [ip/prefix_length] but got [" + mask
-                        + "], which contains zero or more than one [/]");
-            }
-            InetAddress value = InetAddresses.forString(splits[0]);
-            int prefixLength = Integer.parseInt(splits[1]);
-            // copied from InetAddressPoint.newPrefixQuery
-            if (prefixLength < 0 || prefixLength > 8 * value.getAddress().length) {
-                throw new IllegalArgumentException("illegal prefixLength [" + prefixLength
-                        + "] in [" + mask + "]. Must be 0-32 for IPv4 ranges, 0-128 for IPv6 ranges");
-            }
+            final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(mask);
+            final InetAddress address = cidr.v1();
+            final int prefixLength = cidr.v2();
             // create the lower value by zeroing out the host portion, upper value by filling it with all ones.
-            byte lower[] = value.getAddress();
-            byte upper[] = value.getAddress();
+            byte lower[] = address.getAddress();
+            byte upper[] = address.getAddress();
             for (int i = prefixLength; i < 8 * lower.length; i++) {
                 int m = 1 << (7 - (i & 7));
                 lower[i >> 3] &= ~m;

@@ -50,7 +50,7 @@ import java.util.Map;
  * Highlighting in the case of the percolate query is a bit different, because the PercolateQuery itself doesn't get highlighted,
  * but the source of the PercolateQuery gets highlighted by each hit containing a query.
  */
-public final class PercolatorHighlightSubFetchPhase extends HighlightPhase {
+final class PercolatorHighlightSubFetchPhase extends HighlightPhase {
 
     PercolatorHighlightSubFetchPhase(Settings settings, Map<String, Highlighter> highlighters) {
         super(settings, highlighters);

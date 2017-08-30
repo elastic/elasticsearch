@@ -33,7 +33,6 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.index.search.MatchQuery;
@@ -121,6 +120,9 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.zeroTermsQuery(randomFrom(MatchQuery.ZeroTermsQuery.values()));
         }
+        if (randomBoolean()) {
+            query.autoGenerateSynonymsPhraseQuery(randomBoolean());
+        }
         // test with fields with boost and patterns delegated to the tests further below
         return query;
     }
@@ -141,7 +143,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     @Override
     protected void doAssertLuceneQuery(MultiMatchQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         // we rely on integration tests for deeper checks here
-        assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class))
+        assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(TermQuery.class))
                 .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
                 .or(instanceOf(FuzzyQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
                 .or(instanceOf(MatchAllDocsQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
@@ -238,6 +240,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 "    \"max_expansions\" : 50,\n" +
                 "    \"lenient\" : false,\n" +
                 "    \"zero_terms_query\" : \"NONE\",\n" +
+                "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";

@@ -36,6 +36,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -119,7 +121,7 @@ public class NumberFieldMapper extends FieldMapper {
         public NumberFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new NumberFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    coerce(context), includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -162,12 +164,25 @@ public class NumberFieldMapper extends FieldMapper {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
             Float parse(Object value, boolean coerce) {
-                return (Float) FLOAT.parse(value, false);
+                final float result;
+
+                if (value instanceof Number) {
+                    result = ((Number) value).floatValue();
+                } else {
+                    if (value instanceof BytesRef) {
+                        value = ((BytesRef) value).utf8ToString();
+                    }
+                    result = Float.parseFloat(value.toString());
+                }
+                validateParsed(result);
+                return result;
             }
 
             @Override
             Float parse(XContentParser parser, boolean coerce) throws IOException {
-                return parser.floatValue(coerce);
+                float parsed = parser.floatValue(coerce);
+                validateParsed(parsed);
+                return parsed;
             }
 
             @Override
@@ -231,22 +246,35 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
+
+            private void validateParsed(float value) {
+                if (!Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value)))) {
+                    throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
+                }
+            }
         },
         FLOAT("float", NumericType.FLOAT) {
             @Override
             Float parse(Object value, boolean coerce) {
+                final float result;
+
                 if (value instanceof Number) {
-                    return ((Number) value).floatValue();
+                    result = ((Number) value).floatValue();
+                } else {
+                    if (value instanceof BytesRef) {
+                        value = ((BytesRef) value).utf8ToString();
+                    }
+                    result = Float.parseFloat(value.toString());
                 }
-                if (value instanceof BytesRef) {
-                    value = ((BytesRef) value).utf8ToString();
-                }
-                return Float.parseFloat(value.toString());
+                validateParsed(result);
+                return result;
             }
 
             @Override
             Float parse(XContentParser parser, boolean coerce) throws IOException {
-                return parser.floatValue(coerce);
+                float parsed = parser.floatValue(coerce);
+                validateParsed(parsed);
+                return parsed;
             }
 
             @Override
@@ -308,22 +336,26 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
+
+            private void validateParsed(float value) {
+                if (!Float.isFinite(value)) {
+                    throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
+                }
+            }
         },
         DOUBLE("double", NumericType.DOUBLE) {
             @Override
             Double parse(Object value, boolean coerce) {
-                if (value instanceof Number) {
-                    return ((Number) value).doubleValue();
-                }
-                if (value instanceof BytesRef) {
-                    value = ((BytesRef) value).utf8ToString();
-                }
-                return Double.parseDouble(value.toString());
+                double parsed = objectToDouble(value);
+                validateParsed(parsed);
+                return parsed;
             }
 
             @Override
             Double parse(XContentParser parser, boolean coerce) throws IOException {
-                return parser.doubleValue(coerce);
+                double parsed = parser.doubleValue(coerce);
+                validateParsed(parsed);
+                return parsed;
             }
 
             @Override
@@ -385,24 +417,30 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
+
+            private void validateParsed(double value) {
+                if (!Double.isFinite(value)) {
+                    throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
+                }
+            }
         },
         BYTE("byte", NumericType.BYTE) {
             @Override
             Byte parse(Object value, boolean coerce) {
+                double doubleValue = objectToDouble(value);
+
+                if (doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
+                }
+                if (!coerce && doubleValue % 1 != 0) {
+                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                }
+
                 if (value instanceof Number) {
-                    double doubleValue = ((Number) value).doubleValue();
-                    if (doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE) {
-                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
-                    }
-                    if (!coerce && doubleValue % 1 != 0) {
-                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
-                    }
                     return ((Number) value).byteValue();
                 }
-                if (value instanceof BytesRef) {
-                    value = ((BytesRef) value).utf8ToString();
-                }
-                return Byte.parseByte(value.toString());
+
+                return (byte) doubleValue;
             }
 
             @Override
@@ -445,29 +483,25 @@ public class NumberFieldMapper extends FieldMapper {
         SHORT("short", NumericType.SHORT) {
             @Override
             Short parse(Object value, boolean coerce) {
+                double doubleValue = objectToDouble(value);
+
+                if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
+                }
+                if (!coerce && doubleValue % 1 != 0) {
+                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                }
+
                 if (value instanceof Number) {
-                    double doubleValue = ((Number) value).doubleValue();
-                    if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
-                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
-                    }
-                    if (!coerce && doubleValue % 1 != 0) {
-                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
-                    }
                     return ((Number) value).shortValue();
                 }
-                if (value instanceof BytesRef) {
-                    value = ((BytesRef) value).utf8ToString();
-                }
-                return Short.parseShort(value.toString());
+
+                return (short) doubleValue;
             }
 
             @Override
             Short parse(XContentParser parser, boolean coerce) throws IOException {
-                int value = parser.intValue(coerce);
-                if (value < Short.MIN_VALUE || value > Short.MAX_VALUE) {
-                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
-                }
-                return (short) value;
+                return parser.shortValue(coerce);
             }
 
             @Override
@@ -501,20 +535,20 @@ public class NumberFieldMapper extends FieldMapper {
         INTEGER("integer", NumericType.INT) {
             @Override
             Integer parse(Object value, boolean coerce) {
+                double doubleValue = objectToDouble(value);
+
+                if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for an integer");
+                }
+                if (!coerce && doubleValue % 1 != 0) {
+                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                }
+
                 if (value instanceof Number) {
-                    double doubleValue = ((Number) value).doubleValue();
-                    if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
-                        throw new IllegalArgumentException("Value [" + value + "] is out of range for an integer");
-                    }
-                    if (!coerce && doubleValue % 1 != 0) {
-                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
-                    }
                     return ((Number) value).intValue();
                 }
-                if (value instanceof BytesRef) {
-                    value = ((BytesRef) value).utf8ToString();
-                }
-                return Integer.parseInt(value.toString());
+
+                return (int) doubleValue;
             }
 
             @Override
@@ -612,20 +646,23 @@ public class NumberFieldMapper extends FieldMapper {
         LONG("long", NumericType.LONG) {
             @Override
             Long parse(Object value, boolean coerce) {
-                if (value instanceof Number) {
-                    double doubleValue = ((Number) value).doubleValue();
-                    if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
-                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
-                    }
-                    if (!coerce && doubleValue % 1 != 0) {
-                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
-                    }
-                    return ((Number) value).longValue();
+                if (value instanceof Long) {
+                    return (Long)value;
                 }
-                if (value instanceof BytesRef) {
-                    value = ((BytesRef) value).utf8ToString();
+
+                double doubleValue = objectToDouble(value);
+                // this check does not guarantee that value is inside MIN_VALUE/MAX_VALUE because values up to 9223372036854776832 will
+                // be equal to Long.MAX_VALUE after conversion to double. More checks ahead.
+                if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
                 }
-                return Long.parseLong(value.toString());
+                if (!coerce && doubleValue % 1 != 0) {
+                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                }
+
+                // longs need special handling so we don't lose precision while parsing
+                String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+                return Numbers.toLong(stringValue, coerce);
             }
 
             @Override
@@ -781,6 +818,22 @@ public class NumberFieldMapper extends FieldMapper {
             return Math.signum(Double.parseDouble(value.toString()));
         }
 
+        /**
+         * Converts an Object to a double by checking it against known types first
+         */
+        private static double objectToDouble(Object value) {
+            double doubleValue;
+
+            if (value instanceof Number) {
+                doubleValue = ((Number) value).doubleValue();
+            } else if (value instanceof BytesRef) {
+                doubleValue = Double.parseDouble(((BytesRef) value).utf8ToString());
+            } else {
+                doubleValue = Double.parseDouble(value.toString());
+            }
+
+            return doubleValue;
+        }
     }
 
     public static final class NumberFieldType extends MappedFieldType {
@@ -841,7 +894,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder().numericType(type.numericType());
         }
@@ -868,8 +921,6 @@ public class NumberFieldMapper extends FieldMapper {
         }
     }
 
-    private Boolean includeInAll;
-
     private Explicit<Boolean> ignoreMalformed;
 
     private Explicit<Boolean> coerce;
@@ -880,14 +931,12 @@ public class NumberFieldMapper extends FieldMapper {
             MappedFieldType defaultFieldType,
             Explicit<Boolean> ignoreMalformed,
             Explicit<Boolean> coerce,
-            Boolean includeInAll,
             Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
-        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -907,7 +956,6 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        final boolean includeInAll = context.includeInAll(this.includeInAll, this);
 
         XContentParser parser = context.parser();
         Object value;
@@ -930,11 +978,7 @@ public class NumberFieldMapper extends FieldMapper {
                     throw e;
                 }
             }
-            if (includeInAll) {
-                value = parser.textOrNull(); // preserve formatting
-            } else {
-                value = numericValue;
-            }
+            value = numericValue;
         }
 
         if (value == null) {
@@ -949,10 +993,6 @@ public class NumberFieldMapper extends FieldMapper {
             numericValue = fieldType().type.parse(value, coerce.value());
         }
 
-        if (includeInAll) {
-            context.allEntries().addText(fieldType().name(), value.toString(), fieldType().boost());
-        }
-
         boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
@@ -963,7 +1003,6 @@ public class NumberFieldMapper extends FieldMapper {
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         super.doMerge(mergeWith, updateAllTypes);
         NumberFieldMapper other = (NumberFieldMapper) mergeWith;
-        this.includeInAll = other.includeInAll;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;
         }
@@ -985,12 +1024,6 @@ public class NumberFieldMapper extends FieldMapper {
 
         if (includeDefaults || fieldType().nullValue() != null) {
             builder.field("null_value", fieldType().nullValue());
-        }
-
-        if (includeInAll != null) {
-            builder.field("include_in_all", includeInAll);
-        } else if (includeDefaults) {
-            builder.field("include_in_all", false);
         }
     }
 }

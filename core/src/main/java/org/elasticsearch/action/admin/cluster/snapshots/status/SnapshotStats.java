@@ -23,12 +23,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.io.IOException;
 
-public class SnapshotStats implements Streamable, ToXContent {
+public class SnapshotStats implements Streamable, ToXContentFragment {
     private long startTime;
 
     private long time;

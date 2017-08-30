@@ -26,7 +26,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -38,7 +37,6 @@ import org.junit.Before;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Makes sure that graph analysis is disabled with shingle filters of different size
@@ -71,7 +69,7 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
         indexService = createIndex("test", settings, "t",
             "text_shingle", "type=text,analyzer=text_shingle",
             "text_shingle_unigram", "type=text,analyzer=text_shingle_unigram");
-        shardContext = indexService.newQueryShardContext(0, null, () -> 0L);
+        shardContext = indexService.newQueryShardContext(0, null, () -> 0L, null);
 
         // parsed queries for "text_shingle_unigram:(foo bar baz)" with query parsers
         // that ignores position length attribute

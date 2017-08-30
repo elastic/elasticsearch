@@ -175,7 +175,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new AbstractLatLonPointDVIndexFieldData.Builder();
         }
@@ -187,9 +187,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         }
     }
 
-    protected void parse(ParseContext originalContext, GeoPoint point) throws IOException {
-        // Geopoint fields, by default, will not be included in _all
-        final ParseContext context = originalContext.setIncludeInAllDefault(false);
+    protected void parse(ParseContext context, GeoPoint point) throws IOException {
 
         if (ignoreMalformed.value() == false) {
             if (point.lat() > 90.0 || point.lat() < -90.0) {

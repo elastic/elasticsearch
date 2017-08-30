@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -101,5 +102,60 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
     @Override
     protected Writeable.Reader<InternalGeoBounds> instanceReader() {
         return InternalGeoBounds::new;
+    }
+
+    @Override
+    protected InternalGeoBounds mutateInstance(InternalGeoBounds instance) {
+        String name = instance.getName();
+        double top = instance.top;
+        double bottom = instance.bottom;
+        double posLeft = instance.posLeft;
+        double posRight = instance.posRight;
+        double negLeft = instance.negLeft;
+        double negRight = instance.negRight;
+        boolean wrapLongitude = instance.wrapLongitude;
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 8)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            if (Double.isFinite(top)) {
+                top += between(1, 20);
+            } else {
+                top = randomDouble();
+            }
+            break;
+        case 2:
+            bottom += between(1, 20);
+            break;
+        case 3:
+            posLeft += between(1, 20);
+            break;
+        case 4:
+            posRight += between(1, 20);
+            break;
+        case 5:
+            negLeft += between(1, 20);
+            break;
+        case 6:
+            negRight += between(1, 20);
+            break;
+        case 7:
+            wrapLongitude = wrapLongitude == false;
+            break;
+        case 8:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators, metaData);
     }
 }

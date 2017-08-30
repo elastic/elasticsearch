@@ -37,7 +37,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new AddFileKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path configPath) {
+            protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
                 return env;
             }
         };
@@ -59,10 +59,24 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         keystore.save(env.configFile());
     }
 
-    public void testMissing() throws Exception {
-        UserException e = expectThrows(UserException.class, this::execute);
-        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("keystore not found"));
+    public void testMissingPromptCreate() throws Exception {
+        Path file1 = createRandomFile();
+        terminal.addTextInput("y");
+        execute("foo", file1.toString());
+        assertSecureFile("foo", file1);
+    }
+
+    public void testMissingForceCreate() throws Exception {
+        Path file1 = createRandomFile();
+        terminal.addSecretInput("bar");
+        execute("-f", "foo", file1.toString());
+        assertSecureFile("foo", file1);
+    }
+
+    public void testMissingNoCreate() throws Exception {
+        terminal.addTextInput("n"); // explicit no
+        execute("foo");
+        assertNull(KeyStoreWrapper.load(env.configFile()));
     }
 
     public void testOverwritePromptDefault() throws Exception {

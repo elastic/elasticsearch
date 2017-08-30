@@ -238,8 +238,7 @@ public class InternalEngine extends Engine {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
             final long localCheckpoint = seqNoService().getLocalCheckpoint();
-            try (Translog.View view = getTranslog().newView()) {
-                final Translog.Snapshot snapshot = view.snapshot(localCheckpoint + 1);
+            try (Translog.Snapshot snapshot = getTranslog().newSnapshotFromMinSeqNo(localCheckpoint + 1)) {
                 Translog.Operation operation;
                 while ((operation = snapshot.next()) != null) {
                     if (operation.seqNo() > localCheckpoint) {
@@ -325,9 +324,8 @@ public class InternalEngine extends Engine {
     private void recoverFromTranslogInternal() throws IOException {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
-        try {
-            final long translogGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-            Translog.Snapshot snapshot = translog.newSnapshot(translogGen);
+        final long translogGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+        try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(translogGen)) {
             opsRecovered = config().getTranslogRecoveryRunner().run(this, snapshot);
         } catch (Exception e) {
             throw new EngineException(shardId, "failed to recover from translog", e);

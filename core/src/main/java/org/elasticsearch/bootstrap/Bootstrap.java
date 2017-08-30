@@ -35,7 +35,6 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -147,6 +146,7 @@ final class Bootstrap {
 
         Natives.trySetMaxNumberOfThreads();
         Natives.trySetMaxSizeVirtualMemory();
+        Natives.trySetMaxFileSize();
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
@@ -219,7 +219,7 @@ final class Bootstrap {
         };
     }
 
-    private static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
+    static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
             keystore = KeyStoreWrapper.load(initialEnv.configFile());
@@ -232,6 +232,7 @@ final class Bootstrap {
 
         try {
             keystore.decrypt(new char[0] /* TODO: read password from stdin */);
+            KeyStoreWrapper.upgrade(keystore, initialEnv.configFile());
         } catch (Exception e) {
             throw new BootstrapException(e);
         }

@@ -22,7 +22,8 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.PluginInfo;
 
@@ -34,7 +35,7 @@ import java.util.List;
 /**
  * Information about plugins and modules
  */
-public class PluginsAndModules implements Writeable, ToXContent {
+public class PluginsAndModules implements Writeable, ToXContentFragment {
     private final List<PluginInfo> plugins;
     private final List<PluginInfo> modules;
 

@@ -29,7 +29,6 @@ import org.elasticsearch.node.InternalSettingsPreparer;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -38,13 +37,10 @@ import java.util.Map;
 public abstract class EnvironmentAwareCommand extends Command {
 
     private final OptionSpec<KeyValuePair> settingOption;
-    private final OptionSpec<String> pathConfOption;
 
     public EnvironmentAwareCommand(String description) {
         super(description);
         this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
-        this.pathConfOption =
-                parser.acceptsAll(Arrays.asList("c", "path.conf"), "Configure config path").withRequiredArg().ofType(String.class);
     }
 
     @Override
@@ -70,22 +66,25 @@ public abstract class EnvironmentAwareCommand extends Command {
         putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");
         putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
 
-        final String pathConf = pathConfOption.value(options);
-        execute(terminal, options, createEnv(terminal, settings, getConfigPath(pathConf)));
+        execute(terminal, options, createEnv(terminal, settings));
+    }
+
+    /** Create an {@link Environment} for the command to use. Overrideable for tests. */
+    protected Environment createEnv(final Terminal terminal, final Map<String, String> settings) throws UserException {
+        final String esPathConf = System.getProperty("es.path.conf");
+        if (esPathConf == null) {
+            throw new UserException(ExitCodes.CONFIG, "the system property [es.path.conf] must be set");
+        }
+        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings, getConfigPath(esPathConf));
     }
 
     @SuppressForbidden(reason = "need path to construct environment")
     private static Path getConfigPath(final String pathConf) {
-        return pathConf == null ? null : Paths.get(pathConf);
-    }
-
-    /** Create an {@link Environment} for the command to use. Overrideable for tests. */
-    protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path configPath) {
-        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings, configPath);
+        return Paths.get(pathConf);
     }
 
     /** Ensure the given setting exists, reading it from system properties if not already set. */
-    protected static void putSystemPropertyIfSettingIsMissing(final Map<String, String> settings, final String setting, final String key) {
+    private static void putSystemPropertyIfSettingIsMissing(final Map<String, String> settings, final String setting, final String key) {
         final String value = System.getProperty(key);
         if (value != null) {
             if (settings.containsKey(setting)) {

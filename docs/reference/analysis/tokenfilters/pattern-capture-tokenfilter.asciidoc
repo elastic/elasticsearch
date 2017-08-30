@@ -131,10 +131,12 @@ Multiple patterns are required to allow overlapping captures, but also
 means that patterns are less dense and easier to understand.
 
 *Note:* All tokens are emitted in the same position, and with the same
-character offsets, so when combined with highlighting, the whole
-original token will be highlighted, not just the matching subset. For
-instance, querying the above email address for `"smith"` would
-highlight:
+character offsets. This means, for example, that a `match` query for
+`john-smith_123@foo-bar.com` that uses this analyzer will return documents
+containing any of these tokens, even when using the `and` operator.
+Also, when combined with highlighting, the whole original token will 
+be highlighted, not just the matching subset. For instance, querying 
+the above email address for `"smith"` would highlight:
 
 [source,html]
 --------------------------------------------------

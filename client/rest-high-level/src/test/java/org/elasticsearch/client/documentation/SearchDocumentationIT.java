@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -34,8 +35,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.Scroll;
@@ -52,6 +56,11 @@ import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
+import org.elasticsearch.search.profile.query.CollectorResult;
+import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -70,6 +79,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -105,7 +115,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                             Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request);
-            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
         }
         {
@@ -231,6 +241,33 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
+    public void testBuildingSearchQueries() {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::search-query-builder-ctor
+            MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder("user", "kimchy"); // <1>
+            // end::search-query-builder-ctor
+            // tag::search-query-builder-options
+            matchQueryBuilder.fuzziness(Fuzziness.AUTO); // <1>
+            matchQueryBuilder.prefixLength(3); // <2>
+            matchQueryBuilder.maxExpansions(10); // <3>
+            // end::search-query-builder-options
+        }
+        {
+            // tag::search-query-builders
+            QueryBuilder matchQueryBuilder = QueryBuilders.matchQuery("user", "kimchy")
+                                                            .fuzziness(Fuzziness.AUTO)
+                                                            .prefixLength(3)
+                                                            .maxExpansions(10);
+            // end::search-query-builders
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            // tag::search-query-setter
+            searchSourceBuilder.query(matchQueryBuilder);
+            // end::search-query-setter
+        }
+    }
+
     @SuppressWarnings({ "unused" })
     public void testSearchRequestAggregations() throws IOException {
         RestHighLevelClient client = highLevelClient();
@@ -244,7 +281,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                     .source(XContentType.JSON, "company", "Elastic", "age", 40));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request);
-            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
         }
         {
@@ -317,7 +354,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new IndexRequest("posts", "doc", "4").source(XContentType.JSON, "user", "cbuescher"));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request);
-            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
         }
         {
@@ -364,7 +401,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                             Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request);
-            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
         }
         {
@@ -412,6 +449,74 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testSearchRequestProfiling() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            IndexRequest request = new IndexRequest("posts", "doc", "1")
+                    .source(XContentType.JSON, "tags", "elasticsearch", "comments", 123);
+            request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
+            IndexResponse indexResponse = client.index(request);
+            assertSame(RestStatus.CREATED, indexResponse.status());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            // tag::search-request-profiling
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.profile(true);
+            // end::search-request-profiling
+            searchSourceBuilder.query(QueryBuilders.termQuery("tags", "elasticsearch"));
+            searchSourceBuilder.aggregation(AggregationBuilders.histogram("by_comments").field("comments").interval(100));
+            searchRequest.source(searchSourceBuilder);
+
+            SearchResponse searchResponse = client.search(searchRequest);
+            // tag::search-request-profiling-get
+            Map<String, ProfileShardResult> profilingResults = searchResponse.getProfileResults(); // <1>
+            for (Map.Entry<String, ProfileShardResult> profilingResult : profilingResults.entrySet()) {  // <2>
+                String key = profilingResult.getKey(); // <3>
+                ProfileShardResult profileShardResult = profilingResult.getValue(); // <4>
+            }
+            // end::search-request-profiling-get
+
+            ProfileShardResult profileShardResult = profilingResults.values().iterator().next();
+            assertNotNull(profileShardResult);
+
+            // tag::search-request-profiling-queries
+            List<QueryProfileShardResult> queryProfileShardResults = profileShardResult.getQueryProfileResults(); // <1>
+            for (QueryProfileShardResult queryProfileResult : queryProfileShardResults) { // <2>
+
+            }
+            // end::search-request-profiling-queries
+            assertThat(queryProfileShardResults.size(), equalTo(1));
+
+            for (QueryProfileShardResult queryProfileResult : queryProfileShardResults) {
+                // tag::search-request-profiling-queries-results
+                for (ProfileResult profileResult : queryProfileResult.getQueryResults()) { // <1>
+                    String queryName = profileResult.getQueryName(); // <2>
+                    long queryTimeInMillis = profileResult.getTime(); // <3>
+                    List<ProfileResult> profiledChildren = profileResult.getProfiledChildren(); // <4>
+                }
+                // end::search-request-profiling-queries-results
+
+                // tag::search-request-profiling-queries-collectors
+                CollectorResult collectorResult = queryProfileResult.getCollectorResult();  // <1>
+                String collectorName = collectorResult.getName();  // <2>
+                Long collectorTimeInMillis = collectorResult.getTime(); // <3>
+                List<CollectorResult> profiledChildren = collectorResult.getProfiledChildren(); // <4>
+                // end::search-request-profiling-queries-collectors
+            }
+
+            // tag::search-request-profiling-aggs
+            AggregationProfileShardResult aggsProfileResults = profileShardResult.getAggregationProfileResults(); // <1>
+            for (ProfileResult profileResult : aggsProfileResults.getProfileResults()) { // <2>
+                String aggName = profileResult.getQueryName(); // <3>
+                long aggTimeInMillis = profileResult.getTime(); // <4>
+                List<ProfileResult> profiledChildren = profileResult.getProfiledChildren(); // <5>
+            }
+            // end::search-request-profiling-aggs
+            assertThat(aggsProfileResults.getProfileResults().size(), equalTo(1));
+        }
+    }
+
     public void testScroll() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -424,7 +529,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                     .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch"));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request);
-            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
         }
         {

@@ -46,9 +46,8 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Unknown hunspell dictionary for locale [%s]", locale));
         }
 
-        dedup = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "dedup", true, deprecationLogger);
-        longestOnly =
-            settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "longest_only", false, deprecationLogger);
+        dedup = settings.getAsBoolean("dedup", true);
+        longestOnly = settings.getAsBoolean("longest_only", false);
     }
 
     @Override

@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -87,6 +86,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -746,7 +746,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         void updateShardState(ShardRouting shardRouting,
                               long primaryTerm,
-                              CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer,
+                              BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
                               long applyingClusterStateVersion,
                               Set<String> inSyncAllocationIds,
                               IndexShardRoutingTable routingTable,

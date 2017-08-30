@@ -223,7 +223,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder();
         }
@@ -249,7 +249,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                                     MetaJoinFieldMapper uniqueFieldMapper,
                                     List<ParentIdFieldMapper> parentIdFields,
                                     boolean eagerGlobalOrdinals) {
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), null);
+        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty());
         this.parentIdFields = parentIdFields;
         this.uniqueFieldMapper = uniqueFieldMapper;
         this.uniqueFieldMapper.setFieldMapper(this);

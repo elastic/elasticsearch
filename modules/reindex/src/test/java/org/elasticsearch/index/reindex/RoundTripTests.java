@@ -70,17 +70,16 @@ public class RoundTripTests extends ESTestCase {
         roundTrip(reindex, tripped);
         assertRequestEquals(reindex, tripped);
 
-        // Try slices with a version that doesn't support slices. That should fail.
-        reindex.setSlices(between(2, 1000));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> roundTrip(Version.V_5_0_0_rc1, reindex, null));
-        assertEquals("Attempting to send sliced reindex-style request to a node that doesn't support it. "
-                + "Version is [5.0.0-rc1] but must be [5.1.1]", e.getMessage());
+        // Try slices=auto with a version that doesn't support it, which should fail
+        reindex.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> roundTrip(Version.V_6_0_0_alpha1, reindex, null));
+        assertEquals("Slices set as \"auto\" are not supported before version [6.1.0]. Found version [6.0.0-alpha1]", e.getMessage());
 
-        // Try without slices with a version that doesn't support slices. That should work.
+        // Try regular slices with a version that doesn't support slices=auto, which should succeed
         tripped = new ReindexRequest();
-        reindex.setSlices(1);
-        roundTrip(Version.V_5_0_0_rc1, reindex, tripped);
-        assertRequestEquals(Version.V_5_0_0_rc1, reindex, tripped);
+        reindex.setSlices(between(1, Integer.MAX_VALUE));
+        roundTrip(Version.V_6_0_0_alpha1, reindex, tripped);
+        assertRequestEquals(Version.V_6_0_0_alpha1, reindex, tripped);
     }
 
     public void testUpdateByQueryRequest() throws IOException {
@@ -94,16 +93,15 @@ public class RoundTripTests extends ESTestCase {
         assertRequestEquals(update, tripped);
         assertEquals(update.getPipeline(), tripped.getPipeline());
 
-        // Try slices with a version that doesn't support slices. That should fail.
-        update.setSlices(between(2, 1000));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> roundTrip(Version.V_5_0_0_rc1, update, null));
-        assertEquals("Attempting to send sliced reindex-style request to a node that doesn't support it. "
-                + "Version is [5.0.0-rc1] but must be [5.1.1]", e.getMessage());
+        // Try slices=auto with a version that doesn't support it, which should fail
+        update.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> roundTrip(Version.V_6_0_0_alpha1, update, null));
+        assertEquals("Slices set as \"auto\" are not supported before version [6.1.0]. Found version [6.0.0-alpha1]", e.getMessage());
 
-        // Try without slices with a version that doesn't support slices. That should work.
+        // Try regular slices with a version that doesn't support slices=auto, which should succeed
         tripped = new UpdateByQueryRequest();
-        update.setSlices(1);
-        roundTrip(Version.V_5_0_0_rc1, update, tripped);
+        update.setSlices(between(1, Integer.MAX_VALUE));
+        roundTrip(Version.V_6_0_0_alpha1, update, tripped);
         assertRequestEquals(update, tripped);
         assertEquals(update.getPipeline(), tripped.getPipeline());
     }
@@ -115,16 +113,15 @@ public class RoundTripTests extends ESTestCase {
         roundTrip(delete, tripped);
         assertRequestEquals(delete, tripped);
 
-        // Try slices with a version that doesn't support slices. That should fail.
-        delete.setSlices(between(2, 1000));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> roundTrip(Version.V_5_0_0_rc1, delete, null));
-        assertEquals("Attempting to send sliced reindex-style request to a node that doesn't support it. "
-                + "Version is [5.0.0-rc1] but must be [5.1.1]", e.getMessage());
+        // Try slices=auto with a version that doesn't support it, which should fail
+        delete.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> roundTrip(Version.V_6_0_0_alpha1, delete, null));
+        assertEquals("Slices set as \"auto\" are not supported before version [6.1.0]. Found version [6.0.0-alpha1]", e.getMessage());
 
-        // Try without slices with a version that doesn't support slices. That should work.
+        // Try regular slices with a version that doesn't support slices=auto, which should succeed
         tripped = new DeleteByQueryRequest();
-        delete.setSlices(1);
-        roundTrip(Version.V_5_0_0_rc1, delete, tripped);
+        delete.setSlices(between(1, Integer.MAX_VALUE));
+        roundTrip(Version.V_6_0_0_alpha1, delete, tripped);
         assertRequestEquals(delete, tripped);
     }
 
@@ -139,7 +136,9 @@ public class RoundTripTests extends ESTestCase {
         request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), null, "test"));
         request.setWaitForActiveShards(randomIntBetween(0, 10));
         request.setRequestsPerSecond(between(0, Integer.MAX_VALUE));
-        request.setSlices(between(1, Integer.MAX_VALUE));
+
+        int slices = ReindexTestCase.randomSlices(1, Integer.MAX_VALUE);
+        request.setSlices(slices);
     }
 
     private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {

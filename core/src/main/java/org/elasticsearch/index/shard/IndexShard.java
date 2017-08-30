@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -85,7 +84,6 @@ import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
@@ -132,6 +130,7 @@ import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
@@ -170,7 +169,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ShardIndexWarmerService shardWarmerService;
     private final ShardRequestCache requestCacheStats;
     private final ShardFieldData shardFieldData;
-    private final IndexFieldDataService indexFieldDataService;
     private final ShardBitsetFilterCache shardBitsetFilterCache;
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -235,7 +233,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public IndexShard(ShardRouting shardRouting, IndexSettings indexSettings, ShardPath path, Store store,
                       Supplier<Sort> indexSortSupplier, IndexCache indexCache, MapperService mapperService, SimilarityService similarityService,
-                      IndexFieldDataService indexFieldDataService, @Nullable EngineFactory engineFactory,
+                      @Nullable EngineFactory engineFactory,
                       IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, ThreadPool threadPool, BigArrays bigArrays,
                       Engine.Warmer warmer, List<SearchOperationListener> searchOperationListener, List<IndexingOperationListener> listeners) throws IOException {
         super(shardRouting.shardId(), indexSettings);
@@ -264,7 +262,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.requestCacheStats = new ShardRequestCache();
         this.shardFieldData = new ShardFieldData();
-        this.indexFieldDataService = indexFieldDataService;
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         state = IndexShardState.CREATED;
         this.path = path;
@@ -320,10 +317,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return shardBitsetFilterCache;
     }
 
-    public IndexFieldDataService indexFieldDataService() {
-        return indexFieldDataService;
-    }
-
     public MapperService mapperService() {
         return mapperService;
     }
@@ -367,7 +360,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Override
     public void updateShardState(final ShardRouting newRouting,
                                  final long newPrimaryTerm,
-                                 final CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer,
+                                 final BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
                                  final long applyingClusterStateVersion,
                                  final Set<String> inSyncAllocationIds,
                                  final IndexShardRoutingTable routingTable,
@@ -854,8 +847,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public RefreshStats refreshStats() {
-        // Null refreshListeners means this shard doesn't support them so there can't be any.
-        int listeners = refreshListeners == null ? 0 : refreshListeners.pendingCount();
+        int listeners = refreshListeners.pendingCount();
         return new RefreshStats(refreshMetric.count(), TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()), listeners);
     }
 
@@ -1162,6 +1154,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (state == IndexShardState.RELOCATED) {
                 throw new IndexShardRelocatedException(shardId);
             }
+            // we need to refresh again to expose all operations that were index until now. Otherwise
+            // we may not expose operations that were indexed with a refresh listener that was immediately
+            // responded to in addRefreshListener.
+            getEngine().refresh("post_recovery");
             recoveryState.setStage(RecoveryState.Stage.DONE);
             changeState(IndexShardState.POST_RECOVERY, reason);
         }
@@ -1331,6 +1327,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (state != IndexShardState.RECOVERING) {
                 throw new IndexShardNotRecoveringException(shardId, state);
             }
+            assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
             final Engine engine = this.currentEngineReference.getAndSet(null);
             IOUtils.close(engine);
             recoveryState().setStage(RecoveryState.Stage.INIT);
@@ -1377,6 +1374,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (readAllowedStates.contains(state) == false) {
             throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when shard state is one of " + readAllowedStates.toString());
         }
+    }
+
+    /** returns true if the {@link IndexShardState} allows reading */
+    public boolean isReadAllowed() {
+        return readAllowedStates.contains(state);
     }
 
     private void ensureWriteAllowed(Engine.Operation.Origin origin) throws IllegalIndexShardStateException {
@@ -1563,10 +1565,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public Translog.View acquireTranslogView() {
+    public Closeable acquireTranslogRetentionLock() {
         Engine engine = getEngine();
-        assert engine.getTranslog() != null : "translog must not be null";
-        return engine.getTranslog().newView();
+        return engine.getTranslog().acquireRetentionLock();
     }
 
     public List<Segment> segments(boolean verbose) {
@@ -2364,7 +2365,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *        false otherwise.
      */
     public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
-        refreshListeners.addOrNotify(location, listener);
+        final boolean readAllowed;
+        if (isReadAllowed()) {
+            readAllowed = true;
+        } else {
+            // check again under mutex. this is important to create a happens before relationship
+            // between the switch to POST_RECOVERY + associated refresh. Otherwise we may respond
+            // to a listener before a refresh actually happened that contained that operation.
+            synchronized (mutex) {
+                readAllowed = isReadAllowed();
+            }
+        }
+        if (readAllowed) {
+            refreshListeners.addOrNotify(location, listener);
+        } else {
+            // we're not yet ready fo ready for reads, just ignore refresh cycles
+            listener.accept(false);
+        }
     }
 
     private static class RefreshMetricUpdater implements ReferenceManager.RefreshListener {

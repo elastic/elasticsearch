@@ -46,7 +46,7 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
         IndexService index = createIndex("test");
         client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
         DocumentMapper mapper = index.mapperService().documentMapper("type");
-        QueryShardContext context = index.newQueryShardContext(0, null, () -> 0L);
+        QueryShardContext context = index.newQueryShardContext(0, null, () -> 0L, null);
 
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()

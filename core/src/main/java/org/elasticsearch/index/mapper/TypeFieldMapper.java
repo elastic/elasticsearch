@@ -109,7 +109,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             if (hasDocValues()) {
                 return new DocValuesIndexFieldData.Builder();
             } else {

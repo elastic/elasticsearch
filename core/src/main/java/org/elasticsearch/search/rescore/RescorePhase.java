@@ -45,8 +45,8 @@ public class RescorePhase extends AbstractComponent implements SearchPhase {
     public void execute(SearchContext context) {
         try {
             TopDocs topDocs = context.queryResult().topDocs();
-            for (RescoreSearchContext ctx : context.rescore()) {
-                topDocs = ctx.rescorer().rescore(topDocs, context, ctx);
+            for (RescoreContext ctx : context.rescore()) {
+                topDocs = ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
             }
             context.queryResult().topDocs(topDocs, context.queryResult().sortValueFormats());
         } catch (IOException e) {

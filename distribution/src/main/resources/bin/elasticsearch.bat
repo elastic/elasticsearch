@@ -1,7 +1,7 @@
 @echo off
 
-SETLOCAL enabledelayedexpansion
-TITLE Elasticsearch ${project.version}
+setlocal enabledelayedexpansion
+setlocal enableextensions
 
 SET params='%*'
 
@@ -33,22 +33,7 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 	)
 )
 
-SET HOSTNAME=%COMPUTERNAME%
-
-if "%CONF_DIR%" == "" (
-rem '0' is the batch file, '~dp' appends the drive and path
-set "ES_JVM_OPTIONS=%~dp0\..\config\jvm.options"
-) else (
-set "ES_JVM_OPTIONS=%CONF_DIR%\jvm.options"
-)
-
-@setlocal
-rem extract the options from the JVM options file %ES_JVM_OPTIONS%
-rem such options are the lines beginning with '-', thus "findstr /b"
-for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%"`) do set JVM_OPTIONS=!JVM_OPTIONS! %%a
-@endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS% %ES_JAVA_OPTS%
-
-CALL "%~dp0elasticsearch.in.bat"
+CALL "%~dp0elasticsearch-env.bat" || exit /b 1
 IF ERRORLEVEL 1 (
 	IF NOT DEFINED nopauseonerror (
 		PAUSE
@@ -56,6 +41,15 @@ IF ERRORLEVEL 1 (
 	EXIT /B %ERRORLEVEL%
 )
 
-%JAVA% %ES_JAVA_OPTS% %ES_PARAMS% -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
+set "ES_JVM_OPTIONS=%ES_PATH_CONF%\jvm.options"
 
-ENDLOCAL
+@setlocal
+rem extract the options from the JVM options file %ES_JVM_OPTIONS%
+rem such options are the lines beginning with '-', thus "findstr /b"
+for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%"`) do set JVM_OPTIONS=!JVM_OPTIONS! %%a
+@endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS% %ES_JAVA_OPTS%
+
+%JAVA% %ES_JAVA_OPTS% -Delasticsearch -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
+
+endlocal
+endlocal

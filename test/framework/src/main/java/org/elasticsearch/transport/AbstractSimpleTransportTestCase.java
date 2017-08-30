@@ -2422,7 +2422,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             int addressLen = serviceB.boundAddress().publishAddress().address().getAddress().getAddress().length;
             // if we are bound to a IPv6 address the response address is serialized with the exception so it will be different depending
             // on the stack. The emphemeral port will always be in the same range
-            assertEquals(185 + addressLen, stats.getRxSize().getBytes());
+            assertEquals(183 + addressLen, stats.getRxSize().getBytes());
             assertEquals(91, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();

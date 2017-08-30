@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Objects;
 
 public class SegmentTests extends ESTestCase {
@@ -81,6 +82,9 @@ public class SegmentTests extends ESTestCase {
         segment.mergeId = randomAlphaOfLengthBetween(1, 10);
         segment.memoryInBytes = randomNonNegativeLong();
         segment.segmentSort = randomIndexSort();
+        if (randomBoolean()) {
+            segment.attributes = Collections.singletonMap("foo", "bar");
+        }
         return segment;
     }
 

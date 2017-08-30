@@ -22,6 +22,8 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.util.Arrays;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class FieldCapabilitiesTests extends AbstractWireSerializingTestCase<FieldCapabilities> {
@@ -105,5 +107,74 @@ public class FieldCapabilitiesTests extends AbstractWireSerializingTestCase<Fiel
         return new FieldCapabilities(randomAlphaOfLengthBetween(5, 20),
             randomAlphaOfLengthBetween(5, 20), randomBoolean(), randomBoolean(),
             indices, nonSearchableIndices, nonAggregatableIndices);
+    }
+
+    @Override
+    protected FieldCapabilities mutateInstance(FieldCapabilities instance) {
+        String name = instance.getName();
+        String type = instance.getType();
+        boolean isSearchable = instance.isSearchable();
+        boolean isAggregatable = instance.isAggregatable();
+        String[] indices = instance.indices();
+        String[] nonSearchableIndices = instance.nonSearchableIndices();
+        String[] nonAggregatableIndices = instance.nonAggregatableIndices();
+        switch (between(0, 6)) {
+        case 0:
+            name += randomAlphaOfLengthBetween(1, 10);
+            break;
+        case 1:
+            type += randomAlphaOfLengthBetween(1, 10);
+            break;
+        case 2:
+            isSearchable = isSearchable == false;
+            break;
+        case 3:
+            isAggregatable = isAggregatable == false;
+            break;
+        case 4:
+            String[] newIndices;
+            int startIndicesPos = 0;
+            if (indices == null) {
+                newIndices = new String[between(1, 10)];
+            } else {
+                newIndices = Arrays.copyOf(indices, indices.length + between(1, 10));
+                startIndicesPos = indices.length;
+            }
+            for (int i = startIndicesPos; i < newIndices.length; i++) {
+                newIndices[i] = randomAlphaOfLengthBetween(5, 20);
+            }
+            indices = newIndices;
+            break;
+        case 5:
+            String[] newNonSearchableIndices;
+            int startNonSearchablePos = 0;
+            if (nonSearchableIndices == null) {
+                newNonSearchableIndices = new String[between(1, 10)];
+            } else {
+                newNonSearchableIndices = Arrays.copyOf(nonSearchableIndices, nonSearchableIndices.length + between(1, 10));
+                startNonSearchablePos = nonSearchableIndices.length;
+            }
+            for (int i = startNonSearchablePos; i < newNonSearchableIndices.length; i++) {
+                newNonSearchableIndices[i] = randomAlphaOfLengthBetween(5, 20);
+            }
+            nonSearchableIndices = newNonSearchableIndices;
+            break;
+        case 6:
+        default:
+            String[] newNonAggregatableIndices;
+            int startNonAggregatablePos = 0;
+            if (nonAggregatableIndices == null) {
+                newNonAggregatableIndices = new String[between(1, 10)];
+            } else {
+                newNonAggregatableIndices = Arrays.copyOf(nonAggregatableIndices, nonAggregatableIndices.length + between(1, 10));
+                startNonAggregatablePos = nonAggregatableIndices.length;
+            }
+            for (int i = startNonAggregatablePos; i < newNonAggregatableIndices.length; i++) {
+                newNonAggregatableIndices[i] = randomAlphaOfLengthBetween(5, 20);
+            }
+            nonAggregatableIndices = newNonAggregatableIndices;
+            break;
+        }
+        return new FieldCapabilities(name, type, isSearchable, isAggregatable, indices, nonSearchableIndices, nonAggregatableIndices);
     }
 }

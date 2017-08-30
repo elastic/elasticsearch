@@ -213,6 +213,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
                 return i;
             }
         }
+        if (from != length) {
+            throw new IllegalArgumentException("The msearch request must be terminated by a newline [\n]");
+        }
         return -1;
     }
 

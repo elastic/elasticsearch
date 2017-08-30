@@ -353,12 +353,6 @@ final class DocumentParser {
             context = nestedContext(context, mapper);
         }
 
-        // update the default value of include_in_all if necessary
-        Boolean includeInAll = mapper.includeInAll();
-        if (includeInAll != null) {
-            context = context.setIncludeInAllDefault(includeInAll);
-        }
-
         // if we are at the end of the previous object, advance
         if (token == XContentParser.Token.END_OBJECT) {
             token = parser.nextToken();
@@ -473,9 +467,7 @@ final class DocumentParser {
             if (update != null) {
                 context.addDynamicMapper(update);
             }
-            if (fieldMapper.copyTo() != null) {
-                parseCopyFields(context, fieldMapper.copyTo().copyToFields());
-            }
+            parseCopyFields(context, fieldMapper.copyTo().copyToFields());
         }
     }
 

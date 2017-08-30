@@ -44,9 +44,9 @@ import java.util.function.Function;
 
 import static org.elasticsearch.script.ScriptService.MAX_COMPILATION_RATE_FUNCTION;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.hamcrest.Matchers.is;
 
 public class ScriptServiceTests extends ESTestCase {
 
@@ -115,17 +115,28 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testMaxCompilationRateSetting() throws Exception {
         assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/1m"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
-        expectThrows(ElasticsearchParseException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("10/m"));
-        expectThrows(ElasticsearchParseException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("6/1.6m"));
-        expectThrows(NumberFormatException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("foo/bar"));
-        expectThrows(NumberFormatException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("6.0/1m"));
-        expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("6/-1m"));
-        expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("6/0m"));
-        expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("10"));
-        expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("anything"));
-        expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("/1m"));
-        expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("10/"));
-        expectThrows(IllegalArgumentException.class, () -> MAX_COMPILATION_RATE_FUNCTION.apply("-1/1m"));
+        assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/60s"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
+        assertException("10/m", ElasticsearchParseException.class, "failed to parse [m]");
+        assertException("6/1.6m", ElasticsearchParseException.class, "failed to parse [1.6m], fractional time values are not supported");
+        assertException("foo/bar", IllegalArgumentException.class, "could not parse [foo] as integer in value [foo/bar]");
+        assertException("6.0/1m", IllegalArgumentException.class, "could not parse [6.0] as integer in value [6.0/1m]");
+        assertException("6/-1m", IllegalArgumentException.class, "time value [-1m] must be positive");
+        assertException("6/0m", IllegalArgumentException.class, "time value [0m] must be positive");
+        assertException("10", IllegalArgumentException.class,
+                "parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [10]");
+        assertException("anything", IllegalArgumentException.class,
+                "parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [anything]");
+        assertException("/1m", IllegalArgumentException.class,
+                "parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [/1m]");
+        assertException("10/", IllegalArgumentException.class,
+                "parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [10/]");
+        assertException("-1/1m", IllegalArgumentException.class, "rate [-1] must be positive");
+        assertException("10/5s", IllegalArgumentException.class, "time value [5s] must be at least on a one minute resolution");
+    }
+
+    private void assertException(String rate, Class<? extends Exception> clazz, String message) {
+        Exception e = expectThrows(clazz, () -> MAX_COMPILATION_RATE_FUNCTION.apply(rate));
+        assertThat(e.getMessage(), is(message));
     }
 
     public void testNotSupportedDisableDynamicSetting() throws IOException {

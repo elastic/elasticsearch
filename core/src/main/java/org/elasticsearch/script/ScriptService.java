@@ -66,21 +66,31 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     static final Function<String, Tuple<Integer, TimeValue>> MAX_COMPILATION_RATE_FUNCTION =
             (String value) -> {
                 if (value.contains("/") == false || value.startsWith("/") || value.endsWith("/")) {
-                    throw new IllegalArgumentException("parameter must contain a positive number and a timevalue, i.e. 10/1m");
+                    throw new IllegalArgumentException("parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [" +
+                            value + "]");
                 }
                 int idx = value.indexOf("/");
                 String count = value.substring(0, idx);
                 String time = value.substring(idx + 1);
+                try {
 
-                int rate = Integer.parseInt(count);
-                if (rate < 0) {
-                    throw new IllegalArgumentException("rate ["+ rate +"] must be positive");
+                    int rate = Integer.parseInt(count);
+                    if (rate < 0) {
+                        throw new IllegalArgumentException("rate [" + rate + "] must be positive");
+                    }
+                    TimeValue timeValue = TimeValue.parseTimeValue(time, "script.max_compilations_rate");
+                    if (timeValue.nanos() <= 0) {
+                        throw new IllegalArgumentException("time value [" + time + "] must be positive");
+                    }
+                    // protect against a too hard to check limit, like less than a minute
+                    if (timeValue.seconds() < 60) {
+                        throw new IllegalArgumentException("time value [" + time + "] must be at least on a one minute resolution");
+                    }
+                    return Tuple.tuple(rate, timeValue);
+                } catch (NumberFormatException e) {
+                    // the number format exception message is so confusing, that it makes more sense to wrap it with a useful one
+                    throw new IllegalArgumentException("could not parse [" + count + "] as integer in value [" + value + "]", e);
                 }
-                TimeValue timeValue = TimeValue.parseTimeValue(time, "script.max_compilations_rate");
-                if (timeValue.nanos() <= 0) {
-                    throw new IllegalArgumentException("time value ["+ time +"] must be positive");
-                }
-                return Tuple.tuple(rate, timeValue);
             };
 
     public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING =

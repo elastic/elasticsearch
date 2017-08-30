@@ -7,10 +7,8 @@ package org.elasticsearch.xpack.sql.execution;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
-import org.elasticsearch.xpack.sql.execution.search.Scroller.SearchHitsActionListener;
 import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
@@ -21,12 +19,7 @@ import org.elasticsearch.xpack.sql.session.RowSetCursor;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.session.SqlSettings;
 
-import java.io.IOException;
-import java.util.List;
-
-public class PlanExecutor extends AbstractLifecycleComponent {
-    // NOCOMMIT prefer not to use AbstractLifecycleComponent because the reasons for its tradeoffs is lost to the mists of time
-
+public class PlanExecutor {
     private final Client client;
 
     private final SqlParser parser;
@@ -37,8 +30,6 @@ public class PlanExecutor extends AbstractLifecycleComponent {
     private final Planner planner;
 
     public PlanExecutor(Client client, Catalog catalog) {
-        super(client.settings());
-
         this.client = client;
         this.catalog = catalog;
 
@@ -68,20 +59,5 @@ public class PlanExecutor extends AbstractLifecycleComponent {
 
     public void nextPage(Cursor cursor, ActionListener<RowSetCursor> listener) {
         cursor.nextPage(client, listener);
-    }
-
-    @Override
-    protected void doStart() {
-        //no-op
-    }
-
-    @Override
-    protected void doStop() {
-        //no-op
-    }
-
-    @Override
-    protected void doClose() throws IOException {
-        //no-op
     }
 }

@@ -514,41 +514,42 @@ public enum MultiValueMode implements Writeable {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final BitSet parentDocs, final DocIdSetIterator childDocs, int maxDoc) throws IOException {
-        if (parentDocs == null || childDocs == null) {
+    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final BitSet rootDocs, final DocIdSetIterator innerDocs, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocs == null) {
             return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
         }
 
         return new AbstractNumericDocValues() {
 
-            int lastSeenParentDoc = -1;
+            int lastSeenRootDoc = -1;
             long lastEmittedValue = missingValue;
 
             @Override
-            public boolean advanceExact(int parentDoc) throws IOException {
-                assert parentDoc >= lastSeenParentDoc : "can only evaluate current and upcoming parent docs";
-                if (parentDoc == lastSeenParentDoc) {
+            public boolean advanceExact(int rootDoc) throws IOException {
+                assert rootDocs.get(rootDoc) : "can only sort root documents";
+                assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
+                if (rootDoc == lastSeenRootDoc) {
                     return true;
-                } else if (parentDoc == 0) {
+                } else if (rootDoc == 0) {
                     lastEmittedValue = missingValue;
                     return true;
                 }
-                final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-                final int firstChildDoc;
-                if (childDocs.docID() > prevParentDoc) {
-                    firstChildDoc = childDocs.docID();
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                final int firstNestedDoc;
+                if (innerDocs.docID() > prevRootDoc) {
+                    firstNestedDoc = innerDocs.docID();
                 } else {
-                    firstChildDoc = childDocs.advance(prevParentDoc + 1);
+                    firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
                 }
 
-                lastSeenParentDoc = parentDoc;
-                lastEmittedValue = pick(values, missingValue, childDocs, firstChildDoc, parentDoc);
+                lastSeenRootDoc = rootDoc;
+                lastEmittedValue = pick(values, missingValue, innerDocs, firstNestedDoc, rootDoc);
                 return true;
             }
 
             @Override
             public int docID() {
-                return lastSeenParentDoc;
+                return lastSeenRootDoc;
             }
 
             @Override
@@ -623,32 +624,33 @@ public enum MultiValueMode implements Writeable {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final BitSet parentDocs, final DocIdSetIterator childDocs, int maxDoc) throws IOException {
-        if (parentDocs == null || childDocs == null) {
+    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final BitSet rootDocs, final DocIdSetIterator innerDocs, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocs == null) {
             return select(FieldData.emptySortedNumericDoubles(), missingValue);
         }
 
         return new NumericDoubleValues() {
 
-            int lastSeenParentDoc = 0;
+            int lastSeenRootDoc = 0;
             double lastEmittedValue = missingValue;
 
             @Override
-            public boolean advanceExact(int parentDoc) throws IOException {
-                assert parentDoc >= lastSeenParentDoc : "can only evaluate current and upcoming parent docs";
-                if (parentDoc == lastSeenParentDoc) {
+            public boolean advanceExact(int rootDoc) throws IOException {
+                assert rootDocs.get(rootDoc) : "can only sort root documents";
+                assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
+                if (rootDoc == lastSeenRootDoc) {
                     return true;
                 }
-                final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-                final int firstChildDoc;
-                if (childDocs.docID() > prevParentDoc) {
-                    firstChildDoc = childDocs.docID();
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                final int firstNestedDoc;
+                if (innerDocs.docID() > prevRootDoc) {
+                    firstNestedDoc = innerDocs.docID();
                 } else {
-                    firstChildDoc = childDocs.advance(prevParentDoc + 1);
+                    firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
                 }
 
-                lastSeenParentDoc = parentDoc;
-                lastEmittedValue = pick(values, missingValue, childDocs, firstChildDoc, parentDoc);
+                lastSeenRootDoc = rootDoc;
+                lastEmittedValue = pick(values, missingValue, innerDocs, firstNestedDoc, rootDoc);
                 return true;
             }
 
@@ -731,8 +733,8 @@ public enum MultiValueMode implements Writeable {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final BitSet parentDocs, final DocIdSetIterator childDocs, int maxDoc) throws IOException {
-        if (parentDocs == null || childDocs == null) {
+    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final BitSet rootDocs, final DocIdSetIterator innerDocs, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocs == null) {
             return select(FieldData.emptySortedBinary(), missingValue);
         }
         final BinaryDocValues selectedValues = select(values, null);
@@ -741,26 +743,27 @@ public enum MultiValueMode implements Writeable {
 
             final BytesRefBuilder builder = new BytesRefBuilder();
 
-            int lastSeenParentDoc = 0;
+            int lastSeenRootDoc = 0;
             BytesRef lastEmittedValue = missingValue;
 
             @Override
-            public boolean advanceExact(int parentDoc) throws IOException {
-                assert parentDoc >= lastSeenParentDoc : "can only evaluate current and upcoming root docs";
-                if (parentDoc == lastSeenParentDoc) {
+            public boolean advanceExact(int rootDoc) throws IOException {
+                assert rootDocs.get(rootDoc) : "can only sort root documents";
+                assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
+                if (rootDoc == lastSeenRootDoc) {
                     return true;
                 }
 
-                final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-                final int firstChildDoc;
-                if (childDocs.docID() > prevParentDoc) {
-                    firstChildDoc = childDocs.docID();
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                final int firstNestedDoc;
+                if (innerDocs.docID() > prevRootDoc) {
+                    firstNestedDoc = innerDocs.docID();
                 } else {
-                    firstChildDoc = childDocs.advance(prevParentDoc + 1);
+                    firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
                 }
 
-                lastSeenParentDoc = parentDoc;
-                lastEmittedValue = pick(selectedValues, builder, childDocs, firstChildDoc, parentDoc);
+                lastSeenRootDoc = rootDoc;
+                lastEmittedValue = pick(selectedValues, builder, innerDocs, firstNestedDoc, rootDoc);
                 if (lastEmittedValue == null) {
                     lastEmittedValue = missingValue;
                 }
@@ -847,8 +850,8 @@ public enum MultiValueMode implements Writeable {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public SortedDocValues select(final SortedSetDocValues values, final BitSet parentDocs, final DocIdSetIterator childDocs) throws IOException {
-        if (parentDocs == null || childDocs == null) {
+    public SortedDocValues select(final SortedSetDocValues values, final BitSet rootDocs, final DocIdSetIterator innerDocs) throws IOException {
+        if (rootDocs == null || innerDocs == null) {
             return select(DocValues.emptySortedSet());
         }
         final SortedDocValues selectedValues = select(values);
@@ -856,7 +859,7 @@ public enum MultiValueMode implements Writeable {
         return new AbstractSortedDocValues() {
 
             int docID = -1;
-            int lastSeenParentDoc = 0;
+            int lastSeenRootDoc = 0;
             int lastEmittedOrd = -1;
 
             @Override
@@ -870,22 +873,23 @@ public enum MultiValueMode implements Writeable {
             }
 
             @Override
-            public boolean advanceExact(int parentDoc) throws IOException {
-                assert parentDoc >= lastSeenParentDoc : "can only evaluate current and upcoming root docs";
-                if (parentDoc == lastSeenParentDoc) {
+            public boolean advanceExact(int rootDoc) throws IOException {
+                assert rootDocs.get(rootDoc) : "can only sort root documents";
+                assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
+                if (rootDoc == lastSeenRootDoc) {
                     return lastEmittedOrd != -1;
                 }
 
-                final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-                final int firstChildDoc;
-                if (childDocs.docID() > prevParentDoc) {
-                    firstChildDoc = childDocs.docID();
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                final int firstNestedDoc;
+                if (innerDocs.docID() > prevRootDoc) {
+                    firstNestedDoc = innerDocs.docID();
                 } else {
-                    firstChildDoc = childDocs.advance(prevParentDoc + 1);
+                    firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
                 }
 
-                docID = lastSeenParentDoc = parentDoc;
-                lastEmittedOrd = pick(selectedValues, childDocs, firstChildDoc, parentDoc);
+                docID = lastSeenRootDoc = rootDoc;
+                lastEmittedOrd = pick(selectedValues, innerDocs, firstNestedDoc, rootDoc);
                 return lastEmittedOrd != -1;
             }
 

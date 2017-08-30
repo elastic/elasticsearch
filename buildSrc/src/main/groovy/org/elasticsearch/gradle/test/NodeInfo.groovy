@@ -186,17 +186,6 @@ class NodeInfo {
         else {
             env.put('ES_PATH_CONF', pathConf)
         }
-        if (Version.fromString(nodeVersion).major == 5) {
-            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                /*
-                 * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
-                 * getting the short name requiring the path to already exist.
-                 */
-                args.addAll("-E", "path.conf=${-> getShortPathName(pathConf.toString())}")
-            } else {
-                args.addAll("-E", "path.conf=${pathConf}")
-            }
-        }
         if (!System.properties.containsKey("tests.es.path.data")) {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 /*

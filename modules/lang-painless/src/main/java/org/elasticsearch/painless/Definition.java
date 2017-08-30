@@ -632,38 +632,6 @@ public final class Definition {
         return hierarchy;
     }
 
-    /** adds class methods/fields/ctors */
-    private void addElements() {
-        for (String file : DEFINITION_FILES) {
-            int currentLine = -1;
-            try {
-                try (InputStream stream = Definition.class.getResourceAsStream(file);
-                     LineNumberReader reader = new LineNumberReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-                    String line = null;
-                    String currentClass = null;
-                    while ((line = reader.readLine()) != null) {
-                        currentLine = reader.getLineNumber();
-                        line = line.trim();
-                        if (line.length() == 0 || line.charAt(0) == '#') {
-                            continue;
-                        } else if (line.startsWith("class ")) {
-                            assert currentClass == null;
-                            currentClass = line.split("\u0020")[1];
-                        } else if (line.equals("}")) {
-                            assert currentClass != null;
-                            currentClass = null;
-                        } else {
-                            assert currentClass != null;
-                            addSignature(currentClass, line);
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                throw new RuntimeException("syntax error in " + file + ", line: " + currentLine, e);
-            }
-        }
-    }
-
     private void addStruct(ClassLoader whitelistClassLoader, Whitelist.Struct whitelistStruct) {
         if (!whitelistStruct.painlessTypeName.matches("^[_a-zA-Z][._a-zA-Z0-9]*")) {
             throw new IllegalArgumentException("invalid struct type name [" + whitelistStruct.painlessTypeName + "]");
@@ -757,66 +725,12 @@ public final class Definition {
             ownerStruct.constructors.put(methodKey, painlessConstructor);
         } else if (painlessParametersTypes.equals(painlessConstructor.arguments) == false){
             throw new IllegalArgumentException(
-                    "duplicate constructor [" + methodKey + "] found within the struct [" + owner.name + "].");
+                    "illegal duplicate constructors [" + methodKey + "] found within the struct [" + ownerStruct.name + "] " +
+                    "with parameters " + painlessParametersTypes + " and " + painlessConstructor.arguments);
         }
     }
 
-    /**
-     * Adds a new signature to the definition.
-     * <p>
-     * Signatures have the following forms:
-     * <ul>
-     *   <li>{@code void method(String,int)}
-     *   <li>{@code boolean field}
-     *   <li>{@code Class <init>(String)}
-     * </ul>
-     * no spaces allowed.
-     */
-    private void addSignature(String className, String signature) {
-        String elements[] = signature.split("\u0020");
-        if (elements.length != 2) {
-            throw new IllegalArgumentException("Malformed signature: " + signature);
-        }
-        // method or field type (e.g. return type)
-        Type rtn = getTypeInternal(elements[0]);
-        int parenIndex = elements[1].indexOf('(');
-        if (parenIndex != -1) {
-            // method or ctor
-            int parenEnd = elements[1].indexOf(')');
-            final Type args[];
-            if (parenEnd > parenIndex + 1) {
-                String arguments[] = elements[1].substring(parenIndex + 1, parenEnd).split(",");
-                args = new Type[arguments.length];
-                for (int i = 0; i < arguments.length; i++) {
-                    args[i] = getTypeInternal(arguments[i]);
-                }
-            } else {
-                args = new Type[0];
-            }
-            String methodName = elements[1].substring(0, parenIndex);
-            if (methodName.equals("<init>")) {
-                if (!elements[0].equals(className)) {
-                    throw new IllegalArgumentException("Constructors must return their own type");
-                }
-                addConstructorInternal(className, "<init>", args);
-            } else {
-                int index = methodName.lastIndexOf(".");
-
-                if (index >= 0) {
-                    String augmentation = methodName.substring(0, index);
-                    methodName = methodName.substring(index + 1);
-                    addMethodInternal(className, methodName, augmentation, rtn, args);
-                } else {
-                    addMethodInternal(className, methodName, null, rtn, args);
-                }
-            }
-        } else {
-            // field
-            addFieldInternal(className, elements[1], rtn);
-        }
-    }
-
-    private void addMethodInternal(String struct, String name, String augmentation, Type rtn, Type[] args) {
+    private void addMethod(String ownerStructName, Whitelist.Method whitelistMethod) {
         final Struct owner = structsMap.get(struct);
 
         if (owner == null) {

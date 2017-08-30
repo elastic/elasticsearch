@@ -324,7 +324,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 }
 
                 if (!aliases.isEmpty()) {
-                    queryC = queryC.withAliases(combine(queryC.aliases(), aliases));
+                    Map<Attribute, Attribute> newAliases = new LinkedHashMap<>(queryC.aliases());
+                    newAliases.putAll(aliases);
+                    queryC = queryC.withAliases(newAliases);
                 }
                 return new EsQueryExec(exec.location(), exec.index(), a.output(), queryC);
             }

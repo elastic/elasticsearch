@@ -5,18 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
-import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.sql.util.StringUtils.EMPTY;
 
 public abstract class GroupingAgg extends Agg {
@@ -92,7 +90,12 @@ public abstract class GroupingAgg extends Agg {
     }
 
     public GroupingAgg with(String leafAggId, Direction order) {
-        return Objects.equals(this.order.get(leafAggId), order) ? this : clone(id(), propertyPath(), fieldName(), subAggs, subPipelines, combine(this.order, singletonMap(leafAggId, order)));
+        if (Objects.equals(this.order.get(leafAggId), order)) {
+            return this;
+        }
+        Map<String, Direction> newOrder = new LinkedHashMap<>(this.order);
+        newOrder.put(leafAggId, order);
+        return clone(id(), propertyPath(), fieldName(), subAggs, subPipelines, newOrder);
     }
 
     // NOCOMMIT clone is a scary name.

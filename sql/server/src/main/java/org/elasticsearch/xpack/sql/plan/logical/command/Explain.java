@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.plan.QueryPlan;
@@ -20,10 +16,15 @@ import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
-import org.elasticsearch.xpack.sql.util.CollectionUtils;
 import org.elasticsearch.xpack.sql.util.Graphviz;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import static java.util.Collections.singletonList;
+import static java.util.Collections.unmodifiableMap;
 
 public class Explain extends Command {
 
@@ -120,10 +121,14 @@ public class Explain extends Command {
                 sb.append(executionPlan.toString());
                 
                 planString = sb.toString();
-            }
-            else {
-                Map<String, QueryPlan<?>> plans = CollectionUtils.of("Parsed", plan, "Analyzed", analyzedPlan, "Optimized", optimizedPlan, "Mapped", mappedPlan, "Execution", executionPlan);
-                planString = Graphviz.dot(plans, false);
+            } else {
+                Map<String, QueryPlan<?>> plans = new HashMap<>();
+                plans.put("Parsed", plan);
+                plans.put("Analyzed", analyzedPlan);
+                plans.put("Optimized", optimizedPlan);
+                plans.put("Mapped", mappedPlan);
+                plans.put("Execution", executionPlan);
+                planString = Graphviz.dot(unmodifiableMap(plans), false);
             }
         }
 

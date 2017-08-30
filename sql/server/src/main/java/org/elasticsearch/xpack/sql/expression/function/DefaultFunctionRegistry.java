@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
-import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
@@ -53,23 +52,31 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Tan;
 
-import java.io.IOException;
-import java.lang.reflect.Modifier;
-import java.net.URL;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Enumeration;
 import java.util.Map;
+import java.util.TreeMap;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
-import static org.elasticsearch.xpack.sql.util.CollectionUtils.of;
 
 public class DefaultFunctionRegistry extends AbstractFunctionRegistry {
 
     private static final Collection<Class<? extends Function>> FUNCTIONS = combine(agg(), scalar());
 
-    private static final Map<String, String> ALIASES = combine(dateTimeAliases());
+    private static final Map<String, String> ALIASES;
+    static {
+        Map<String, String> aliases = new TreeMap<>();
+        aliases.put("DAY", "DAY_OF_MONTH");
+        aliases.put("DOM", "DAY_OF_MONTH");
+        aliases.put("DOW", "DAY_OF_WEEK");
+        aliases.put("DOY", "DAY_OF_YEAR");
+        aliases.put("HOUR", "HOUR_OF_DAY");
+        aliases.put("MINUTE", "MINUTE_OF_HOUR");
+        aliases.put("MONTH", "MONTH_OF_YEAR");
+        aliases.put("SECOND", "SECOND_OF_MINUTE");
+        ALIASES = unmodifiableMap(aliases);
+    }
 
     @Override
     protected Collection<Class<? extends Function>> functions() {
@@ -146,51 +153,5 @@ public class DefaultFunctionRegistry extends AbstractFunctionRegistry {
                 Sqrt.class,
                 Tan.class
                 );
-    }
-
-
-    @SuppressWarnings("unchecked")
-    private static Collection<Class<? extends ScalarFunction>> functions(Class<? extends ScalarFunction> type) {
-        String path = type.getPackage().getName().replace('.', '/');
-        ClassLoader cl = type.getClassLoader();
-        Enumeration<URL> classes;
-        try {
-            classes = cl.getResources(path);
-        } catch (IOException e1) {
-            throw new SqlException("Cannot determine functions in package %s", path);
-        }
-        
-        Collection<Class<? extends ScalarFunction>> collection = new ArrayList<>();
-
-        while(classes.hasMoreElements()) {
-            String url = classes.nextElement().toString();
-            if (url.endsWith(".class")) {
-                Class<?> c;
-                try {
-                    c = Class.forName(url, false, cl);
-                } catch (ClassNotFoundException cnfe) {
-                    throw new SqlException(cnfe, "Cannot load class %s", url);
-                }
-                if (type.isAssignableFrom(c)) {
-                    int mod = c.getModifiers();
-                    if (Modifier.isPublic(mod) && !Modifier.isAbstract(mod)) {
-                        collection.add((Class<? extends ScalarFunction>) c);
-                    }
-                }
-            }
-        }
-
-        return collection;
-    }
-
-    private static Map<String, String> dateTimeAliases() {
-        return of("DAY", "DAY_OF_MONTH", 
-                  "DOM", "DAY_OF_MONTH", 
-                  "DOW", "DAY_OF_WEEK",
-                  "DOY", "DAY_OF_YEAR",
-                  "HOUR", "HOUR_OF_DAY",
-                  "MINUTE", "MINUTE_OF_HOUR",
-                  "MONTH", "MONTH_OF_YEAR",
-                  "SECOND", "SECOND_OF_MINUTE");
     }
 }

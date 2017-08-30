@@ -67,7 +67,9 @@ public abstract class Graphviz {
             sb.append(quoteGraphviz(entry.getKey()));
             sb.append(";\n\n");
 
-            // to help align the clusters, add an invisible node (that could otherwise be used for labeling but it consumes too much space) used for alignment 
+            /* to help align the clusters, add an invisible node (that could
+             * otherwise be used for labeling but it consumes too much space)
+             * used for alignment */
             indent(sb, CLUSTER_INDENT);
             sb.append("c" + clusterId);
             sb.append("[style=invis]\n");

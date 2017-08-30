@@ -22,11 +22,11 @@ import org.elasticsearch.xpack.sql.querydsl.query.AndQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
-import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -206,7 +206,7 @@ public class QueryContainer {
         String name = aliasName(attr);
 
         Query q = query;
-        Map<String, Boolean> field = singletonMap(name, Boolean.valueOf(shouldUseDocValue(attr)));
+        Map<String, Boolean> field = singletonMap(name, shouldUseDocValue(attr));
         if (q == null) {
             q = new NestedQuery(attr.location(), parent, field, new MatchAll(attr.location()));
         }
@@ -216,7 +216,9 @@ public class QueryContainer {
                 if (parent.equals(n.path())) {
                     if (!n.fields().keySet().contains(name)) {
                         foundMatch.set(true);
-                        return new NestedQuery(n.location(), n.path(), combine(n.fields(), field), n.child());
+                        Map<String, Boolean> fields = new LinkedHashMap<>(n.fields());
+                        fields.putAll(field);
+                        return new NestedQuery(n.location(), n.path(), fields, n.child());
                     }
                 }
                 return n;
@@ -259,7 +261,9 @@ public class QueryContainer {
     public QueryContainer addAggCount(GroupingAgg parentGroup, String functionId, ColumnProcessor processor) {
         Reference ref = parentGroup == null ? TotalCountRef.INSTANCE : new AggRef(AggPath.bucketCount(parentGroup.asParentPath()));
         ref = processor != null ? new ProcessingRef(processor, ref) : ref;
-        return new QueryContainer(query, aggs, combine(refs, ref), aliases, processors, combine(pseudoFunctions, CollectionUtils.of(functionId, parentGroup)), sort, limit);
+        Map<String, GroupingAgg> pseudoFunctions = new LinkedHashMap<>(this.pseudoFunctions);
+        pseudoFunctions.put(functionId, parentGroup);
+        return new QueryContainer(query, aggs, combine(refs, ref), aliases, processors, pseudoFunctions, sort, limit);
     }
 
     public QueryContainer addAgg(String groupId, LeafAgg agg, ColumnProcessor processor) {

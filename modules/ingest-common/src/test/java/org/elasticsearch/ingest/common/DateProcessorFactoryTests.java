@@ -81,14 +81,13 @@ public class DateProcessorFactoryTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26425")
     public void testParseLocale() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
-        Locale locale = randomLocale(random());
+        Locale locale = randomFrom(Locale.GERMANY, Locale.FRENCH, Locale.ROOT);
         config.put("locale", locale.toLanguageTag());
 
         DateProcessor processor = factory.create(null, null, config);
@@ -96,7 +95,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
     }
 
     public void testParseInvalidLocale() throws Exception {
-        String[] locales = new String[] { "invalid_locale", "english" };
+        String[] locales = new String[] { "invalid_locale", "english", "xy", "en-XY" };
         for (String locale : locales) {
             DateProcessor.Factory factory = new DateProcessor.Factory();
             Map<String, Object> config = new HashMap<>();

@@ -366,34 +366,27 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         // Retrieve all the nodes the shards exist on
         final Map<String, Double> nodeRanks = rankNodes(nodeStats, nodeSearchCounts);
 
-        String minNode = null;
-        ResponseCollectorService.ComputedNodeStats minStats = null;
-        // calculate the "winning" node and its stats (for adjusting other nodes later)
-        for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
-            final String nodeId = entry.getKey();
-            final Optional<ResponseCollectorService.ComputedNodeStats> maybeNodeStats = entry.getValue();
-            if (maybeNodeStats.isPresent()) {
-                ResponseCollectorService.ComputedNodeStats stats = maybeNodeStats.get();
-                double rank = stats.rank(nodeSearchCounts.getOrDefault(nodeId, 1L));
-                if (minStats == null || rank < minStats.rank(nodeSearchCounts.getOrDefault(minStats.nodeId, 1L))) {
-                    minStats = stats;
-                    minNode = nodeId;
-                }
-            }
-        }
-
         // sort all shards based on the shard rank
         ArrayList<ShardRouting> sortedShards = new ArrayList<>(shards);
         Collections.sort(sortedShards, new NodeRankComparator(nodeRanks));
 
         // adjust the non-winner nodes' stats so they will get a chance to receive queries
-        adjustStats(collector, nodeStats, minNode, minStats);
-        if (minNode != null) {
-            // Increase the number of searches for the "winning" node by one.
-            // Note that this doesn't actually affect the "real" counts, instead
-            // it only affects the captured node search counts, which is
-            // captured once for each query in TransportSearchAction
-            nodeSearchCounts.compute(minNode, (id, conns) -> conns == null ? 1 : conns + 1);
+        if (sortedShards.size() > 1) {
+            ShardRouting minShard = sortedShards.get(0);
+            // If the winning shard is not started we are ranking initializing
+            // shards, don't bother to do adjustments
+            if (minShard.started()) {
+                String minNodeId = minShard.currentNodeId();
+                Optional<ResponseCollectorService.ComputedNodeStats> maybeMinStats = nodeStats.get(minNodeId);
+                if (maybeMinStats.isPresent()) {
+                    adjustStats(collector, nodeStats, minNodeId, maybeMinStats.get());
+                    // Increase the number of searches for the "winning" node by one.
+                    // Note that this doesn't actually affect the "real" counts, instead
+                    // it only affects the captured node search counts, which is
+                    // captured once for each query in TransportSearchAction
+                    nodeSearchCounts.compute(minNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
+                }
+            }
         }
 
         return sortedShards;

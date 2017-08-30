@@ -9,6 +9,10 @@
 
 ---
 "Max keep alive":
+  - skip:
+      version: " - 7.0.0"
+      reason: search.max_keep_alive was added in 7.0.0
+
   - do:
       index:
         index:  test_scroll

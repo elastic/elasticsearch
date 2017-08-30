@@ -115,24 +115,35 @@ POST /_search
 
 Elasticsearch also supports sorting by
 fields that are inside one or more nested objects. The sorting by nested
-field support has the following parameters on top of the already
-existing sort options:
+field support has a `nested` sort option with the following properties:
 
-`nested_path`::
+`path`::
     Defines on which nested object to sort. The actual
     sort field must be a direct field inside this nested object.
     When sorting by nested field, this field is mandatory.
 
-`nested_filter`::
+`filter`::
     A filter that the inner objects inside the nested path
     should match with in order for its field values to be taken into account
     by sorting. Common case is to repeat the query / filter inside the
     nested filter or query. By default no `nested_filter` is active.
+`nested`::
+    Same as top-level `nested` but applies to another nested path within the
+    current nested object.
 
-===== Nested sorting example
+[WARNING]
+.Nested sort options before Elasticseach 6.1
+============================================
+
+The `nested_path` and `nested_filter` options have been deprecated in
+favor of the options documented above.
+
+============================================
+
+===== Nested sorting examples
 
 In the below example `offer` is a field of type `nested`.
-The `nested_path` needs to be specified; otherwise, elasticsearch doesn't know on what nested level sort values need to be captured.
+The nested `path` needs to be specified; otherwise, elasticsearch doesn't know on what nested level sort values need to be captured.
 
 [source,js]
 --------------------------------------------------
@@ -146,13 +157,62 @@ POST /_search
           "offer.price" : {
              "mode" :  "avg",
              "order" : "asc",
-             "nested_path" : "offer",
-             "nested_filter" : {
-                "term" : { "offer.color" : "blue" }
+             "nested": {
+                "path": "offer",
+                "filter": {
+                   "term" : { "offer.color" : "blue" }
+                }
              }
           }
        }
     ]
+}
+--------------------------------------------------
+// CONSOLE
+
+In the below example `parent` and `child` fields are of type `nested`.
+The `nested_path` needs to be specified at each level; otherwise, elasticsearch doesn't know on what nested level sort values need to be captured.
+
+[source,js]
+--------------------------------------------------
+POST /_search
+{
+   "query": {
+      "nested": {
+         "path": "parent",
+         "query": {
+            "bool": {
+                "must": {"range": {"parent.age": {"gte": 21}}},
+                "filter": {
+                    "nested": {
+                        "path": "parent.child",
+                        "query": {"match": {"parent.child.name": "matt"}}
+                    }
+                }
+            }
+         }
+      }
+   },
+   "sort" : [
+      {
+         "parent.child.age" : {
+            "mode" :  "min",
+            "order" : "asc",
+            "nested": {
+               "path": "parent",
+               "filter": {
+                  "range": {"parent.age": {"gte": 21}}
+               },
+               "nested": {
+                  "path": "parent.child",
+                  "filter": {
+                     "match": {"parent.child.name": "matt"}
+                  }
+               }
+            }
+         }
+      }
+   ]
 }
 --------------------------------------------------
 // CONSOLE

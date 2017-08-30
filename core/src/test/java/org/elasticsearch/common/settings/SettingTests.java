@@ -359,6 +359,12 @@ public class SettingTests extends ESTestCase {
             this.a = a;
             this.b = b;
         }
+
+        public void validate(Integer a, Integer b) {
+            if (Integer.signum(a) != Integer.signum(b)) {
+                throw new IllegalArgumentException("boom");
+            }
+        }
     }
 
 
@@ -366,7 +372,7 @@ public class SettingTests extends ESTestCase {
         Composite c = new Composite();
         Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, Property.Dynamic, Property.NodeScope);
-        ClusterSettings.SettingUpdater<Tuple<Integer, Integer>> settingUpdater = Setting.compoundUpdater(c::set, a, b, logger);
+        ClusterSettings.SettingUpdater<Tuple<Integer, Integer>> settingUpdater = Setting.compoundUpdater(c::set, c::validate, a, b, logger);
         assertFalse(settingUpdater.apply(Settings.EMPTY, Settings.EMPTY));
         assertNull(c.a);
         assertNull(c.b);
@@ -384,6 +390,40 @@ public class SettingTests extends ESTestCase {
         assertTrue(settingUpdater.apply(build, previous));
         assertEquals(2, c.a.intValue());
         assertEquals(5, c.b.intValue());
+
+        // reset to default
+        assertTrue(settingUpdater.apply(Settings.EMPTY, build));
+        assertEquals(1, c.a.intValue());
+        assertEquals(1, c.b.intValue());
+
+    }
+
+    public void testCompositeValidator() {
+        Composite c = new Composite();
+        Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, Property.Dynamic, Property.NodeScope);
+        ClusterSettings.SettingUpdater<Tuple<Integer, Integer>> settingUpdater = Setting.compoundUpdater(c::set, c::validate, a, b, logger);
+        assertFalse(settingUpdater.apply(Settings.EMPTY, Settings.EMPTY));
+        assertNull(c.a);
+        assertNull(c.b);
+
+        Settings build = Settings.builder().put("foo.int.bar.a", 2).build();
+        assertTrue(settingUpdater.apply(build, Settings.EMPTY));
+        assertEquals(2, c.a.intValue());
+        assertEquals(1, c.b.intValue());
+
+        Integer aValue = c.a;
+        assertFalse(settingUpdater.apply(build, build));
+        assertSame(aValue, c.a);
+        Settings previous = build;
+        build = Settings.builder().put("foo.int.bar.a", 2).put("foo.int.bar.b", 5).build();
+        assertTrue(settingUpdater.apply(build, previous));
+        assertEquals(2, c.a.intValue());
+        assertEquals(5, c.b.intValue());
+
+        Settings invalid = Settings.builder().put("foo.int.bar.a", -2).put("foo.int.bar.b", 5).build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> settingUpdater.apply(invalid, previous));
+        assertThat(exc.getMessage(), equalTo("boom"));
 
         // reset to default
         assertTrue(settingUpdater.apply(Settings.EMPTY, build));

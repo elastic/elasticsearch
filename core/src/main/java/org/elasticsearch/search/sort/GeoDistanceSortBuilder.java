@@ -166,7 +166,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nestedPath = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
         }
         validation = GeoValidationMethod.readFromStream(in);
@@ -182,7 +182,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalNamedWriteable(nestedFilter);
         out.writeOptionalString(nestedPath);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeOptionalWriteable(nestedSort);
         }
         validation.writeTo(out);

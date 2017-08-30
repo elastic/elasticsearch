@@ -95,7 +95,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
     }
 
     public void testParseInvalidLocale() throws Exception {
-        String[] locales = new String[] { "invalid_locale", "english", "xy", "en-XY" };
+        String[] locales = new String[] { "invalid_locale", "english", "xy", "xy-US" };
         for (String locale : locales) {
             DateProcessor.Factory factory = new DateProcessor.Factory();
             Map<String, Object> config = new HashMap<>();
@@ -105,7 +105,20 @@ public class DateProcessorFactoryTests extends ESTestCase {
             config.put("locale", locale);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () -> factory.create(null, null, config));
-            assertThat(e.getMessage(), equalTo("Unknown language: " + locale.split("_")[0]));
+            assertThat(e.getMessage(), equalTo("Unknown language: " + locale.split("[_-]")[0]));
+        }
+
+        locales = new String[] { "en-XY", "en-Canada" };
+        for (String locale : locales) {
+            DateProcessor.Factory factory = new DateProcessor.Factory();
+            Map<String, Object> config = new HashMap<>();
+            String sourceField = randomAlphaOfLengthBetween(1, 10);
+            config.put("field", sourceField);
+            config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
+            config.put("locale", locale);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> factory.create(null, null, config));
+            assertThat(e.getMessage(), equalTo("Unknown country: " + locale.split("[_-]")[1]));
         }
     }
 

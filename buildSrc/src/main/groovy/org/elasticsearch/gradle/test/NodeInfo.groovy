@@ -152,6 +152,10 @@ class NodeInfo {
         }
         if (config.daemonize) {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                /*
+                 * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+                 * getting the short name requiring the path to already exist.
+                 */
                 args.add("${-> getShortPathName(wrapperScript.toString())}")
             } else {
                 args.add("${wrapperScript}")
@@ -176,17 +180,31 @@ class NodeInfo {
         }
         final File jvmOptionsFile = new File(confDir, 'jvm.options')
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            /*
+             * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+             * getting the short name requiring the path to already exist.
+             */
             env.put('ES_JVM_OPTIONS', "${-> getShortPathName(jvmOptionsFile.toString())}")
         } else {
             env.put('ES_JVM_OPTIONS', jvmOptionsFile)
         }
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            /*
+             * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+             * getting the short name requiring the path to already exist.
+             */
             args.addAll("-E", "path.conf=${-> getShortPathName(confDir.toString())}")
         } else {
             args.addAll("-E", "path.conf=${confDir}")
         }
         if (!System.properties.containsKey("tests.es.path.data")) {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                /*
+                 * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+                 * getting the short name requiring the path to already exist. This one is extra tricky because usually we rely on the node
+                 * creating its data directory on startup but we simply can not do that here because getting the short path name requires
+                 * the directory to already exist. Therefore, we create this directory immediately before getting the short name.
+                 */
                 args.addAll("-E", "path.data=${-> Files.createDirectories(Paths.get(dataDir.toString())); getShortPathName(dataDir.toString())}")
             } else {
                 args.addAll("-E", "path.data=${-> dataDir.toString()}")

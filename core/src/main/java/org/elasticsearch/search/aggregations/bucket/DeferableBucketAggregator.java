@@ -30,11 +30,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public abstract class DeferringBucketAggregator extends BucketsAggregator {
+public abstract class DeferableBucketAggregator extends BucketsAggregator {
 
     private DeferringBucketCollector recordingWrapper;
 
-    protected DeferringBucketAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
+    protected DeferableBucketAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
     }

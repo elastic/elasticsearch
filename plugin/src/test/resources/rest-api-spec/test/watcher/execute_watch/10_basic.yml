@@ -61,6 +61,7 @@ teardown:
   - match: { watch_record.status.state.active: true }
   - is_true: watch_record.node
   - match: { watch_record.status.actions.indexme.ack.state: "ackable" }
+  - is_true: watch_record.result.execution_duration
 
 ---
 "Test execute watch API with user supplied watch":

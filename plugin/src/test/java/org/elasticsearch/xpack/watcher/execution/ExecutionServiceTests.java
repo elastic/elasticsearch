@@ -222,10 +222,6 @@ public class ExecutionServiceTests extends ESTestCase {
         verify(watchTransform, times(1)).execute(context, payload);
         verify(action, times(1)).execute("_action", context, payload);
 
-        // test execution duration
-        assertThat(watchRecord.result().executionDurationMs(), is(greaterThan(0L)));
-        assertThat(watchRecord.result().executionTime(), is(notNullValue()));
-
         // test stats
         XContentSource source = new XContentSource(jsonBuilder().map(executionService.usageStats()));
         assertThat(source.getValue("execution.actions._all.total_time_in_ms"), is(notNullValue()));

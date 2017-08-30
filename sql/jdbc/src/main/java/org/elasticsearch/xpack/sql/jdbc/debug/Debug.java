@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.jdbc.debug;
 
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcException;
-import org.elasticsearch.xpack.sql.jdbc.util.IOUtils;
 import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 
 import java.io.OutputStreamWriter;
@@ -166,7 +165,9 @@ public final class Debug {
                     OUTPUT_REFS.remove(out);
                     DebugLog d = OUTPUT_CACHE.remove(out);
                     if (d != null) {
-                        IOUtils.close(d.print);
+                        if (d.print != null) {
+                            d.print.close();
+                        }
                     }
                 }
                 else {
@@ -182,7 +183,9 @@ public final class Debug {
 
         // clear the streams
         for (DebugLog d : OUTPUT_CACHE.values()) {
-            IOUtils.close(d.print);
+            if (d.print != null) {
+                d.print.close();
+            }
         }
         OUTPUT_CACHE.clear();
 

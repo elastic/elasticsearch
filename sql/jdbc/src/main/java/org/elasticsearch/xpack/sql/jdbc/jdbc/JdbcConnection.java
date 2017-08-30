@@ -31,6 +31,9 @@ import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
 import org.elasticsearch.xpack.sql.jdbc.net.client.JdbcHttpClient;
 import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 
+/**
+ * Implementation of {@link Connection} for Elasticsearch.
+ */
 public class JdbcConnection implements Connection, JdbcWrapper {
 
     private final String url, userName;
@@ -254,14 +257,16 @@ public class JdbcConnection implements Connection, JdbcWrapper {
     }
 
     @Override
-    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
+    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
+            throws SQLException {
         checkOpen();
         checkHoldability(resultSetHoldability);
         return prepareStatement(sql, resultSetType, resultSetConcurrency);
     }
 
     @Override
-    public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
+    public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
+            throws SQLException {
         checkOpen();
         checkHoldability(resultSetHoldability);
         return prepareCall(sql, resultSetType, resultSetConcurrency);

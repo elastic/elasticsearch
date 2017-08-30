@@ -38,10 +38,6 @@ public class BytesArray {
         this.size = size;
     }
 
-    public BytesArray(String source) {
-        bytes(source);
-    }
-
     public BytesArray(Bytes bytes) {
         this(bytes.bytes(), 0, bytes.size());
     }
@@ -82,12 +78,6 @@ public class BytesArray {
         this.bytes = ba.bytes;
         this.size = ba.size;
         this.offset = ba.offset;
-    }
-
-    public void bytes(String from) {
-        size = 0;
-        offset = 0;
-        UnicodeUtil.UTF16toUTF8(from, 0, from.length(), this.bytes, 0);
     }
 
     public void size(int size) {

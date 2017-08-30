@@ -66,7 +66,8 @@ public class ProtoUtils {
             case LONGVARCHAR:
                 result = in.readUTF();
                 break;
-            // NB: date/time is kept in its raw form since the JdbcDriver has to do calendar/timezone conversion anyway and thus the long value is relevant
+            // NB: date/time is kept in its raw form since the JdbcDriver has to do calendar/timezone
+            // conversion anyway and thus the long value is relevant
             case TIMESTAMP:
                 result = in.readLong();
                 break;

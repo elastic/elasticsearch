@@ -24,11 +24,12 @@ import java.util.List;
 import static org.elasticsearch.xpack.sql.net.client.util.StringUtils.EMPTY;
 import static org.elasticsearch.xpack.sql.net.client.util.StringUtils.hasText;
 
-// Schema Information based on Postgres
-// https://www.postgresql.org/docs/9.0/static/information-schema.html
-
-// Currently virtually/synthetic tables are not supported so the client returns
-// empty data instead of creating a query
+/**
+ * Implementation of {@link DatabaseMetaData} for Elasticsearch. Draws inspiration
+ * from <a href="https://www.postgresql.org/docs/9.0/static/information-schema.html">
+ * PostgreSQL</a>. Virtual/synthetic tables are not supported so the client returns
+ * empty data instead of creating a query.
+ */
 class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     private final JdbcConnection con;
@@ -650,7 +651,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     }
 
     @Override
-    public ResultSet getProcedureColumns(String catalog, String schemaPattern, String procedureNamePattern, String columnNamePattern) throws SQLException {
+    public ResultSet getProcedureColumns(String catalog, String schemaPattern, String procedureNamePattern, String columnNamePattern)
+            throws SQLException {
         return emptySet(con.cfg,
                      "PARAMETERS",
                      "PROCEDURE_CAT", 
@@ -781,7 +783,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     }
 
     @Override
-    public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
+    public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
+            throws SQLException {
         List<ColumnInfo> info = columnInfo("COLUMNS",
                                            "TABLE_CAT",
                                            "TABLE_SCHEM",
@@ -815,7 +818,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         }
 
         String cat = defaultCatalog();
-        List<MetaColumnInfo> columns = con.client.metaInfoColumns(sqlWildcardToSimplePattern(tableNamePattern), sqlWildcardToRegexPattern(columnNamePattern));
+        List<MetaColumnInfo> columns = con.client.metaInfoColumns(
+                sqlWildcardToSimplePattern(tableNamePattern), sqlWildcardToRegexPattern(columnNamePattern));
         Object[][] data = new Object[columns.size()][];
         for (int i = 0; i < data.length; i++) {
             data[i] = new Object[24];
@@ -886,7 +890,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     }
 
     @Override
-    public ResultSet getCrossReference(String parentCatalog, String parentSchema, String parentTable, String foreignCatalog, String foreignSchema, String foreignTable) throws SQLException {
+    public ResultSet getCrossReference(String parentCatalog, String parentSchema, String parentTable, String foreignCatalog,
+            String foreignSchema, String foreignTable) throws SQLException {
         throw new SQLFeatureNotSupportedException("Cross reference not supported");
     }
 
@@ -1041,7 +1046,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     }
 
     @Override
-    public ResultSet getAttributes(String catalog, String schemaPattern, String typeNamePattern, String attributeNamePattern) throws SQLException {
+    public ResultSet getAttributes(String catalog, String schemaPattern, String typeNamePattern, String attributeNamePattern)
+            throws SQLException {
         return emptySet(con.cfg,
                      "ATTRIBUTES",
                      "TYPE_CAT",
@@ -1145,7 +1151,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     }
 
     @Override
-    public ResultSet getFunctionColumns(String catalog, String schemaPattern, String functionNamePattern, String columnNamePattern) throws SQLException {
+    public ResultSet getFunctionColumns(String catalog, String schemaPattern, String functionNamePattern, String columnNamePattern)
+            throws SQLException {
         return emptySet(con.cfg,
                      "FUNCTION_COLUMNS",
                      "FUNCTION_CAT",
@@ -1167,7 +1174,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     }
 
     @Override
-    public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
+    public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
+            throws SQLException {
         return emptySet(con.cfg,
                      "PSEUDO_COLUMNS",
                      "TABLE_CAT",

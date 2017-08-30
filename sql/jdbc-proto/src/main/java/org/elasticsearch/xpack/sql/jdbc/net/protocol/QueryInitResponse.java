@@ -25,7 +25,8 @@ public class QueryInitResponse extends Response {
     public final List<ColumnInfo> columns;
     public final Payload data;
 
-    public QueryInitResponse(long serverTimeQueryReceived, long serverTimeResponseSent, String requestId, List<ColumnInfo> columns, Payload data) {
+    public QueryInitResponse(long serverTimeQueryReceived, long serverTimeResponseSent, String requestId, List<ColumnInfo> columns,
+            Payload data) {
         this.serverTimeQueryReceived = serverTimeQueryReceived;
         this.serverTimeResponseSent = serverTimeResponseSent;
         this.requestId = requestId;

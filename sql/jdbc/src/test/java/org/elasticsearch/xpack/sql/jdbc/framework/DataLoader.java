@@ -72,8 +72,8 @@ public class DataLoader {
             }
             bulk.append("}\n");
         });
-        client.performRequest("POST", "/test_emp/emp/_bulk", singletonMap("refresh", "true"), new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
-
+        client.performRequest("POST", "/test_emp/emp/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
     }
 
     private static void csvToLines(String name, CheckedBiConsumer<List<String>, List<String>, Exception> consumeLine) throws Exception {

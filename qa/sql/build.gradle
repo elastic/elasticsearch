@@ -1,0 +1,52 @@
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.elasticsearch.gradle.test.RunTask
+
+description = 'Integration tests for SQL'
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  compile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+  compile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+  compile "org.elasticsearch.test:framework:${versions.elasticsearch}"
+}
+
+// the main files are actually test files, so use the appropriate forbidden api sigs
+forbiddenApisMain {
+  signaturesURLs = [PrecommitTasks.getResource('/forbidden/es-all-signatures.txt'),
+                    PrecommitTasks.getResource('/forbidden/es-test-signatures.txt')]
+}
+
+// just test utilities
+test.enabled = false
+
+dependencyLicenses.enabled = false
+
+subprojects {
+  apply plugin: 'elasticsearch.standalone-rest-test'
+  apply plugin: 'elasticsearch.rest-test'
+
+  dependencies {
+    testCompile project(path: ':x-pack-elasticsearch:qa:sql')
+    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+    testCompile "org.elasticsearch.test:framework:${versions.elasticsearch}"
+  }
+
+  integTestCluster {
+    distribution = 'zip'
+    plugin project(':x-pack-elasticsearch:plugin').path
+    setting 'xpack.monitoring.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'script.max_compilations_per_minute', '1000'
+  }
+
+  task run(type: RunTask) {
+    distribution = 'zip'
+    plugin project(':x-pack-elasticsearch:plugin').path
+    setting 'xpack.monitoring.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'script.max_compilations_per_minute', '1000'
+  }
+}

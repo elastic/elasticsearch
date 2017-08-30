@@ -41,8 +41,7 @@ public class ComposeProcessorTests extends AbstractWireSerializingTestCase<Compo
             () -> new ComposeProcessor(
                     instance.first(), randomValueOtherThan(instance.second(), () -> randomColumnProcessor(0))),
             () -> new ComposeProcessor(
-                    randomValueOtherThan(instance.first(), () -> randomColumnProcessor(0)), instance.second()),
-            () -> new ComposeProcessor(instance.second(), instance.first())); 
+                    randomValueOtherThan(instance.first(), () -> randomColumnProcessor(0)), instance.second()));
         return supplier.get();
     }
 }

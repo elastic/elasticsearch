@@ -229,7 +229,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * This method registers a compound updater that is useful if two settings are depending on each other.
      * The consumer is always provided with both values even if only one of the two changes.
      */
-    public synchronized <A, B> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b, BiConsumer<A, B> consumer, BiConsumer<A, B> validator) {
+    public synchronized <A, B> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b,
+                                                              BiConsumer<A, B> consumer, BiConsumer<A, B> validator) {
         if (a != get(a.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + a.getKey() + "]");
         }

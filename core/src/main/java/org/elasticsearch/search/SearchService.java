@@ -118,7 +118,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING =
         Setting.positiveTimeSetting("search.default_keep_alive", timeValueMinutes(5), Property.NodeScope, Property.Dynamic);
     public static final Setting<TimeValue> MAX_KEEPALIVE_SETTING =
-        Setting.positiveTimeSetting("search.max_keep_alive", timeValueHours(1), Property.NodeScope, Property.Dynamic);
+        Setting.positiveTimeSetting("search.max_keep_alive", timeValueHours(24), Property.NodeScope, Property.Dynamic);
     public static final Setting<TimeValue> KEEPALIVE_INTERVAL_SETTING =
         Setting.positiveTimeSetting("search.keep_alive_interval", timeValueMinutes(1), Property.NodeScope);
     /**
@@ -180,8 +180,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.fetchPhase = fetchPhase;
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
-        this.defaultKeepAlive = DEFAULT_KEEPALIVE_SETTING.get(settings).millis();
-        this.maxKeepAlive = MAX_KEEPALIVE_SETTING.get(settings).millis();
+        setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
 
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_KEEPALIVE_SETTING, MAX_KEEPALIVE_SETTING,
             this::setKeepAlives, this::validateKeepAlives);
@@ -205,8 +204,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
         validateKeepAlives(defaultKeepAlive, maxKeepAlive);
-        this.maxKeepAlive = maxKeepAlive.millis();
         this.defaultKeepAlive = defaultKeepAlive.millis();
+        this.maxKeepAlive = maxKeepAlive.millis();
     }
 
     private void setDefaultSearchTimeout(TimeValue defaultSearchTimeout) {

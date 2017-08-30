@@ -537,6 +537,9 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThat(exc.getMessage(), containsString("was (2 minutes > 1 minute)"));
 
         assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m", "search.max_keep_alive", "5m")).get());
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "2m")).get());
 
         assertAcked(client().admin().cluster().prepareUpdateSettings()
@@ -557,18 +560,19 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testInvalidScrollKeepAlive() throws IOException {
         createIndex("test");
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 2; i++) {
             client().prepareIndex("test", "type1",
                 Integer.toString(i)).setSource(jsonBuilder().startObject().field("field", i).endObject()).execute().actionGet();
         }
         refresh();
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m", "search.max_keep_alive", "5m")).get());
 
         Exception exc = expectThrows(Exception.class,
             () -> client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(5)
+                .setSize(1)
                 .setScroll(TimeValue.timeValueHours(2))
-                .addSort("field", SortOrder.ASC)
                 .execute().actionGet());
         QueryPhaseExecutionException queryPhaseExecutionException =
             (QueryPhaseExecutionException) ExceptionsHelper.unwrap(exc, QueryPhaseExecutionException.class);
@@ -577,13 +581,12 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
-            .setSize(5)
-            .setScroll(TimeValue.timeValueMinutes(1))
-            .addSort("field", SortOrder.ASC)
+            .setSize(1)
+            .setScroll(TimeValue.timeValueMinutes(5))
             .execute().actionGet();
         assertNotNull(searchResponse.getScrollId());
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(5));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
 
         exc = expectThrows(Exception.class,
             () -> client().prepareSearchScroll(searchResponse.getScrollId())

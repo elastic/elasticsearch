@@ -31,7 +31,9 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
@@ -65,13 +67,11 @@ public final class ResponseCollectorService extends AbstractComponent implements
     }
 
     public void addNodeStatistics(String nodeId, int queueSize, long responseTimeNanos, long avgServiceTimeNanos) {
-        NodeStatistics nodeStats = nodeIdToStats.get(nodeId);
         nodeIdToStats.compute(nodeId, (id, ns) -> {
             if (ns == null) {
                 ExponentiallyWeightedMovingAverage queueEWMA = new ExponentiallyWeightedMovingAverage(ALPHA, queueSize);
                 ExponentiallyWeightedMovingAverage responseEWMA = new ExponentiallyWeightedMovingAverage(ALPHA, responseTimeNanos);
-                NodeStatistics newStats = new NodeStatistics(nodeId, queueEWMA, responseEWMA, avgServiceTimeNanos);
-                return newStats;
+                return new NodeStatistics(nodeId, queueEWMA, responseEWMA, avgServiceTimeNanos);
             } else {
                 ns.queueSize.addValue((double) queueSize);
                 ns.responseTime.addValue((double) responseTimeNanos);
@@ -82,12 +82,23 @@ public final class ResponseCollectorService extends AbstractComponent implements
     }
 
     public Map<String, ComputedNodeStats> getAllNodeStatistics() {
+        final int clientNum = nodeIdToStats.size();
         // Transform the mutable object internally used for accounting into the computed version
         Map<String, ComputedNodeStats> nodeStats = new HashMap<>(nodeIdToStats.size());
         nodeIdToStats.forEach((k, v) -> {
-            nodeStats.put(k, new ComputedNodeStats(v));
+            nodeStats.put(k, new ComputedNodeStats(clientNum, v));
         });
         return nodeStats;
+    }
+
+    /**
+     * Optionally return a {@code NodeStatistics} for the given nodeid, if
+     * response information exists for the given node. Returns an empty
+     * {@code Optional} if the node was not found.
+     */
+    public Optional<ComputedNodeStats> getNodeStatistics(final String nodeId) {
+        final int clientNum = nodeIdToStats.size();
+        return Optional.ofNullable(nodeIdToStats.get(nodeId)).map(ns -> new ComputedNodeStats(clientNum, ns));
     }
 
     /**
@@ -96,25 +107,71 @@ public final class ResponseCollectorService extends AbstractComponent implements
      * and service time.
      */
     public static class ComputedNodeStats {
+        // We store timestamps with nanosecond precision, however, the
+        // formula specifies milliseconds, therefore we need to convert
+        // the values so the times don't unduely weight the formula
+        private final double FACTOR = 1000000.0;
+        private final int clientNum;
+
+        private double cachedRank = 0;
+
         public final String nodeId;
-        public final double queueSize;
+        public final int queueSize;
         public final double responseTime;
         public final double serviceTime;
 
-        ComputedNodeStats(NodeStatistics nodeStats) {
+        ComputedNodeStats(int clientNum, NodeStatistics nodeStats) {
+            this.clientNum = clientNum;
             this.nodeId = nodeStats.nodeId;
-            this.queueSize = nodeStats.queueSize.getAverage();
+            this.queueSize = (int) nodeStats.queueSize.getAverage();
             this.responseTime = nodeStats.responseTime.getAverage();
             this.serviceTime = nodeStats.serviceTime;
+        }
+
+        /**
+         * Rank this copy of the data, according to the adaptive replica selection formula from the C3 paper
+         * https://www.usenix.org/system/files/conference/nsdi15/nsdi15-paper-suresh.pdf
+         */
+        private double innerRank(long outstandingRequests) {
+            // this is a placeholder value, the concurrency compensation is
+            // defined as the number of outstanding requests from the client
+            // to the node times the number of clients in the system
+            double concurrencyCompensation = outstandingRequests * clientNum;
+
+            // Cubic queue adjustment factor. The paper chose 3 though we could
+            // potentially make this configurable if desired.
+            int queueAdjustmentFactor = 3;
+
+            // EWMA of queue size
+            double qBar = queueSize;
+            double qHatS = 1 + concurrencyCompensation + qBar;
+
+            // EWMA of response time
+            double rS = responseTime / FACTOR;
+            // EWMA of service time
+            double muBarS = serviceTime / FACTOR;
+
+            // The final formula
+            double rank = rS - (1.0 / muBarS) + (Math.pow(qHatS, queueAdjustmentFactor) / muBarS);
+            return rank;
+        }
+
+        public double rank(long outstandingRequests) {
+            if (cachedRank == 0) {
+                cachedRank = innerRank(outstandingRequests);
+            }
+            return cachedRank;
         }
 
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder("ComputedNodeStats[");
             sb.append(nodeId).append("](");
-            sb.append("queue: ").append(queueSize);
-            sb.append(", response time: ").append(responseTime);
-            sb.append(", service time: ").append(serviceTime);
+            sb.append("nodes: ").append(clientNum);
+            sb.append(", queue: ").append(queueSize);
+            sb.append(", response time: ").append(String.format(Locale.ROOT, "%.1f", responseTime));
+            sb.append(", service time: ").append(String.format(Locale.ROOT, "%.1f", serviceTime));
+            sb.append(", rank: ").append(String.format(Locale.ROOT, "%.1f", rank(1)));
             sb.append(")");
             return sb.toString();
         }

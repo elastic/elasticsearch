@@ -283,7 +283,7 @@ public class QueryPhase implements SearchPhase {
                 ctx.postProcess(result, shouldCollect);
             }
             EsThreadPoolExecutor executor = (EsThreadPoolExecutor)
-                    searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);;
+                    searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
             if (executor instanceof QueueResizingEsThreadPoolExecutor) {
                 QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;
                 queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());

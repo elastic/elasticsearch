@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class BulkItemRequest implements Streamable {
 
@@ -61,6 +62,23 @@ public class BulkItemRequest implements Streamable {
 
     void setPrimaryResponse(BulkItemResponse primaryResponse) {
         this.primaryResponse = primaryResponse;
+    }
+
+    /**
+     * Abort this request, and store a {@link org.elasticsearch.action.bulk.BulkItemResponse.Failure} response.
+     *
+     * @param index The concrete index that was resolved for this request
+     * @param cause The cause of the rejection (may not be null)
+     * @throws IllegalStateException If a response already exists for this request
+     */
+    public void abort(String index, Exception cause) {
+        if (primaryResponse != null) {
+            assert false : "Response already exists " + primaryResponse.status();
+            throw new IllegalStateException("Item already has a response (status=" + primaryResponse.status() + ")");
+        }
+        final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.type(), request.id(),
+            Objects.requireNonNull(cause), true);
+        setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
     }
 
     public static BulkItemRequest readBulkItem(StreamInput in) throws IOException {

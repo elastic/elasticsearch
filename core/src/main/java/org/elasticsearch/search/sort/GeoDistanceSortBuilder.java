@@ -588,7 +588,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     DocValueFormat.RAW);
         }
 
-        IndexFieldData.XFieldComparatorSource geoDistanceComparatorSource = new IndexFieldData.XFieldComparatorSource() {
+        IndexFieldData.XFieldComparatorSource geoDistanceComparatorSource = new IndexFieldData.XFieldComparatorSource(null, finalSortMode,
+                nested) {
 
             @Override
             public SortField.Type reducedType() {
@@ -599,11 +600,10 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
                 return new FieldComparator.DoubleComparator(numHits, null, null) {
                     @Override
-                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field)
-                        throws IOException {
+                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
                         final MultiGeoPointValues geoPointValues = geoIndexFieldData.load(context).getGeoPointValues();
-                        final SortedNumericDoubleValues distanceValues = GeoUtils.distanceValues(geoDistance, unit,
-                            geoPointValues, localPoints);
+                        final SortedNumericDoubleValues distanceValues = GeoUtils.distanceValues(geoDistance, unit, geoPointValues,
+                                localPoints);
                         final NumericDoubleValues selectedValues;
                         if (nested == null) {
                             selectedValues = finalSortMode.select(distanceValues, Double.POSITIVE_INFINITY);
@@ -617,7 +617,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     }
                 };
             }
-
         };
 
         return new SortFieldAndFormat(new SortField(fieldName, geoDistanceComparatorSource, reverse),

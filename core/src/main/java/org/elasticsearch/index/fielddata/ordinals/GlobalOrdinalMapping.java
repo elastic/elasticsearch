@@ -36,9 +36,9 @@ public class GlobalOrdinalMapping extends SortedSetDocValues {
     private final LongValues mapping;
     private final SortedSetDocValues[] bytesValues;
 
-    GlobalOrdinalMapping(OrdinalMap ordinalMap, SortedSetDocValues[] bytesValues, int segmentIndex) {
+    GlobalOrdinalMapping(OrdinalMap ordinalMap, SortedSetDocValues[] bytesValues, int segmentIndex, SortedSetDocValues segmentValues) {
         super();
-        this.values = bytesValues[segmentIndex];
+        this.values = segmentValues;
         this.bytesValues = bytesValues;
         this.ordinalMap = ordinalMap;
         this.mapping = ordinalMap.getGlobalOrds(segmentIndex);

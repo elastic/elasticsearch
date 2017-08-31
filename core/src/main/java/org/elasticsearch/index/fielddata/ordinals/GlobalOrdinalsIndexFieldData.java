@@ -149,7 +149,7 @@ public class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent impleme
                 // segment ordinals match global ordinals
                 return values;
             }
-            return new GlobalOrdinalMapping(ordinalMap, globalOrdinalValues.get(), segmentIndex);
+            return new GlobalOrdinalMapping(ordinalMap, globalOrdinalValues.get(), segmentIndex, values);
         }
 
         @Override

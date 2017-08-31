@@ -245,23 +245,40 @@ starting the next set. This is "bursty" instead of "smooth". The default is `-1`
 [[docs-update-by-query-response-body]]
 === Response body
 
+//////////////////////////
+[source,js]
+--------------------------------------------------
+POST /twitter/_update_by_query?conflicts=proceed
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+//////////////////////////
+
 The JSON response looks like this:
 
 [source,js]
 --------------------------------------------------
 {
-  "took" : 639,
-  "updated": 0,
+  "took" : 147,
+  "timed_out": false,
+  "updated": 5,
+  "deleted": 0,
   "batches": 1,
-  "version_conflicts": 2,
+  "version_conflicts": 0,
+  "noops": 0,
   "retries": {
     "bulk": 0,
     "search": 0
-  }
+  },
   "throttled_millis": 0,
+  "requests_per_second": -1.0,
+  "throttled_until_millis": 0,
+  "total": 5,
   "failures" : [ ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took" : 147/"took" : "$body.took"/]
 
 `took`::
 
@@ -350,6 +367,8 @@ The responses looks like:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
+// We can't test tasks output
 
 <1> this object contains the actual status. It is just like the response json
 with the important addition of the `total` field. `total` is the total number

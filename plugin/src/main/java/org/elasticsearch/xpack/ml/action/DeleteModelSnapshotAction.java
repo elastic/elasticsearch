@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -130,7 +131,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final Client client;
+        private final InternalClient client;
         private final JobProvider jobProvider;
         private final JobManager jobManager;
         private final ClusterService clusterService;
@@ -140,7 +141,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                JobProvider jobProvider, JobManager jobManager, ClusterService clusterService,
-                               Client client, Auditor auditor) {
+                               InternalClient client, Auditor auditor) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.client = client;
             this.jobProvider = jobProvider;

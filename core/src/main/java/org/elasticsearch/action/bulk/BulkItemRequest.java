@@ -91,13 +91,20 @@ public class BulkItemRequest implements Streamable {
      * @throws IllegalStateException If a response already exists for this request
      */
     public void abort(String index, Exception cause) {
-        if (primaryResponse != null) {
-            assert false : "Response already exists " + primaryResponse.status();
-            throw new IllegalStateException("Item already has a response (status=" + primaryResponse.status() + ")");
+        if (primaryResponse == null) {
+            final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.type(), request.id(),
+                    Objects.requireNonNull(cause), true);
+            setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
+        } else {
+            assert primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()
+                    : "response [" + primaryResponse + "]; cause [" + cause + "]";
+            if (primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()) {
+                primaryResponse.getFailure().getCause().addSuppressed(cause);
+            } else {
+                throw new IllegalStateException(
+                        "aborting item that with response [" + primaryResponse + "] that was previously processed", cause);
+            }
         }
-        final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.type(), request.id(),
-            Objects.requireNonNull(cause), true);
-        setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
     }
 
     public static BulkItemRequest readBulkItem(StreamInput in) throws IOException {

@@ -222,7 +222,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             } else {
                 seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
             }
-            if (supportsAbortFlag(in.getVersion())) {
+            if (supportsAbortedFlag(in.getVersion())) {
                 aborted = in.readBoolean();
             } else {
                 aborted = false;
@@ -238,12 +238,12 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                 out.writeZLong(getSeqNo());
             }
-            if (supportsAbortFlag(out.getVersion())) {
+            if (supportsAbortedFlag(out.getVersion())) {
                 out.writeBoolean(aborted);
             }
         }
 
-        private static boolean supportsAbortFlag(Version version) {
+        private static boolean supportsAbortedFlag(Version version) {
             // The "aborted" flag was added for 5.5.3 and 5.6.0, but was not in 6.0.0-beta2
             return version.after(Version.V_6_0_0_beta2) || (version.major == 5 && version.onOrAfter(Version.V_5_5_3));
         }

@@ -83,9 +83,4 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             listener::onFailure));
     }
 
-
-    @Override
-    protected void validateRequest(CreateIndexRequest request, ClusterState state) throws Exception {
-        MetaDataCreateIndexService.validateIndexName(request.index(), state);
-    }
 }

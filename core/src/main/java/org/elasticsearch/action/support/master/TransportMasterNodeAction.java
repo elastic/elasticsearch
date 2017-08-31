@@ -87,12 +87,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         masterOperation(request, state, listener);
     }
 
-    /**
-     * Override this operation to provide validation for an action
-     */
-    protected void validateRequest(final Request request, ClusterState state) throws Exception {
-    }
-
     protected boolean localExecute(Request request) {
         return false;
     }
@@ -133,12 +127,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
 
         protected void doStart(ClusterState clusterState) {
-            try {
-                validateRequest(request, clusterState);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
             final Predicate<ClusterState> masterChangePredicate = MasterNodeChangePredicate.build(clusterState);
             final DiscoveryNodes nodes = clusterState.nodes();
             if (nodes.isLocalNodeElectedMaster() || localExecute(request)) {

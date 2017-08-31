@@ -22,6 +22,7 @@ package org.elasticsearch.index.seqno;
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -47,6 +48,12 @@ public final class LocalCheckpointTracker {
      * The next available sequence number.
      */
     private final AtomicLong nextSeqNo;
+
+    /**
+     * Keeps track of the number of waiting threads that need to be notified of checkpoint updates. As this happens only rarely (only during
+     * shard recovery) we use this as an optimization to avoid taking any locks on the hot code path.
+     */
+    private final AtomicInteger waitingForCompletion = new AtomicInteger();
 
     /**
      * This lock and its corresponding read and write locks are not necessary for correct operation but to assert that
@@ -180,9 +187,14 @@ public final class LocalCheckpointTracker {
      */
     @SuppressForbidden(reason = "Object#wait")
     synchronized void waitForOpsToComplete(final long seqNo) throws InterruptedException {
-        while (checkpoint.get() < seqNo) {
-            // notified by updateCheckpoint
-            this.wait();
+        waitingForCompletion.incrementAndGet();
+        try {
+            while (checkpoint.get() < seqNo) {
+                // notified by updateCheckpoint
+                this.wait();
+            }
+        } finally {
+            waitingForCompletion.decrementAndGet();
         }
     }
 
@@ -202,7 +214,7 @@ public final class LocalCheckpointTracker {
             checkpoint.incrementAndGet();
             needsNotification = true;
         }
-        if (needsNotification) {
+        if (needsNotification && waitingForCompletion.get() > 0) {
             synchronized (this) {
                 // notifies waiters in waitForOpsToComplete
                 this.notifyAll();

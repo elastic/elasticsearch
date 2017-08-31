@@ -223,7 +223,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest rejectItem = randomFrom(items);
         RestStatus rejectionStatus = randomFrom(RestStatus.BAD_REQUEST, RestStatus.CONFLICT, RestStatus.FORBIDDEN, RestStatus.LOCKED);
         final ElasticsearchStatusException rejectionCause = new ElasticsearchStatusException("testing rejection", rejectionStatus);
-        rejectItem.reject("index", rejectionCause);
+        rejectItem.abort("index", rejectionCause);
 
         UpdateHelper updateHelper = null;
         WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(

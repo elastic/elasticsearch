@@ -65,13 +65,13 @@ public class BulkItemRequest implements Streamable {
     }
 
     /**
-     * Mark this request as failed, and store {@link org.elasticsearch.action.bulk.BulkItemResponse.Failure} response.
+     * Abort this request, and store a {@link org.elasticsearch.action.bulk.BulkItemResponse.Failure} response.
      *
      * @param index The concrete index that was resolved for this request
      * @param cause The cause of the rejection (may not be null)
      * @throws IllegalStateException If a response already exists for this request
      */
-    public void reject(String index, Exception cause) {
+    public void abort(String index, Exception cause) {
         if (primaryResponse != null) {
             throw new IllegalStateException("Item already has a response (status=" + primaryResponse.status() + ")");
         }

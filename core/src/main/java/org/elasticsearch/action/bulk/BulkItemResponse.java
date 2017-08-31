@@ -173,7 +173,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         private final Exception cause;
         private final RestStatus status;
         private final long seqNo;
-        private final boolean fatal;
+        private final boolean aborted;
 
         /**
          * For write failures before operation was assigned a sequence number.
@@ -185,8 +185,8 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             this(index, type, id, cause, ExceptionsHelper.status(cause), SequenceNumbersService.UNASSIGNED_SEQ_NO, false);
         }
 
-        public Failure(String index, String type, String id, Exception cause, boolean fatal) {
-            this(index, type, id, cause, ExceptionsHelper.status(cause), SequenceNumbersService.UNASSIGNED_SEQ_NO, fatal);
+        public Failure(String index, String type, String id, Exception cause, boolean aborted) {
+            this(index, type, id, cause, ExceptionsHelper.status(cause), SequenceNumbersService.UNASSIGNED_SEQ_NO, aborted);
         }
 
         public Failure(String index, String type, String id, Exception cause, RestStatus status) {
@@ -198,14 +198,14 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             this(index, type, id, cause, ExceptionsHelper.status(cause), seqNo, false);
         }
 
-        public Failure(String index, String type, String id, Exception cause, RestStatus status, long seqNo, boolean fatal) {
+        public Failure(String index, String type, String id, Exception cause, RestStatus status, long seqNo, boolean aborted) {
             this.index = index;
             this.type = type;
             this.id = id;
             this.cause = cause;
             this.status = status;
             this.seqNo = seqNo;
-            this.fatal = fatal;
+            this.aborted = aborted;
         }
 
         /**
@@ -222,10 +222,10 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             } else {
                 seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
             }
-            if (supportsFatalFlag(in.getVersion())) {
-                fatal = in.readBoolean();
+            if (supportsAbortFlag(in.getVersion())) {
+                aborted = in.readBoolean();
             } else {
-                fatal = false;
+                aborted = false;
             }
         }
 
@@ -238,18 +238,15 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                 out.writeZLong(getSeqNo());
             }
-            if (supportsFatalFlag(out.getVersion())) {
-                out.writeBoolean(fatal);
+            if (supportsAbortFlag(out.getVersion())) {
+                out.writeBoolean(aborted);
             }
         }
 
-        private static boolean supportsFatalFlag(Version version) {
+        private static boolean supportsAbortFlag(Version version) {
             // The "fatal" flag was added for 5.5.3 and 5.6.0, but was not in 6.0.0-beta2
-            // return version.after(Version.V_6_0_0_beta2)|| (version.major == 5 && version.onOrAfter(Version.V_5_5_3));
-            // Temporarily to "current" only, until change is backported
-            return version.onOrAfter(Version.V_7_0_0_alpha1);
+            return version.after(Version.V_6_0_0_beta2) || (version.major == 5 && version.onOrAfter(Version.V_5_5_3));
         }
-
 
         /**
          * The index name of the action.
@@ -303,11 +300,12 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         }
 
         /**
-         * Whether this failure has been flagged as a <em>fatal</em> failure.
+         * Whether this failure is the result of an <em>abort</em>.
          * If {@code true}, the request to which this failure relates should never be retried, regardless of the {@link #getCause() cause}.
+         * @see BulkItemRequest#abort(String, Exception)
          */
-        public boolean isFatal() {
-            return fatal;
+        public boolean isAborted() {
+            return aborted;
         }
 
         @Override

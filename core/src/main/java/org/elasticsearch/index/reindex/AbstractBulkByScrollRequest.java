@@ -399,8 +399,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        searchRequest = new SearchRequest();
-        searchRequest.readFrom(in);
+        searchRequest = new SearchRequest(in);
         abortOnVersionConflict = in.readBoolean();
         size = in.readVInt();
         refresh = in.readBoolean();

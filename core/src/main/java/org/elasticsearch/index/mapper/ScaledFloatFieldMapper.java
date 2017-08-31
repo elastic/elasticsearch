@@ -126,7 +126,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
             setupFieldType(context);
             return new ScaledFloatFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    coerce(context), includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -309,8 +309,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
     }
 
-    private Boolean includeInAll;
-
     private Explicit<Boolean> ignoreMalformed;
 
     private Explicit<Boolean> coerce;
@@ -321,7 +319,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             MappedFieldType defaultFieldType,
             Explicit<Boolean> ignoreMalformed,
             Explicit<Boolean> coerce,
-            Boolean includeInAll,
             Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
@@ -332,7 +329,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
-        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -352,7 +348,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        final boolean includeInAll = context.includeInAll(this.includeInAll, this);
 
         XContentParser parser = context.parser();
         Object value;
@@ -375,11 +370,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     throw e;
                 }
             }
-            if (includeInAll) {
-                value = parser.textOrNull(); // preserve formatting
-            } else {
-                value = numericValue;
-            }
+            value = numericValue;
         }
 
         if (value == null) {
@@ -392,10 +383,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         if (numericValue == null) {
             numericValue = parse(value);
-        }
-
-        if (includeInAll) {
-            context.allEntries().addText(fieldType().name(), value.toString(), fieldType().boost());
         }
 
         double doubleValue = numericValue.doubleValue();
@@ -419,7 +406,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         super.doMerge(mergeWith, updateAllTypes);
         ScaledFloatFieldMapper other = (ScaledFloatFieldMapper) mergeWith;
-        this.includeInAll = other.includeInAll;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;
         }
@@ -443,12 +429,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         if (includeDefaults || fieldType().nullValue() != null) {
             builder.field("null_value", fieldType().nullValue());
-        }
-
-        if (includeInAll != null) {
-            builder.field("include_in_all", includeInAll);
-        } else if (includeDefaults) {
-            builder.field("include_in_all", false);
         }
     }
 

@@ -102,7 +102,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.Dynamic, Property.IndexScope);
 
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
-            "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
+            "_uid", "_id", "_type", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
 
@@ -122,7 +122,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private volatile FieldTypeLookup fieldTypes;
     private volatile Map<String, ObjectMapper> fullPathObjectMappers = emptyMap();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
-    private boolean allEnabled = false; // updated dynamically to true when _all is enabled
 
     private final DocumentMapperParser documentParser;
 
@@ -161,13 +160,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public boolean hasNested() {
         return this.hasNested;
-    }
-
-    /**
-     * Returns true if the "_all" field is enabled on any type.
-     */
-    public boolean allEnabled() {
-        return this.allEnabled;
     }
 
     /**
@@ -346,7 +338,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private synchronized Map<String, DocumentMapper> internalMerge(@Nullable DocumentMapper defaultMapper, @Nullable String defaultMappingSource,
                                                                    List<DocumentMapper> documentMappers, MergeReason reason, boolean updateAllTypes) {
         boolean hasNested = this.hasNested;
-        boolean allEnabled = this.allEnabled;
         Map<String, ObjectMapper> fullPathObjectMappers = this.fullPathObjectMappers;
         FieldTypeLookup fieldTypes = this.fieldTypes;
         Set<String> parentTypes = this.parentTypes;
@@ -444,10 +435,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 parentTypes.add(mapper.parentFieldMapper().type());
             }
 
-            // this is only correct because types cannot be removed and we do not
-            // allow to disable an existing _all field
-            allEnabled |= mapper.allFieldMapper().enabled();
-
             results.put(newMapper.type(), newMapper);
             mappers.put(newMapper.type(), newMapper);
         }
@@ -510,7 +497,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.hasNested = hasNested;
         this.fullPathObjectMappers = fullPathObjectMappers;
         this.parentTypes = parentTypes;
-        this.allEnabled = allEnabled;
 
         assert assertMappersShareSameFieldType();
         assert results.values().stream().allMatch(this::assertSerialization);

@@ -46,8 +46,7 @@ public class PatternCaptureGroupTokenFilterFactory extends AbstractTokenFilterFa
             patterns[i] = Pattern.compile(regexes[i]);
         }
 
-        preserveOriginal = settings.getAsBooleanLenientForPreEs6Indices(
-            indexSettings.getIndexVersionCreated(), PRESERVE_ORIG_KEY, true, deprecationLogger);
+        preserveOriginal = settings.getAsBoolean(PRESERVE_ORIG_KEY, true);
     }
 
     @Override

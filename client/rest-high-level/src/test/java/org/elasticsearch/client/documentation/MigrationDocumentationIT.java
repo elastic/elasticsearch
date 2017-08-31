@@ -19,6 +19,10 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpStatus;
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -27,10 +31,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.HttpStatus;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.nio.entity.NStringEntity;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;

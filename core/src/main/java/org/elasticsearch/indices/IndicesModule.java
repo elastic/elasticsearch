@@ -27,7 +27,6 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
@@ -138,7 +137,6 @@ public class IndicesModule extends AbstractModule {
         metadataMappers.put(IndexFieldMapper.NAME, new IndexFieldMapper.TypeParser());
         metadataMappers.put(SourceFieldMapper.NAME, new SourceFieldMapper.TypeParser());
         metadataMappers.put(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser());
-        metadataMappers.put(AllFieldMapper.NAME, new AllFieldMapper.TypeParser());
         metadataMappers.put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser());
         metadataMappers.put(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser());
         metadataMappers.put(SeqNoFieldMapper.NAME, new SeqNoFieldMapper.TypeParser());

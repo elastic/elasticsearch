@@ -127,6 +127,16 @@ if (currentVersion.bugfix == 0) {
   }
 }
 
+// build metadata from previous build, contains eg hashes for bwc builds
+String buildMetadataValue = System.getenv('BUILD_METADATA')
+if (buildMetadataValue == null) {
+  buildMetadataValue = ''
+}
+Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectEntries {
+  def (String key, String value) = it.split('=')
+  return [key, value]
+}
+
 // injecting groovy property variables into all projects
 allprojects {
   project.ext {
@@ -136,6 +146,7 @@ allprojects {
     // for backcompat testing
     indexCompatVersions = versions
     wireCompatVersions = versions.subList(prevMinorIndex, versions.size())
+    buildMetadata = buildMetadataMap
   }
 }
 
@@ -278,7 +289,7 @@ subprojects {
 // the dependency is added.
 gradle.projectsEvaluated {
   allprojects {
-    if (project.path == ':test:framework' || project.path == ':client:test') {
+    if (project.path == ':test:framework') {
       // :test:framework:test cannot run before and after :core:test
       return
     }

@@ -176,16 +176,6 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         assertEquals(expected, actual);
     }
 
-    public void testMultiMatchPrefixWithAllField() throws IOException {
-        QueryShardContext queryShardContext = indexService.newQueryShardContext(
-                randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
-        queryShardContext.setAllowUnmappedFields(true);
-        Query parsedQuery =
-            multiMatchQuery("foo").field("_all").type(MultiMatchQueryBuilder.Type.PHRASE_PREFIX).toQuery(queryShardContext);
-        assertThat(parsedQuery, instanceOf(MultiPhrasePrefixQuery.class));
-        assertThat(parsedQuery.toString(), equalTo("_all:\"foo*\""));
-    }
-
     public void testMultiMatchCrossFieldsWithSynonyms() throws IOException {
         QueryShardContext queryShardContext = indexService.newQueryShardContext(
             randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);

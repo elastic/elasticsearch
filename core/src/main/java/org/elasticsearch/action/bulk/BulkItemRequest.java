@@ -73,6 +73,7 @@ public class BulkItemRequest implements Streamable {
      */
     public void abort(String index, Exception cause) {
         if (primaryResponse != null) {
+            assert false : "Response already exists " + primaryResponse.status();
             throw new IllegalStateException("Item already has a response (status=" + primaryResponse.status() + ")");
         }
         final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.type(), request.id(),

@@ -793,6 +793,11 @@ public class RequestTests extends ESTestCase {
         assertEquals("/a/_create", Request.endpoint("a", null, null, "_create"));
     }
 
+    public void testCreateContentType() {
+        final XContentType xContentType = randomFrom(XContentType.values());
+        assertEquals(xContentType.mediaTypeWithoutParameters(), Request.createContentType(xContentType).getMimeType());
+    }
+
     public void testEnforceSameContentType() {
         XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
         IndexRequest indexRequest = new IndexRequest().source(singletonMap("field", "value"), xContentType);

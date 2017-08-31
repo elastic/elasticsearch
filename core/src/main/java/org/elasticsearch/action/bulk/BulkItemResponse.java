@@ -171,17 +171,27 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         private final String id;
         private final Exception cause;
         private final RestStatus status;
+        private final boolean aborted;
+
+        public Failure(String index, String type, String id, Exception cause) {
+            this(index, type, id, cause, ExceptionsHelper.status(cause));
+        }
 
         Failure(String index, String type, String id, Exception cause, RestStatus status) {
+            this(index, type, id, cause, status, false);
+        }
+
+        Failure(String index, String type, String id, Exception cause, boolean aborted) {
+            this(index, type, id, cause, ExceptionsHelper.status(cause), aborted);
+        }
+
+        Failure(String index, String type, String id, Exception cause, RestStatus status, boolean aborted) {
             this.index = index;
             this.type = type;
             this.id = id;
             this.cause = cause;
             this.status = status;
-        }
-
-        public Failure(String index, String type, String id, Exception cause) {
-            this(index, type, id, cause, ExceptionsHelper.status(cause));
+            this.aborted = aborted;
         }
 
         /**
@@ -193,6 +203,11 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             id = in.readOptionalString();
             cause = in.readException();
             status = ExceptionsHelper.status(cause);
+            if (supportsAbortedFlag(in.getVersion())) {
+                aborted = in.readBoolean();
+            } else {
+                aborted = false;
+            }
         }
 
         @Override
@@ -201,8 +216,16 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             out.writeString(getType());
             out.writeOptionalString(getId());
             out.writeException(getCause());
+            if (supportsAbortedFlag(out.getVersion())) {
+                out.writeBoolean(aborted);
+            }
         }
 
+        private static Version V_6_0_0_BETA_2 = Version.fromString("6.0.0-beta2");
+        private static boolean supportsAbortedFlag(Version version) {
+            // The "aborted" flag was added for 5.5.3 and 5.6.0, but was not in 6.0.0-beta2
+            return version.after(V_6_0_0_BETA_2) || (version.major == 5 && version.onOrAfter(Version.V_5_5_3_UNRELEASED));
+        }
 
         /**
          * The index name of the action.
@@ -244,6 +267,15 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
          */
         public Exception getCause() {
             return cause;
+        }
+
+        /**
+         * Whether this failure is the result of an <em>abort</em>.
+         * If {@code true}, the request to which this failure relates should never be retried, regardless of the {@link #getCause() cause}.
+         * @see BulkItemRequest#abort(String, Exception)
+         */
+        public boolean isAborted() {
+            return aborted;
         }
 
         @Override

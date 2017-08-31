@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.bulk;
 
-import java.io.IOException;
-import java.util.Objects;
-
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+
+import java.io.IOException;
+import java.util.Objects;
 
 public class BulkItemRequest implements Streamable {
 

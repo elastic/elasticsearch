@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import java.io.IOException;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -41,6 +39,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
@@ -244,7 +244,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         }
 
         private static boolean supportsAbortFlag(Version version) {
-            // The "fatal" flag was added for 5.5.3 and 5.6.0, but was not in 6.0.0-beta2
+            // The "aborted" flag was added for 5.5.3 and 5.6.0, but was not in 6.0.0-beta2
             return version.after(Version.V_6_0_0_beta2) || (version.major == 5 && version.onOrAfter(Version.V_5_5_3));
         }
 

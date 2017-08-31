@@ -28,6 +28,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
@@ -693,6 +694,9 @@ public class ElasticsearchAssertions {
             // and the readFrom method throws an exception if called
             Streamable newInstanceFromStream = tryCreateFromStream(streamable, input);
             if (newInstanceFromStream == null) {
+                if (newInstance instanceof ClusterAllocationExplainRequest) {
+                    System.out.println("what?");
+                }
                 newInstance.readFrom(input);
             }
             assertThat("Stream should be fully read with version [" + version + "] for streamable [" + streamable + "]", input.available(),

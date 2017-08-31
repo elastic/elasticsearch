@@ -85,18 +85,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
      * Per test run this is enabled or disabled.
      */
     protected static Boolean securityEnabled;
-    /**
-     * Enables individual tests to control the behavior.
-     * <p>
-     * Control this by overriding {@link #enableWatcher()}, which defaults to disabling it (this will change!).
-     */
-    protected Boolean watcherEnabled;
-
-    private void randomizeSettings() {
-        if (watcherEnabled == null) {
-            watcherEnabled = enableWatcher();
-        }
-    }
 
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
@@ -109,11 +97,9 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        randomizeSettings();
-
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(XPackSettings.WATCHER_ENABLED.getKey(), watcherEnabled)
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), enableWatcher())
                 // Disable native ML autodetect_process as the c++ controller won't be available
                 .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                 .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
@@ -152,8 +138,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings transportClientSettings() {
-        randomizeSettings();
-
         if (securityEnabled) {
             return Settings.builder()
                     .put(super.transportClientSettings())
@@ -161,12 +145,12 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                     .put(Security.USER_SETTING.getKey(), "test:" + SecuritySettings.TEST_PASSWORD)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
                     .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)
-                    .put(XPackSettings.WATCHER_ENABLED.getKey(), watcherEnabled)
+                    .put(XPackSettings.WATCHER_ENABLED.getKey(), enableWatcher())
                     .build();
         }
         return Settings.builder().put(super.transportClientSettings())
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-                .put(XPackSettings.WATCHER_ENABLED.getKey(), watcherEnabled)
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), enableWatcher())
                 .build();
     }
 
@@ -222,7 +206,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @After
     public void tearDown() throws Exception {
-        if (watcherEnabled != null && watcherEnabled) {
+        if (enableWatcher()) {
             internalCluster().getInstances(WatcherLifeCycleService.class)
                     .forEach(w -> w.stop("tearing down watcher as part of monitoring test case"));
         }
@@ -232,6 +216,9 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     /**
      * Override and return {@code false} to force running without Watcher.
+     *
+     * Ensure that this method always returns the same value during a test run, do not put randomBoolean() in here
+     * as it is called more than once
      */
     protected boolean enableWatcher() {
         // Once randomDefault() becomes the default again, then this should only be actively disabled when

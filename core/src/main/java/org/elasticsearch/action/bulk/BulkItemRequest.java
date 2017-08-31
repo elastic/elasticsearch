@@ -75,7 +75,8 @@ public class BulkItemRequest implements Streamable {
         if (primaryResponse != null) {
             throw new IllegalStateException("Item already has a response (status=" + primaryResponse.status() + ")");
         }
-        BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.type(), request.id(), Objects.requireNonNull(cause));
+        final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.type(), request.id(),
+            Objects.requireNonNull(cause), true);
         setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
     }
 

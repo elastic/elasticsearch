@@ -119,7 +119,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final IndexMetaData metaData = primary.indexSettings().getIndexMetaData();
         Translog.Location location = null;
         for (int requestIndex = 0; requestIndex < request.items().length; requestIndex++) {
-            if (request.items()[requestIndex].getPrimaryResponse() == null) {
+            if (isFatalFailure(request.items()[requestIndex].getPrimaryResponse()) == false) {
                 location = executeBulkItemRequest(metaData, primary, request, location, requestIndex,
                     updateHelper, nowInMillisSupplier, mappingUpdater);
             }
@@ -259,6 +259,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
         // Update the translog with the new location, if needed
         return calculateTranslogLocation(location, responseHolder);
+    }
+
+    private static boolean isFatalFailure(BulkItemResponse response) {
+        return response != null && response.isFailed() && response.getFailure().isFatal();
     }
 
     private static boolean isConflictException(final Exception e) {

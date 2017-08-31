@@ -297,12 +297,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         return new SingleAliasRolloverRequest(alias, metaData, sourceIndexName, unresolvedName, rolloverIndexName);
     }
 
-    private static class RolloverFailureException extends Exception {
+    // package visible for testing
+    static class RolloverFailureException extends Exception {
 
         RolloverFailureException(String alias, Exception cause) {
             super(alias, cause);
         }
-
     }
 
     private static class EnrichErrorInfoListener implements ActionListener<RolloverResponse.SingleAliasRolloverResponse> {
@@ -326,7 +326,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
     }
 
-    private static class AggRolloverResponseActionListener implements ActionListener<RolloverResponse.SingleAliasRolloverResponse> {
+    // package visible for testing
+    static class AggRolloverResponseActionListener implements ActionListener<RolloverResponse.SingleAliasRolloverResponse> {
 
         private final int size;
         private final List<RolloverResponse.SingleAliasRolloverResponse> responses;
@@ -343,9 +344,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         @Override
         public void onResponse(RolloverResponse.SingleAliasRolloverResponse rolloverResponse) {
             responses.add(rolloverResponse);
-            if (responses.size() + failures.size() == size) {
-                listener.onResponse(new RolloverResponse(responses, failures));
-            }
+            notifyListenerIfAllAliasesProcessed();
         }
 
         @Override
@@ -356,6 +355,14 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 listener.onFailure((Exception)e.getCause());
             } else {
                 failures.put(e.getMessage(), (Exception)e.getCause());
+            }
+
+            notifyListenerIfAllAliasesProcessed();
+        }
+
+        private void notifyListenerIfAllAliasesProcessed() {
+            if (responses.size() + failures.size() == size) {
+                listener.onResponse(new RolloverResponse(responses, failures));
             }
         }
     }

@@ -69,20 +69,20 @@ http://hc.apache.org/httpcomponents-asyncclient-dev/[Apache Http Async Client]
 === Shading
 
 In order to avoid version conflicts, the dependencies can be shaded and packaged
-within the client in a single JAR file (sometimes called "uber jar" or "fat
-jar"). Shading a dependency consists of taking its content (resources files and
-Java class files), rename its dependency packages before putting them in the
-same JAR file as the low-level Java REST client. Shading a jar can be
-accomplished by 3rd party plugins for gradle and maven.
+within the client in a single JAR file (sometimes called an "uber JAR" or "fat
+JAR"). Shading a dependency consists of taking its content (resources files and
+Java class files) and renaming some of its packages before putting them in the
+same JAR file as the low-level Java REST client. Shading a JAR can be
+accomplished by 3rd-party plugins for Gradle and Maven.
 
-Be advised that shading a jar also has implications. Shading the commons logging
-layer, for instance, means that 3rd party logging backends need to be shaded as
+Be advised that shading a JAR also has implications. Shading the Commons Logging
+layer, for instance, means that 3rd-party logging backends need to be shaded as
 well.
 
 [[java-rest-low-usage-shading-maven]]
-==== Maven Sample
+==== Maven configuration
 
-Here is a configuration using the maven
+Here is a configuration using the Maven
 https://maven.apache.org/plugins/maven-shade-plugin/index.html[Shade]
 plugin. Add the following to your `pom.xml` file:
 
@@ -128,7 +128,7 @@ plugin. Add the following to your `pom.xml` file:
 [[java-rest-low-usage-shading-gradle]]
 ==== Gradle configuration
 
-Here is a configuration using the gradle
+Here is a configuration using the Gradle
 https://github.com/johnrengelman/shadow[ShadowJar] plugin. Add the following to
 your `build.gradle` file:
 

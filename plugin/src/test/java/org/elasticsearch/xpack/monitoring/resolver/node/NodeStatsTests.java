@@ -28,6 +28,8 @@ import static org.hamcrest.Matchers.greaterThan;
 @ClusterScope(scope = Scope.TEST, numClientNodes = 0, transportClientRatio = 0.0)
 public class NodeStatsTests extends MonitoringIntegTestCase {
 
+    private static Boolean WATCHER_ENABLED = null;
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -67,7 +69,7 @@ public class NodeStatsTests extends MonitoringIntegTestCase {
         for (SearchHit searchHit : response.getHits().getHits()) {
             Map<String, Object> fields = searchHit.getSourceAsMap();
 
-            for (String filter : nodeStatsFilters(watcherEnabled)) {
+            for (String filter : nodeStatsFilters()) {
                 if (Constants.WINDOWS) {
                     // load average is unavailable on Windows
                     if (filter.startsWith("node_stats.os.cpu.load_average")) {
@@ -94,12 +96,10 @@ public class NodeStatsTests extends MonitoringIntegTestCase {
     /**
      * Optionally exclude {@link NodeStatsResolver#FILTERS} that require Watcher to be enabled.
      *
-     * @param includeWatcher {@code true} to keep watcher filters.
      * @return Never {@code null} or empty.
-     * @see #watcherEnabled
      */
-    private static Set<String> nodeStatsFilters(boolean includeWatcher) {
-        if (includeWatcher) {
+    private Set<String> nodeStatsFilters() {
+        if (enableWatcher()) {
             return NodeStatsResolver.FILTERS;
         }
 
@@ -108,8 +108,11 @@ public class NodeStatsTests extends MonitoringIntegTestCase {
 
     @Override
     protected boolean enableWatcher() {
+        if (WATCHER_ENABLED == null) {
+            WATCHER_ENABLED = randomBoolean();
+        }
         // currently this is the only Monitoring test that expects Watcher to be enabled.
         // Once this becomes the default, then this should be removed.
-        return randomBoolean();
+        return WATCHER_ENABLED;
     }
 }

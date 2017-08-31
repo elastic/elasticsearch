@@ -368,3 +368,12 @@ So what is the right number of replicas? If you have a cluster that has
 be able to cope with `max_failures` node failures at once at most, then the
 right number of replicas for you is
 `max(max_failures, ceil(num_nodes / num_primaries) - 1)`.
+
+[float]
+=== Turn on adaptive replica selection
+
+When multiple copies of data are present, elasticsearch can use a set of
+criteria called <<search-adaptive-replica,adaptive replica selection>> to select
+the best copy of the data based on response time, service time, and queue size
+of the node containing each copy of the shard. This can improve query throughput
+and reduce latency for search-heavy applications.

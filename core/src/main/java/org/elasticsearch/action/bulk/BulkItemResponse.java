@@ -245,7 +245,9 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
 
         private static boolean supportsFatalFlag(Version version) {
             // The "fatal" flag was added for 5.5.3 and 5.6.0, but was not in 6.0.0-beta2
-            return (version.major == 5 && version.onOrAfter(Version.V_5_5_3)) || version.after(Version.V_6_0_0_beta2);
+            // return version.after(Version.V_6_0_0_beta2)|| (version.major == 5 && version.onOrAfter(Version.V_5_5_3));
+            // Temporarily to "current" only, until change is backported
+            return version.onOrAfter(Version.V_7_0_0_alpha1);
         }
 
 

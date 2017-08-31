@@ -166,7 +166,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nestedPath = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
         }
         validation = GeoValidationMethod.readFromStream(in);
@@ -182,7 +182,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalNamedWriteable(nestedFilter);
         out.writeOptionalString(nestedPath);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeOptionalWriteable(nestedSort);
         }
         validation.writeTo(out);
@@ -588,7 +588,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     DocValueFormat.RAW);
         }
 
-        IndexFieldData.XFieldComparatorSource geoDistanceComparatorSource = new IndexFieldData.XFieldComparatorSource() {
+        IndexFieldData.XFieldComparatorSource geoDistanceComparatorSource = new IndexFieldData.XFieldComparatorSource(null, finalSortMode,
+                nested) {
 
             @Override
             public SortField.Type reducedType() {
@@ -599,11 +600,10 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
                 return new FieldComparator.DoubleComparator(numHits, null, null) {
                     @Override
-                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field)
-                        throws IOException {
+                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
                         final MultiGeoPointValues geoPointValues = geoIndexFieldData.load(context).getGeoPointValues();
-                        final SortedNumericDoubleValues distanceValues = GeoUtils.distanceValues(geoDistance, unit,
-                            geoPointValues, localPoints);
+                        final SortedNumericDoubleValues distanceValues = GeoUtils.distanceValues(geoDistance, unit, geoPointValues,
+                                localPoints);
                         final NumericDoubleValues selectedValues;
                         if (nested == null) {
                             selectedValues = finalSortMode.select(distanceValues, Double.POSITIVE_INFINITY);
@@ -617,7 +617,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     }
                 };
             }
-
         };
 
         return new SortFieldAndFormat(new SortField(fieldName, geoDistanceComparatorSource, reverse),

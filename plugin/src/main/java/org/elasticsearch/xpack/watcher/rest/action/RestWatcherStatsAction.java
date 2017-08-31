@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsRequest;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -46,5 +47,14 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
 
 
         return channel -> client.watcherStats(request, new RestActions.NodesResponseRestListener<>(channel));
+    }
+
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton("emit_stacktraces");
+
+    @Override
+    protected Set<String> responseParams() {
+        // this parameter is only needed when current watches are supposed to be returned
+        // it's used in the WatchExecutionContext.toXContent() method
+        return RESPONSE_PARAMS;
     }
 }

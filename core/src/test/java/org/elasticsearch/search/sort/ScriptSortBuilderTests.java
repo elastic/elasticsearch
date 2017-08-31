@@ -59,10 +59,12 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             }
         }
         if (randomBoolean()) {
-            builder.setNestedFilter(randomNestedFilter());
-        }
-        if (randomBoolean()) {
-            builder.setNestedPath(randomAlphaOfLengthBetween(1, 10));
+            NestedSortBuilder nestedSort = SortBuilders.nestedSort(randomAlphaOfLengthBetween(1, 10));
+            if (randomBoolean()) {
+                nestedSort.setFilter(randomNestedFilter());
+            }
+
+            builder.setNestedSort(nestedSort);
         }
         return builder;
     }
@@ -83,8 +85,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             if (original.sortMode() != null && result.type() == ScriptSortType.NUMBER) {
                 result.sortMode(original.sortMode());
             }
-            result.setNestedFilter(original.getNestedFilter());
-            result.setNestedPath(original.getNestedPath());
+            result.setNestedSort(original.getNestedSort());
             return result;
         }
         result = new ScriptSortBuilder(original);
@@ -108,14 +109,18 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                     }
                 }
                 break;
-            case 2:
-                result.setNestedFilter(randomValueOtherThan(
-                        original.getNestedFilter(),
-                        () -> randomNestedFilter()));
+            case 2: {
+                NestedSortBuilder nestedSort = new NestedSortBuilder(original.getNestedSort());
+                nestedSort.setFilter(randomValueOtherThan(nestedSort.getFilter(), AbstractSortTestCase::randomNestedFilter));
+                result.setNestedSort(nestedSort);
                 break;
-            case 3:
-                result.setNestedPath(original.getNestedPath() + "_some_suffix");
+            }
+            case 3: {
+                NestedSortBuilder nestedSort = new NestedSortBuilder(original.getNestedSort());
+                nestedSort.setPath(nestedSort.getPath() + "_some_suffix");
+                result.setNestedSort(nestedSort);
                 break;
+            }
         }
         return result;
     }
@@ -178,8 +183,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(ScriptSortType.NUMBER, builder.type());
         assertEquals(SortOrder.ASC, builder.order());
         assertEquals(SortMode.MAX, builder.sortMode());
-        assertNull(builder.getNestedFilter());
-        assertNull(builder.getNestedPath());
+        assertNull(builder.getNestedSort());
     }
 
     public void testParseJson_simple() throws IOException {
@@ -203,8 +207,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(ScriptSortType.NUMBER, builder.type());
         assertEquals(SortOrder.ASC, builder.order());
         assertEquals(SortMode.MAX, builder.sortMode());
-        assertNull(builder.getNestedFilter());
-        assertNull(builder.getNestedPath());
+        assertNull(builder.getNestedSort());
     }
 
     public void testParseBadFieldNameExceptions() throws IOException {

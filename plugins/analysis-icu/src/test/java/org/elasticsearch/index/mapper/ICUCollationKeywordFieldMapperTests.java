@@ -82,7 +82,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
 
-        Collator collator = Collator.getInstance();
+        Collator collator = Collator.getInstance(ULocale.ROOT);
         RawCollationKey key = collator.getRawCollationKey("1234", null);
         BytesRef expected = new BytesRef(key.bytes, 0, key.size);
 
@@ -126,7 +126,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
 
-        Collator collator = Collator.getInstance();
+        Collator collator = Collator.getInstance(ULocale.ROOT);
         RawCollationKey key = collator.getRawCollationKey("1234", null);
         BytesRef expected = new BytesRef(key.bytes, 0, key.size);
 
@@ -189,7 +189,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes(),
             XContentType.JSON));
 
-        Collator collator = Collator.getInstance();
+        Collator collator = Collator.getInstance(ULocale.ROOT);
         RawCollationKey key = collator.getRawCollationKey("1234", null);
         BytesRef expected = new BytesRef(key.bytes, 0, key.size);
 
@@ -284,7 +284,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(4, fields.length);
 
-        Collator collator = Collator.getInstance();
+        Collator collator = Collator.getInstance(ULocale.ROOT);
         RawCollationKey key = collator.getRawCollationKey("1234", null);
         BytesRef expected = new BytesRef(key.bytes, 0, key.size);
 
@@ -305,7 +305,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
 
-        collator = Collator.getInstance();
+        collator = Collator.getInstance(ULocale.ROOT);
         key = collator.getRawCollationKey("5678", null);
         expected = new BytesRef(key.bytes, 0, key.size);
 

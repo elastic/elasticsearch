@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 
 public abstract class WatchExecutionContext {
 
@@ -31,7 +32,7 @@ public abstract class WatchExecutionContext {
     private final TimeValue defaultThrottlePeriod;
 
     private ExecutionPhase phase = ExecutionPhase.AWAITS_EXECUTION;
-    private long startTimestamp;
+    private long relativeStartTime;
     private Watch watch;
 
     private Payload payload;
@@ -133,7 +134,7 @@ public abstract class WatchExecutionContext {
 
     public void start() {
         assert phase == ExecutionPhase.AWAITS_EXECUTION;
-        startTimestamp = System.currentTimeMillis();
+        relativeStartTime = System.nanoTime();
         phase = ExecutionPhase.STARTED;
     }
 
@@ -210,24 +211,24 @@ public abstract class WatchExecutionContext {
     public WatchRecord abortFailedExecution(String message) {
         assert !phase.sealed();
         phase = ExecutionPhase.ABORTED;
-        long executionFinishMs = System.currentTimeMillis();
-        WatchExecutionResult result = new WatchExecutionResult(this, executionFinishMs - startTimestamp);
+        long executionTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - relativeStartTime);
+        WatchExecutionResult result = new WatchExecutionResult(this, executionTime);
         return new WatchRecord.MessageWatchRecord(this, result, message);
     }
 
     public WatchRecord abortFailedExecution(Exception e) {
         assert !phase.sealed();
         phase = ExecutionPhase.ABORTED;
-        long executionFinishMs = System.currentTimeMillis();
-        WatchExecutionResult result = new WatchExecutionResult(this, executionFinishMs - startTimestamp);
+        long executionTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - relativeStartTime);
+        WatchExecutionResult result = new WatchExecutionResult(this, executionTime);
         return new WatchRecord.ExceptionWatchRecord(this, result, e);
     }
 
     public WatchRecord finish() {
         assert !phase.sealed();
         phase = ExecutionPhase.FINISHED;
-        long executionFinishMs = System.currentTimeMillis();
-        WatchExecutionResult result = new WatchExecutionResult(this, executionFinishMs - startTimestamp);
+        long executionTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - relativeStartTime);
+        WatchExecutionResult result = new WatchExecutionResult(this, executionTime);
         return new WatchRecord.MessageWatchRecord(this, result);
     }
 

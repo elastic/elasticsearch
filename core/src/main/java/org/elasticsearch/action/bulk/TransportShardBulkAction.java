@@ -54,7 +54,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -120,8 +119,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final IndexMetaData metaData = primary.indexSettings().getIndexMetaData();
         Translog.Location location = null;
         for (int requestIndex = 0; requestIndex < request.items().length; requestIndex++) {
-            location = executeBulkItemRequest(metaData, primary, request, location, requestIndex,
+            if (isAborted(request.items()[requestIndex].getPrimaryResponse()) == false) {
+                location = executeBulkItemRequest(metaData, primary, request, location, requestIndex,
                     updateHelper, nowInMillisSupplier, mappingUpdater);
+            }
         }
         BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
         BulkItemRequest[] items = request.items();
@@ -258,6 +259,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
         // Update the translog with the new location, if needed
         return calculateTranslogLocation(location, responseHolder);
+    }
+
+    private static boolean isAborted(BulkItemResponse response) {
+        return response != null && response.isFailed() && response.getFailure().isAborted();
     }
 
     private static boolean isConflictException(final Exception e) {

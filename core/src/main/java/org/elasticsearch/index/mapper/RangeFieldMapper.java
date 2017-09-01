@@ -477,12 +477,10 @@ public class RangeFieldMapper extends FieldMapper {
                 ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
                 out.writeVInt(ranges.size());
                 for (Range range : ranges) {
-                    out.writeVInt(16);
                     InetAddress fromValue = (InetAddress) range.from;
                     byte[] encodedFromValue = InetAddressPoint.encode(fromValue);
                     out.writeBytes(encodedFromValue, 0, encodedFromValue.length);
 
-                    out.writeVInt(16);
                     InetAddress toValue = (InetAddress) range.to;
                     byte[] encodedToValue = InetAddressPoint.encode(toValue);
                     out.writeBytes(encodedToValue, 0, encodedToValue.length);
@@ -491,10 +489,19 @@ public class RangeFieldMapper extends FieldMapper {
             }
 
             @Override
-            BytesRef[] encodeRange(Object from, Object to) {
-                BytesRef encodedFrom = new BytesRef(InetAddressPoint.encode((InetAddress) from));
-                BytesRef encodedTo = new BytesRef(InetAddressPoint.encode((InetAddress) to));
-                return new BytesRef[]{encodedFrom, encodedTo};
+            public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
+                if (includeFrom == false) {
+                    from = nextUp(from);
+                }
+
+                if (includeTo == false) {
+                    to = nextDown(to);
+                }
+
+                byte[] encodedFrom = InetAddressPoint.encode((InetAddress) from);
+                byte[] encodedTo = InetAddressPoint.encode((InetAddress) to);
+                return new BinaryDocValuesRangeQuery(field, queryType, BinaryDocValuesRangeQuery.LengthType.FIXED_16,
+                        new BytesRef(encodedFrom), new BytesRef(encodedTo), from, to);
             }
 
             @Override
@@ -565,8 +572,8 @@ public class RangeFieldMapper extends FieldMapper {
             }
 
             @Override
-            BytesRef[] encodeRange(Object from, Object to) {
-                return LONG.encodeRange(from, to);
+            public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
+                return LONG.dvRangeQuery(field, queryType, from, to, includeFrom, includeTo);
             }
 
             @Override
@@ -620,12 +627,23 @@ public class RangeFieldMapper extends FieldMapper {
 
             @Override
             public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
-                return DOUBLE.encodeRanges(ranges);
+                return BinaryRangeUtil.encodeFloatRanges(ranges);
             }
 
             @Override
-            BytesRef[] encodeRange(Object from, Object to) {
-                return DOUBLE.encodeRange(((Number) from).floatValue(), ((Number) to).floatValue());
+            public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
+                if (includeFrom == false) {
+                    from = nextUp(from);
+                }
+
+                if (includeTo == false) {
+                    to = nextDown(to);
+                }
+
+                byte[] encodedFrom = BinaryRangeUtil.encodeFloat((Float) from);
+                byte[] encodedTo = BinaryRangeUtil.encodeFloat((Float) to);
+                return new BinaryDocValuesRangeQuery(field, queryType, BinaryDocValuesRangeQuery.LengthType.FIXED_4,
+                        new BytesRef(encodedFrom), new BytesRef(encodedTo), from, to);
             }
 
             @Override
@@ -675,10 +693,19 @@ public class RangeFieldMapper extends FieldMapper {
             }
 
             @Override
-            BytesRef[] encodeRange(Object from, Object to) {
-                byte[] fromValue = BinaryRangeUtil.encode(((Number) from).doubleValue());
-                byte[] toValue = BinaryRangeUtil.encode(((Number) to).doubleValue());
-                return new BytesRef[]{new BytesRef(fromValue), new BytesRef(toValue)};
+            public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
+                if (includeFrom == false) {
+                    from = nextUp(from);
+                }
+
+                if (includeTo == false) {
+                    to = nextDown(to);
+                }
+
+                byte[] encodedFrom = BinaryRangeUtil.encodeDouble((Double) from);
+                byte[] encodedTo = BinaryRangeUtil.encodeDouble((Double) to);
+                return new BinaryDocValuesRangeQuery(field, queryType, BinaryDocValuesRangeQuery.LengthType.FIXED_8,
+                        new BytesRef(encodedFrom), new BytesRef(encodedTo), from, to);
             }
 
             @Override
@@ -730,8 +757,8 @@ public class RangeFieldMapper extends FieldMapper {
             }
 
             @Override
-            BytesRef[] encodeRange(Object from, Object to) {
-                return LONG.encodeRange(from, to);
+            public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
+                return LONG.dvRangeQuery(field, queryType, from, to, includeFrom, includeTo);
             }
 
             @Override
@@ -778,10 +805,19 @@ public class RangeFieldMapper extends FieldMapper {
             }
 
             @Override
-            BytesRef[] encodeRange(Object from, Object to) {
-                byte[] encodedFrom = BinaryRangeUtil.encode(((Number) from).longValue());
-                byte[] encodedTo = BinaryRangeUtil.encode(((Number) to).longValue());
-                return new BytesRef[]{new BytesRef(encodedFrom), new BytesRef(encodedTo)};
+            public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
+                if (includeFrom == false) {
+                    from = nextUp(from);
+                }
+
+                if (includeTo == false) {
+                    to = nextDown(to);
+                }
+
+                byte[] encodedFrom = BinaryRangeUtil.encodeLong(((Number) from).longValue());
+                byte[] encodedTo = BinaryRangeUtil.encodeLong(((Number) to).longValue());
+                return new BinaryDocValuesRangeQuery(field, queryType, BinaryDocValuesRangeQuery.LengthType.VARIABLE,
+                        new BytesRef(encodedFrom), new BytesRef(encodedTo), from, to);
             }
 
             @Override
@@ -897,19 +933,8 @@ public class RangeFieldMapper extends FieldMapper {
         // rounded up via parseFrom and parseTo methods.
         public abstract BytesRef encodeRanges(Set<Range> ranges) throws IOException;
 
-        public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            if (includeFrom == false) {
-                from = nextUp(from);
-            }
-
-            if (includeTo == false) {
-                to = nextDown(to);
-            }
-            BytesRef[] range = encodeRange(from, to);
-            return new BinaryDocValuesRangeQuery(field, queryType, range[0], range[1], from, to);
-        }
-
-        abstract BytesRef[] encodeRange(Object from, Object to);
+        public abstract Query dvRangeQuery(String field, QueryType queryType, Object from, Object to,
+                boolean includeFrom, boolean includeTo);
 
         public final String name;
         private final NumberType numberType;

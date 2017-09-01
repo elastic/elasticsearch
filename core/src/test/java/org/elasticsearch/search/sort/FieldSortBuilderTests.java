@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.search.sort.NestedSortBuilderTests.createRandomNestedSort;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder> {
@@ -80,11 +81,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
 
         if (randomBoolean()) {
-            NestedSortBuilder nestedSort = SortBuilders.nestedSort(randomAlphaOfLengthBetween(1, 10));
-            if (randomBoolean()) {
-                nestedSort.setFilter(randomNestedFilter());
-            }
-            builder.setNestedSort(nestedSort);
+            builder.setNestedSort(createRandomNestedSort(3));
         }
 
         return builder;
@@ -93,32 +90,23 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     @Override
     protected FieldSortBuilder mutate(FieldSortBuilder original) throws IOException {
         FieldSortBuilder mutated = new FieldSortBuilder(original);
-        int parameter = randomIntBetween(0, 5);
+        int parameter = randomIntBetween(0, 4);
         switch (parameter) {
-        case 0: {
-            NestedSortBuilder nestedSort = new NestedSortBuilder(mutated.getNestedSort());
-            nestedSort.setPath(randomValueOtherThan(nestedSort.getPath(), () -> randomAlphaOfLengthBetween(1, 10)));
-            mutated.setNestedSort(nestedSort);
+        case 0:
+            mutated.setNestedSort(randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3)));
             break;
-        }
-        case 1: {
-            NestedSortBuilder nestedSort = new NestedSortBuilder(mutated.getNestedSort());
-            nestedSort.setFilter(randomValueOtherThan(nestedSort.getFilter(), AbstractSortTestCase::randomNestedFilter));
-            mutated.setNestedSort(nestedSort);
-            break;
-        }
-        case 2:
+        case 1:
             mutated.sortMode(randomValueOtherThan(original.sortMode(), () -> randomFrom(SortMode.values())));
             break;
-        case 3:
+        case 2:
             mutated.unmappedType(randomValueOtherThan(
                     original.unmappedType(),
                     () -> randomAlphaOfLengthBetween(1, 10)));
             break;
-        case 4:
+        case 3:
             mutated.missing(randomValueOtherThan(original.missing(), () -> randomFrom(missingContent)));
             break;
-        case 5:
+        case 4:
             mutated.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
             break;
         default:

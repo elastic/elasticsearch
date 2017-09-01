@@ -33,6 +33,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.search.sort.NestedSortBuilderTests.createRandomNestedSort;
+
 public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuilder> {
 
     @Override
@@ -59,12 +61,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             }
         }
         if (randomBoolean()) {
-            NestedSortBuilder nestedSort = SortBuilders.nestedSort(randomAlphaOfLengthBetween(1, 10));
-            if (randomBoolean()) {
-                nestedSort.setFilter(randomNestedFilter());
-            }
-
-            builder.setNestedSort(nestedSort);
+            builder.setNestedSort(createRandomNestedSort(3));
         }
         return builder;
     }
@@ -89,7 +86,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             return result;
         }
         result = new ScriptSortBuilder(original);
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 2)) {
             case 0:
                 if (original.order() == SortOrder.ASC) {
                     result.order(SortOrder.DESC);
@@ -109,18 +106,10 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                     }
                 }
                 break;
-            case 2: {
-                NestedSortBuilder nestedSort = new NestedSortBuilder(original.getNestedSort());
-                nestedSort.setFilter(randomValueOtherThan(nestedSort.getFilter(), AbstractSortTestCase::randomNestedFilter));
-                result.setNestedSort(nestedSort);
+            case 2:
+                result.setNestedSort(randomValueOtherThan(original.getNestedSort(),
+                        () -> NestedSortBuilderTests.createRandomNestedSort(3)));
                 break;
-            }
-            case 3: {
-                NestedSortBuilder nestedSort = new NestedSortBuilder(original.getNestedSort());
-                nestedSort.setPath(nestedSort.getPath() + "_some_suffix");
-                result.setNestedSort(nestedSort);
-                break;
-            }
         }
         return result;
     }

@@ -87,15 +87,9 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.sortMode(randomValueOtherThan(SortMode.SUM, () -> randomFrom(SortMode.values())));
         }
         if (randomBoolean()) {
-            NestedSortBuilder nestedSort = SortBuilders.nestedSort(
-                randomValueOtherThan(
-                    result.getNestedPath(),
-                    () -> randomAlphaOfLengthBetween(1, 10)));
-
-            if (randomBoolean()) {
-                nestedSort.setFilter(new MatchAllQueryBuilder());
-            }
-
+            // don't fully randomize here, GeoDistanceSort is picky about the filters that are allowed
+            NestedSortBuilder nestedSort = new NestedSortBuilder(randomAlphaOfLengthBetween(3, 10));
+            nestedSort.setFilter(new MatchAllQueryBuilder());
             result.setNestedSort(nestedSort);
         }
         if (randomBoolean()) {
@@ -135,7 +129,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     @Override
     protected GeoDistanceSortBuilder mutate(GeoDistanceSortBuilder original) throws IOException {
         GeoDistanceSortBuilder result = new GeoDistanceSortBuilder(original);
-        int parameter = randomIntBetween(0, 8);
+        int parameter = randomIntBetween(0, 7);
         switch (parameter) {
         case 0:
             while (Arrays.deepEquals(original.points(), result.points())) {
@@ -160,19 +154,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                     Arrays.asList(SortMode.SUM, result.sortMode())::contains,
                     () -> randomFrom(SortMode.values())));
             break;
-        case 6: {
-            NestedSortBuilder nestedSort = new NestedSortBuilder(result.getNestedSort());
-            nestedSort.setFilter(randomValueOtherThan(nestedSort.getFilter(), AbstractSortTestCase::randomNestedFilter));
-            result.setNestedSort(nestedSort);
+        case 6:
+            result.setNestedSort(randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3)));
             break;
-        }
-        case 7: {
-            NestedSortBuilder nestedSort = new NestedSortBuilder(result.getNestedSort());
-            nestedSort.setPath(randomValueOtherThan(nestedSort.getPath(), () -> randomAlphaOfLengthBetween(1, 10)));
-            result.setNestedSort(nestedSort);
-            break;
-        }
-        case 8:
+        case 7:
             result.validation(randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
             break;
         }

@@ -329,7 +329,7 @@ class ClusterFormationTasks {
             esConfig['cluster.routing.allocation.disk.watermark.flood_stage'] = '1b'
         }
         // increase script compilation limit since tests can rapid-fire script compilations
-        if (Version.fromString(node.nodeVersion).major > 6) {
+        if (Version.fromString(node.nodeVersion).major >= 6) {
           esConfig['script.max_compilations_rate'] = '2048/1m'
         } else {
           esConfig['script.max_compilations_per_minute'] = 2048

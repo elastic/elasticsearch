@@ -277,6 +277,10 @@ public class JarHell {
                         "class: " + clazz + System.lineSeparator() +
                         "exists multiple times in jar: " + jarpath + " !!!!!!!!!");
             } else {
+                // this class is broken on JDK 9 when a security manager is not enabled
+                if (clazz.startsWith("org.apache.logging.log4j.util.StackLocatorUtil")) {
+                    return;
+                }
                 throw new IllegalStateException("jar hell!" + System.lineSeparator() +
                         "class: " + clazz + System.lineSeparator() +
                         "jar1: " + previous + System.lineSeparator() +

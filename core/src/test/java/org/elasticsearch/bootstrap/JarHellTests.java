@@ -25,12 +25,15 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.jar.Attributes;
@@ -107,6 +110,12 @@ public class JarHellTests extends ESTestCase {
             assertTrue(e.getMessage().contains("foo.jar"));
             assertTrue(e.getMessage().contains(dir2.toString()));
         }
+    }
+
+    public void testLog4jStackLocatorUtilLeniency() throws IOException, URISyntaxException {
+        Path dir = createTempDir();
+        URL[] jars = {makeJar(dir, "foo.jar", null, "org.apache.logging.log4j.util.StackLocatorUtil.class"), makeJar(dir, "bar.jar", null, "org.apache.logging.log4j.util.StackLocatorUtil.class")};
+        JarHell.checkJarHell(new HashSet<>(Arrays.asList(jars)));
     }
 
     public void testWithinSingleJar() throws Exception {

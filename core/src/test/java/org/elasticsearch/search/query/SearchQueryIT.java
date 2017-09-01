@@ -177,8 +177,8 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
 
         assertFailures(client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(Type.PHRASE).slop(0)),
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    containsString("field \"field1\" was indexed without position data; cannot run PhraseQuery"));
+                    RestStatus.BAD_REQUEST,
+                    containsString("field:[field1] was indexed without position data; cannot run PhraseQuery"));
     }
 
     // see #3521

@@ -22,6 +22,7 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -47,7 +48,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -239,6 +239,10 @@ public class MatchQuery {
         }
     }
 
+    private boolean hasPositions(MappedFieldType fieldType) {
+        return fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
+    }
+
     public Query parse(Type type, String fieldName, Object value) throws IOException {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
@@ -263,7 +267,11 @@ public class MatchQuery {
         assert analyzer != null;
         MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
         builder.setEnablePositionIncrements(this.enablePositionIncrements);
-        builder.setAutoGenerateMultiTermSynonymsPhraseQuery(this.autoGenerateSynonymsPhraseQuery);
+        if (hasPositions(fieldType)) {
+            builder.setAutoGenerateMultiTermSynonymsPhraseQuery(this.autoGenerateSynonymsPhraseQuery);
+        } else {
+            builder.setAutoGenerateMultiTermSynonymsPhraseQuery(false);
+        }
 
         Query query = null;
         switch (type) {
@@ -331,6 +339,20 @@ public class MatchQuery {
             return blendTermsQuery(terms, mapper);
         }
 
+        @Override
+        protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
+            if (hasPositions(mapper) == false) {
+                IllegalStateException exc =
+                    new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
+                if (lenient) {
+                    return newLenientFieldQuery(field, exc);
+                } else {
+                    throw exc;
+                }
+            }
+            return super.analyzePhrase(field, stream, slop);
+        }
+
         /**
          * Checks if graph analysis should be enabled for the field depending
          * on the provided {@link Analyzer}
@@ -394,9 +416,6 @@ public class MatchQuery {
                 return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
             } else if (innerQuery instanceof TermQuery) {
                 prefixQuery.add(((TermQuery) innerQuery).getTerm());
-                return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
-            } else if (innerQuery instanceof AllTermQuery) {
-                prefixQuery.add(((AllTermQuery) innerQuery).getTerm());
                 return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
             }
             return query;

@@ -46,7 +46,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo(sourceField));
         assertThat(processor.getTargetField(), equalTo(DateProcessor.DEFAULT_TARGET_FIELD));
         assertThat(processor.getFormats(), equalTo(Collections.singletonList("dd/MM/yyyyy")));
-        assertThat(processor.getLocale(), equalTo(Locale.ENGLISH));
+        assertThat(processor.getLocale(), equalTo(Locale.ROOT));
         assertThat(processor.getTimezone(), equalTo(DateTimeZone.UTC));
     }
 
@@ -87,7 +87,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
-        Locale locale = randomLocale(random());
+        Locale locale = randomFrom(Locale.GERMANY, Locale.FRENCH, Locale.ROOT);
         config.put("locale", locale.toLanguageTag());
 
         DateProcessor processor = factory.create(null, null, config);
@@ -95,17 +95,30 @@ public class DateProcessorFactoryTests extends ESTestCase {
     }
 
     public void testParseInvalidLocale() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
-        Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAlphaOfLengthBetween(1, 10);
-        config.put("field", sourceField);
-        config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
-        config.put("locale", "invalid_locale");
-        try {
-            factory.create(null, null, config);
-            fail("should fail with invalid locale");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Invalid language tag specified: invalid_locale"));
+        String[] locales = new String[] { "invalid_locale", "english", "xy", "xy-US" };
+        for (String locale : locales) {
+            DateProcessor.Factory factory = new DateProcessor.Factory();
+            Map<String, Object> config = new HashMap<>();
+            String sourceField = randomAlphaOfLengthBetween(1, 10);
+            config.put("field", sourceField);
+            config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
+            config.put("locale", locale);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> factory.create(null, null, config));
+            assertThat(e.getMessage(), equalTo("Unknown language: " + locale.split("[_-]")[0]));
+        }
+
+        locales = new String[] { "en-XY", "en-Canada" };
+        for (String locale : locales) {
+            DateProcessor.Factory factory = new DateProcessor.Factory();
+            Map<String, Object> config = new HashMap<>();
+            String sourceField = randomAlphaOfLengthBetween(1, 10);
+            config.put("field", sourceField);
+            config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
+            config.put("locale", locale);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> factory.create(null, null, config));
+            assertThat(e.getMessage(), equalTo("Unknown country: " + locale.split("[_-]")[1]));
         }
     }
 

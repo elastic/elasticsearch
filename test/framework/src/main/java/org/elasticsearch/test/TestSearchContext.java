@@ -58,7 +58,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -219,12 +219,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public List<RescoreSearchContext> rescore() {
+    public List<RescoreContext> rescore() {
         return Collections.emptyList();
     }
 
     @Override
-    public void addRescore(RescoreSearchContext rescore) {
+    public void addRescore(RescoreContext rescore) {
     }
 
     @Override

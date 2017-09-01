@@ -19,9 +19,9 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.entity.StringEntity;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -69,7 +69,7 @@ public class RestHighLevelClientExtTests extends ESTestCase {
     private static class RestHighLevelClientExt extends RestHighLevelClient {
 
         private RestHighLevelClientExt(RestClient restClient) {
-            super(restClient, getNamedXContentsExt());
+            super(restClient, RestClient::close, getNamedXContentsExt());
         }
 
         private static List<NamedXContentRegistry.Entry> getNamedXContentsExt() {

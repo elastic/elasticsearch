@@ -46,7 +46,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -610,17 +609,10 @@ public class QueryStringQueryParser extends XQueryParser {
 
     @Override
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
-        if (termStr.equals("*") && field != null) {
-            /**
-             * We rewrite _all:* to a match all query.
-             * TODO: We can remove this special case when _all is completely removed.
-             */
-            if (Regex.isMatchAllPattern(field) || AllFieldMapper.NAME.equals(field)) {
+        String actualField = field != null ? field : this.field;
+        if (termStr.equals("*") && actualField != null) {
+            if (Regex.isMatchAllPattern(actualField)) {
                 return newMatchAllDocsQuery();
-            }
-            String actualField = field;
-            if (actualField == null) {
-                actualField = this.field;
             }
             // effectively, we check if a field exists or not
             return existsQuery(actualField);

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -245,6 +246,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
                     HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH,
                     HttpTransportSettings.SETTING_HTTP_RESET_COOKIES,
+                    HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY,
+                    HttpTransportSettings.SETTING_HTTP_TCP_KEEP_ALIVE,
+                    HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS,
+                    HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
+                    HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
                     HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
@@ -310,7 +316,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
                     ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
                     ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
-                    ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE,
+                    ScriptService.SCRIPT_MAX_COMPILATIONS_RATE,
                     ScriptService.TYPES_ALLOWED_SETTING,
                     ScriptService.CONTEXTS_ALLOWED_SETTING,
                     IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
@@ -405,6 +411,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
                     FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
                     Node.BREAKER_TYPE_KEY,
+                    OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     IndexGraveyard.SETTING_MAX_TOMBSTONES
             )));
 }

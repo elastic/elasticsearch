@@ -57,6 +57,34 @@ separated string. This will result in hitting the relevant shards where
 the routing values match to.
 
 [float]
+[[search-adaptive-replica]]
+== Adaptive Replica Selection
+
+As an alternative to requests being sent to copies of the data in a round robin
+fashion, you may enable adaptive replica selection. This allows the coordinating
+node to send the request to the copy deemed "best" based on a number of
+criteria:
+
+- Response time of past requests between the coordinating node and the node
+  containing the copy of the data
+- Time past search requests took to execute on the node containing the data
+- The queue size of the search threadpool on the node containing the data
+
+This can be turned on by changing the dynamic cluster setting
+`cluster.routing.use_adaptive_replica_selection` from `false` to `true`:
+
+[source,js]
+--------------------------------------------------
+PUT /_cluster/settings
+{
+    "transient": {
+        "cluster.routing.use_adaptive_replica_selection": true
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[float]
 [[stats-groups]]
 == Stats Groups
 

@@ -46,14 +46,6 @@ public class ShardRoutingHelper {
         return routing.initialize(nodeId, null, expectedSize);
     }
 
-    public static ShardRouting reinitPrimary(ShardRouting routing) {
-        return routing.reinitializePrimaryShard();
-    }
-
-    public static ShardRouting reinitPrimary(ShardRouting routing, UnassignedInfo.Reason reason, RecoverySource recoverySource) {
-        return routing.reinitializePrimaryShard().updateUnassigned(new UnassignedInfo(reason, "test_reinit"), recoverySource);
-    }
-
     public static ShardRouting initWithSameId(ShardRouting copy, RecoverySource recoverySource) {
         return new ShardRouting(copy.shardId(), copy.currentNodeId(), copy.relocatingNodeId(),
             copy.primary(), ShardRoutingState.INITIALIZING, recoverySource, new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),

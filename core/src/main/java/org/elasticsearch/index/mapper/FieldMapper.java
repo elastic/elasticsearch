@@ -57,7 +57,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected final MappedFieldType defaultFieldType;
         private final IndexOptions defaultOptions;
         protected boolean omitNormsSet = false;
-        protected Boolean includeInAll;
         protected boolean indexOptionsSet = false;
         protected boolean docValuesSet = false;
         protected final MultiFields.Builder multiFieldsBuilder;
@@ -179,11 +178,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         public T searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
             this.fieldType.setSearchQuoteAnalyzer(searchQuoteAnalyzer);
-            return builder;
-        }
-
-        public T includeInAll(Boolean includeInAll) {
-            this.includeInAll = includeInAll;
             return builder;
         }
 

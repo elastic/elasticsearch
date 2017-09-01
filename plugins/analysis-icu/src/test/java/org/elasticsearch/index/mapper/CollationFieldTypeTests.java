@@ -78,7 +78,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
 
-        Collator collator = Collator.getInstance().freeze();
+        Collator collator = Collator.getInstance(ULocale.ROOT).freeze();
         ((CollationFieldType) ft).setCollator(collator);
 
         RawCollationKey fooKey = collator.getRawCollationKey("foo", null);
@@ -126,7 +126,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
 
-        Collator collator = Collator.getInstance().freeze();
+        Collator collator = Collator.getInstance(ULocale.ROOT).freeze();
         ((CollationFieldType) ft).setCollator(collator);
 
         RawCollationKey aKey = collator.getRawCollationKey("a", null);

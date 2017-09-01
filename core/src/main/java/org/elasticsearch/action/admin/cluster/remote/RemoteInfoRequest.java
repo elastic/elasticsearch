@@ -21,8 +21,19 @@ package org.elasticsearch.action.admin.cluster.remote;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 public final class RemoteInfoRequest extends ActionRequest {
+
+    public RemoteInfoRequest() {
+
+    }
+
+    public RemoteInfoRequest(StreamInput in) throws IOException {
+        super(in);
+    }
 
     @Override
     public ActionRequestValidationException validate() {

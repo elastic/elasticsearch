@@ -76,6 +76,7 @@ public class EvilLoggerTests extends ESTestCase {
         super.tearDown();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26464")
     public void testLocationInfoTest() throws IOException, UserException {
         setupLogging("location_info");
 
@@ -102,6 +103,7 @@ public class EvilLoggerTests extends ESTestCase {
         assertLogLine(events.get(4), Level.TRACE, location, "This is a trace message");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26464")
     public void testDeprecationLogger() throws IOException, UserException {
         setupLogging("deprecation");
 
@@ -129,6 +131,7 @@ public class EvilLoggerTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26464")
     public void testConcurrentDeprecationLogger() throws IOException, UserException, BrokenBarrierException, InterruptedException {
         setupLogging("deprecation");
 
@@ -206,6 +209,7 @@ public class EvilLoggerTests extends ESTestCase {
 
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26464")
     public void testDeprecationLoggerMaybeLog() throws IOException, UserException {
         setupLogging("deprecation");
 

@@ -298,8 +298,6 @@ public class EvilLoggerTests extends ESTestCase {
         assumeTrue(
                 "will be fixed when https://github.com/apache/logging-log4j2/pull/109 is integrated into to Log4j and we bump versions",
                 !Constants.JRE_IS_MINIMUM_JAVA9);
-        setupLogging("settings");
-
         setupLogging("unsupported");
 
         final String path = System.getProperty("es.logs") + ".log";

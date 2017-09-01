@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
 public class OperationRouting extends AbstractComponent {
 
     public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING =
-            Setting.boolSetting("cluster.routing.use_adaptive_replica_selection", false,
+            Setting.boolSetting("cluster.routing.use_adaptive_replica_selection", true,
                     Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private String[] awarenessAttributes;

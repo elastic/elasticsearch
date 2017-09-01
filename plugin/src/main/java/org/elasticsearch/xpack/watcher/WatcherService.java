@@ -271,7 +271,9 @@ public class WatcherService extends AbstractComponent {
                     try {
                         Watch watch = parser.parse(id, true, hit.getSourceRef(), XContentType.JSON);
                         watch.version(hit.getVersion());
-                        watches.add(watch);
+                        if (watch.status().state().isActive()) {
+                            watches.add(watch);
+                        }
                     } catch (Exception e) {
                         logger.error((Supplier<?>) () -> new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
                     }

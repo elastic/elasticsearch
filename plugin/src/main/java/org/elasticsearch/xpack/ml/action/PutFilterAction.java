@@ -11,9 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -37,6 +36,7 @@ import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
@@ -161,16 +161,16 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final TransportBulkAction transportBulkAction;
+        private final InternalClient client;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool,
-                TransportService transportService, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver,
-                TransportBulkAction transportBulkAction) {
+                               TransportService transportService, ActionFilters actionFilters,
+                               IndexNameExpressionResolver indexNameExpressionResolver,
+                               InternalClient client) {
             super(settings, NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.transportBulkAction = transportBulkAction;
+            this.client = client;
         }
 
         @Override
@@ -183,10 +183,11 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
             } catch (IOException e) {
                 throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
             }
-            BulkRequest bulkRequest = new BulkRequest().add(indexRequest);
-            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+            bulkRequestBuilder.add(indexRequest);
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            transportBulkAction.execute(bulkRequest, new ActionListener<BulkResponse>() {
+            bulkRequestBuilder.execute(new ActionListener<BulkResponse>() {
                 @Override
                 public void onResponse(BulkResponse indexResponse) {
                     listener.onResponse(new Response());

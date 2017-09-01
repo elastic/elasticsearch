@@ -28,6 +28,7 @@ import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Randomness;
@@ -76,8 +77,10 @@ public class EvilLoggerTests extends ESTestCase {
         super.tearDown();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26464")
     public void testLocationInfoTest() throws IOException, UserException {
+        assumeTrue(
+                "will be fixed when https://github.com/apache/logging-log4j2/pull/109 is integrated into to Log4j and we bump versions",
+                !Constants.JRE_IS_MINIMUM_JAVA9);
         setupLogging("location_info");
 
         final Logger testLogger = ESLoggerFactory.getLogger("test");
@@ -103,8 +106,10 @@ public class EvilLoggerTests extends ESTestCase {
         assertLogLine(events.get(4), Level.TRACE, location, "This is a trace message");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26464")
     public void testDeprecationLogger() throws IOException, UserException {
+        assumeTrue(
+                "will be fixed when https://github.com/apache/logging-log4j2/pull/109 is integrated into to Log4j and we bump versions",
+                !Constants.JRE_IS_MINIMUM_JAVA9);
         setupLogging("deprecation");
 
         final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
@@ -131,8 +136,10 @@ public class EvilLoggerTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26464")
     public void testConcurrentDeprecationLogger() throws IOException, UserException, BrokenBarrierException, InterruptedException {
+        assumeTrue(
+                "will be fixed when https://github.com/apache/logging-log4j2/pull/109 is integrated into to Log4j and we bump versions",
+                !Constants.JRE_IS_MINIMUM_JAVA9);
         setupLogging("deprecation");
 
         final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
@@ -209,8 +216,10 @@ public class EvilLoggerTests extends ESTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26464")
     public void testDeprecationLoggerMaybeLog() throws IOException, UserException {
+        assumeTrue(
+                "will be fixed when https://github.com/apache/logging-log4j2/pull/109 is integrated into to Log4j and we bump versions",
+                !Constants.JRE_IS_MINIMUM_JAVA9);
         setupLogging("deprecation");
 
         final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
@@ -253,8 +262,10 @@ public class EvilLoggerTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26464")
     public void testDeprecatedSettings() throws IOException, UserException {
+        assumeTrue(
+                "will be fixed when https://github.com/apache/logging-log4j2/pull/109 is integrated into to Log4j and we bump versions",
+                !Constants.JRE_IS_MINIMUM_JAVA9);
         setupLogging("settings");
 
         final Setting<Boolean> setting = Setting.boolSetting("deprecated.foo", false, Setting.Property.Deprecated);

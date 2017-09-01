@@ -37,10 +37,6 @@ test {
   jvmArg '-XX:-OmitStackTraceInFastThrow'
 }
 
-integTestCluster {
-  setting 'script.max_compilations_per_minute', '1000'
-}
-
 /* Build Javadoc for the Java classes in Painless's public API that are in the
  * Painless plugin */
 task apiJavadoc(type: Javadoc) {

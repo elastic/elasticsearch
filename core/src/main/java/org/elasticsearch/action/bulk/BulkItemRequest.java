@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -90,7 +91,7 @@ public class BulkItemRequest implements Streamable {
             setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
         } else {
             assert primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()
-                    : "response [" + primaryResponse + "]; cause [" + cause + "]";
+                    : "response [" + Strings.toString(primaryResponse) + "]; cause [" + cause + "]";
             if (primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()) {
                 primaryResponse.getFailure().getCause().addSuppressed(cause);
             } else {

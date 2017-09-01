@@ -523,7 +523,7 @@ public final class Definition {
     private final Map<String, Struct> structsMap;
     private final Map<String, Type> simpleTypesMap;
 
-    private Definition() {
+    private Definition(Whitelist whitelist) {
         structsMap = new HashMap<>();
         simpleTypesMap = new HashMap<>();
         runtimeMap = new HashMap<>();
@@ -561,75 +561,6 @@ public final class Definition {
         for (final Map.Entry<String,Struct> entry : structsMap.entrySet()) {
             entry.setValue(entry.getValue().freeze());
         }
-    }
-
-    /** adds classes from definition. returns hierarchy */
-    private Map<String,List<String>> addStructs() {
-        final Map<String,List<String>> hierarchy = new HashMap<>();
-        for (String file : DEFINITION_FILES) {
-            int currentLine = -1;
-            try {
-                try (InputStream stream = Definition.class.getResourceAsStream(file);
-                     LineNumberReader reader = new LineNumberReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-                    String line = null;
-                    while ((line = reader.readLine()) != null) {
-                        currentLine = reader.getLineNumber();
-                        line = line.trim();
-                        if (line.length() == 0 || line.charAt(0) == '#') {
-                            continue;
-                        }
-                        if (line.startsWith("class ")) {
-                            String elements[] = line.split("\u0020");
-                            assert elements[2].equals("->") : "Invalid struct definition [" + String.join(" ", elements) +"]";
-                            if (elements.length == 7) {
-                                hierarchy.put(elements[1], Arrays.asList(elements[5].split(",")));
-                            } else {
-                                assert elements.length == 5 : "Invalid struct definition [" + String.join(" ", elements) + "]";
-                            }
-                            String className = elements[1];
-                            String javaPeer = elements[3];
-                            final Class<?> javaClazz;
-                            switch (javaPeer) {
-                                case "void":
-                                    javaClazz = void.class;
-                                    break;
-                                case "boolean":
-                                    javaClazz = boolean.class;
-                                    break;
-                                case "byte":
-                                    javaClazz = byte.class;
-                                    break;
-                                case "short":
-                                    javaClazz = short.class;
-                                    break;
-                                case "char":
-                                    javaClazz = char.class;
-                                    break;
-                                case "int":
-                                    javaClazz = int.class;
-                                    break;
-                                case "long":
-                                    javaClazz = long.class;
-                                    break;
-                                case "float":
-                                    javaClazz = float.class;
-                                    break;
-                                case "double":
-                                    javaClazz = double.class;
-                                    break;
-                                default:
-                                    javaClazz = Class.forName(javaPeer);
-                                    break;
-                            }
-                            addStruct(className, javaClazz);
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                throw new RuntimeException("error in " + file + ", line: " + currentLine, e);
-            }
-        }
-        return hierarchy;
     }
 
     private void addStruct(ClassLoader whitelistClassLoader, Whitelist.Struct whitelistStruct) {

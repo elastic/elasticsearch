@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -253,7 +252,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
-        private final Client client;
+        private final InternalClient client;
         private final JobManager jobManager;
         private final JobProvider jobProvider;
         private final JobDataCountsPersister jobDataCountsPersister;

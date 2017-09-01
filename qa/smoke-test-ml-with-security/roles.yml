@@ -15,4 +15,3 @@ minimal:
         - indices:data/read/search
         - indices:data/write/bulk
         - indices:data/write/index
-        - indices:data/write/delete

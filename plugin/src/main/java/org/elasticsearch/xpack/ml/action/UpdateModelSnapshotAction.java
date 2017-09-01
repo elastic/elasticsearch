@@ -12,12 +12,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseField;
@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -265,14 +266,14 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final JobProvider jobProvider;
-        private final TransportBulkAction transportBulkAction;
+        private final InternalClient client;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider, TransportBulkAction transportBulkAction) {
+                               IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider, InternalClient client) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.jobProvider = jobProvider;
-            this.transportBulkAction = transportBulkAction;
+            this.client = client;
         }
 
         @Override
@@ -314,8 +315,10 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
                 errorHandler.accept(e);
                 return;
             }
-            BulkRequest bulkRequest = new BulkRequest().add(indexRequest);
-            transportBulkAction.execute(bulkRequest, new ActionListener<BulkResponse>() {
+            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+            bulkRequestBuilder.add(indexRequest);
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            bulkRequestBuilder.execute(new ActionListener<BulkResponse>() {
                 @Override
                 public void onResponse(BulkResponse indexResponse) {
                     handler.accept(true);

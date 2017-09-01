@@ -114,7 +114,7 @@ public class JarHellTests extends ESTestCase {
 
     public void testLog4jStackLocatorUtilLeniency() throws IOException, URISyntaxException {
         Path dir = createTempDir();
-        URL[] jars = {makeJar(dir, "foo.jar", null, "org.apache.logging.log4j.util.StackLocatorUtil.class"), makeJar(dir, "bar.jar", null, "org.apache.logging.log4j.util.StackLocatorUtil.class")};
+        URL[] jars = {makeJar(dir, "foo.jar", null, "org.apache.logging.log4j.util.StackLocator.class"), makeJar(dir, "bar.jar", null, "org.apache.logging.log4j.util.StackLocator.class")};
         JarHell.checkJarHell(new HashSet<>(Arrays.asList(jars)));
     }
 

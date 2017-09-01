@@ -46,7 +46,7 @@ import java.util.Stack;
  */
 public final class StackLocator {
 
-    // the only difference between this class and the one that ships with Log4j is that we actually construct and assign an instance here
+    // the only difference between this class and the one that ships with Log4j is that we actually construct the dependent constructor
     private static PrivateSecurityManager SECURITY_MANAGER = new PrivateSecurityManager();
 
     // Checkstyle Suppress: the lower-case 'u' ticks off CheckStyle...

@@ -33,6 +33,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.search.sort.NestedSortBuilderTests.createRandomNestedSort;
+
 public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuilder> {
 
     @Override
@@ -59,10 +61,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             }
         }
         if (randomBoolean()) {
-            builder.setNestedFilter(randomNestedFilter());
-        }
-        if (randomBoolean()) {
-            builder.setNestedPath(randomAlphaOfLengthBetween(1, 10));
+            builder.setNestedSort(createRandomNestedSort(3));
         }
         return builder;
     }
@@ -83,12 +82,11 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             if (original.sortMode() != null && result.type() == ScriptSortType.NUMBER) {
                 result.sortMode(original.sortMode());
             }
-            result.setNestedFilter(original.getNestedFilter());
-            result.setNestedPath(original.getNestedPath());
+            result.setNestedSort(original.getNestedSort());
             return result;
         }
         result = new ScriptSortBuilder(original);
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 2)) {
             case 0:
                 if (original.order() == SortOrder.ASC) {
                     result.order(SortOrder.DESC);
@@ -109,12 +107,8 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 }
                 break;
             case 2:
-                result.setNestedFilter(randomValueOtherThan(
-                        original.getNestedFilter(),
-                        () -> randomNestedFilter()));
-                break;
-            case 3:
-                result.setNestedPath(original.getNestedPath() + "_some_suffix");
+                result.setNestedSort(randomValueOtherThan(original.getNestedSort(),
+                        () -> NestedSortBuilderTests.createRandomNestedSort(3)));
                 break;
         }
         return result;
@@ -178,8 +172,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(ScriptSortType.NUMBER, builder.type());
         assertEquals(SortOrder.ASC, builder.order());
         assertEquals(SortMode.MAX, builder.sortMode());
-        assertNull(builder.getNestedFilter());
-        assertNull(builder.getNestedPath());
+        assertNull(builder.getNestedSort());
     }
 
     public void testParseJson_simple() throws IOException {
@@ -203,8 +196,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(ScriptSortType.NUMBER, builder.type());
         assertEquals(SortOrder.ASC, builder.order());
         assertEquals(SortMode.MAX, builder.sortMode());
-        assertNull(builder.getNestedFilter());
-        assertNull(builder.getNestedPath());
+        assertNull(builder.getNestedSort());
     }
 
     public void testParseBadFieldNameExceptions() throws IOException {

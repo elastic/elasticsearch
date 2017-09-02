@@ -61,7 +61,7 @@ public final class SearchExecutionStatsCollector implements ActionListener<Searc
             final int queueSize = queryResult.nodeQueueSize();
             final long responseDuration = System.nanoTime() - startNanos;
             // EWMA/queue size may be -1 if the query node doesn't support capturing it
-            if (serviceTimeEWMA > 0 && queueSize > 0) {
+            if (serviceTimeEWMA > 0 && queueSize >= 0) {
                 collector.addNodeStatistics(nodeId, queueSize, responseDuration, serviceTimeEWMA);
             }
         }

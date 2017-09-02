@@ -162,14 +162,29 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     }
 
     public static class InternalQueryContext {
+        public enum Occur {
+            MUST, SHOULD;
+
+            public static Occur fromString(String occur) {
+                if (occur.equalsIgnoreCase("must")) {
+                    return MUST;
+                } else if (occur.equalsIgnoreCase("should")) {
+                    return SHOULD;
+                } else {
+                    throw new IllegalArgumentException("No context occur for [" + occur + "]");
+                }
+            }
+        }
         public final String context;
         public final int boost;
         public final boolean isPrefix;
+        public final Occur occur;
 
-        public InternalQueryContext(String context, int boost, boolean isPrefix) {
+        public InternalQueryContext(String context, int boost, boolean isPrefix, Occur occur) {
             this.context = context;
             this.boost = boost;
             this.isPrefix = isPrefix;
+            this.occur = occur;
         }
 
         @Override
@@ -181,6 +196,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
 
             if (boost != that.boost) return false;
             if (isPrefix != that.isPrefix) return false;
+            if (occur != that.occur) return false;
             return context != null ? context.equals(that.context) : that.context == null;
 
         }
@@ -190,6 +206,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
             int result = context != null ? context.hashCode() : 0;
             result = 31 * result + boost;
             result = 31 * result + (isPrefix ? 1 : 0);
+            result = 31 * result + occur.ordinal();
             return result;
         }
 
@@ -199,6 +216,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
                     "context='" + context + '\'' +
                     ", boost=" + boost +
                     ", isPrefix=" + isPrefix +
+                    ", occur=" + occur.name() +
                     '}';
         }
     }

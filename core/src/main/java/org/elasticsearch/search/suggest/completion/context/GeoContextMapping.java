@@ -273,7 +273,14 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             }
             internalQueryContextList.addAll(
                 locations.stream()
-                    .map(location -> new InternalQueryContext(location, queryContext.getBoost(), location.length() < this.precision))
+                    .map(location ->
+                            new InternalQueryContext(
+                                location,
+                                queryContext.getBoost(),
+                               location.length() < this.precision,
+                                queryContext.getOccur()
+                            )
+                    )
                     .collect(Collectors.toList()));
         }
         return internalQueryContextList;

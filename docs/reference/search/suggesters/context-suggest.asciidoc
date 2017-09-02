@@ -188,7 +188,7 @@ POST place/_search?pretty
 // CONSOLE
 // TEST[continued]
 <1> The context query filter suggestions associated with
-    categories 'cafe' and 'restaurants' and boosts the
+    categories 'cafe' or 'restaurants' and boosts the
     suggestions associated with 'restaurants' by a
     factor of `2`
 
@@ -372,3 +372,41 @@ multiple context clauses. The following parameters are supported for a
     precision value can be a distance value (`5m`, `10km` etc.)
     or a raw geohash precision (`1`..`12`). Defaults to
     generating neighbours for index time precision level.
+
+[float]
+==== Context occur
+
+When multiple contexts are queried it is possible to define for each if it is mandatory
+(`must`) or optional (`should`) for the context to match.
+By default all contexts are optionals, a suggestion matches if any of the context matches.
+Setting the `occur` option to `must` for a specific context makes it mandatory.
+
+For example:
+
+[source,js]
+--------------------------------------------------
+POST place/_search?pretty
+{
+    "suggest": {
+        "place_suggestion" : {
+            "prefix" : "tim",
+            "completion" : {
+                "field" : "suggest",
+                "size": 10,
+                "contexts": {
+                    "place_type": [ <1>
+                        { "context" : "cafe", "occur": "must" },
+                        { "context" : "restaurants", "boost": 2 }
+                     ]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> The context query boosts suggestions associated with the category 'restaurants' by a
+    factor of `2` if they also match the category `cafe`.
+

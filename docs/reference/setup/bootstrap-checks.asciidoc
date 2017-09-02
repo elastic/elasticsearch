@@ -34,7 +34,7 @@ Elasticsearch node to be in development mode if it can not form a cluster with
 another machine over an external network interface, and is otherwise in
 production mode if it can join a cluster over an external interface.
 
-Note that HTTP can be configured independently of transport via
+Note that HTTP and transport can be configured independently via
 <<modules-http,`http.host`>> and <<modules-transport,`transport.host`>>; this
 can be useful for configuring a single node to be reachable via HTTP for testing
 purposes without triggering production mode.

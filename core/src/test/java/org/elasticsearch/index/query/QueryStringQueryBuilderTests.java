@@ -45,10 +45,8 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -1007,6 +1005,28 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             newIndexMeta("index",
                 context.getIndexSettings().getSettings(), Settings.builder().putArray("index.query.default_field", "*").build())
         );
+    }
+
+    /**
+     * the quote analyzer should overwrite any other forced analyzer in quoted parts of the query
+     */
+    public void testQuoteAnalyzer() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        // Prefix
+        Query query = new QueryStringQueryBuilder("ONE \"TWO THREE\"")
+                .field(STRING_FIELD_NAME)
+                .analyzer("whitespace")
+                .quoteAnalyzer("simple")
+                .toQuery(createShardContext());
+        Query expectedQuery =
+                new BooleanQuery.Builder()
+                        .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "ONE")), Occur.SHOULD))
+                        .add(new BooleanClause(new PhraseQuery.Builder()
+                                .add(new Term(STRING_FIELD_NAME, "two"), 0)
+                                .add(new Term(STRING_FIELD_NAME, "three"), 1)
+                                .build(), Occur.SHOULD))
+                    .build();
+        assertEquals(expectedQuery, query);
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

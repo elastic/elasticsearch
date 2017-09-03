@@ -33,7 +33,7 @@ case $key in
             "precommit"
             "check"
             "-Dtests.network=true"
-            "-Dtests.badaples=true"
+            "-Dtests.badapples=true"
         )
         ;;
     packagingTest)

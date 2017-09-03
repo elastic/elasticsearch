@@ -42,7 +42,7 @@ public class CanMatchIT extends ESIntegTestCase {
                 Settings.builder().put("index.routing.allocation.include.color", "blue").put("index.number_of_shards", 640);
         client().admin().indices().create(new CreateIndexRequest("index").settings(settings)).actionGet();
         // it can take a long time for all the shards to allocate and initialize
-        ensureGreen(TimeValue.timeValueSeconds(60));
+        ensureGreen(TimeValue.timeValueSeconds(Long.MAX_VALUE));
         // we have to query through the data node so that all requests are local; if this query executes successfully, the test passes
         client(node).prepareSearch("index").setQuery(new QueryStringQueryBuilder("")).execute().actionGet();
     }

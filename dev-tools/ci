@@ -25,6 +25,17 @@ set -o pipefail
 # default to `check` if no argument has been supplied
 key=${1-check}
 case $key in
+    intake)
+        GRADLE_CLI_ARGS=(
+            "--info"
+            "compileJava"
+            "compileTestJava"
+            "precommit"
+            "check"
+            "-Dtests.network=true"
+            "-Dtests.badaples=true"
+        )
+        ;;
     packagingTest)
         GRADLE_CLI_ARGS=(
             "--info"

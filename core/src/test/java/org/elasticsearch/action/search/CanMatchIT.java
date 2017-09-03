@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -39,10 +40,9 @@ public class CanMatchIT extends ESIntegTestCase {
          */
         final Settings.Builder settings =
                 Settings.builder().put("index.routing.allocation.include.color", "blue").put("index.number_of_shards", 640);
-        final CreateIndexRequest createIndexRequest =
-                new CreateIndexRequest("index").settings(settings);
-        client().admin().indices().create(createIndexRequest).actionGet();
-        ensureGreen();
+        client().admin().indices().create(new CreateIndexRequest("index").settings(settings)).actionGet();
+        // it can take a long time for all the shards to allocate and initialize
+        ensureGreen(TimeValue.timeValueSeconds(60));
         // we have to query through the data node so that all requests are local; if this query executes successfully, the test passes
         client(node).prepareSearch("index").setQuery(new QueryStringQueryBuilder("")).execute().actionGet();
     }

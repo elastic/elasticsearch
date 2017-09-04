@@ -105,6 +105,13 @@ public final class IndexSettings {
     public static final Setting<Integer> MAX_RESULT_WINDOW_SETTING =
         Setting.intSetting("index.max_result_window", 10000, 1, Property.Dynamic, Property.IndexScope);
     /**
+     * Index setting describing the maximum value of from + size on an individual inner hit definition or
+     * top hits aggregation. The default maximum of 100 is defensive for the reason that the number of inner hit responses
+     * and number of top hits buckets returned is unbounded. Profile your cluster when increasing this setting.
+     */
+    public static final Setting<Integer> MAX_INNER_RESULT_WINDOW_SETTING =
+        Setting.intSetting("index.max_inner_result_window", 100, 1, Property.Dynamic, Property.IndexScope);
+    /**
      * Index setting describing the maximum size of the rescore window. Defaults to {@link #MAX_RESULT_WINDOW_SETTING}
      * because they both do the same thing: control the size of the heap of hits.
      */
@@ -224,6 +231,7 @@ public final class IndexSettings {
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
+    private volatile int maxInnerResultWindow;
     private volatile int maxAdjacencyMatrixFilters;
     private volatile int maxRescoreWindow;
     private volatile boolean TTLPurgeDisabled;
@@ -324,6 +332,7 @@ public final class IndexSettings {
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
+        maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
         maxAdjacencyMatrixFilters = scopedSettings.get(MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
         maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
         TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
@@ -352,6 +361,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TTL_DISABLE_PURGE_SETTING, this::setTTLPurgeDisabled);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
+        scopedSettings.addSettingsUpdateConsumer(MAX_INNER_RESULT_WINDOW_SETTING, this::setMaxInnerResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_ADJACENCY_MATRIX_FILTERS_SETTING, this::setMaxAdjacencyMatrixFilters);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESCORE_WINDOW_SETTING, this::setMaxRescoreWindow);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
@@ -575,6 +585,17 @@ public final class IndexSettings {
 
     private void setMaxResultWindow(int maxResultWindow) {
         this.maxResultWindow = maxResultWindow;
+    }
+
+    /**
+     * Returns the max result window for an individual inner hit definition or top hits aggregation.
+     */
+    public int getMaxInnerResultWindow() {
+        return maxInnerResultWindow;
+    }
+
+    private void setMaxInnerResultWindow(int maxInnerResultWindow) {
+        this.maxInnerResultWindow = maxInnerResultWindow;
     }
 
     /**

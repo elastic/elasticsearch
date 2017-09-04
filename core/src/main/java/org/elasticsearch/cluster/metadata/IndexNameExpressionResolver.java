@@ -159,6 +159,11 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         // or multiple indices are specified yield different behaviour.
         final boolean failNoIndices = indexExpressions.length == 1 ? !options.allowNoIndices() : !options.ignoreUnavailable();
         List<String> expressions = Arrays.asList(indexExpressions);
+        for (String expression : expressions) {
+            if (expression.charAt(0) == '_' && MetaData.ALL.equals(expression) == false) {
+                throw new InvalidIndexNameException(expression, "must not start with '_'.");
+            }
+        }
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             expressions = expressionResolver.resolve(context, expressions);
         }
@@ -175,9 +180,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
 
         final Set<Index> concreteIndices = new HashSet<>(expressions.size());
         for (String expression : expressions) {
-            if (expression.charAt(0) == '_' && MetaData.ALL.equals(expression) == false) {
-                throw new InvalidIndexNameException(expression, "must not start with '_'.");
-            }
             AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
             if (aliasOrIndex == null ) {
                 if (failNoIndices) {

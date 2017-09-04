@@ -858,6 +858,38 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
+    public void testSkipDuplicates() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        createIndexAndMapping(mapping);
+        int numDocs = randomIntBetween(10, 100);
+        int numUnique = randomIntBetween(1, numDocs);
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 1; i <= numDocs; i++) {
+            int id = i % numUnique;
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                .setSource(jsonBuilder()
+                    .startObject()
+                        .startObject(FIELD)
+                            .field("input", "suggestion" + id)
+                            .field("weight", id)
+                        .endObject()
+                    .endObject()
+                ));
+        }
+        String[] expected = new String[numUnique];
+        int sugg = numUnique - 1;
+        for (int i = 0; i < numUnique; i++) {
+            expected[i] = "suggestion" + sugg--;
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder completionSuggestionBuilder =
+            SuggestBuilders.completionSuggestion(FIELD).prefix("sugg").skipDuplicates(true).size(numUnique);
+
+        SearchResponse searchResponse = client().prepareSearch(INDEX)
+            .suggest(new SuggestBuilder().addSuggestion("suggestions", completionSuggestionBuilder)).execute().actionGet();
+        assertSuggestions(searchResponse, true, "suggestions", expected);
+    }
+
     public void assertSuggestions(String suggestionName, SuggestionBuilder suggestBuilder, String... suggestions) {
         SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder)).execute().actionGet();
         assertSuggestions(searchResponse, suggestionName, suggestions);

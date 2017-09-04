@@ -58,7 +58,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
@@ -440,7 +440,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         if (snapshot.size() > 0) {
             startingSeqNo = PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget);
         } else {
-            startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
 
         final StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), targetAllocationId,

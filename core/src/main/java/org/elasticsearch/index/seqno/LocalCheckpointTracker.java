@@ -67,26 +67,26 @@ public class LocalCheckpointTracker {
 
     /**
      * Initialize the local checkpoint service. The {@code maxSeqNo} should be set to the last sequence number assigned, or
-     * {@link SequenceNumbersService#NO_OPS_PERFORMED} and {@code localCheckpoint} should be set to the last known local checkpoint,
-     * or {@link SequenceNumbersService#NO_OPS_PERFORMED}.
+     * {@link SequenceNumbers#NO_OPS_PERFORMED} and {@code localCheckpoint} should be set to the last known local checkpoint,
+     * or {@link SequenceNumbers#NO_OPS_PERFORMED}.
      *
      * @param indexSettings   the index settings
-     * @param maxSeqNo        the last sequence number assigned, or {@link SequenceNumbersService#NO_OPS_PERFORMED}
-     * @param localCheckpoint the last known local checkpoint, or {@link SequenceNumbersService#NO_OPS_PERFORMED}
+     * @param maxSeqNo        the last sequence number assigned, or {@link SequenceNumbers#NO_OPS_PERFORMED}
+     * @param localCheckpoint the last known local checkpoint, or {@link SequenceNumbers#NO_OPS_PERFORMED}
      */
     public LocalCheckpointTracker(final IndexSettings indexSettings, final long maxSeqNo, final long localCheckpoint) {
-        if (localCheckpoint < 0 && localCheckpoint != SequenceNumbersService.NO_OPS_PERFORMED) {
+        if (localCheckpoint < 0 && localCheckpoint != SequenceNumbers.NO_OPS_PERFORMED) {
             throw new IllegalArgumentException(
-                "local checkpoint must be non-negative or [" + SequenceNumbersService.NO_OPS_PERFORMED + "] "
+                "local checkpoint must be non-negative or [" + SequenceNumbers.NO_OPS_PERFORMED + "] "
                     + "but was [" + localCheckpoint + "]");
         }
-        if (maxSeqNo < 0 && maxSeqNo != SequenceNumbersService.NO_OPS_PERFORMED) {
+        if (maxSeqNo < 0 && maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED) {
             throw new IllegalArgumentException(
-                "max seq. no. must be non-negative or [" + SequenceNumbersService.NO_OPS_PERFORMED + "] but was [" + maxSeqNo + "]");
+                "max seq. no. must be non-negative or [" + SequenceNumbers.NO_OPS_PERFORMED + "] but was [" + maxSeqNo + "]");
         }
         bitArraysSize = SETTINGS_BIT_ARRAYS_SIZE.get(indexSettings.getSettings());
-        firstProcessedSeqNo = localCheckpoint == SequenceNumbersService.NO_OPS_PERFORMED ? 0 : localCheckpoint + 1;
-        nextSeqNo = maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED ? 0 : maxSeqNo + 1;
+        firstProcessedSeqNo = localCheckpoint == SequenceNumbers.NO_OPS_PERFORMED ? 0 : localCheckpoint + 1;
+        nextSeqNo = maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED ? 0 : maxSeqNo + 1;
         checkpoint = localCheckpoint;
     }
 
@@ -127,7 +127,7 @@ public class LocalCheckpointTracker {
      * @param checkpoint the local checkpoint to reset this tracker to
      */
     synchronized void resetCheckpoint(final long checkpoint) {
-        assert checkpoint != SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        assert checkpoint != SequenceNumbers.UNASSIGNED_SEQ_NO;
         assert checkpoint <= this.checkpoint;
         processedSeqNo.clear();
         firstProcessedSeqNo = checkpoint + 1;

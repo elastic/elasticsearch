@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESTestCase;
@@ -49,7 +49,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
                 Store.MetadataSnapshot.EMPTY,
                 randomBoolean(),
                 randomNonNegativeLong(),
-                randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
+                randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
 
         final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         final OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
@@ -72,7 +72,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
         if (targetNodeVersion.onOrAfter(Version.V_6_0_0_alpha1)) {
             assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
         } else {
-            assertThat(SequenceNumbersService.UNASSIGNED_SEQ_NO, equalTo(inRequest.startingSeqNo()));
+            assertThat(SequenceNumbers.UNASSIGNED_SEQ_NO, equalTo(inRequest.startingSeqNo()));
         }
     }
 

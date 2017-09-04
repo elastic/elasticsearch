@@ -84,7 +84,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -282,7 +282,7 @@ public class IndexShardTests extends IndexShardTestCase {
             // expected
         }
         try {
-            indexShard.acquireReplicaOperationPermit(indexShard.getPrimaryTerm(), SequenceNumbersService.UNASSIGNED_SEQ_NO, null,
+            indexShard.acquireReplicaOperationPermit(indexShard.getPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, null,
                 ThreadPool.Names.INDEX);
             fail("we should not be able to increment anymore");
         } catch (IndexShardClosedException e) {
@@ -294,7 +294,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(false);
         expectThrows(IndexShardNotStartedException.class, () ->
             indexShard.acquireReplicaOperationPermit(indexShard.getPrimaryTerm() + randomIntBetween(1, 100),
-                SequenceNumbersService.UNASSIGNED_SEQ_NO, null, ThreadPool.Names.INDEX));
+                SequenceNumbers.UNASSIGNED_SEQ_NO, null, ThreadPool.Names.INDEX));
         closeShards(indexShard);
     }
 
@@ -414,7 +414,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // most of the time this is large enough that most of the time there will be at least one gap
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
-        final Result result = indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED));
+        final Result result = indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
 
         final int maxSeqNo = result.maxSeqNo;
         final boolean gap = result.gap;
@@ -592,7 +592,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             };
 
-            indexShard.acquireReplicaOperationPermit(primaryTerm - 1, SequenceNumbersService.UNASSIGNED_SEQ_NO, onLockAcquired,
+            indexShard.acquireReplicaOperationPermit(primaryTerm - 1, SequenceNumbers.UNASSIGNED_SEQ_NO, onLockAcquired,
                 ThreadPool.Names.INDEX);
 
             assertFalse(onResponse.get());
@@ -608,12 +608,12 @@ public class IndexShardTests extends IndexShardTestCase {
             final CyclicBarrier barrier = new CyclicBarrier(2);
             final long newPrimaryTerm = primaryTerm + 1 + randomInt(20);
             if (engineClosed == false) {
-                assertThat(indexShard.getLocalCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
-                assertThat(indexShard.getGlobalCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
+                assertThat(indexShard.getLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+                assertThat(indexShard.getGlobalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
             }
             final long newGlobalCheckPoint;
             if (engineClosed || randomBoolean()) {
-                newGlobalCheckPoint = SequenceNumbersService.NO_OPS_PERFORMED;
+                newGlobalCheckPoint = SequenceNumbers.NO_OPS_PERFORMED;
             } else {
                 long localCheckPoint = indexShard.getGlobalCheckpoint() + randomInt(100);
                 // advance local checkpoint
@@ -623,8 +623,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 newGlobalCheckPoint = randomIntBetween((int) indexShard.getGlobalCheckpoint(), (int) localCheckPoint);
             }
             final long expectedLocalCheckpoint;
-            if (newGlobalCheckPoint == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                expectedLocalCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+            if (newGlobalCheckPoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                expectedLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
             } else {
                 expectedLocalCheckpoint = newGlobalCheckPoint;
             }
@@ -714,18 +714,18 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRestoreLocalCheckpointTrackerFromTranslogOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
-        indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED));
+        indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
 
         final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
-        final long globalCheckpointOnReplica = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        final long globalCheckpointOnReplica = SequenceNumbers.UNASSIGNED_SEQ_NO;
         randomIntBetween(
-                Math.toIntExact(SequenceNumbersService.UNASSIGNED_SEQ_NO),
+                Math.toIntExact(SequenceNumbers.UNASSIGNED_SEQ_NO),
                 Math.toIntExact(indexShard.getLocalCheckpoint()));
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
 
         final int globalCheckpoint =
                 randomIntBetween(
-                        Math.toIntExact(SequenceNumbersService.UNASSIGNED_SEQ_NO),
+                        Math.toIntExact(SequenceNumbers.UNASSIGNED_SEQ_NO),
                         Math.toIntExact(indexShard.getLocalCheckpoint()));
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -770,17 +770,17 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // most of the time this is large enough that most of the time there will be at least one gap
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
-        indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED));
+        indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
 
         final long globalCheckpointOnReplica =
                 randomIntBetween(
-                        Math.toIntExact(SequenceNumbersService.UNASSIGNED_SEQ_NO),
+                        Math.toIntExact(SequenceNumbers.UNASSIGNED_SEQ_NO),
                         Math.toIntExact(indexShard.getLocalCheckpoint()));
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
 
         final int globalCheckpoint =
                 randomIntBetween(
-                        Math.toIntExact(SequenceNumbersService.UNASSIGNED_SEQ_NO),
+                        Math.toIntExact(SequenceNumbers.UNASSIGNED_SEQ_NO),
                         Math.toIntExact(indexShard.getLocalCheckpoint()));
         final CountDownLatch latch = new CountDownLatch(1);
         indexShard.acquireReplicaOperationPermit(
@@ -801,9 +801,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 ThreadPool.Names.SAME);
 
         latch.await();
-        if (globalCheckpointOnReplica == SequenceNumbersService.UNASSIGNED_SEQ_NO
-                && globalCheckpoint == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-            assertThat(indexShard.getLocalCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
+        if (globalCheckpointOnReplica == SequenceNumbers.UNASSIGNED_SEQ_NO
+                && globalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            assertThat(indexShard.getLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
         } else {
             assertThat(indexShard.getLocalCheckpoint(), equalTo(Math.max(globalCheckpoint, globalCheckpointOnReplica)));
         }

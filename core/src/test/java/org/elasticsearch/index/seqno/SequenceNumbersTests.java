@@ -29,31 +29,31 @@ public class SequenceNumbersTests extends ESTestCase {
 
     public void testMin() {
         final long seqNo = randomNonNegativeLong();
-        assertThat(SequenceNumbers.min(SequenceNumbersService.NO_OPS_PERFORMED, seqNo), equalTo(seqNo));
+        assertThat(SequenceNumbers.min(SequenceNumbers.NO_OPS_PERFORMED, seqNo), equalTo(seqNo));
         assertThat(
-                SequenceNumbers.min(SequenceNumbersService.NO_OPS_PERFORMED, SequenceNumbersService.UNASSIGNED_SEQ_NO),
-                equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
-        assertThat(SequenceNumbers.min(SequenceNumbersService.UNASSIGNED_SEQ_NO, seqNo), equalTo(seqNo));
+                SequenceNumbers.min(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.UNASSIGNED_SEQ_NO),
+                equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+        assertThat(SequenceNumbers.min(SequenceNumbers.UNASSIGNED_SEQ_NO, seqNo), equalTo(seqNo));
         final long minSeqNo = randomNonNegativeLong();
         assertThat(SequenceNumbers.min(minSeqNo, seqNo), equalTo(Math.min(minSeqNo, seqNo)));
 
         final IllegalArgumentException e =
-                expectThrows(IllegalArgumentException.class, () -> SequenceNumbers.min(minSeqNo, SequenceNumbersService.UNASSIGNED_SEQ_NO));
+                expectThrows(IllegalArgumentException.class, () -> SequenceNumbers.min(minSeqNo, SequenceNumbers.UNASSIGNED_SEQ_NO));
         assertThat(e, hasToString(containsString("sequence number must be assigned")));
     }
 
     public void testMax() {
         final long seqNo = randomNonNegativeLong();
-        assertThat(SequenceNumbers.max(SequenceNumbersService.NO_OPS_PERFORMED, seqNo), equalTo(seqNo));
+        assertThat(SequenceNumbers.max(SequenceNumbers.NO_OPS_PERFORMED, seqNo), equalTo(seqNo));
         assertThat(
-                SequenceNumbers.max(SequenceNumbersService.NO_OPS_PERFORMED, SequenceNumbersService.UNASSIGNED_SEQ_NO),
-                equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
-        assertThat(SequenceNumbers.max(SequenceNumbersService.UNASSIGNED_SEQ_NO, seqNo), equalTo(seqNo));
+                SequenceNumbers.max(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.UNASSIGNED_SEQ_NO),
+                equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+        assertThat(SequenceNumbers.max(SequenceNumbers.UNASSIGNED_SEQ_NO, seqNo), equalTo(seqNo));
         final long maxSeqNo = randomNonNegativeLong();
         assertThat(SequenceNumbers.min(maxSeqNo, seqNo), equalTo(Math.min(maxSeqNo, seqNo)));
 
         final IllegalArgumentException e =
-                expectThrows(IllegalArgumentException.class, () -> SequenceNumbers.min(maxSeqNo, SequenceNumbersService.UNASSIGNED_SEQ_NO));
+                expectThrows(IllegalArgumentException.class, () -> SequenceNumbers.min(maxSeqNo, SequenceNumbers.UNASSIGNED_SEQ_NO));
         assertThat(e, hasToString(containsString("sequence number must be assigned")));
     }
 

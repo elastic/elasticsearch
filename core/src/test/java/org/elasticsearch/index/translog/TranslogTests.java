@@ -34,6 +34,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -2321,8 +2322,8 @@ public class TranslogTests extends ESTestCase {
         BytesReference B_1 = new BytesArray(new byte[]{1});
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         assert Version.CURRENT.major <= 6 : "Using UNASSIGNED_SEQ_NO can be removed in 7.0, because 6.0+ nodes have actual sequence numbers";
-        long randomSeqNum = randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomNonNegativeLong();
-        long primaryTerm = randomSeqNum == SequenceNumbersService.UNASSIGNED_SEQ_NO ? 0 : randomIntBetween(1, 16);
+        long randomSeqNum = randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong();
+        long primaryTerm = randomSeqNum == SequenceNumbers.UNASSIGNED_SEQ_NO ? 0 : randomIntBetween(1, 16);
         long randomPrimaryTerm = randomBoolean() ? 0 : randomNonNegativeLong();
         seqID.seqNo.setLongValue(randomSeqNum);
         seqID.seqNoDocValue.setLongValue(randomSeqNum);

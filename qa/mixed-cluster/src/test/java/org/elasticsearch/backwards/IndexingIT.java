@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
@@ -43,6 +42,8 @@ import java.util.stream.Collectors;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -287,8 +288,8 @@ public class IndexingIT extends ESRestTestCase {
                     expectMaxSeqNo = numDocs - 1;
                     expectedGlobalCkp = numDocs - 1;
                 } else {
-                    expectedGlobalCkp = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-                    expectMaxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
+                    expectedGlobalCkp = UNASSIGNED_SEQ_NO;
+                    expectMaxSeqNo = NO_OPS_PERFORMED;
                 }
                 for (Shard shard : shards) {
                     if (shard.getNode().getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
-
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
@@ -45,6 +43,8 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
  * A sort builder to sort based on a document field.
@@ -203,9 +203,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Sets the nested filter that the nested objects should match with in order
      * to be taken into account for sorting.
      *
-     * TODO should the above getters and setters be deprecated/ changed in
-     * favour of real getters and setters?
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public FieldSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
@@ -214,7 +214,10 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     /**
      * Returns the nested filter that the nested objects should match with in
      * order to be taken into account for sorting.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
@@ -223,7 +226,10 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Sets the nested path if sorting occurs on a field that is inside a nested
      * object. By default when sorting on a field inside a nested object, the
      * nearest upper nested object is selected as nested path.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public FieldSortBuilder setNestedPath(String nestedPath) {
         this.nestedPath = nestedPath;
         return this;
@@ -232,15 +238,26 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     /**
      * Returns the nested path if sorting occurs in a field that is inside a
      * nested object.
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public String getNestedPath() {
         return this.nestedPath;
     }
 
+    /**
+     * Returns the {@link NestedSortBuilder}
+     */
     public NestedSortBuilder getNestedSort() {
         return this.nestedSort;
     }
 
+    /**
+     * Sets the {@link NestedSortBuilder} to be used for fields that are inside a nested
+     * object. The {@link NestedSortBuilder} takes a `path` argument and an optional
+     * nested filter that the nested objects should match with in
+     * order to be taken into account for sorting.
+     */
     public FieldSortBuilder setNestedSort(final NestedSortBuilder nestedSort) {
         this.nestedSort = nestedSort;
         return this;

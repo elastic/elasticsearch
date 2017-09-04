@@ -85,14 +85,17 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             builder.sortMode(randomFrom(SortMode.values()));
         }
         if (randomBoolean()) {
-            builder.setNestedSort(createRandomNestedSort(3));
-        }
-        // the following are alternative ways to setNestedSort for nested sorting
-        if (randomBoolean()) {
-            builder.setNestedFilter(randomNestedFilter());
-        }
-        if (randomBoolean()) {
-            builder.setNestedPath(randomAlphaOfLengthBetween(1, 10));
+            if (randomBoolean()) {
+                builder.setNestedSort(createRandomNestedSort(3));
+            } else {
+                // the following are alternative ways to setNestedSort for nested sorting
+                if (randomBoolean()) {
+                    builder.setNestedFilter(randomNestedFilter());
+                }
+                if (randomBoolean()) {
+                    builder.setNestedPath(randomAlphaOfLengthBetween(1, 10));
+                }
+            }
         }
         return builder;
     }

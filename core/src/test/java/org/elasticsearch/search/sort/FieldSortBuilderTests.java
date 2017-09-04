@@ -103,10 +103,19 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     @Override
     protected FieldSortBuilder mutate(FieldSortBuilder original) throws IOException {
         FieldSortBuilder mutated = new FieldSortBuilder(original);
-        int parameter = randomIntBetween(0, 6);
+        int parameter = randomIntBetween(0, 4);
         switch (parameter) {
         case 0:
-            mutated.setNestedSort(randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3)));
+            if (original.getNestedPath() == null && original.getNestedFilter() == null) {
+                mutated.setNestedSort(
+                        randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3)));
+            } else {
+                if (randomBoolean()) {
+                    mutated.setNestedPath(randomValueOtherThan(original.getNestedPath(), () -> randomAlphaOfLengthBetween(1, 10)));
+                } else {
+                    mutated.setNestedFilter(randomValueOtherThan(original.getNestedFilter(), () -> randomNestedFilter()));
+                }
+            }
             break;
         case 1:
             mutated.sortMode(randomValueOtherThan(original.sortMode(), () -> randomFrom(SortMode.values())));
@@ -121,16 +130,6 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             break;
         case 4:
             mutated.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
-            break;
-        case 5:
-            mutated.setNestedPath(randomValueOtherThan(
-                    original.getNestedPath(),
-                    () -> randomAlphaOfLengthBetween(1, 10)));
-            break;
-        case 6:
-            mutated.setNestedFilter(randomValueOtherThan(
-                    original.getNestedFilter(),
-                    () -> randomNestedFilter()));
             break;
         default:
             throw new IllegalStateException("Unsupported mutation.");
@@ -295,16 +294,6 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         sortBuilder = new FieldSortBuilder("fieldName").setNestedFilter(QueryBuilders.termQuery(MAPPED_STRING_FIELDNAME, "value"));
         sortField = sortBuilder.build(shardContextMock).field;
         assertThat(sortField, instanceOf(SortedNumericSortField.class));
-
-        // check that NestedSortBuilder wins over nestedPath/nestedFilter parameter
-        sortBuilder = new FieldSortBuilder("fieldName")
-                .setNestedSort(new NestedSortBuilder("path").setFilter(QueryBuilders.termQuery(MAPPED_STRING_FIELDNAME, "value1")))
-                .setNestedPath("someOtherPath").setNestedFilter(QueryBuilders.termQuery(MAPPED_STRING_FIELDNAME, "value2"));
-        sortField = sortBuilder.build(shardContextMock).field;
-        assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
-        nested = ((XFieldComparatorSource) sortField.getComparatorSource()).nested();
-        assertNotNull(nested);
-        assertEquals(new TermQuery(new Term(MAPPED_STRING_FIELDNAME, "value1")), nested.getInnerQuery());
     }
 
     public void testUnknownOptionFails() throws IOException {
@@ -360,6 +349,23 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         e = expectThrows(QueryShardException.class,
                 () -> new FieldSortBuilder(MAPPED_STRING_FIELDNAME).sortMode(SortMode.MEDIAN).build(shardContextMock));
         assertEquals(expectedError, e.getMessage());
+    }
+
+    /**
+     * Test we can either set nested sort via path/filter or via nested sort builder, not both
+     */
+    public void testNestedSortBothThrows() throws IOException {
+        FieldSortBuilder sortBuilder = new FieldSortBuilder(MAPPED_STRING_FIELDNAME);
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> sortBuilder.setNestedPath("nestedPath").setNestedSort(new NestedSortBuilder("otherPath")));
+        assertEquals("Setting both nested_path/nested_filter and nested not allowed", iae.getMessage());
+        iae = expectThrows(IllegalArgumentException.class,
+                () -> sortBuilder.setNestedSort(new NestedSortBuilder("otherPath")).setNestedPath("nestedPath"));
+        assertEquals("Setting both nested_path/nested_filter and nested not allowed", iae.getMessage());
+        iae = expectThrows(IllegalArgumentException.class,
+                () -> sortBuilder.setNestedSort(new NestedSortBuilder("otherPath")).setNestedFilter(QueryBuilders.matchAllQuery()));
+        assertEquals("Setting both nested_path/nested_filter and nested not allowed", iae.getMessage());
+
     }
 
     @Override

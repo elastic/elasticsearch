@@ -91,7 +91,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         this.setNestedFilter(template.getNestedFilter());
         this.setNestedPath(template.getNestedPath());
-        this.setNestedSort(template.getNestedSort());
+        if (template.getNestedSort() != null) {
+            this.setNestedSort(template.getNestedSort());
+        };
     }
 
     /**
@@ -207,6 +209,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      */
     @Deprecated
     public FieldSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
+        if (this.nestedSort != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
         this.nestedFilter = nestedFilter;
         return this;
     }
@@ -231,6 +236,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      */
     @Deprecated
     public FieldSortBuilder setNestedPath(String nestedPath) {
+        if (this.nestedSort != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
         this.nestedPath = nestedPath;
         return this;
     }
@@ -259,6 +267,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * order to be taken into account for sorting.
      */
     public FieldSortBuilder setNestedSort(final NestedSortBuilder nestedSort) {
+        if (this.nestedFilter != null || this.nestedPath != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
         this.nestedSort = nestedSort;
         return this;
     }

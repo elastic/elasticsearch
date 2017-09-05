@@ -16,6 +16,8 @@ setup:
                   type: float
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_job:
         job_id: start-stop-datafeed-job
         body:  >
@@ -34,6 +36,8 @@ setup:
             }
           }
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_datafeed:
         datafeed_id: start-stop-datafeed-datafeed-1
         body:  >

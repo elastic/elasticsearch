@@ -1,15 +1,15 @@
 minimal:
   cluster:
-    - cluster:monitor/health
+    # This is always required because the REST client uses it to find the version of
+    # Elasticsearch it's talking to
     - cluster:monitor/main
-    - cluster:monitor/state
   indices:
-    - names: '*'
+    # Give all users involved in these tests access to the indices where the data to
+    # be analyzed is stored, because the ML roles alone do not provide access to
+    # non-ML indices
+    - names: [ 'airline-data', 'index-foo', 'unavailable-data' ]
       privileges:
         - indices:admin/create
-        - indices:admin/exists
-        - indices:admin/get
-        - indices:admin/mapping/put
         - indices:admin/refresh
         - indices:data/read/field_caps
         - indices:data/read/search

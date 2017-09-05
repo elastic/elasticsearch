@@ -30,10 +30,11 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
         try {
             super.test();
 
-            // We should have got here if and only if the test consisted entirely of GETs
+            // We should have got here if and only if the only ML endpoints in the test were GETs
             for (ExecutableSection section : testCandidate.getTestSection().getExecutableSections()) {
                 if (section instanceof DoSection) {
-                    if (((DoSection) section).getApiCallSection().getApi().startsWith("xpack.ml.get_") == false) {
+                    if (((DoSection) section).getApiCallSection().getApi().startsWith("xpack.ml.") &&
+                            ((DoSection) section).getApiCallSection().getApi().startsWith("xpack.ml.get_") == false) {
                         fail("should have failed because of missing role");
                     }
                 }

@@ -288,9 +288,11 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 searchContext.sort(), numDocs, searchContext.trackScores());
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
-            final boolean rescore = searchContext.rescore().isEmpty() == false;
-            for (RescoreContext rescoreContext : searchContext.rescore()) {
-                numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
+            final boolean rescore = searchContext.rescore().isEmpty() == false && searchContext.sort() == null;
+            if (rescore) {
+                for (RescoreContext rescoreContext : searchContext.rescore()) {
+                    numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
+                }
             }
             return new SimpleTopDocsCollectorContext(searchContext.sort(),
                                                      searchContext.searchAfter(),

@@ -57,6 +57,7 @@ dependencies {
   compile 'commons-lang:commons-lang:2.6'
   compile 'javax.servlet:servlet-api:2.5'
   compile "org.slf4j:slf4j-api:${versions.slf4j}"
+  compile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
 
   hdfsFixture project(':test:fixtures:hdfs-fixture')
 }

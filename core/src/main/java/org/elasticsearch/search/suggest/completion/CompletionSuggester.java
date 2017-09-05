@@ -109,9 +109,10 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
      * This collector is also able to filter duplicate suggestion coming from different documents.
      * When different contexts match the same suggestion form only the best one (sorted by weight) is kept.
      * In order to keep this feature fast, the de-duplication of suggestions with different contexts is done
-     * only on the top N*num_contexts suggestions per segment. This means that skip_duplicates will visit at most N*num_contexts suggestions
-     * per segment to find unique suggestions that match the input. If more than N*num_contexts suggestions are duplicated with different
-     * contexts this collector will be able to return only one suggestion even when N is greater than 1.
+     * only on the top N*num_contexts (where N is the number of requested suggestions) suggestions per segment.
+     * This means that skip_duplicates will visit at most N*num_contexts suggestions per segment to find unique suggestions
+     * that match the input. If more than N*num_contexts suggestions are duplicated with different contexts this collector
+     * will not be able to return more than one suggestion even when N is greater than 1.
      **/
     private static final class TopDocumentsCollector extends TopSuggestDocsCollector {
 

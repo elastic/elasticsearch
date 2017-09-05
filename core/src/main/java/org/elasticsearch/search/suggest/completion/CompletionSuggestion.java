@@ -75,6 +75,12 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
     public CompletionSuggestion() {
     }
 
+    /**
+     * Ctr
+     * @param name The name for the suggestions
+     * @param size The number of suggestions to return
+     * @param skipDuplicates Whether duplicate suggestions should be filtered out
+     */
     public CompletionSuggestion(String name, int size, boolean skipDuplicates) {
         super(name, size);
         this.skipDuplicates = skipDuplicates;

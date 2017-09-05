@@ -145,7 +145,7 @@ public final class WhitelistLoader {
                     }
 
                     // Handle a new struct by resetting all the variables necessary to construct a new Whitelist.Struct for the white-list.
-                    // Expects the following format: 'class' ID -> ID ( 'extends' ID ( ',' ID )* )? '{' '\n'
+                    // Expects the following format: 'class' ID -> ID '{' '\n'
                     if (line.startsWith("class ")) {
                         // Ensure the final token of the line is '{'.
                         if (line.endsWith("{") == false) {

@@ -22,14 +22,10 @@ package org.elasticsearch.painless;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.LineNumberReader;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,8 +44,8 @@ import java.util.Spliterator;
  */
 public final class Definition {
 
-    private static final List<String> DEFINITION_FILES = Collections.unmodifiableList(
-        Arrays.asList("org.elasticsearch.txt",
+    private static final String[] DEFINITION_FILES = new String[] {
+            "org.elasticsearch.txt",
             "java.lang.txt",
             "java.math.txt",
             "java.text.txt",
@@ -62,12 +58,14 @@ public final class Definition {
             "java.util.function.txt",
             "java.util.regex.txt",
             "java.util.stream.txt",
-            "joda.time.txt"));
+            "joda.time.txt"
+    };
 
     /**
      * Whitelist that is "built in" to Painless and required by all scripts.
      */
-    public static final Definition BUILTINS = new Definition();
+    public static final Definition BUILTINS = new Definition(
+        Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, DEFINITION_FILES)));
 
     /** Some native types as constants: */
     public static final Type VOID_TYPE = BUILTINS.getType("void");
@@ -528,13 +526,19 @@ public final class Definition {
         simpleTypesMap = new HashMap<>();
         runtimeMap = new HashMap<>();
 
+        Map<Class<?>, Struct> javaClassesToPainlessStructs = new HashMap<>();
         String origin = null;
+
+        structsMap.put("def", new Struct("def", Object.class, OBJECT_TYPE.type));
 
         try {
             for (Whitelist whitelist : whitelists) {
                 for (Whitelist.Struct whitelistStruct : whitelist.whitelistStructs) {
                     origin = whitelistStruct.origin;
                     addStruct(whitelist.javaClassLoader, whitelistStruct);
+
+                    Struct painlessStruct = structsMap.get(whitelistStruct.painlessTypeName);
+                    javaClassesToPainlessStructs.put(painlessStruct.clazz, painlessStruct);
                 }
             }
 
@@ -560,22 +564,38 @@ public final class Definition {
             throw new IllegalArgumentException("error loading whitelist(s) " + origin, exception);
         }
 
-        // apply hierarchy: this means e.g. copying Object's methods into String (thats how subclasses work)
-        for (Map.Entry<String,List<String>> clazz : hierarchy.entrySet()) {
-            copyStruct(clazz.getKey(), clazz.getValue());
-        }
-        // if someone declares an interface type, its still an Object
-        for (Map.Entry<String,Struct> clazz : structsMap.entrySet()) {
-            String name = clazz.getKey();
-            Class<?> javaPeer = clazz.getValue().clazz;
-            if (javaPeer.isInterface()) {
-                copyStruct(name, Collections.singletonList("Object"));
-            } else if (name.equals("def") == false && name.equals("Object") == false && javaPeer.isPrimitive() == false) {
-                // but otherwise, unless its a primitive type, it really should
-                assert hierarchy.get(name) != null : "class '" + name + "' does not extend Object!";
-                assert hierarchy.get(name).contains("Object") : "class '" + name + "' does not extend Object!";
+        for (Struct painlessStruct : structsMap.values()) {
+            if (painlessStruct.clazz.isInterface() || ("def").equals(painlessStruct.name)) {
+                Struct painlessObjectStruct = javaClassesToPainlessStructs.get(Object.class);
+
+                if (painlessObjectStruct != null) {
+                    copyStruct(painlessStruct.name, Collections.singletonList(painlessObjectStruct.name));
+                }
             }
+
+            List<String> painlessSuperStructs = new ArrayList<>();
+            Class<?> javaSuperClass = painlessStruct.clazz.getSuperclass();
+
+            while (javaSuperClass != null) {
+                String painlessStructName = javaClassesToPainlessStructs.get(javaSuperClass).name;
+
+                if (painlessStructName != null) {
+                    painlessSuperStructs.add(painlessStructName);
+                }
+
+                javaSuperClass = javaSuperClass.getSuperclass();
+            }
+
+            List<Class<?>> javaInteraceLookups = new ArrayList<>();
+            javaInteraceLookups.add(painlessStruct.clazz);
+
+            while (javaInteraceLookups.isEmpty() == false) {
+                // TODO: collect all super interfaces
+            }
+
+            copyStruct(painlessStruct.name, painlessSuperStructs);
         }
+
         // mark functional interfaces (or set null, to mark class is not)
         for (Struct clazz : structsMap.values()) {
             clazz.functionalMethod.set(computeFunctionalInterfaceMethod(clazz));

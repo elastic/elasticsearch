@@ -41,8 +41,10 @@ import com.amazonaws.services.ec2.model.AssociateVpcCidrBlockRequest;
 import com.amazonaws.services.ec2.model.AssociateVpcCidrBlockResult;
 import com.amazonaws.services.ec2.model.AssociateSubnetCidrBlockRequest;
 import com.amazonaws.services.ec2.model.AssociateSubnetCidrBlockResult;
-import com.amazonaws.services.ec2.model.AssociateIamInstanceRequest;
-import com.amazonaws.services.ec2.model.AssociateIamInstanceResult;
+import com.amazonaws.services.ec2.model.AssociateIamInstanceProfileRequest;
+import com.amazonaws.services.ec2.model.AssociateIamInstanceProfileResult;
+import com.amazonaws.services.ec2.model.AcceptReservedInstancesExchangeQuoteRequest;
+import com.amazonaws.services.ec2.model.AcceptReservedInstancesExchangeQuoteResult;
 import com.amazonaws.services.ec2.model.AssociateDhcpOptionsRequest;
 import com.amazonaws.services.ec2.model.AssociateDhcpOptionsResult;
 import com.amazonaws.services.ec2.model.AssociateRouteTableRequest;
@@ -89,6 +91,12 @@ import com.amazonaws.services.ec2.model.CreateDefaultVpcRequest;
 import com.amazonaws.services.ec2.model.CreateCustomerGatewayResult;
 import com.amazonaws.services.ec2.model.CreateDhcpOptionsRequest;
 import com.amazonaws.services.ec2.model.CreateDhcpOptionsResult;
+import com.amazonaws.services.ec2.model.CreateEgressOnlyInternetGatewayRequest;
+import com.amazonaws.services.ec2.model.CreateEgressOnlyInternetGatewayResult;
+import com.amazonaws.services.ec2.model.CreateFpgaImageRequest;
+import com.amazonaws.services.ec2.model.CreateFpgaImageResult;
+import com.amazonaws.services.ec2.model.CreateNetworkInterfacePermissionRequest;
+import com.amazonaws.services.ec2.model.CreateNetworkInterfacePermissionResult;
 import com.amazonaws.services.ec2.model.CreateFlowLogsRequest;
 import com.amazonaws.services.ec2.model.CreateFlowLogsResult;
 import com.amazonaws.services.ec2.model.CreateImageRequest;
@@ -143,6 +151,10 @@ import com.amazonaws.services.ec2.model.DeleteCustomerGatewayRequest;
 import com.amazonaws.services.ec2.model.DeleteCustomerGatewayResult;
 import com.amazonaws.services.ec2.model.DeleteDhcpOptionsRequest;
 import com.amazonaws.services.ec2.model.DeleteDhcpOptionsResult;
+import com.amazonaws.services.ec2.model.DeleteEgressOnlyInternetGatewayRequest;
+import com.amazonaws.services.ec2.model.DeleteEgressOnlyInternetGatewayResult;
+import com.amazonaws.services.ec2.model.DeleteNetworkInterfacePermissionRequest;
+import com.amazonaws.services.ec2.model.DeleteNetworkInterfacePermissionResult;
 import com.amazonaws.services.ec2.model.DeleteFlowLogsRequest;
 import com.amazonaws.services.ec2.model.DeleteFlowLogsResult;
 import com.amazonaws.services.ec2.model.DeleteInternetGatewayRequest;
@@ -205,12 +217,26 @@ import com.amazonaws.services.ec2.model.DescribeCustomerGatewaysRequest;
 import com.amazonaws.services.ec2.model.DescribeCustomerGatewaysResult;
 import com.amazonaws.services.ec2.model.DescribeDhcpOptionsRequest;
 import com.amazonaws.services.ec2.model.DescribeDhcpOptionsResult;
+import com.amazonaws.services.ec2.model.DescribeEgressOnlyInternetGatewaysRequest;
+import com.amazonaws.services.ec2.model.DescribeEgressOnlyInternetGatewaysResult;
 import com.amazonaws.services.ec2.model.DescribeExportTasksRequest;
 import com.amazonaws.services.ec2.model.DescribeExportTasksResult;
+import com.amazonaws.services.ec2.model.DescribeElasticGpusRequest;
+import com.amazonaws.services.ec2.model.DescribeElasticGpusResult;
+import com.amazonaws.services.ec2.model.DescribeFpgaImagesRequest;
+import com.amazonaws.services.ec2.model.DescribeFpgaImagesResult;
+import com.amazonaws.services.ec2.model.DescribeHostReservationOfferingsRequest;
+import com.amazonaws.services.ec2.model.DescribeHostReservationOfferingsResult;
+import com.amazonaws.services.ec2.model.DescribeHostReservationsRequest;
+import com.amazonaws.services.ec2.model.DescribeHostReservationsResult;
+import com.amazonaws.services.ec2.model.DescribeIdentityIdFormatRequest;
+import com.amazonaws.services.ec2.model.DescribeIdentityIdFormatResult;
 import com.amazonaws.services.ec2.model.DescribeFlowLogsRequest;
 import com.amazonaws.services.ec2.model.DescribeFlowLogsResult;
 import com.amazonaws.services.ec2.model.DescribeHostsRequest;
 import com.amazonaws.services.ec2.model.DescribeHostsResult;
+import com.amazonaws.services.ec2.model.DescribeIamInstanceProfileAssociationsRequest;
+import com.amazonaws.services.ec2.model.DescribeIamInstanceProfileAssociationsResult;
 import com.amazonaws.services.ec2.model.DescribeIdFormatRequest;
 import com.amazonaws.services.ec2.model.DescribeIdFormatResult;
 import com.amazonaws.services.ec2.model.DescribeImageAttributeRequest;
@@ -615,6 +641,22 @@ public class AmazonEC2Mock implements AmazonEC2 {
     // Not implemented methods in Mock
 
     @Override
+    public void setEndpoint(String endpoint) throws IllegalArgumentException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public void setRegion(Region region) throws IllegalArgumentException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AcceptReservedInstancesExchangeQuoteResult acceptReservedInstancesExchangeQuote(
+      AcceptReservedInstancesExchangeQuoteRequest acceptReservedInstancesExchangeQuoteRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
     public RebootInstancesResult rebootInstances(RebootInstancesRequest rebootInstancesRequest) throws AmazonServiceException, AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
@@ -660,12 +702,12 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
-    public UpdateSecurityGroupRuleDescriptionsIngressResult	updateSecurityGroupRuleDescriptionsIngress(UpdateSecurityGroupRuleDescriptionsIngressRequest updateSecurityGroupRuleDescriptionsIngressRequest) throws AmazonServiceException, AmazonClientException {
+    public UpdateSecurityGroupRuleDescriptionsIngressResult updateSecurityGroupRuleDescriptionsIngress(UpdateSecurityGroupRuleDescriptionsIngressRequest updateSecurityGroupRuleDescriptionsIngressRequest) throws AmazonServiceException, AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public UpdateSecurityGroupRuleDescriptionsEgressResult	updateSecurityGroupRuleDescriptionsEgress(UpdateSecurityGroupRuleDescriptionsEgressRequest updateSecurityGroupRuleDescriptionsEgressRequest) throws AmazonServiceException, AmazonClientException {
+    public UpdateSecurityGroupRuleDescriptionsEgressResult updateSecurityGroupRuleDescriptionsEgress(UpdateSecurityGroupRuleDescriptionsEgressRequest updateSecurityGroupRuleDescriptionsEgressRequest) throws AmazonServiceException, AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -969,13 +1011,13 @@ public class AmazonEC2Mock implements AmazonEC2 {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
-    @override
-    public associateaddressresult associateaddress(associateaddressrequest associateaddressrequest) throws amazonserviceexception, amazonclientexception {
-        throw new unsupportedoperationexception("not supported in mock");
+    @Override
+    public AssociateAddressResult associateAddress(AssociateAddressRequest associateAddressRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public AssociateIamInstanceResult associateIamInstance(AssociateIamInstanceRequest associateIamInstanceRequest) throws AmazonServiceException, AmazonClientException {
+    public AssociateIamInstanceProfileResult associateIamInstanceProfile(AssociateIamInstanceProfileRequest associateIamInstanceRequest) throws AmazonServiceException, AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1006,6 +1048,31 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DescribeExportTasksResult describeExportTasks(DescribeExportTasksRequest describeExportTasksRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeElasticGpusResult describeElasticGpus(DescribeElasticGpusRequest describeElasticGpusRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeFpgaImagesResult describeFpgaImages(DescribeFpgaImagesRequest describeFpgaImagesRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeHostReservationOfferingsResult describeHostReservationOfferings(DescribeHostReservationOfferingsRequest describeHostReservationOfferingsRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeHostReservationsResult describeHostReservations(DescribeHostReservationsRequest describeHostReservationsRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeIdentityIdFormatResult describeIdentityIdFormat(DescribeIdentityIdFormatRequest describeIdentityIdFormatRequest) throws AmazonServiceException, AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1051,6 +1118,12 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DescribeDhcpOptionsResult describeDhcpOptions(DescribeDhcpOptionsRequest describeDhcpOptionsRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+    
+    @Override
+    public DescribeEgressOnlyInternetGatewaysResult describeEgressOnlyInternetGateways(
+      DescribeEgressOnlyInternetGatewaysRequest describeEgressOnlyInternetGatewaysRequest) throws AmazonServiceException, AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1131,6 +1204,21 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public CreateCustomerGatewayResult createCustomerGateway(CreateCustomerGatewayRequest createCustomerGatewayRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateEgressOnlyInternetGatewayResult createEgressOnlyInternetGateway(CreateEgressOnlyInternetGatewayRequest createEgressOnlyInternetGatewayRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateFpgaImageResult createFpgaImage(CreateFpgaImageRequest createFpgaImageRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateNetworkInterfacePermissionResult createNetworkInterfacePermission(CreateNetworkInterfacePermissionRequest createNetworkInterfacePermissionRequest) throws AmazonServiceException, AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1266,6 +1354,16 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DeleteDhcpOptionsResult deleteDhcpOptions(DeleteDhcpOptionsRequest deleteDhcpOptionsRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DeleteEgressOnlyInternetGatewayResult deleteEgressOnlyInternetGateway(DeleteEgressOnlyInternetGatewayRequest deleteEgressOnlyInternetGatewayRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DeleteNetworkInterfacePermissionResult deleteNetworkInterfacePermission(DeleteNetworkInterfacePermissionRequest deleteNetworkInterfacePermissionRequest) throws AmazonServiceException, AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1861,6 +1959,12 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DescribeHostsResult describeHosts() {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeIamInstanceProfileAssociationsResult describeIamInstanceProfileAssociations(
+      DescribeIamInstanceProfileAssociationsRequest describeIamInstanceProfileAssociationsRequest) throws AmazonServiceException, AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 

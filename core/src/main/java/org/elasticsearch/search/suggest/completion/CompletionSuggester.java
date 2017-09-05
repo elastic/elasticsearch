@@ -59,8 +59,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 new Text(spare.toString()), 0, spare.length());
             completionSuggestion.addTerm(completionSuggestEntry);
             TopSuggestDocsCollector collector =
-                new TopDocumentsCollector(suggestionContext.getSize(), suggestionContext.getFieldType().hasContextMappings(),
-                    suggestionContext.isSkipDuplicates());
+                new TopDocumentsCollector(suggestionContext.getSize(), suggestionContext.isSkipDuplicates());
             suggest(searcher, suggestionContext.toQuery(), collector);
             int numResult = 0;
             for (TopSuggestDocs.SuggestScoreDoc suggestScoreDoc : collector.get().scoreLookupDocs()) {
@@ -167,23 +166,19 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
         private final Map<Integer, SuggestDoc> docsMap;
 
-        TopDocumentsCollector(int num, boolean hasContexts, boolean skipDuplicates) {
+        TopDocumentsCollector(int num, boolean skipDuplicates) {
             super(Math.max(1, num), skipDuplicates);
-            this.docsMap = hasContexts ? new LinkedHashMap<>(num) : null;
+            this.docsMap = new LinkedHashMap<>(num);
         }
 
         @Override
         public void collect(int docID, CharSequence key, CharSequence context, float score) throws IOException {
-            if (docsMap == null) {
-                super.collect(docID, key, context, score);
+            int globalDoc = docID + docBase;
+            if (docsMap.containsKey(globalDoc)) {
+                docsMap.get(globalDoc).add(key, context, score);
             } else {
-                int globalDoc = docID + docBase;
-                if (docsMap.containsKey(globalDoc)) {
-                    docsMap.get(globalDoc).add(key, context, score);
-                } else {
-                    docsMap.put(globalDoc, new SuggestDoc(globalDoc, key, context, score));
-                    super.collect(docID, key, context, score);
-                }
+                docsMap.put(globalDoc, new SuggestDoc(globalDoc, key, context, score));
+                super.collect(docID, key, context, score);
             }
         }
 

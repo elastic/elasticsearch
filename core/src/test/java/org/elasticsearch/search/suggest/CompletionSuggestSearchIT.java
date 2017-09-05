@@ -1140,6 +1140,28 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
+    public void testMultiDocSuggestions() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        createIndexAndMapping(mapping);
+        int numDocs = 10;
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 1; i <= numDocs; i++) {
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                .setSource(jsonBuilder()
+                    .startObject()
+                    .startObject(FIELD)
+                    .array("input", "suggestion" + i, "suggestions" + i, "suggester" + i)
+                    .field("weight", i)
+                    .endObject()
+                    .endObject()
+                ));
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
+        assertSuggestions("foo", prefix, "suggester10", "suggester9", "suggester8", "suggester7", "suggester6");
+    }
+
+
     public static boolean isReservedChar(char c) {
         switch (c) {
             case '\u001F':

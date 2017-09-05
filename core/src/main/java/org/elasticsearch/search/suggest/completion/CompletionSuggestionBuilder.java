@@ -224,12 +224,15 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     /**
-     * Returns whether duplicate suggestions should be filtered out (defaults to false).
+     * Returns whether duplicate suggestions should be filtered out.
      */
     public boolean skipDuplicates() {
         return skipDuplicates;
     }
 
+    /**
+     * Should duplicates be filtered or not. Defaults to <tt>false</tt>.
+     */
     public CompletionSuggestionBuilder skipDuplicates(boolean skipDuplicates) {
         this.skipDuplicates = skipDuplicates;
         return this;

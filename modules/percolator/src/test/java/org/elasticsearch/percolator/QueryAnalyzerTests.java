@@ -23,6 +23,7 @@ import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
@@ -741,6 +742,15 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertEquals("_field", ranges.get(0).range.fieldName);
         assertArrayEquals(ranges.get(0).range.lowerPoint, InetAddressPoint.encode(InetAddresses.forString("192.168.1.0")));
         assertArrayEquals(ranges.get(0).range.upperPoint, InetAddressPoint.encode(InetAddresses.forString("192.168.1.255")));
+    }
+
+    public void testTooManyPointDimensions() {
+        // For now no extraction support for geo queries:
+        Query query1 = LatLonPoint.newBoxQuery("_field", 0, 1, 0, 1);
+        expectThrows(UnsupportedQueryException.class, () -> analyze(query1, Collections.emptyMap()));
+
+        Query query2 = LongPoint.newRangeQuery("_field", new long[]{0, 0, 0}, new long[]{1, 1, 1});
+        expectThrows(UnsupportedQueryException.class, () -> analyze(query2, Collections.emptyMap()));
     }
 
     public void testIndexOrDocValuesQuery() {

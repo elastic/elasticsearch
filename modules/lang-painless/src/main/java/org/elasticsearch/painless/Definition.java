@@ -523,15 +523,43 @@ public final class Definition {
     private final Map<String, Struct> structsMap;
     private final Map<String, Type> simpleTypesMap;
 
-    private Definition(Whitelist whitelist) {
+    private Definition(List<Whitelist> whitelists) {
         structsMap = new HashMap<>();
         simpleTypesMap = new HashMap<>();
         runtimeMap = new HashMap<>();
 
-        // parse the classes and return hierarchy (map of class name -> superclasses/interfaces)
-        Map<String, List<String>> hierarchy = addStructs();
-        // add every method for each class
-        addElements();
+        String origin = null;
+
+        try {
+            for (Whitelist whitelist : whitelists) {
+                for (Whitelist.Struct whitelistStruct : whitelist.whitelistStructs) {
+                    origin = whitelistStruct.origin;
+                    addStruct(whitelist.javaClassLoader, whitelistStruct);
+                }
+            }
+
+            for (Whitelist whitelist : whitelists) {
+                for (Whitelist.Struct whitelistStruct : whitelist.whitelistStructs) {
+                    for (Whitelist.Constructor whitelistConstructor : whitelistStruct.whitelistConstructors) {
+                        origin = whitelistConstructor.origin;
+                        addConstructor(whitelistStruct.painlessTypeName, whitelistConstructor);
+                    }
+
+                    for (Whitelist.Method whitelistMethod : whitelistStruct.whitelistMethods) {
+                        origin = whitelistMethod.origin;
+                        addMethod(whitelist.javaClassLoader, whitelistStruct.painlessTypeName, whitelistMethod);
+                    }
+
+                    for (Whitelist.Field whitelistField : whitelistStruct.whitelistFields) {
+                        origin = whitelistField.origin;
+                        addField(whitelistStruct.painlessTypeName, whitelistField);
+                    }
+                }
+            }
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("error loading whitelist(s) " + origin, exception);
+        }
+
         // apply hierarchy: this means e.g. copying Object's methods into String (thats how subclasses work)
         for (Map.Entry<String,List<String>> clazz : hierarchy.entrySet()) {
             copyStruct(clazz.getKey(), clazz.getValue());
@@ -721,7 +749,15 @@ public final class Definition {
                     javaImplClass.getName() + "]", nsme);
         }
 
-        Type painlessReturnType = getTypeInternal(whitelistMethod.painlessReturnTypeName);
+        Type painlessReturnType;
+
+        try {
+            painlessReturnType = getTypeInternal(whitelistMethod.painlessReturnTypeName);
+        } catch (IllegalArgumentException iae) {
+            throw new IllegalArgumentException("struct not defined for return type [" + whitelistMethod.painlessReturnTypeName + "] " +
+                    "with owner struct [" + ownerStructName + "] and method with name [" + whitelistMethod.javaMethodName + "] " +
+                    "and parameters " + whitelistMethod.painlessParameterTypeNames, iae);
+        }
 
         if (javaMethod.getReturnType().equals(painlessReturnType.clazz) == false) {
             throw new IllegalArgumentException("specified return type class [" + painlessReturnType.clazz + "] " +
@@ -730,28 +766,28 @@ public final class Definition {
                     "and parameters " + whitelistMethod.painlessParameterTypeNames);
         }
 
-        org.objectweb.asm.commons.Method asmMethod = org.objectweb.asm.commons.Method.getMethod(javaMethod);
-        MethodHandle javaMethodHandle;
-
-        try {
-            javaMethodHandle = MethodHandles.publicLookup().in(javaImplClass).unreflect(javaMethod);
-        } catch (IllegalAccessException exception) {
-            throw new IllegalArgumentException("method handle not found for method with name " +
-                "[" + whitelistMethod.javaMethodName + "] and parameters " + whitelistMethod.painlessParameterTypeNames);
-        }
-
         MethodKey painlessMethodKey = new MethodKey(whitelistMethod.javaMethodName, whitelistMethod.painlessParameterTypeNames.size());
 
         if (javaAugmentedClass == null && Modifier.isStatic(javaMethod.getModifiers())) {
             Method painlessMethod = ownerStruct.staticMethods.get(painlessMethodKey);
 
             if (painlessMethod == null) {
+                org.objectweb.asm.commons.Method asmMethod = org.objectweb.asm.commons.Method.getMethod(javaMethod);
+                MethodHandle javaMethodHandle;
+
+                try {
+                    javaMethodHandle = MethodHandles.publicLookup().in(javaImplClass).unreflect(javaMethod);
+                } catch (IllegalAccessException exception) {
+                    throw new IllegalArgumentException("method handle not found for method with name " +
+                        "[" + whitelistMethod.javaMethodName + "] and parameters " + whitelistMethod.painlessParameterTypeNames);
+                }
+
                 painlessMethod = new Method(whitelistMethod.javaMethodName, ownerStruct, null, painlessReturnType,
                     painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle);
                 ownerStruct.staticMethods.put(painlessMethodKey, painlessMethod);
             } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn.equals(painlessReturnType) &&
                     painlessMethod.arguments.equals(painlessParametersTypes)) == false) {
-                throw new IllegalArgumentException("illegal duplicate methods [" + painlessMethodKey + "] " +
+                throw new IllegalArgumentException("illegal duplicate static methods [" + painlessMethodKey + "] " +
                         "found within the struct [" + ownerStruct.name + "] with name [" + whitelistMethod.javaMethodName + "], " +
                         "return types [" + painlessReturnType + "] and [" + painlessMethod.rtn.name + "], " +
                         "and parameters " + painlessParametersTypes + " and " + painlessMethod.arguments);
@@ -760,12 +796,22 @@ public final class Definition {
             Method painlessMethod = ownerStruct.methods.get(painlessMethodKey);
 
             if (painlessMethod == null) {
+                org.objectweb.asm.commons.Method asmMethod = org.objectweb.asm.commons.Method.getMethod(javaMethod);
+                MethodHandle javaMethodHandle;
+
+                try {
+                    javaMethodHandle = MethodHandles.publicLookup().in(javaImplClass).unreflect(javaMethod);
+                } catch (IllegalAccessException exception) {
+                    throw new IllegalArgumentException("method handle not found for method with name " +
+                        "[" + whitelistMethod.javaMethodName + "] and parameters " + whitelistMethod.painlessParameterTypeNames);
+                }
+
                 painlessMethod = new Method(whitelistMethod.javaMethodName, ownerStruct, javaAugmentedClass, painlessReturnType,
                     painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle);
                 ownerStruct.staticMethods.put(painlessMethodKey, painlessMethod);
             } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn.equals(painlessReturnType) &&
                 painlessMethod.arguments.equals(painlessParametersTypes)) == false) {
-                throw new IllegalArgumentException("illegal duplicate methods [" + painlessMethodKey + "] " +
+                throw new IllegalArgumentException("illegal duplicate member methods [" + painlessMethodKey + "] " +
                     "found within the struct [" + ownerStruct.name + "] with name [" + whitelistMethod.javaMethodName + "], " +
                     "return types [" + painlessReturnType + "] and [" + painlessMethod.rtn.name + "], " +
                     "and parameters " + painlessParametersTypes + " and " + painlessMethod.arguments);
@@ -773,61 +819,78 @@ public final class Definition {
         }
     }
 
-    private void addFieldInternal(String struct, String name, Type type) {
-        final Struct owner = structsMap.get(struct);
+    private void addField(String ownerStructName, Whitelist.Field whitelistField) {
+        Struct ownerStruct = structsMap.get(ownerStructName);
 
-        if (owner == null) {
-            throw new IllegalArgumentException("Owner struct [" + struct + "] not defined for " +
-                " field [" + name + "].");
+        if (ownerStruct == null) {
+            throw new IllegalArgumentException("owner struct [" + ownerStructName + "] not defined for method with " +
+                    "name [" + whitelistField.javaFieldName + "] and type " + whitelistField.painlessFieldTypeName);
         }
 
-        if (!name.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
-            throw new IllegalArgumentException("Invalid field " +
-                " name [" + name + "] with the struct [" + owner.name + "].");
+        if (!whitelistField.painlessFieldTypeName.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
+            throw new IllegalArgumentException("invalid field name " +
+                    "[" + whitelistField.painlessFieldTypeName + "] for owner struct [" + ownerStructName + "].");
         }
 
-        if (owner.staticMembers.containsKey(name) || owner.members.containsKey(name)) {
-            throw new IllegalArgumentException("Duplicate field name [" + name + "]" +
-                " found within the struct [" + owner.name + "].");
-        }
-
-        java.lang.reflect.Field reflect;
+        java.lang.reflect.Field javaField;
 
         try {
-            reflect = owner.clazz.getField(name);
-        } catch (final NoSuchFieldException exception) {
-            throw new IllegalArgumentException("Field [" + name + "]" +
-                " not found for class [" + owner.clazz.getName() + "].");
+            javaField = ownerStruct.clazz.getField(whitelistField.javaFieldName);
+        } catch (NoSuchFieldException exception) {
+            throw new IllegalArgumentException("field [" + whitelistField.javaFieldName + "] " +
+                    "not found for class [" + ownerStruct.clazz.getName() + "].");
         }
 
-        final int modifiers = reflect.getModifiers();
-        boolean isStatic = java.lang.reflect.Modifier.isStatic(modifiers);
-
-        MethodHandle getter = null;
-        MethodHandle setter = null;
+        Type painlessFieldType;
 
         try {
-            if (!isStatic) {
-                getter = MethodHandles.publicLookup().unreflectGetter(reflect);
-                setter = MethodHandles.publicLookup().unreflectSetter(reflect);
-            }
-        } catch (final IllegalAccessException exception) {
-            throw new IllegalArgumentException("Getter/Setter [" + name + "]" +
-                " not found for class [" + owner.clazz.getName() + "].");
+            painlessFieldType = getTypeInternal(whitelistField.painlessFieldTypeName);
+        } catch (IllegalArgumentException iae) {
+            throw new IllegalArgumentException("struct not defined for return type [" + whitelistField.painlessFieldTypeName + "] " +
+                "with owner struct [" + ownerStructName + "] and field with name [" + whitelistField.javaFieldName + "]", iae);
         }
 
-        final Field field = new Field(name, reflect.getName(), owner, type, modifiers, getter, setter);
-
-        if (isStatic) {
-            // require that all static fields are static final
-            if (!java.lang.reflect.Modifier.isFinal(modifiers)) {
-                throw new IllegalArgumentException("Static [" + name + "]" +
-                    " within the struct [" + owner.name + "] is not final.");
+        if (Modifier.isStatic(javaField.getModifiers())) {
+            if (Modifier.isFinal(javaField.getModifiers())) {
+                throw new IllegalArgumentException("static [" + whitelistField.javaFieldName + "] " +
+                        "with owner struct [" + ownerStruct.name + "] is not final");
             }
 
-            owner.staticMembers.put(name, field);
+
+            Field painlessField = ownerStruct.staticMembers.get(whitelistField.javaFieldName);
+
+            if (painlessField == null) {
+                painlessField = new Field(whitelistField.javaFieldName, javaField.getName(),
+                    ownerStruct, painlessFieldType, javaField.getModifiers(), null, null);
+                ownerStruct.staticMembers.put(whitelistField.javaFieldName, painlessField);
+            } else if (painlessField.type.equals(painlessFieldType) == false) {
+                throw new IllegalArgumentException("illegal duplicate static fields [" + whitelistField.javaFieldName + "] " +
+                    "found within the struct [" + ownerStruct.name + "] with type [" + whitelistField.painlessFieldTypeName + "]");
+            }
         } else {
-            owner.members.put(name, field);
+            MethodHandle javaMethodHandleGetter = null;
+            MethodHandle javaMethodHandleSetter = null;
+
+            try {
+                if (Modifier.isStatic(javaField.getModifiers()) == false) {
+                    javaMethodHandleGetter = MethodHandles.publicLookup().unreflectGetter(javaField);
+                    javaMethodHandleSetter = MethodHandles.publicLookup().unreflectSetter(javaField);
+                }
+            } catch (IllegalAccessException exception) {
+                throw new IllegalArgumentException("getter/setter [" + whitelistField.javaFieldName + "]" +
+                    " not found for class [" + ownerStruct.clazz.getName() + "].");
+            }
+
+            Field painlessField = ownerStruct.staticMembers.get(whitelistField.javaFieldName);
+
+            if (painlessField == null) {
+                painlessField = new Field(whitelistField.javaFieldName, javaField.getName(),
+                    ownerStruct, painlessFieldType, javaField.getModifiers(), javaMethodHandleGetter, javaMethodHandleSetter);
+                ownerStruct.staticMembers.put(whitelistField.javaFieldName, painlessField);
+            } else if (painlessField.type.equals(painlessFieldType) == false) {
+                throw new IllegalArgumentException("illegal duplicate member fields [" + whitelistField.javaFieldName + "] " +
+                    "found within the struct [" + ownerStruct.name + "] with type [" + whitelistField.painlessFieldTypeName + "]");
+            }
         }
     }
 

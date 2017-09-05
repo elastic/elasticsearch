@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.PrimitiveIterator;
 import java.util.Spliterator;
+import java.util.Stack;
 
 /**
  * The entire API for Painless.  Also used as a whitelist for checking for legal
@@ -565,6 +566,42 @@ public final class Definition {
         }
 
         for (Struct painlessStruct : structsMap.values()) {
+            List<String> painlessSuperStructs = new ArrayList<>();
+            Class<?> javaSuperClass = painlessStruct.clazz.getSuperclass();
+
+            if (javaSuperClass.isInterface() == false) {
+                while (javaSuperClass != null) {
+                    String painlessStructName = javaClassesToPainlessStructs.get(javaSuperClass).name;
+
+                    if (painlessStructName != null) {
+                        painlessSuperStructs.add(painlessStructName);
+                    }
+
+                    javaSuperClass = javaSuperClass.getSuperclass();
+                }
+            }
+
+            Stack<Class<?>> javaInteraceLookups = new Stack<>();
+            javaInteraceLookups.push(painlessStruct.clazz);
+
+            while (javaInteraceLookups.isEmpty() == false) {
+                Class<?> javaInterfaceLookup = javaInteraceLookups.pop();
+
+                for (Class<?> javaSuperInterface : javaInterfaceLookup.getInterfaces()) {
+                    String painlessStructName = javaClassesToPainlessStructs.get(javaSuperInterface).name;
+
+                    if (painlessStructName != null && painlessSuperStructs.contains(painlessStructName) == false) {
+                        painlessSuperStructs.add(painlessStructName);
+                    }
+
+                    for (Class<?> javaPushInterface : javaInterfaceLookup.getInterfaces()) {
+                        javaInteraceLookups.push(javaPushInterface);
+                    }
+                }
+            }
+
+            copyStruct(painlessStruct.name, painlessSuperStructs);
+
             if (painlessStruct.clazz.isInterface() || ("def").equals(painlessStruct.name)) {
                 Struct painlessObjectStruct = javaClassesToPainlessStructs.get(Object.class);
 
@@ -572,28 +609,6 @@ public final class Definition {
                     copyStruct(painlessStruct.name, Collections.singletonList(painlessObjectStruct.name));
                 }
             }
-
-            List<String> painlessSuperStructs = new ArrayList<>();
-            Class<?> javaSuperClass = painlessStruct.clazz.getSuperclass();
-
-            while (javaSuperClass != null) {
-                String painlessStructName = javaClassesToPainlessStructs.get(javaSuperClass).name;
-
-                if (painlessStructName != null) {
-                    painlessSuperStructs.add(painlessStructName);
-                }
-
-                javaSuperClass = javaSuperClass.getSuperclass();
-            }
-
-            List<Class<?>> javaInteraceLookups = new ArrayList<>();
-            javaInteraceLookups.add(painlessStruct.clazz);
-
-            while (javaInteraceLookups.isEmpty() == false) {
-                // TODO: collect all super interfaces
-            }
-
-            copyStruct(painlessStruct.name, painlessSuperStructs);
         }
 
         // mark functional interfaces (or set null, to mark class is not)

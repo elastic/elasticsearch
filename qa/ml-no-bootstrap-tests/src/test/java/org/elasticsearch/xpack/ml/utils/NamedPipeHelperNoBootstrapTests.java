@@ -55,6 +55,8 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
     private static final long PIPE_REJECT_REMOTE_CLIENTS = 8;
     private static final long NMPWAIT_USE_DEFAULT_WAIT = 0;
 
+    private static final int ERROR_PIPE_CONNECTED = 535;
+
     private static final Pointer INVALID_HANDLE_VALUE = Pointer.createConstant(Pointer.SIZE == 8 ? -1 : 0xFFFFFFFFL);
 
     static {
@@ -131,7 +133,11 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
 
     private static String readLineFromPipeWindows(String pipeName, Pointer handle) throws IOException {
         if (!ConnectNamedPipe(handle, Pointer.NULL)) {
-            throw new IOException("ConnectNamedPipe failed for pipe " + pipeName + " with error " + Native.getLastError());
+            // ERROR_PIPE_CONNECTED means the pipe was already connected so
+            // there was no need to connect it again - not a problem
+            if (Native.getLastError() != ERROR_PIPE_CONNECTED) {
+                throw new IOException("ConnectNamedPipe failed for pipe " + pipeName + " with error " + Native.getLastError());
+            }
         }
         IntByReference numberOfBytesRead = new IntByReference();
         ByteBuffer buf = ByteBuffer.allocateDirect(BUFFER_SIZE);
@@ -162,7 +168,11 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
 
     private static void writeLineToPipeWindows(String pipeName, Pointer handle, String line) throws IOException {
         if (!ConnectNamedPipe(handle, Pointer.NULL)) {
-            throw new IOException("ConnectNamedPipe failed for pipe " + pipeName + " with error " + Native.getLastError());
+            // ERROR_PIPE_CONNECTED means the pipe was already connected so
+            // there was no need to connect it again - not a problem
+            if (Native.getLastError() != ERROR_PIPE_CONNECTED) {
+                throw new IOException("ConnectNamedPipe failed for pipe " + pipeName + " with error " + Native.getLastError());
+            }
         }
         IntByReference numberOfBytesWritten = new IntByReference();
         ByteBuffer buf = ByteBuffer.allocateDirect(BUFFER_SIZE);

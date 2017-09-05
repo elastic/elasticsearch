@@ -300,10 +300,17 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     /**
-     * Sets the nested filter that the nested objects should match with in order to be taken into account
-     * for sorting.
-     */
+     * Sets the nested filter that the nested objects should match with in order to
+     * be taken into account for sorting.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)}
+     *             and retrieve with {@link #getNestedSort()}
+     **/
+   @Deprecated
     public GeoDistanceSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
+       if (this.nestedSort != null) {
+           throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+       }
         this.nestedFilter = nestedFilter;
         return this;
     }
@@ -311,7 +318,10 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     /**
      * Returns the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)}
+     *             and retrieve with {@link #getNestedSort()}
      **/
+    @Deprecated
     public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
@@ -319,8 +329,14 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     /**
      * Sets the nested path if sorting occurs on a field that is inside a nested object. By default when sorting on a
      * field inside a nested object, the nearest upper nested object is selected as nested path.
-     */
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)}
+     *             and retrieve with {@link #getNestedSort()}
+     **/
+    @Deprecated
     public GeoDistanceSortBuilder setNestedPath(String nestedPath) {
+        if (this.nestedSort != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
         this.nestedPath = nestedPath;
         return this;
     }
@@ -328,16 +344,31 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     /**
      * Returns the nested path if sorting occurs on a field that is inside a nested object. By default when sorting on a
      * field inside a nested object, the nearest upper nested object is selected as nested path.
-     */
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)}
+     *             and retrieve with {@link #getNestedSort()}
+     **/
+    @Deprecated
     public String getNestedPath() {
         return this.nestedPath;
     }
 
+    /**
+     * Returns the {@link NestedSortBuilder}
+     */
     public NestedSortBuilder getNestedSort() {
         return this.nestedSort;
     }
 
+    /**
+     * Sets the {@link NestedSortBuilder} to be used for fields that are inside a nested
+     * object. The {@link NestedSortBuilder} takes a `path` argument and an optional
+     * nested filter that the nested objects should match with in
+     * order to be taken into account for sorting.
+     */
     public GeoDistanceSortBuilder setNestedSort(final NestedSortBuilder nestedSort) {
+        if (this.nestedFilter != null || this.nestedPath != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
         this.nestedSort = nestedSort;
         return this;
     }
@@ -445,7 +476,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (NESTED_FILTER_FIELD.match(currentName)) {
-                    DEPRECATION_LOGGER.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
+                    DEPRECATION_LOGGER.deprecated("[nested_filter] has been deprecated in favour of the [nested] parameter");
                     nestedFilter = parseInnerQueryBuilder(parser);
                 } else if (NESTED_FIELD.match(currentName)) {
                     nestedSort = NestedSortBuilder.fromXContent(parser);
@@ -475,7 +506,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 } else if (SORTMODE_FIELD.match(currentName)) {
                     sortMode = SortMode.fromString(parser.text());
                 } else if (NESTED_PATH_FIELD.match(currentName)) {
-                    DEPRECATION_LOGGER.deprecated("[nested_path] has been deprecated in favor of the [nested] parameter");
+                    DEPRECATION_LOGGER.deprecated("[nested_path] has been deprecated in favour of the [nested] parameter");
                     nestedPath = parser.text();
                 } else if (token == Token.VALUE_STRING){
                     if (fieldName != null && fieldName.equals(currentName) == false) {

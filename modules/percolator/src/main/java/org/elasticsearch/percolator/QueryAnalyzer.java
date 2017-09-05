@@ -355,6 +355,10 @@ final class QueryAnalyzer {
     private static BiFunction<Query, Map<String, Float>, Result> pointRangeQuery() {
         return (query, boosts) -> {
             PointRangeQuery pointRangeQuery = (PointRangeQuery) query;
+            if (pointRangeQuery.getNumDims() != 1) {
+                throw new UnsupportedQueryException(query);
+            }
+
             byte[] lowerPoint = pointRangeQuery.getLowerPoint();
             byte[] upperPoint = pointRangeQuery.getUpperPoint();
             byte[] interval = new byte[16];

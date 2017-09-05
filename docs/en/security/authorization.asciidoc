@@ -65,11 +65,17 @@ Grants access to manage *all* index templates and *all* ingest pipeline configur
 NOTE: This role does *not* provide the ability to create indices; those privileges
 must be defined in a separate role.
 
+[[built-in-roles-kibana-dashboard]] `kibana_dashboard_only_user` ::
+Grants access to the {kib} Dashboard and read-only permissions on the `.kibana`
+index. This role does not have access to editing tools in {kib}. For more
+information, see
+{kibana-ref}/xpack-dashboard-only-mode.html[{kib} Dashboard Only Mode].
+
 [[built-in-roles-kibana-system]] `kibana_system` ::
 Grants access necessary for the {kib} system user
 to read from and write to the {kib} indices and check the availability of the
 {es} cluster. For more information, see
-{kibana-ref}/using-kibana-with-security.html[Configuring Security in {kib}]
+{kibana-ref}/using-kibana-with-security.html[Configuring Security in {kib}].
 +
 NOTE: This role should not be assigned to users as the granted permissions may
 change between releases.

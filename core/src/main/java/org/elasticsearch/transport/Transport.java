@@ -40,7 +40,7 @@ public interface Transport extends LifecycleComponent {
 
     Setting<Boolean> TRANSPORT_TCP_COMPRESS = Setting.boolSetting("transport.tcp.compress", false, Property.NodeScope);
 
-    void transportServiceAdapter(TransportServiceAdapter service);
+    void setTransportService(TransportService service);
 
     /**
      * The address the transport is bound on.

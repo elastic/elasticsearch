@@ -1,5 +1,7 @@
 setup:
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_job:
         job_id: test-job-groups-foo-1
         body:  >
@@ -12,6 +14,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_job:
         job_id: test-job-groups-foo-2
         body:  >
@@ -24,6 +28,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_job:
         job_id: test-job-groups-bar-1
         body:  >
@@ -36,6 +42,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_job:
         job_id: test-job-groups-bar-2
         body:  >
@@ -48,6 +56,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_job:
         job_id: test-job-groups-nogroup
         body:  >

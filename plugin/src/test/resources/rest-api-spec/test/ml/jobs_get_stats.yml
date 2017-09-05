@@ -1,5 +1,7 @@
 setup:
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_job:
         job_id: job-stats-test
         body:  >
@@ -18,10 +20,14 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.open_job:
         job_id: job-stats-test
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_job:
         job_id: jobs-get-stats-datafeed-job
         body:  >
@@ -39,10 +45,14 @@ setup:
             }
           }
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.open_job:
         job_id: jobs-get-stats-datafeed-job
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_datafeed:
         datafeed_id: datafeed-1
         body:  >
@@ -196,6 +206,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh: {}
 
   # This is testing that the documents with v5.4 IDs are fetched.
@@ -203,6 +215,8 @@ setup:
   # for another type into the single type indices. Type isn't used
   # in the query so the test is valid
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: .ml-anomalies-shared
         type: doc
@@ -225,6 +239,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: .ml-anomalies-shared
         type: doc
@@ -243,6 +259,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
         index: [.ml-anomalies-shared]
 

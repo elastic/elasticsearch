@@ -17,10 +17,12 @@ integTestRunner {
   systemProperty 'tests.rest.blacklist', [
     // Remove tests that are expected to throw an exception, because we cannot then
     // know whether to expect an authorization exception or a validation exception
+    'ml/custom_all_field/Test querying custom all field',
     'ml/datafeeds_crud/Test delete datafeed with missing id',
     'ml/datafeeds_crud/Test put datafeed referring to missing job_id',
     'ml/datafeeds_crud/Test put datafeed with invalid query',
     'ml/datafeeds_crud/Test update datafeed with missing id',
+    'ml/delete_job_force/Test cannot force delete a non-existent job',
     'ml/delete_model_snapshot/Test delete snapshot missing snapshotId',
     'ml/delete_model_snapshot/Test delete snapshot missing job_id',
     'ml/delete_model_snapshot/Test delete with in-use model',
@@ -46,6 +48,11 @@ integTestRunner {
     'ml/jobs_get_result_categories/Test with invalid param combinations via body',
     'ml/jobs_get_stats/Test get job stats given missing job',
     'ml/jobs_get_stats/Test no exception on get job stats with missing index',
+    'ml/job_groups/Test put job with empty group',
+    'ml/job_groups/Test put job with group that matches an job id',
+    'ml/job_groups/Test put job with group that matches its id',
+    'ml/job_groups/Test put job with id that matches an existing group',
+    'ml/job_groups/Test put job with invalid group',
     'ml/post_data/Test Flush data with invalid parameters',
     'ml/post_data/Test flushing and posting a closed job',
     'ml/post_data/Test open and close with non-existent job id',
@@ -68,7 +75,7 @@ integTestCluster {
   plugin ':x-pack-elasticsearch:plugin'
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',
-               'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
+               'bin/x-pack/users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
   setupCommand 'setupMlAdminUser',
                'bin/x-pack/users', 'useradd', 'ml_admin', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_admin'
   setupCommand 'setupMlUserUser',
@@ -79,7 +86,7 @@ integTestCluster {
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
             dest: tmpFile.toString(),
-            username: 'test_admin',
+            username: 'x_pack_rest_user',
             password: 'x-pack-test-password',
             ignoreerrors: true,
             retries: 10)

@@ -13,6 +13,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -36,8 +37,7 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 
 public class MlWithSecurityIT extends ESClientYamlSuiteTestCase {
 
-    private static final String TEST_ADMIN_USERNAME = "test_admin";
-    private static final String TEST_ADMIN_PASSWORD = "x-pack-test-password";
+    private static final String TEST_ADMIN_USERNAME = "x_pack_rest_user";
 
     @After
     public void clearMlState() throws Exception {
@@ -99,7 +99,7 @@ public class MlWithSecurityIT extends ESClientYamlSuiteTestCase {
                                            Map<String, String> params,
                                            List<Map<String, Object>> bodies) throws IOException {
         Map<String, String> headers = Collections.singletonMap("Authorization",
-                basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecureString(TEST_ADMIN_PASSWORD.toCharArray())));
+                basicAuthHeaderValue(TEST_ADMIN_USERNAME, SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING));
         return getAdminExecutionContext().callApi(apiName, params, bodies, headers);
     }
 
@@ -123,7 +123,7 @@ public class MlWithSecurityIT extends ESClientYamlSuiteTestCase {
 
     @Override
     protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecureString(TEST_ADMIN_PASSWORD.toCharArray()));
+        String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();

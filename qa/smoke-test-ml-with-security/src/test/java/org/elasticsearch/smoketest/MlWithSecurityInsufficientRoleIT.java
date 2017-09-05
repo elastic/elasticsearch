@@ -28,10 +28,15 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
             super.test();
             fail("should have failed because of missing role");
         } catch (AssertionError ae) {
-            assertThat(ae.getMessage(),
-                    either(containsString("action [cluster:monitor/xpack/ml")).or(containsString("action [cluster:admin/xpack/ml")));
-            assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
-            assertThat(ae.getMessage(), containsString("is unauthorized for user [no_ml]"));
+            // Some tests assert on searches of wildcarded ML indices rather than on ML endpoints.  For these we expect no hits.
+            if (ae.getMessage().contains("hits.total didn't match expected value")) {
+                assertThat(ae.getMessage(), containsString("but was [0]"));
+            } else {
+                assertThat(ae.getMessage(),
+                        either(containsString("action [cluster:monitor/xpack/ml")).or(containsString("action [cluster:admin/xpack/ml")));
+                assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
+                assertThat(ae.getMessage(), containsString("is unauthorized for user [no_ml]"));
+            }
         }
     }
 

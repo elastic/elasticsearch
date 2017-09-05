@@ -1,5 +1,7 @@
 setup:
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_job:
         job_id: get-influencers-test
         body:  >
@@ -14,6 +16,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-anomalies-get-influencers-test
         type:   doc
@@ -30,6 +34,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-anomalies-get-influencers-test
         type:   doc
@@ -47,6 +53,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-anomalies-get-influencers-test
         type:   doc
@@ -63,6 +71,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
         index: .ml-anomalies-get-influencers-test
 

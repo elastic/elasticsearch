@@ -1,5 +1,7 @@
 setup:
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_job:
         job_id: revert-model-snapshot
         body:  >
@@ -18,14 +20,20 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.open_job:
         job_id: revert-model-snapshot
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.close_job:
         job_id: revert-model-snapshot
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-anomalies-revert-model-snapshot
         type:   doc
@@ -51,6 +59,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-anomalies-revert-model-snapshot
         type:   doc
@@ -76,6 +86,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-anomalies-revert-model-snapshot
         type:   doc
@@ -89,6 +101,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-anomalies-revert-model-snapshot
         type:   doc
@@ -102,6 +116,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-anomalies-revert-model-snapshot
         type:   doc
@@ -115,7 +131,9 @@ setup:
           }
 
   - do:
-       index:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
         index:  .ml-anomalies-revert-model-snapshot
         type:   doc
         id:     "revert-model-snapshot_1464825600000_1_1"
@@ -128,7 +146,9 @@ setup:
           }
 
   - do:
-       index:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
          index:  .ml-anomalies-revert-model-snapshot
          type:   doc
          id:     "revert-model-snapshot_1462060800000_1_2"
@@ -141,6 +161,8 @@ setup:
            }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-anomalies-revert-model-snapshot
         type:   doc
@@ -156,6 +178,8 @@ setup:
                 }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-anomalies-revert-model-snapshot
         type:   doc
@@ -172,10 +196,14 @@ setup:
             }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
         index: .ml-anomalies-revert-model-snapshot
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
         index: .ml-state
 
@@ -228,6 +256,8 @@ setup:
         delete_intervening_results: true
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
         index: .ml-anomalies-revert-model-snapshot
 

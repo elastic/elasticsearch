@@ -617,14 +617,14 @@ public final class Definition {
             String painlessParameterTypeName = whitelistConstructor.painlessParameterTypeNames.get(parameterCount);
 
             try {
-                Type painlessType = getTypeInternal(painlessParameterTypeName);
+                Type painlessParameterType = getTypeInternal(painlessParameterTypeName);
 
-                painlessParametersTypes.add(painlessType);
-                javaClassParameters[parameterCount] = painlessType.clazz;
+                painlessParametersTypes.add(painlessParameterType);
+                javaClassParameters[parameterCount] = painlessParameterType.clazz;
             } catch (IllegalArgumentException iae) {
                 throw new IllegalArgumentException("struct not defined for constructor parameter [" + painlessParameterTypeName + "] " +
                         "with owner struct [" + ownerStructName + "] and constructor parameters " +
-                        whitelistConstructor.painlessParameterTypeNames);
+                        whitelistConstructor.painlessParameterTypeNames, iae);
             }
         }
 
@@ -637,8 +637,8 @@ public final class Definition {
                     " with constructor parameters " + whitelistConstructor.painlessParameterTypeNames);
         }
 
-        MethodKey methodKey = new MethodKey("<init>", whitelistConstructor.painlessParameterTypeNames.size());
-        Method painlessConstructor = ownerStruct.constructors.get(methodKey);
+        MethodKey painlessMethodKey = new MethodKey("<init>", whitelistConstructor.painlessParameterTypeNames.size());
+        Method painlessConstructor = ownerStruct.constructors.get(painlessMethodKey);
 
         if (painlessConstructor == null) {
             org.objectweb.asm.commons.Method asmConstructor = org.objectweb.asm.commons.Method.getMethod(javaConstructor);
@@ -653,101 +653,123 @@ public final class Definition {
 
             painlessConstructor = new Method("<init>", ownerStruct, null, getTypeInternal("void"), painlessParametersTypes,
                 asmConstructor, javaConstructor.getModifiers(), javaHandle);
-            ownerStruct.constructors.put(methodKey, painlessConstructor);
-        } else if (painlessParametersTypes.equals(painlessConstructor.arguments) == false){
+            ownerStruct.constructors.put(painlessMethodKey, painlessConstructor);
+        } else if (painlessConstructor.equals(painlessParametersTypes) == false){
             throw new IllegalArgumentException(
-                    "illegal duplicate constructors [" + methodKey + "] found within the struct [" + ownerStruct.name + "] " +
+                    "illegal duplicate constructors [" + painlessMethodKey + "] found within the struct [" + ownerStruct.name + "] " +
                     "with parameters " + painlessParametersTypes + " and " + painlessConstructor.arguments);
         }
     }
 
-    private void addMethod(String ownerStructName, Whitelist.Method whitelistMethod) {
-        final Struct owner = structsMap.get(struct);
+    private void addMethod(ClassLoader whitelistClassLoader, String ownerStructName, Whitelist.Method whitelistMethod) {
+        Struct ownerStruct = structsMap.get(ownerStructName);
 
-        if (owner == null) {
-            throw new IllegalArgumentException("Owner struct [" + struct + "] not defined" +
-                " for method [" + name + "].");
+        if (ownerStruct == null) {
+            throw new IllegalArgumentException("owner struct [" + ownerStructName + "] not defined for method with " +
+                    "name [" + whitelistMethod.javaMethodName + "] and parameters " + whitelistMethod.painlessParameterTypeNames);
         }
 
-        if (!name.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
-            throw new IllegalArgumentException("Invalid method name" +
-                " [" + name + "] with the struct [" + owner.name + "].");
+        if (!whitelistMethod.javaMethodName.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
+            throw new IllegalArgumentException("invalid method name" +
+                    " [" + whitelistMethod.javaMethodName + "] for owner struct [" + ownerStructName + "].");
         }
 
-        MethodKey methodKey = new MethodKey(name, args.length);
+        Class<?> javaAugmentedClass = null;
 
-        if (owner.constructors.containsKey(methodKey)) {
-            throw new IllegalArgumentException("Constructors and methods" +
-                " may not have the same signature [" + methodKey + "] within the same struct" +
-                " [" + owner.name + "].");
-        }
-
-        if (owner.staticMethods.containsKey(methodKey) || owner.methods.containsKey(methodKey)) {
-            throw new IllegalArgumentException(
-                "Duplicate method signature [" + methodKey + "] found within the struct [" + owner.name + "].");
-        }
-
-        final Class<?> implClass;
-        final Class<?>[] params;
-
-        if (augmentation == null) {
-            implClass = owner.clazz;
-            params = new Class<?>[args.length];
-            for (int count = 0; count < args.length; ++count) {
-                params[count] = args[count].clazz;
-            }
-        } else {
+        if (whitelistMethod.javaAugmentedClassName != null) {
             try {
-                implClass = Class.forName(augmentation);
+                javaAugmentedClass = Class.forName(whitelistMethod.javaAugmentedClassName, true, whitelistClassLoader);
             } catch (ClassNotFoundException cnfe) {
-                throw new IllegalArgumentException("Augmentation class [" + augmentation + "]" +
-                    " not found for struct [" + struct + "] using method name [" + name + "].", cnfe);
-            }
-
-            params = new Class<?>[args.length + 1];
-            params[0] = owner.clazz;
-            for (int count = 0; count < args.length; ++count) {
-                params[count+1] = args[count].clazz;
+                throw new IllegalArgumentException("augmented class [" + whitelistMethod.javaAugmentedClassName + "] " +
+                        "not found for method with name [" + whitelistMethod.javaMethodName + "] " +
+                        "and parameters " + whitelistMethod.painlessParameterTypeNames, cnfe);
             }
         }
 
-        final java.lang.reflect.Method reflect;
+        int augmentedOffset = javaAugmentedClass == null ? 0 : 1;
+
+        List<Type> painlessParametersTypes = new ArrayList<>(whitelistMethod.painlessParameterTypeNames.size());
+        Class<?>[] javaClassParameters = new Class<?>[whitelistMethod.painlessParameterTypeNames.size() + augmentedOffset];
+
+        if (javaAugmentedClass != null) {
+            javaClassParameters[0] = javaAugmentedClass;
+        }
+
+        for (int parameterCount = 0; parameterCount < whitelistMethod.painlessParameterTypeNames.size(); ++parameterCount) {
+            String painlessParameterTypeName = whitelistMethod.painlessParameterTypeNames.get(parameterCount);
+
+            try {
+                Type painlessParameterType = getTypeInternal(painlessParameterTypeName);
+
+                painlessParametersTypes.add(painlessParameterType);
+                javaClassParameters[parameterCount + augmentedOffset] = painlessParameterType.clazz;
+            } catch (IllegalArgumentException iae) {
+                throw new IllegalArgumentException("struct not defined for method parameter [" + painlessParameterTypeName + "] " +
+                        "with owner struct [" + ownerStructName + "] and method with name [" + whitelistMethod.javaMethodName + "] " +
+                        "and parameters " + whitelistMethod.painlessParameterTypeNames, iae);
+            }
+        }
+
+        Class<?> javaImplClass = javaAugmentedClass == null ? ownerStruct.clazz : javaAugmentedClass;
+        java.lang.reflect.Method javaMethod;
 
         try {
-            reflect = implClass.getMethod(name, params);
-        } catch (NoSuchMethodException exception) {
-            throw new IllegalArgumentException("Method [" + name +
-                "] not found for class [" + implClass.getName() + "]" +
-                " with arguments " + Arrays.toString(params) + ".");
+            javaMethod = javaImplClass.getMethod(whitelistMethod.javaMethodName, javaClassParameters);
+        } catch (NoSuchMethodException nsme) {
+            throw new IllegalArgumentException("method with name [" + whitelistMethod.javaMethodName + "] " +
+                    "and parameters " + whitelistMethod.painlessParameterTypeNames + " not found for class [" +
+                    javaImplClass.getName() + "]", nsme);
         }
 
-        if (!reflect.getReturnType().equals(rtn.clazz)) {
-            throw new IllegalArgumentException("Specified return type class [" + rtn.clazz + "]" +
-                " does not match the found return type class [" + reflect.getReturnType() + "] for the" +
-                " method [" + name + "]" +
-                " within the struct [" + owner.name + "].");
+        Type painlessReturnType = getTypeInternal(whitelistMethod.painlessReturnTypeName);
+
+        if (javaMethod.getReturnType().equals(painlessReturnType.clazz) == false) {
+            throw new IllegalArgumentException("specified return type class [" + painlessReturnType.clazz + "] " +
+                    "does not match the return type class [" + javaMethod.getReturnType() + "] for the " +
+                    "method with name [" + whitelistMethod.javaMethodName + "] " +
+                    "and parameters " + whitelistMethod.painlessParameterTypeNames);
         }
 
-        final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(reflect);
-
-        MethodHandle handle;
+        org.objectweb.asm.commons.Method asmMethod = org.objectweb.asm.commons.Method.getMethod(javaMethod);
+        MethodHandle javaMethodHandle;
 
         try {
-            handle = MethodHandles.publicLookup().in(implClass).unreflect(reflect);
-        } catch (final IllegalAccessException exception) {
-            throw new IllegalArgumentException("Method [" + name + "]" +
-                " not found for class [" + implClass.getName() + "]" +
-                " with arguments " + Arrays.toString(params) + ".");
+            javaMethodHandle = MethodHandles.publicLookup().in(javaImplClass).unreflect(javaMethod);
+        } catch (IllegalAccessException exception) {
+            throw new IllegalArgumentException("method handle not found for method with name " +
+                "[" + whitelistMethod.javaMethodName + "] and parameters " + whitelistMethod.painlessParameterTypeNames);
         }
 
-        final int modifiers = reflect.getModifiers();
-        final Method method =
-            new Method(name, owner, augmentation == null ? null : implClass, rtn, Arrays.asList(args), asm, modifiers, handle);
+        MethodKey painlessMethodKey = new MethodKey(whitelistMethod.javaMethodName, whitelistMethod.painlessParameterTypeNames.size());
 
-        if (augmentation == null && java.lang.reflect.Modifier.isStatic(modifiers)) {
-            owner.staticMethods.put(methodKey, method);
+        if (javaAugmentedClass == null && Modifier.isStatic(javaMethod.getModifiers())) {
+            Method painlessMethod = ownerStruct.staticMethods.get(painlessMethodKey);
+
+            if (painlessMethod == null) {
+                painlessMethod = new Method(whitelistMethod.javaMethodName, ownerStruct, null, painlessReturnType,
+                    painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle);
+                ownerStruct.staticMethods.put(painlessMethodKey, painlessMethod);
+            } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn.equals(painlessReturnType) &&
+                    painlessMethod.arguments.equals(painlessParametersTypes)) == false) {
+                throw new IllegalArgumentException("illegal duplicate methods [" + painlessMethodKey + "] " +
+                        "found within the struct [" + ownerStruct.name + "] with name [" + whitelistMethod.javaMethodName + "], " +
+                        "return types [" + painlessReturnType + "] and [" + painlessMethod.rtn.name + "], " +
+                        "and parameters " + painlessParametersTypes + " and " + painlessMethod.arguments);
+            }
         } else {
-            owner.methods.put(methodKey, method);
+            Method painlessMethod = ownerStruct.methods.get(painlessMethodKey);
+
+            if (painlessMethod == null) {
+                painlessMethod = new Method(whitelistMethod.javaMethodName, ownerStruct, javaAugmentedClass, painlessReturnType,
+                    painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle);
+                ownerStruct.staticMethods.put(painlessMethodKey, painlessMethod);
+            } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn.equals(painlessReturnType) &&
+                painlessMethod.arguments.equals(painlessParametersTypes)) == false) {
+                throw new IllegalArgumentException("illegal duplicate methods [" + painlessMethodKey + "] " +
+                    "found within the struct [" + ownerStruct.name + "] with name [" + whitelistMethod.javaMethodName + "], " +
+                    "return types [" + painlessReturnType + "] and [" + painlessMethod.rtn.name + "], " +
+                    "and parameters " + painlessParametersTypes + " and " + painlessMethod.arguments);
+            }
         }
     }
 

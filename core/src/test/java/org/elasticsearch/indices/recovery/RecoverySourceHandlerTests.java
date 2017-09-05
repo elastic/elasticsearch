@@ -56,7 +56,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardRelocatedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -106,7 +106,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             null,
             randomBoolean(),
             randomNonNegativeLong(),
-            randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
+            randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
         Store store = newStore(createTempDir());
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
             recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY);
@@ -154,7 +154,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     public void testSendSnapshotSendsOps() throws IOException {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final int fileChunkSizeInBytes = recoverySettings.getChunkSize().bytesAsInt();
-        final long startingSeqNo = randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomIntBetween(0, 16);
+        final long startingSeqNo = randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : randomIntBetween(0, 16);
         final StartRecoveryRequest request = new StartRecoveryRequest(
             shardId,
             null,
@@ -163,7 +163,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             null,
             randomBoolean(),
             randomNonNegativeLong(),
-            randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
+            randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
         final IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
         final RecoveryTargetHandler recoveryTarget = mock(RecoveryTargetHandler.class);
@@ -173,7 +173,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final int initialNumberOfDocs = randomIntBetween(16, 64);
         for (int i = 0; i < initialNumberOfDocs; i++) {
             final Engine.Index index = getIndex(Integer.toString(i));
-            operations.add(new Translog.Index(index, new Engine.IndexResult(1, SequenceNumbersService.UNASSIGNED_SEQ_NO, true)));
+            operations.add(new Translog.Index(index, new Engine.IndexResult(1, SequenceNumbers.UNASSIGNED_SEQ_NO, true)));
         }
         final int numberOfDocsWithValidSequenceNumbers = randomIntBetween(16, 64);
         for (int i = initialNumberOfDocs; i < initialNumberOfDocs + numberOfDocsWithValidSequenceNumbers; i++) {
@@ -199,7 +199,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 return operations.get(counter++);
             }
         });
-        if (startingSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+        if (startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             assertThat(result.totalOperations, equalTo(initialNumberOfDocs + numberOfDocsWithValidSequenceNumbers));
         } else {
             assertThat(result.totalOperations, equalTo(Math.toIntExact(numberOfDocsWithValidSequenceNumbers - startingSeqNo)));
@@ -237,7 +237,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 null,
                 randomBoolean(),
                 randomNonNegativeLong(),
-                randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : 0L);
+                randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : 0L);
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
@@ -307,7 +307,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 null,
                 randomBoolean(),
                 randomNonNegativeLong(),
-                randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : 0L);
+                randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : 0L);
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
@@ -373,7 +373,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 null,
                 false,
                 randomNonNegativeLong(),
-                attemptSequenceNumberBasedRecovery ? randomNonNegativeLong() : SequenceNumbersService.UNASSIGNED_SEQ_NO);
+                attemptSequenceNumberBasedRecovery ? randomNonNegativeLong() : SequenceNumbers.UNASSIGNED_SEQ_NO);
         final IndexShard shard = mock(IndexShard.class);
         when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
         when(shard.segmentStats(anyBoolean())).thenReturn(mock(SegmentsStats.class));
@@ -412,7 +412,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             @Override
             long phase2(long startingSeqNo, Translog.Snapshot snapshot) throws IOException {
                 phase2Called.set(true);
-                return SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                return SequenceNumbers.UNASSIGNED_SEQ_NO;
             }
 
         };

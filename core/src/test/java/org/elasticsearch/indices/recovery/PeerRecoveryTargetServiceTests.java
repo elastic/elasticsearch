@@ -25,7 +25,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -73,7 +73,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
             translogLocation.set(replica.getTranslog().location());
 
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
 
             final Translog translog = replica.getTranslog();
             translogLocation.set(
@@ -87,7 +87,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             translogLocation.set(replica.getTranslog().location());
 
             // commit is not good, global checkpoint is below max
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
 
             translogLocation.set(
                     writeTranslog(replica.shardId(), translog.getTranslogUUID(), translog.currentFileGeneration(), maxSeqNo));

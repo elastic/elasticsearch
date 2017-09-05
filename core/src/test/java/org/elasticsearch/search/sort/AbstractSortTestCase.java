@@ -134,7 +134,12 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
+            assertWarnings(testItem);
         }
+    }
+
+    protected void assertWarnings(T testItem) {
+        // assert potential warnings based on the test sort configuration. Do nothing by default, subtests can overwrite
     }
 
     /**

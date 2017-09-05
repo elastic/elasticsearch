@@ -56,7 +56,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                                         ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver, GatewayAllocator gatewayAllocator) {
         super(settings, ClusterHealthAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, ClusterHealthRequest::new);
+            ClusterHealthRequest::new, indexNameExpressionResolver);
         this.gatewayAllocator = gatewayAllocator;
     }
 

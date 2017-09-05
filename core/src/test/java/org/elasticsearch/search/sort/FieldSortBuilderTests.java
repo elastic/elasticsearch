@@ -19,16 +19,20 @@ x * Licensed to Elasticsearch under one or more contributor
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -36,6 +40,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -79,11 +84,19 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         if (randomBoolean()) {
             builder.sortMode(randomFrom(SortMode.values()));
         }
-
         if (randomBoolean()) {
-            builder.setNestedSort(createRandomNestedSort(3));
+            if (randomBoolean()) {
+                builder.setNestedSort(createRandomNestedSort(3));
+            } else {
+                // the following are alternative ways to setNestedSort for nested sorting
+                if (randomBoolean()) {
+                    builder.setNestedFilter(randomNestedFilter());
+                }
+                if (randomBoolean()) {
+                    builder.setNestedPath(randomAlphaOfLengthBetween(1, 10));
+                }
+            }
         }
-
         return builder;
     }
 
@@ -93,7 +106,16 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         int parameter = randomIntBetween(0, 4);
         switch (parameter) {
         case 0:
-            mutated.setNestedSort(randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3)));
+            if (original.getNestedPath() == null && original.getNestedFilter() == null) {
+                mutated.setNestedSort(
+                        randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3)));
+            } else {
+                if (randomBoolean()) {
+                    mutated.setNestedPath(randomValueOtherThan(original.getNestedPath(), () -> randomAlphaOfLengthBetween(1, 10)));
+                } else {
+                    mutated.setNestedFilter(randomValueOtherThan(original.getNestedFilter(), () -> randomNestedFilter()));
+                }
+            }
             break;
         case 1:
             mutated.sortMode(randomValueOtherThan(original.sortMode(), () -> randomFrom(SortMode.values())));
@@ -242,20 +264,34 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     public void testBuildNested() throws IOException {
         QueryShardContext shardContextMock = createMockShardContext();
 
-        FieldSortBuilder sortBuilder = new FieldSortBuilder("value").setNestedPath("path");
+        FieldSortBuilder sortBuilder = new FieldSortBuilder("fieldName")
+                .setNestedSort(new NestedSortBuilder("path").setFilter(QueryBuilders.termQuery(MAPPED_STRING_FIELDNAME, "value")));
         SortField sortField = sortBuilder.build(shardContextMock).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
-        assertNotNull(comparatorSource.nested());
+        Nested nested = comparatorSource.nested();
+        assertNotNull(nested);
+        assertEquals(new TermQuery(new Term(MAPPED_STRING_FIELDNAME, "value")), nested.getInnerQuery());
 
-        sortBuilder = new FieldSortBuilder("value").setNestedPath("path").setNestedFilter(QueryBuilders.termQuery("field", 10.0));
+        sortBuilder = new FieldSortBuilder("fieldName").setNestedPath("path");
         sortField = sortBuilder.build(shardContextMock).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
-        assertNotNull(comparatorSource.nested());
+        nested = comparatorSource.nested();
+        assertNotNull(nested);
+        assertEquals(new TermQuery(new Term(TypeFieldMapper.NAME, "__path")), nested.getInnerQuery());
+
+        sortBuilder = new FieldSortBuilder("fieldName").setNestedPath("path")
+                .setNestedFilter(QueryBuilders.termQuery(MAPPED_STRING_FIELDNAME, "value"));
+        sortField = sortBuilder.build(shardContextMock).field;
+        assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
+        comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
+        nested = comparatorSource.nested();
+        assertNotNull(nested);
+        assertEquals(new TermQuery(new Term(MAPPED_STRING_FIELDNAME, "value")), nested.getInnerQuery());
 
         // if nested path is missing, we omit any filter and return a SortedNumericSortField
-        sortBuilder = new FieldSortBuilder("value").setNestedFilter(QueryBuilders.termQuery("field", 10.0));
+        sortBuilder = new FieldSortBuilder("fieldName").setNestedFilter(QueryBuilders.termQuery(MAPPED_STRING_FIELDNAME, "value"));
         sortField = sortBuilder.build(shardContextMock).field;
         assertThat(sortField, instanceOf(SortedNumericSortField.class));
     }
@@ -313,6 +349,37 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         e = expectThrows(QueryShardException.class,
                 () -> new FieldSortBuilder(MAPPED_STRING_FIELDNAME).sortMode(SortMode.MEDIAN).build(shardContextMock));
         assertEquals(expectedError, e.getMessage());
+    }
+
+    /**
+     * Test we can either set nested sort via path/filter or via nested sort builder, not both
+     */
+    public void testNestedSortBothThrows() throws IOException {
+        FieldSortBuilder sortBuilder = new FieldSortBuilder(MAPPED_STRING_FIELDNAME);
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> sortBuilder.setNestedPath("nestedPath").setNestedSort(new NestedSortBuilder("otherPath")));
+        assertEquals("Setting both nested_path/nested_filter and nested not allowed", iae.getMessage());
+        iae = expectThrows(IllegalArgumentException.class,
+                () -> sortBuilder.setNestedSort(new NestedSortBuilder("otherPath")).setNestedPath("nestedPath"));
+        assertEquals("Setting both nested_path/nested_filter and nested not allowed", iae.getMessage());
+        iae = expectThrows(IllegalArgumentException.class,
+                () -> sortBuilder.setNestedSort(new NestedSortBuilder("otherPath")).setNestedFilter(QueryBuilders.matchAllQuery()));
+        assertEquals("Setting both nested_path/nested_filter and nested not allowed", iae.getMessage());
+
+    }
+
+    @Override
+    protected void assertWarnings(FieldSortBuilder testItem) {
+        List<String> expectedWarnings = new ArrayList<>();
+        if (testItem.getNestedFilter() != null) {
+            expectedWarnings.add("[nested_filter] has been deprecated in favour for the [nested] parameter");
+        }
+        if (testItem.getNestedPath() != null) {
+            expectedWarnings.add("[nested_path] has been deprecated in favor of the [nested] parameter");
+        }
+        if (expectedWarnings.isEmpty() == false) {
+            assertWarnings(expectedWarnings.toArray(new String[expectedWarnings.size()]));
+        }
     }
 
     @Override

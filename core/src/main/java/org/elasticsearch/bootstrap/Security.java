@@ -43,12 +43,15 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.URIParameter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
@@ -191,13 +194,16 @@ final class Security {
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
     static Policy readPolicy(URL policyFile, Set<URL> codebases) {
         try {
+            List<String> shortNames = new ArrayList<>();
             try {
                 // set codebase properties
                 for (URL url : codebases) {
-                    String shortName = PathUtils.get(url.toURI()).getFileName().toString();
-                    if (shortName.endsWith(".jar") == false) {
+                    String fileName = PathUtils.get(url.toURI()).getFileName().toString();
+                    if (fileName.endsWith(".jar") == false) {
                         continue; // tests :(
                     }
+                    String shortName = fileName.replaceFirst("-\\d+\\.\\d+.*\\.jar", ".jar");
+                    shortNames.add(shortName);
                     String previous = System.setProperty("codebase." + shortName, url.toString());
                     if (previous != null) {
                         throw new IllegalStateException("codebase property already set: " + shortName + "->" + previous);
@@ -206,11 +212,7 @@ final class Security {
                 return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
             } finally {
                 // clear codebase properties
-                for (URL url : codebases) {
-                    String shortName = PathUtils.get(url.toURI()).getFileName().toString();
-                    if (shortName.endsWith(".jar") == false) {
-                        continue; // tests :(
-                    }
+                for (String shortName : shortNames) {
                     System.clearProperty("codebase." + shortName);
                 }
             }

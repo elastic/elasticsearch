@@ -1135,7 +1135,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         InvalidIndexNameException iine = expectThrows(InvalidIndexNameException.class,
             () -> indexNameExpressionResolver.concreteIndexNames(context, "_foo"));
-        assertEquals("Invalid index name [_foo], must not start with '_'.",
-            iine.getMessage());
+        assertEquals("Invalid index name [_foo], must not start with '_'.", iine.getMessage());
     }
 }

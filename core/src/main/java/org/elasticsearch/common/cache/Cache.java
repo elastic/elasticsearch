@@ -366,7 +366,7 @@ public class Cache<K, V> {
      */
     public V computeIfAbsent(K key, CacheLoader<K, V> loader) throws ExecutionException {
         long now = now();
-        // we have to eagerly evict or our putIfAbsent call below will fail
+        // we have to eagerly evict expired entries or our putIfAbsent call below will fail
         V value = get(key, now, e -> {
             try (ReleasableLock ignored = lruLock.acquire()) {
                 evictEntry(e);

@@ -21,7 +21,7 @@
 //// These are mock objects and test management that we allow test framework libs
 //// to provide on our behalf. But tests themselves cannot do this stuff!
 
-grant codeBase "${codebase.securemock.jar}" {
+grant codeBase "${codebase.securemock-1.2.jar}" {
   // needed to access ReflectionFactory (see below)
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   // needed for reflection in ibm jdk
@@ -33,7 +33,7 @@ grant codeBase "${codebase.securemock.jar}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${codebase.lucene-test-framework.jar}" {
+grant codeBase "${codebase.lucene-test-framework-7.0.0-snapshot-d94a5f0.jar}" {
   // needed by RamUsageTester
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed for testing hardlinks in StoreRecoveryTests since we install MockFS
@@ -42,7 +42,7 @@ grant codeBase "${codebase.lucene-test-framework.jar}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
-grant codeBase "${codebase.randomizedtesting-runner.jar}" {
+grant codeBase "${codebase.randomizedtesting-runner-2.5.2.jar}" {
   // optionally needed for access to private test methods (e.g. beforeClass)
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed to fail tests on uncaught exceptions from other threads
@@ -53,29 +53,29 @@ grant codeBase "${codebase.randomizedtesting-runner.jar}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
-grant codeBase "${codebase.junit.jar}" {
+grant codeBase "${codebase.junit-4.12.jar}" {
   // needed for TestClass creation
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
-grant codeBase "${codebase.mocksocket.jar}" {
+grant codeBase "${codebase.mocksocket-1.2.jar}" {
   // mocksocket makes and accepts socket connections
   permission java.net.SocketPermission "*", "accept,connect";
 };
 
-grant codeBase "${codebase.elasticsearch-rest-client.jar}" {
+grant codeBase "${codebase.elasticsearch-rest-client}-${es.version}.jar" {
   // rest makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
   // rest client uses system properties which gets the default proxy
   permission java.net.NetPermission "getProxySelector";
 };
 
-grant codeBase "${codebase.httpcore-nio.jar}" {
+grant codeBase "${codebase.httpcore-nio-4.4.5.jar}" {
   // httpcore makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
 };
 
-grant codeBase "${codebase.httpasyncclient.jar}" {
+grant codeBase "${codebase.httpasyncclient-4.1.2.jar}" {
   // httpasyncclient makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
   // rest client uses system properties which gets the default proxy

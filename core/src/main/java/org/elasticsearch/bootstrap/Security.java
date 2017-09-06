@@ -19,7 +19,9 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.SecureSM;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkModule;
@@ -51,7 +53,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
@@ -194,17 +195,26 @@ final class Security {
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
     static Policy readPolicy(URL policyFile, Set<URL> codebases) {
         try {
-            List<String> shortNames = new ArrayList<>();
+            List<String> propertiesSet = new ArrayList<>();
             try {
                 // set codebase properties
                 for (URL url : codebases) {
-                    String fileName = PathUtils.get(url.toURI()).getFileName().toString();
-                    if (fileName.endsWith(".jar") == false) {
+                    String shortName = PathUtils.get(url.toURI()).getFileName().toString();
+                    if (shortName.endsWith(".jar") == false) {
                         continue; // tests :(
                     }
-                    String shortName = fileName.replaceFirst("-\\d+\\.\\d+.*\\.jar", ".jar");
-                    shortNames.add(shortName);
-                    String previous = System.setProperty("codebase." + shortName, url.toString());
+                    if (shortName.startsWith("elasticsearch-rest-client")) {
+                        final String esVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
+                        System.setProperty("es.version", esVersion);
+                        propertiesSet.add("es.version");
+                        final String urlAsString = url.toString();
+                        final int index = urlAsString.indexOf("-" + System.getProperty("es.version") + ".jar");
+                        assert index >= 0;
+                        shortName = urlAsString.substring(0, index);
+                    }
+                    String property = "codebase." + shortName;
+                    propertiesSet.add(property);
+                    String previous = System.setProperty(property, url.toString());
                     if (previous != null) {
                         throw new IllegalStateException("codebase property already set: " + shortName + "->" + previous);
                     }
@@ -212,8 +222,8 @@ final class Security {
                 return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
             } finally {
                 // clear codebase properties
-                for (String shortName : shortNames) {
-                    System.clearProperty("codebase." + shortName);
+                for (String property : propertiesSet) {
+                    System.clearProperty(property);
                 }
             }
         } catch (NoSuchAlgorithmException | URISyntaxException e) {

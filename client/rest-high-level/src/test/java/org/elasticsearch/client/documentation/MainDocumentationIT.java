@@ -19,13 +19,13 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.http.HttpHost;
 import org.elasticsearch.cluster.ClusterName;
 
 import java.io.IOException;

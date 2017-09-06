@@ -479,7 +479,7 @@ public class Setting<T> implements ToXContentObject {
      * See {@link AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, BiConsumer)} and its usage for details.
      */
     static <A, B> AbstractScopedSettings.SettingUpdater<Tuple<A, B>> compoundUpdater(final BiConsumer<A, B> consumer,
-            final Setting<A> aSetting, final Setting<B> bSetting, Logger logger) {
+            final BiConsumer<A, B> validator, final Setting<A> aSetting, final Setting<B> bSetting, Logger logger) {
         final AbstractScopedSettings.SettingUpdater<A> aSettingUpdater = aSetting.newUpdater(null, logger);
         final AbstractScopedSettings.SettingUpdater<B> bSettingUpdater = bSetting.newUpdater(null, logger);
         return new AbstractScopedSettings.SettingUpdater<Tuple<A, B>>() {
@@ -490,7 +490,10 @@ public class Setting<T> implements ToXContentObject {
 
             @Override
             public Tuple<A, B> getValue(Settings current, Settings previous) {
-                return new Tuple<>(aSettingUpdater.getValue(current, previous), bSettingUpdater.getValue(current, previous));
+                A valueA = aSettingUpdater.getValue(current, previous);
+                B valueB = bSettingUpdater.getValue(current, previous);
+                validator.accept(valueA, valueB);
+                return new Tuple<>(valueA, valueB);
             }
 
             @Override

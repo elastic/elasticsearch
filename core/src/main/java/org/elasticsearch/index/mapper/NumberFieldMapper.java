@@ -121,7 +121,7 @@ public class NumberFieldMapper extends FieldMapper {
         public NumberFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new NumberFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    coerce(context), includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -921,8 +921,6 @@ public class NumberFieldMapper extends FieldMapper {
         }
     }
 
-    private Boolean includeInAll;
-
     private Explicit<Boolean> ignoreMalformed;
 
     private Explicit<Boolean> coerce;
@@ -933,14 +931,12 @@ public class NumberFieldMapper extends FieldMapper {
             MappedFieldType defaultFieldType,
             Explicit<Boolean> ignoreMalformed,
             Explicit<Boolean> coerce,
-            Boolean includeInAll,
             Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
-        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -960,7 +956,6 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        final boolean includeInAll = context.includeInAll(this.includeInAll, this);
 
         XContentParser parser = context.parser();
         Object value;
@@ -983,11 +978,7 @@ public class NumberFieldMapper extends FieldMapper {
                     throw e;
                 }
             }
-            if (includeInAll) {
-                value = parser.textOrNull(); // preserve formatting
-            } else {
-                value = numericValue;
-            }
+            value = numericValue;
         }
 
         if (value == null) {
@@ -1002,10 +993,6 @@ public class NumberFieldMapper extends FieldMapper {
             numericValue = fieldType().type.parse(value, coerce.value());
         }
 
-        if (includeInAll) {
-            context.allEntries().addText(fieldType().name(), value.toString(), fieldType().boost());
-        }
-
         boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
@@ -1016,7 +1003,6 @@ public class NumberFieldMapper extends FieldMapper {
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         super.doMerge(mergeWith, updateAllTypes);
         NumberFieldMapper other = (NumberFieldMapper) mergeWith;
-        this.includeInAll = other.includeInAll;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;
         }
@@ -1038,12 +1024,6 @@ public class NumberFieldMapper extends FieldMapper {
 
         if (includeDefaults || fieldType().nullValue() != null) {
             builder.field("null_value", fieldType().nullValue());
-        }
-
-        if (includeInAll != null) {
-            builder.field("include_in_all", includeInAll);
-        } else if (includeDefaults) {
-            builder.field("include_in_all", false);
         }
     }
 }

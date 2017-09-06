@@ -53,6 +53,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -1035,7 +1036,7 @@ public abstract class TransportReplicationAction<
              * checkpoint value when simulating responses to replication actions that pre-6.0 nodes are not aware of (e.g., the global
              * checkpoint background sync, and the primary/replica resync).
              */
-            assert localCheckpoint != SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            assert localCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO;
             this.localCheckpoint = localCheckpoint;
         }
 
@@ -1235,7 +1236,7 @@ public abstract class TransportReplicationAction<
             if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                 globalCheckpoint = in.readZLong();
             } else {
-                globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
             }
         }
 

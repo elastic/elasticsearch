@@ -30,7 +30,6 @@ import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.XmlProvider
 import org.gradle.api.artifacts.Configuration
-import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
@@ -271,8 +270,8 @@ class BuildPlugin implements Plugin<Project> {
         })
 
         // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
-        Closure disableTransitiveDeps = { Dependency dep ->
-            if (dep instanceof ModuleDependency && !(dep instanceof ProjectDependency) && dep.group.startsWith('org.elasticsearch') == false) {
+        Closure disableTransitiveDeps = { ModuleDependency dep ->
+            if (!(dep instanceof ProjectDependency) && dep.group.startsWith('org.elasticsearch') == false) {
                 dep.transitive = false
 
                 // also create a configuration just for this dependency version, so that later

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.entity.BufferedHttpEntity;
-import org.elasticsearch.client.http.util.EntityUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.BufferedHttpEntity;
+import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
 

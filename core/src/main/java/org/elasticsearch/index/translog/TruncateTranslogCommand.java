@@ -40,7 +40,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 import java.nio.channels.Channels;
@@ -169,7 +169,7 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
     /** Write a checkpoint file to the given location with the given generation */
     public static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration) throws IOException {
         Checkpoint emptyCheckpoint = Checkpoint.emptyTranslogCheckpoint(translogLength, translogGeneration,
-            SequenceNumbersService.UNASSIGNED_SEQ_NO, translogGeneration);
+            SequenceNumbers.UNASSIGNED_SEQ_NO, translogGeneration);
         Checkpoint.write(FileChannel::open, filename, emptyCheckpoint,
             StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
         // fsync with metadata here to make sure.

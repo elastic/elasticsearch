@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -82,10 +83,11 @@ import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -106,6 +108,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
@@ -113,7 +116,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING =
-        Setting.positiveTimeSetting("search.default_keep_alive", timeValueMinutes(5), Property.NodeScope);
+        Setting.positiveTimeSetting("search.default_keep_alive", timeValueMinutes(5), Property.NodeScope, Property.Dynamic);
+    public static final Setting<TimeValue> MAX_KEEPALIVE_SETTING =
+        Setting.positiveTimeSetting("search.max_keep_alive", timeValueHours(24), Property.NodeScope, Property.Dynamic);
     public static final Setting<TimeValue> KEEPALIVE_INTERVAL_SETTING =
         Setting.positiveTimeSetting("search.keep_alive_interval", timeValueMinutes(1), Property.NodeScope);
     /**
@@ -147,7 +152,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final FetchPhase fetchPhase;
 
-    private final long defaultKeepAlive;
+    private volatile long defaultKeepAlive;
+
+    private volatile long maxKeepAlive;
 
     private volatile TimeValue defaultSearchTimeout;
 
@@ -173,7 +180,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.fetchPhase = fetchPhase;
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
-        this.defaultKeepAlive = DEFAULT_KEEPALIVE_SETTING.get(settings).millis();
+        setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
+
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_KEEPALIVE_SETTING, MAX_KEEPALIVE_SETTING,
+            this::setKeepAlives, this::validateKeepAlives);
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, Names.SAME);
 
@@ -182,6 +192,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
+    }
+
+    private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
+        if (defaultKeepAlive.millis() > maxKeepAlive.millis()) {
+            throw new IllegalArgumentException("Default keep alive setting for scroll [" + DEFAULT_KEEPALIVE_SETTING.getKey() + "]" +
+                " should be smaller than max keep alive [" + MAX_KEEPALIVE_SETTING.getKey() + "], " +
+                "was (" + defaultKeepAlive.format() + " > " + maxKeepAlive.format() + ")");
+        }
+    }
+
+    private void setKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
+        validateKeepAlives(defaultKeepAlive, maxKeepAlive);
+        this.defaultKeepAlive = defaultKeepAlive.millis();
+        this.maxKeepAlive = maxKeepAlive.millis();
     }
 
     private void setDefaultSearchTimeout(TimeValue defaultSearchTimeout) {
@@ -547,7 +571,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.scroll() != null && request.scroll().keepAlive() != null) {
                 keepAlive = request.scroll().keepAlive().millis();
             }
-            context.keepAlive(keepAlive);
+            contextScrollKeepAlive(context, keepAlive);
             context.lowLevelCancellation(lowLevelCancellation);
         } catch (Exception e) {
             context.close();
@@ -623,6 +647,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 freeContext(searchContext.id());
             }
         }
+    }
+
+    private void contextScrollKeepAlive(SearchContext context, long keepAlive) throws IOException {
+        if (keepAlive > maxKeepAlive) {
+            throw new QueryPhaseExecutionException(context,
+                "Keep alive for scroll (" + TimeValue.timeValueMillis(keepAlive).format() + ") is too large. " +
+                    "It must be less than (" + TimeValue.timeValueMillis(maxKeepAlive).format() + "). " +
+                    "This limit can be set by changing the [" + MAX_KEEPALIVE_SETTING.getKey() + "] cluster level setting.");
+        }
+        context.keepAlive(keepAlive);
     }
 
     private void contextProcessing(SearchContext context) {
@@ -723,8 +757,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.rescores() != null) {
             try {
-                for (RescoreBuilder<?> rescore : source.rescores()) {
-                    context.addRescore(rescore.build(queryShardContext));
+                for (RescorerBuilder<?> rescore : source.rescores()) {
+                    context.addRescore(rescore.buildContext(queryShardContext));
                 }
             } catch (IOException e) {
                 throw new SearchContextException(context, "failed to create RescoreSearchContext", e);
@@ -847,13 +881,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
     }
 
-    private void processScroll(InternalScrollSearchRequest request, SearchContext context) {
+    private void processScroll(InternalScrollSearchRequest request, SearchContext context) throws IOException {
         // process scroll
         context.from(context.from() + context.size());
         context.scrollContext().scroll = request.scroll();
         // update the context keep alive based on the new scroll value
         if (request.scroll() != null && request.scroll().keepAlive() != null) {
-            context.keepAlive(request.scroll().keepAlive().millis());
+            contextScrollKeepAlive(context, request.scroll().keepAlive().millis());
         }
     }
 

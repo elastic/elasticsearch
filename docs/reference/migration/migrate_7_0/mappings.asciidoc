@@ -1,0 +1,6 @@
+[[breaking_70_mappings_changes]]
+=== Mapping changes
+
+==== The `_all` meta field is removed
+
+The `_all` field deprecated in 6 have now been removed.

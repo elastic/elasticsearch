@@ -34,7 +34,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.QueryStringQueryParser;
@@ -933,11 +932,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
         } else {
             List<String> defaultFields = context.defaultFields();
-            if (context.getMapperService().allEnabled() == false &&
-                    defaultFields.size() == 1 && AllFieldMapper.NAME.equals(defaultFields.get(0))) {
-                // For indices created before 6.0 with _all disabled
-                defaultFields = Collections.singletonList("*");
-            }
             boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
             if (isAllField) {
                 queryParser = new QueryStringQueryParser(context, lenient == null ? true : lenient);

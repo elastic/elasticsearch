@@ -104,7 +104,7 @@ If you compile too many unique scripts within a small amount of time,
 Elasticsearch will reject the new dynamic scripts with a
 `circuit_breaking_exception` error. By default, up to 15 inline scripts per
 minute will be compiled. You can change this setting dynamically by setting
-`script.max_compilations_per_minute`.
+`script.max_compilations_rate`.
 
 ========================================
 

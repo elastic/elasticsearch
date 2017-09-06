@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.Aggregation;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
@@ -50,7 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public abstract class TermsAggregator extends BucketsAggregator {
+public abstract class TermsAggregator extends DeferableBucketAggregator {
 
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {
         private long minDocCount;

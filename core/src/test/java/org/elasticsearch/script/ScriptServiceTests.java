@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.script;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.cluster.ClusterName;
@@ -26,7 +27,9 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -39,7 +42,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.script.ScriptService.MAX_COMPILATION_RATE_FUNCTION;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -55,7 +60,7 @@ public class ScriptServiceTests extends ESTestCase {
     public void setup() throws IOException {
         baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 10000)
+                .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "10000/1m")
                 .build();
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
         for (int i = 0; i < 20; ++i) {
@@ -82,28 +87,56 @@ public class ScriptServiceTests extends ESTestCase {
         };
     }
 
+    // even though circuit breaking is allowed to be configured per minute, we actually weigh this over five minutes
+    // simply by multiplying by five, so even setting it to one, requires five compilations to break
     public void testCompilationCircuitBreaking() throws Exception {
         buildScriptService(Settings.EMPTY);
-        scriptService.setMaxCompilationsPerMinute(1);
+        scriptService.setMaxCompilationRate(Tuple.tuple(1, TimeValue.timeValueMinutes(1)));
         scriptService.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationsPerMinute(2);
+        scriptService.setMaxCompilationRate(Tuple.tuple(2, TimeValue.timeValueMinutes(1)));
         scriptService.checkCompilationLimit(); // should pass
         scriptService.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
         int count = randomIntBetween(5, 50);
-        scriptService.setMaxCompilationsPerMinute(count);
+        scriptService.setMaxCompilationRate(Tuple.tuple(count, TimeValue.timeValueMinutes(1)));
         for (int i = 0; i < count; i++) {
             scriptService.checkCompilationLimit(); // should pass
         }
         expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationsPerMinute(0);
+        scriptService.setMaxCompilationRate(Tuple.tuple(0, TimeValue.timeValueMinutes(1)));
         expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationsPerMinute(Integer.MAX_VALUE);
+        scriptService.setMaxCompilationRate(Tuple.tuple(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1)));
         int largeLimit = randomIntBetween(1000, 10000);
         for (int i = 0; i < largeLimit; i++) {
             scriptService.checkCompilationLimit();
         }
+    }
+
+    public void testMaxCompilationRateSetting() throws Exception {
+        assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/1m"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
+        assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/60s"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
+        assertException("10/m", ElasticsearchParseException.class, "failed to parse [m]");
+        assertException("6/1.6m", ElasticsearchParseException.class, "failed to parse [1.6m], fractional time values are not supported");
+        assertException("foo/bar", IllegalArgumentException.class, "could not parse [foo] as integer in value [foo/bar]");
+        assertException("6.0/1m", IllegalArgumentException.class, "could not parse [6.0] as integer in value [6.0/1m]");
+        assertException("6/-1m", IllegalArgumentException.class, "time value [-1m] must be positive");
+        assertException("6/0m", IllegalArgumentException.class, "time value [0m] must be positive");
+        assertException("10", IllegalArgumentException.class,
+                "parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [10]");
+        assertException("anything", IllegalArgumentException.class,
+                "parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [anything]");
+        assertException("/1m", IllegalArgumentException.class,
+                "parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [/1m]");
+        assertException("10/", IllegalArgumentException.class,
+                "parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [10/]");
+        assertException("-1/1m", IllegalArgumentException.class, "rate [-1] must be positive");
+        assertException("10/5s", IllegalArgumentException.class, "time value [5s] must be at least on a one minute resolution");
+    }
+
+    private void assertException(String rate, Class<? extends Exception> clazz, String message) {
+        Exception e = expectThrows(clazz, () -> MAX_COMPILATION_RATE_FUNCTION.apply(rate));
+        assertThat(e.getMessage(), is(message));
     }
 
     public void testNotSupportedDisableDynamicSetting() throws IOException {

@@ -221,10 +221,6 @@ public class DocumentMapper implements ToXContentFragment {
         return metadataMapper(SourceFieldMapper.class);
     }
 
-    public AllFieldMapper allFieldMapper() {
-        return metadataMapper(AllFieldMapper.class);
-    }
-
     public IdFieldMapper idFieldMapper() {
         return metadataMapper(IdFieldMapper.class);
     }

@@ -195,7 +195,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     private boolean invariant() {
         // local checkpoints only set during primary mode
         assert primaryMode || localCheckpoints.values().stream()
-            .allMatch(lcps -> lcps.localCheckpoint == SequenceNumbersService.UNASSIGNED_SEQ_NO ||
+            .allMatch(lcps -> lcps.localCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO ||
                 lcps.localCheckpoint == SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT);
 
         // relocation handoff can only occur in primary mode
@@ -242,15 +242,15 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
 
     /**
      * Initialize the global checkpoint service. The specified global checkpoint should be set to the last known global checkpoint, or
-     * {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
+     * {@link SequenceNumbers#UNASSIGNED_SEQ_NO}.
      *
      * @param shardId          the shard ID
      * @param indexSettings    the index settings
-     * @param globalCheckpoint the last known global checkpoint for this shard, or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}
+     * @param globalCheckpoint the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
      */
     GlobalCheckpointTracker(final ShardId shardId, final IndexSettings indexSettings, final long globalCheckpoint) {
         super(shardId, indexSettings);
-        assert globalCheckpoint >= SequenceNumbersService.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
+        assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.primaryMode = false;
         this.handoffInProgress = false;
         this.appliedClusterStateVersion = -1L;
@@ -314,9 +314,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         assert invariant();
         assert primaryMode == false;
         assert localCheckpoints.get(allocationId) != null && localCheckpoints.get(allocationId).inSync &&
-            localCheckpoints.get(allocationId).localCheckpoint == SequenceNumbersService.UNASSIGNED_SEQ_NO :
+            localCheckpoints.get(allocationId).localCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO :
             "expected " + allocationId + " to have initialized entry in " + localCheckpoints + " when activating primary";
-        assert localCheckpoint >= SequenceNumbersService.NO_OPS_PERFORMED;
+        assert localCheckpoint >= SequenceNumbers.NO_OPS_PERFORMED;
         primaryMode = true;
         updateLocalCheckpoint(allocationId, localCheckpoints.get(allocationId), localCheckpoint);
         updateGlobalCheckpointOnPrimary();
@@ -354,19 +354,19 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
                         assert inSync == false : "update from master in primary mode has " + initializingId +
                             " as in-sync but it does not exist locally";
                         final long localCheckpoint = pre60AllocationIds.contains(initializingId) ?
-                            SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT : SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                            SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT : SequenceNumbers.UNASSIGNED_SEQ_NO;
                         localCheckpoints.put(initializingId, new LocalCheckpointState(localCheckpoint, inSync));
                     }
                 }
             } else {
                 for (String initializingId : initializingAllocationIds) {
                     final long localCheckpoint = pre60AllocationIds.contains(initializingId) ?
-                        SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT : SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                        SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT : SequenceNumbers.UNASSIGNED_SEQ_NO;
                     localCheckpoints.put(initializingId, new LocalCheckpointState(localCheckpoint, false));
                 }
                 for (String inSyncId : inSyncAllocationIds) {
                     final long localCheckpoint = pre60AllocationIds.contains(inSyncId) ?
-                        SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT : SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                        SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT : SequenceNumbers.UNASSIGNED_SEQ_NO;
                     localCheckpoints.put(inSyncId, new LocalCheckpointState(localCheckpoint, true));
                 }
             }
@@ -413,7 +413,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
             // can happen if replica was removed from cluster but recovery process is unaware of it yet
             throw new IllegalStateException("no local checkpoint tracking information available for " + allocationId);
         }
-        assert localCheckpoint >= SequenceNumbersService.NO_OPS_PERFORMED :
+        assert localCheckpoint >= SequenceNumbers.NO_OPS_PERFORMED :
             "expected known local checkpoint for " + allocationId + " but was " + localCheckpoint;
         assert pendingInSync.contains(allocationId) == false : "shard copy " + allocationId + " is already marked as pending in-sync";
         updateLocalCheckpoint(allocationId, lcps, localCheckpoint);
@@ -451,7 +451,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
             localCheckpoint == SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT :
             "pre-6.0 shard copy " + allocationId + " unexpected to send valid local checkpoint " + localCheckpoint;
         // a local checkpoint for a shard copy should be a valid sequence number or the pre-6.0 sequence number indicator
-        assert localCheckpoint != SequenceNumbersService.UNASSIGNED_SEQ_NO :
+        assert localCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO :
                 "invalid local checkpoint for shard copy [" + allocationId + "]";
         if (localCheckpoint > lcps.localCheckpoint) {
             logger.trace("updated local checkpoint of [{}] from [{}] to [{}]", allocationId, lcps.localCheckpoint, localCheckpoint);
@@ -508,7 +508,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         }
         for (final LocalCheckpointState lcps : localCheckpoints) {
             if (lcps.inSync) {
-                if (lcps.localCheckpoint == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                if (lcps.localCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     // unassigned in-sync replica
                     return fallback;
                 } else if (lcps.localCheckpoint == SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT) {
@@ -580,9 +580,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         handoffInProgress = false;
         // forget all checkpoint information
         localCheckpoints.values().stream().forEach(lcps -> {
-            if (lcps.localCheckpoint != SequenceNumbersService.UNASSIGNED_SEQ_NO &&
+            if (lcps.localCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO &&
                 lcps.localCheckpoint != SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT) {
-                lcps.localCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                lcps.localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
             }
         });
         assert invariant();

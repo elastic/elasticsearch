@@ -34,7 +34,9 @@ public abstract class SortBuilder implements ToXContent {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.prettyPrint();
+            builder.startObject();
             toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
             return builder.string();
         } catch (Exception e) {
             throw new ElasticsearchException("Failed to build query", e);

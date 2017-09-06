@@ -19,7 +19,9 @@
 
 package org.elasticsearch.search.sort;
 
-import com.google.common.collect.ImmutableMap;
+import static org.hamcrest.Matchers.containsString;
+
+import java.util.Map;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,7 +31,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Map;
+import com.google.common.collect.ImmutableMap;
 
 public class ScriptSortBuilderTests extends ESTestCase {
 
@@ -58,4 +60,13 @@ public class ScriptSortBuilderTests extends ESTestCase {
         
         assertEquals(xcWith.string(), xcWithOut.string());
     }
+    
+    public void testToString() {
+        ScriptSortBuilder ssb = prepareSSB();
+
+        String ssbPrint = ssb.toString();
+
+        assertThat(ssbPrint, containsString("testtype"));
+    }
+    
 }

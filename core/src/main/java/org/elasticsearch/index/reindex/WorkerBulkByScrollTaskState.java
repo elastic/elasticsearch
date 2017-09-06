@@ -48,7 +48,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
     /**
      * Maximum wait time allowed for throttling.
      */
-    private static final long MAX_THROTTLE_WAIT_TIME =  TimeUnit.HOURS.toNanos(1);
+    private static final TimeValue MAX_THROTTLE_WAIT_TIME =  TimeValue.timeValueHours(1);
 
     private final BulkByScrollTask task;
 
@@ -195,7 +195,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 
     public TimeValue throttleWaitTime(TimeValue lastBatchStartTime, TimeValue now, int lastBatchSize) {
         long earliestNextBatchStartTime = now.nanos() + (long) perfectlyThrottledBatchTime(lastBatchSize);
-        long waitTime = min(MAX_THROTTLE_WAIT_TIME, max(0, earliestNextBatchStartTime - System.nanoTime()));
+        long waitTime = min(MAX_THROTTLE_WAIT_TIME.nanos(), max(0, earliestNextBatchStartTime - System.nanoTime()));
         return timeValueNanos(waitTime);
     }
 

@@ -1,0 +1,26 @@
+[[java-rest-high-java-builders]]
+== Using Java Builders
+
+The Java High Level REST Client depends on the Elasticsearch core project which provides
+two types of Java `Builders` objects:
+
+Query Builders::
+
+The query builders are used to create `QueryBuilder` objects which can later be set as the
+query parameter of `SearchSourceBuilder` objects. The <<java-rest-high-document-search-request-building-queries, Search Request>>
+page shows an example of how to build a full search request using `SearchSourceBuilder` and
+`QueryBuilder` objects. The <<java-rest-high-query-builders, Building Search Queries>> page
+gives a list of all available search queries with their corresponding `QueryBuilder` objects and
+`QueryBuilders` helper methods.
+
+Aggregation Builders::
+
+Similarly to query builders, the aggregation builders are used to create `AggregationBuilder` objects
+which can later be set as the aggregation parameter of `SearchSourceBuilder` objects. There is a example
+of how `AggregationBuilder` objects are used with `SearchSourceBuilder` objects to define the aggregations
+to compute with a search query in <<java-rest-high-document-search-request-building-aggs, Search Request>> page.
+The <<java-rest-high-aggregation-builders, Building Aggregations>> page gives a list of all available
+aggregations with their corresponding `AggregationBuilder` objects and `AggregationBuilders` helper methods.
+
+include::builders/queries.asciidoc[]
+include::builders/aggs.asciidoc[]

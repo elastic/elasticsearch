@@ -1,4 +1,4 @@
-[[java-rest-high-usage]]
+[[java-rest-high-getting-started]]
 == Getting started
 
 This section describes how to get started with the high-level REST client from
@@ -39,7 +39,7 @@ major version.
 
 The javadoc for the REST high level client can be found at {rest-high-level-client-javadoc}/index.html.
 
-[[java-rest-high-usage-maven]]
+[[java-rest-high-getting-started-maven]]
 === Maven Repository
 
 The high-level Java REST client is hosted on
@@ -49,7 +49,7 @@ Central]. The minimum Java version required is `1.8`.
 The High Level REST Client is subject to the same release cycle as
 Elasticsearch. Replace the version with the desired client version.
 
-[[java-rest-high-usage-maven-maven]]
+[[java-rest-high-getting-started-maven-maven]]
 ==== Maven configuration
 
 Here is how you can configure the dependency using maven as a dependency manager.
@@ -64,7 +64,7 @@ Add the following to your `pom.xml` file:
 </dependency>
 --------------------------------------------------
 
-[[java-rest-high-usage-maven-gradle]]
+[[java-rest-high-getting-started-maven-gradle]]
 ==== Gradle configuration
 
 Here is how you can configure the dependency using gradle as a dependency manager.
@@ -77,7 +77,7 @@ dependencies {
 }
 --------------------------------------------------
 
-[[java-rest-high-usage-dependencies]]
+[[java-rest-high-getting-started-dependencies]]
 === Dependencies
 
 The High Level Java REST Client depends on the following artifacts and their
@@ -87,7 +87,7 @@ transitive dependencies:
 - org.elasticsearch:elasticsearch
 
 
-[[java-rest-high-usage-initialization]]
+[[java-rest-high-getting-started-initialization]]
 === Initialization
 
 A `RestHighLevelClient` instance needs a <<java-rest-low-usage-initialization,REST low-level client>>

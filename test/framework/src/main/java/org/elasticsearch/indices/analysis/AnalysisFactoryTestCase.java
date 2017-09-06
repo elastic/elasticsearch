@@ -112,6 +112,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("arabicnormalization",       MovedToAnalysisCommon.class)
         .put("arabicstem",                MovedToAnalysisCommon.class)
         .put("asciifolding",              MovedToAnalysisCommon.class)
+        .put("bengalinormalization",      MovedToAnalysisCommon.class)
+        .put("bengalistem",               MovedToAnalysisCommon.class)
         .put("brazilianstem",             MovedToAnalysisCommon.class)
         .put("bulgarianstem",             MovedToAnalysisCommon.class)
         .put("cjkbigram",                 MovedToAnalysisCommon.class)

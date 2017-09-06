@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
+import org.apache.lucene.analysis.bn.BengaliAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
 import org.apache.lucene.analysis.ca.CatalanAnalyzer;
 import org.apache.lucene.analysis.ckb.SoraniAnalyzer;
@@ -119,6 +120,7 @@ public class Analysis {
         namedStopWords.put("_arabic_", ArabicAnalyzer.getDefaultStopSet());
         namedStopWords.put("_armenian_", ArmenianAnalyzer.getDefaultStopSet());
         namedStopWords.put("_basque_", BasqueAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_bengali_", BengaliAnalyzer.getDefaultStopSet());
         namedStopWords.put("_brazilian_", BrazilianAnalyzer.getDefaultStopSet());
         namedStopWords.put("_bulgarian_", BulgarianAnalyzer.getDefaultStopSet());
         namedStopWords.put("_catalan_", CatalanAnalyzer.getDefaultStopSet());

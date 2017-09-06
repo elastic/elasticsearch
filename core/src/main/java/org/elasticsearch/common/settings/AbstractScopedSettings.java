@@ -217,7 +217,6 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      */
     public synchronized <A, B> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b, BiConsumer<A, B> consumer) {
         addSettingsUpdateConsumer(a, b, consumer, (i, j) -> {} );
-
     }
 
     /**

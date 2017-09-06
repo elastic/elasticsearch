@@ -1129,8 +1129,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testInvalidIndex() {
-        MetaData.Builder mdBuilder = MetaData.builder()
-            .put(indexBuilder("testXXX"));
+        MetaData.Builder mdBuilder = MetaData.builder().put(indexBuilder("test"));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
 

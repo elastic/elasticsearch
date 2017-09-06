@@ -160,3 +160,11 @@ setup:
   - is_true: test_index_2.settings
   - is_true: test_index_3.settings
 
+---
+"Should return an exception when querying invalid indices":
+
+ - do:
+     catch: /Invalid index name \[_foo\], must not start with '_'\./
+     indices.get:
+       index: _foo
+

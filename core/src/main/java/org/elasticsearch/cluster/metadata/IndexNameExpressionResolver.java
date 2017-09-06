@@ -602,7 +602,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 if (Strings.isEmpty(expression)) {
                     throw indexNotFoundException(expression);
                 }
-                assertValidAliasOrIndex(expression);
+                validateAliasOrIndex(expression);
                 if (aliasOrIndexExists(options, metaData, expression)) {
                     if (result != null) {
                         result.add(expression);
@@ -656,7 +656,11 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             return result;
         }
 
-        private static void assertValidAliasOrIndex(String expression) {
+        private static void validateAliasOrIndex(String expression) {
+            // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
+            // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
+            // throw a specific error that is different from the [[IndexNotFoundException]], which is typically thrown
+            // if the expression can't be found.
             if (expression.charAt(0) == '_') {
                 throw new InvalidIndexNameException(expression, "must not start with '_'.");
             }

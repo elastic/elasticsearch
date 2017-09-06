@@ -205,12 +205,11 @@ final class Security {
                     }
                     if (shortName.startsWith("elasticsearch-rest-client")) {
                         final String esVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
-                        System.setProperty("es.version", esVersion);
-                        propertiesSet.add("es.version");
-                        final String urlAsString = url.toString();
-                        final int index = urlAsString.indexOf("-" + System.getProperty("es.version") + ".jar");
+                        final int index = shortName.indexOf("-" + esVersion + ".jar");
                         assert index >= 0;
-                        shortName = urlAsString.substring(0, index);
+                        String restClientAlias = "codebase." + shortName.substring(0, index);
+                        propertiesSet.add(restClientAlias);
+                        System.setProperty(restClientAlias, url.toString());
                     }
                     String property = "codebase." + shortName;
                     propertiesSet.add(property);
@@ -223,6 +222,7 @@ final class Security {
             } finally {
                 // clear codebase properties
                 for (String property : propertiesSet) {
+                    System.out.println("Unsetting " + property);
                     System.clearProperty(property);
                 }
             }

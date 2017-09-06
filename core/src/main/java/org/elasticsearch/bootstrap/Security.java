@@ -203,15 +203,15 @@ final class Security {
                     if (shortName.endsWith(".jar") == false) {
                         continue; // tests :(
                     }
+                    String property = "codebase." + shortName;
                     if (shortName.startsWith("elasticsearch-rest-client")) {
                         final String esVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
-                        final int index = shortName.indexOf("-" + esVersion + ".jar");
+                        final int index = property.indexOf("-" + esVersion + ".jar");
                         assert index >= 0;
-                        String restClientAlias = "codebase." + shortName.substring(0, index);
+                        String restClientAlias = property.substring(0, index);
                         propertiesSet.add(restClientAlias);
                         System.setProperty(restClientAlias, url.toString());
                     }
-                    String property = "codebase." + shortName;
                     propertiesSet.add(property);
                     String previous = System.setProperty(property, url.toString());
                     if (previous != null) {

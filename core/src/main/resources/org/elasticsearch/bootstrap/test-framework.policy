@@ -63,7 +63,7 @@ grant codeBase "${codebase.mocksocket-1.2.jar}" {
   permission java.net.SocketPermission "*", "accept,connect";
 };
 
-grant codeBase "${codebase.elasticsearch-rest-client-6.1.0-SNAPSHOT.jar}" {
+grant codeBase "${codebase.elasticsearch-rest-client}" {
   // rest makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
   // rest client uses system properties which gets the default proxy

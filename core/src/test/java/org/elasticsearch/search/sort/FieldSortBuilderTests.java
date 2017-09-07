@@ -365,7 +365,6 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         iae = expectThrows(IllegalArgumentException.class,
                 () -> sortBuilder.setNestedSort(new NestedSortBuilder("otherPath")).setNestedFilter(QueryBuilders.matchAllQuery()));
         assertEquals("Setting both nested_path/nested_filter and nested not allowed", iae.getMessage());
-
     }
 
     @Override

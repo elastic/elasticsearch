@@ -176,15 +176,24 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     /**
      * Sets the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public ScriptSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
+        if (this.nestedSort != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
         this.nestedFilter = nestedFilter;
         return this;
     }
 
     /**
      * Gets the nested filter.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
@@ -192,24 +201,45 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     /**
      * Sets the nested path if sorting occurs on a field that is inside a nested object. For sorting by script this
      * needs to be specified.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public ScriptSortBuilder setNestedPath(String nestedPath) {
+        if (this.nestedSort != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
         this.nestedPath = nestedPath;
         return this;
     }
 
     /**
      * Gets the nested path.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public String getNestedPath() {
         return this.nestedPath;
     }
 
+    /**
+     * Returns the {@link NestedSortBuilder}
+     */
     public NestedSortBuilder getNestedSort() {
         return this.nestedSort;
     }
 
+    /**
+     * Sets the {@link NestedSortBuilder} to be used for fields that are inside a nested
+     * object. The {@link NestedSortBuilder} takes a `path` argument and an optional
+     * nested filter that the nested objects should match with in
+     * order to be taken into account for sorting.
+     */
     public ScriptSortBuilder setNestedSort(final NestedSortBuilder nestedSort) {
+        if (this.nestedFilter != null || this.nestedPath != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
         this.nestedSort = nestedSort;
         return this;
     }
@@ -420,7 +450,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     }
 
     @Override
-    public SortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+    public ScriptSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         if (nestedFilter == null) {
             return this;
         }

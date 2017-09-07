@@ -530,7 +530,7 @@ public final class Definition {
         Map<Class<?>, Struct> javaClassesToPainlessStructs = new HashMap<>();
         String origin = null;
 
-        structsMap.put("def", new Struct("def", Object.class, OBJECT_TYPE.type));
+        structsMap.put("def", new Struct("def", Object.class, org.objectweb.asm.Type.getType(Object.class)));
 
         try {
             for (Whitelist whitelist : whitelists) {
@@ -569,33 +569,38 @@ public final class Definition {
             List<String> painlessSuperStructs = new ArrayList<>();
             Class<?> javaSuperClass = painlessStruct.clazz.getSuperclass();
 
-            if (javaSuperClass.isInterface() == false) {
-                while (javaSuperClass != null) {
-                    String painlessStructName = javaClassesToPainlessStructs.get(javaSuperClass).name;
+            Stack<Class<?>> javaInteraceLookups = new Stack<>();
+            javaInteraceLookups.push(painlessStruct.clazz);
 
-                    if (painlessStructName != null) {
-                        painlessSuperStructs.add(painlessStructName);
+            if (javaSuperClass != null && javaSuperClass.isInterface() == false) {
+                while (javaSuperClass != null) {
+                    Struct painlessSuperStruct = javaClassesToPainlessStructs.get(javaSuperClass);
+
+                    if (painlessSuperStruct != null) {
+                        painlessSuperStructs.add(painlessSuperStruct.name);
                     }
 
+                    javaInteraceLookups.push(javaSuperClass);
                     javaSuperClass = javaSuperClass.getSuperclass();
                 }
             }
-
-            Stack<Class<?>> javaInteraceLookups = new Stack<>();
-            javaInteraceLookups.push(painlessStruct.clazz);
 
             while (javaInteraceLookups.isEmpty() == false) {
                 Class<?> javaInterfaceLookup = javaInteraceLookups.pop();
 
                 for (Class<?> javaSuperInterface : javaInterfaceLookup.getInterfaces()) {
-                    String painlessStructName = javaClassesToPainlessStructs.get(javaSuperInterface).name;
+                    Struct painlessInterfaceStruct = javaClassesToPainlessStructs.get(javaSuperInterface);
 
-                    if (painlessStructName != null && painlessSuperStructs.contains(painlessStructName) == false) {
-                        painlessSuperStructs.add(painlessStructName);
-                    }
+                    if (painlessInterfaceStruct != null) {
+                        String painlessInterfaceStructName = painlessStruct.name;
 
-                    for (Class<?> javaPushInterface : javaInterfaceLookup.getInterfaces()) {
-                        javaInteraceLookups.push(javaPushInterface);
+                        if (painlessSuperStructs.contains(painlessInterfaceStructName) == false) {
+                            painlessSuperStructs.add(painlessInterfaceStructName);
+                        }
+
+                        for (Class<?> javaPushInterface : javaInterfaceLookup.getInterfaces()) {
+                            javaInteraceLookups.push(javaPushInterface);
+                        }
                     }
                 }
             }
@@ -755,7 +760,7 @@ public final class Definition {
         Class<?>[] javaClassParameters = new Class<?>[whitelistMethod.painlessParameterTypeNames.size() + augmentedOffset];
 
         if (javaAugmentedClass != null) {
-            javaClassParameters[0] = javaAugmentedClass;
+            javaClassParameters[0] = ownerStruct.clazz;
         }
 
         for (int parameterCount = 0; parameterCount < whitelistMethod.painlessParameterTypeNames.size(); ++parameterCount) {
@@ -862,7 +867,7 @@ public final class Definition {
                     "name [" + whitelistField.javaFieldName + "] and type " + whitelistField.painlessFieldTypeName);
         }
 
-        if (!whitelistField.painlessFieldTypeName.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
+        if (!whitelistField.javaFieldName.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
             throw new IllegalArgumentException("invalid field name " +
                     "[" + whitelistField.painlessFieldTypeName + "] for owner struct [" + ownerStructName + "].");
         }
@@ -886,11 +891,10 @@ public final class Definition {
         }
 
         if (Modifier.isStatic(javaField.getModifiers())) {
-            if (Modifier.isFinal(javaField.getModifiers())) {
+            if (Modifier.isFinal(javaField.getModifiers()) == false) {
                 throw new IllegalArgumentException("static [" + whitelistField.javaFieldName + "] " +
                         "with owner struct [" + ownerStruct.name + "] is not final");
             }
-
 
             Field painlessField = ownerStruct.staticMembers.get(whitelistField.javaFieldName);
 

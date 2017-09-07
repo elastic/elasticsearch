@@ -65,7 +65,7 @@ public final class WhitelistLoader {
      *     method), an opening parenthesis, a comma-delimited list of Painless type names
      *     corresponding to the type/class names for the equivalent Java parameter types
      *     (these must be white-listed as well), a closing parenthesis, and a newline. </li>
-     *     </li> An augmented method may be specified starting with a Painless type name for the return
+     *     <li> An augmented method may be specified starting with a Painless type name for the return
      *     type, followed by the fully qualified Java name of the class the augmented method is
      *     part of (this class does not need to be white-listed), the Java name of the method
      *     (which will also be the Painless name for the method), an opening parenthesis, a
@@ -74,7 +74,7 @@ public final class WhitelistLoader {
      *     parenthesis, and a newline. </li>
      *     <li>A field may be specified starting with a Painless type name for the equivalent Java type
      *     of the field, followed by the Java name of the field (which all be the Painless name
-     *     for the field), and a newline. </li> </li>
+     *     for the field), and a newline. </li>
      *   </ul>
      * </ul>
      *
@@ -255,7 +255,7 @@ public final class WhitelistLoader {
                                 tokens = new String[0];
                             }
 
-                            whitelistMethods.add(new Whitelist.Method(origin, javaMethodName, javaAugmentedClassName,
+                            whitelistMethods.add(new Whitelist.Method(origin, javaAugmentedClassName, javaMethodName,
                                 painlessReturnTypeName, Arrays.asList(tokens)));
 
                         // Handle the case for a field definition.

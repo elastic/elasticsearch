@@ -33,6 +33,10 @@ import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorS
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
@@ -353,6 +357,40 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         iae = expectThrows(IllegalArgumentException.class,
                 () -> sortBuilder.setNestedSort(new NestedSortBuilder("otherPath")).setNestedFilter(QueryBuilders.matchAllQuery()));
         assertEquals("Setting both nested_path/nested_filter and nested not allowed", iae.getMessage());
+     }
+
+    /**
+     * Test the the nested Filter gets rewritten
+     */
+    public void testNestedRewrites() throws IOException {
+        ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript("something"), ScriptSortType.STRING);
+        RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
+            @Override
+            public QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+                return new MatchNoneQueryBuilder();
+            }
+        };
+        sortBuilder.setNestedPath("path").setNestedFilter(rangeQuery);
+        ScriptSortBuilder rewritten = (ScriptSortBuilder) sortBuilder
+                .rewrite(createMockShardContext());
+        assertNotSame(rangeQuery, rewritten.getNestedFilter());
+    }
+
+    /**
+     * Test the the nested sort gets rewritten
+     */
+    public void testNestedSortRewrites() throws IOException {
+        ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript("something"), ScriptSortType.STRING);
+        RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
+            @Override
+            public QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+                return new MatchNoneQueryBuilder();
+            }
+        };
+        sortBuilder.setNestedSort(new NestedSortBuilder("path").setFilter(rangeQuery));
+        ScriptSortBuilder rewritten = (ScriptSortBuilder) sortBuilder
+                .rewrite(createMockShardContext());
+        assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
     }
 
     @Override

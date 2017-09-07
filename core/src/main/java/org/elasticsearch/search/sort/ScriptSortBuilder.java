@@ -451,13 +451,21 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public ScriptSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
-        if (nestedFilter == null) {
+        if (nestedFilter == null && nestedSort == null) {
             return this;
         }
-        QueryBuilder rewrite = nestedFilter.rewrite(ctx);
-        if (nestedFilter == rewrite) {
-            return this;
+        if (nestedFilter != null) {
+            QueryBuilder rewrite = nestedFilter.rewrite(ctx);
+            if (nestedFilter == rewrite) {
+                return this;
+            }
+            return new ScriptSortBuilder(this).setNestedFilter(rewrite);
+        } else {
+            NestedSortBuilder rewrite = nestedSort.rewrite(ctx);
+            if (nestedSort == rewrite) {
+                return this;
+            }
+            return new ScriptSortBuilder(this).setNestedSort(rewrite);
         }
-        return new ScriptSortBuilder(this).setNestedFilter(rewrite);
     }
 }

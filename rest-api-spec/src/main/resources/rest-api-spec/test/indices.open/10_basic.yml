@@ -20,7 +20,7 @@
         index: test_index
 
   - do:
-      catch: request
+      catch: bad_request
       search:
         index: test_index
 

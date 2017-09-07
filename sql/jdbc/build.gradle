@@ -55,7 +55,7 @@ integTestCluster {
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'script.max_compilations_per_minute', '1000'
+  setting 'script.max_compilations_rate', '1000/1m'
 }
 
 task run(type: RunTask) {
@@ -67,7 +67,7 @@ task run(type: RunTask) {
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'script.max_compilations_per_minute', '1000'
+  setting 'script.max_compilations_rate', '1000/1m'
 }
 
 // Allow for com.sun.net.httpserver.* usage for testing

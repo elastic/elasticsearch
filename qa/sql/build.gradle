@@ -38,7 +38,7 @@ subprojects {
     setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.watcher.enabled', 'false'
-    setting 'script.max_compilations_per_minute', '1000'
+    setting 'script.max_compilations_rate', '1000/1m'
   }
 
   task run(type: RunTask) {
@@ -47,6 +47,6 @@ subprojects {
     setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.watcher.enabled', 'false'
-    setting 'script.max_compilations_per_minute', '1000'
+    setting 'script.max_compilations_rate', '1000/1m'
   }
 }

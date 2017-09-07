@@ -8,6 +8,9 @@ setup:
 
 ---
 "Test open old jobs":
+  - skip:
+      version:  "all"
+      reason:   "Awaiting fix of #1760"
 
   - do:
       xpack.ml.open_job:

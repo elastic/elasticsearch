@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
@@ -47,8 +47,21 @@ public abstract class InnerHitContextBuilder {
         this.query = query;
     }
 
-    public abstract void build(SearchContext parentSearchContext,
-                                InnerHitsContext innerHitsContext) throws IOException;
+    public final void build(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException {
+        long innerResultWindow = innerHitBuilder.getFrom() + innerHitBuilder.getSize();
+        int maxInnerResultWindow = parentSearchContext.mapperService().getIndexSettings().getMaxInnerResultWindow();
+        if (innerResultWindow > maxInnerResultWindow) {
+            throw new IllegalArgumentException(
+                "Inner result window is too large, the inner hit definition's [" + innerHitBuilder.getName() +
+                    "]'s from + size must be less than or equal to: [" + maxInnerResultWindow + "] but was [" + innerResultWindow +
+                    "]. This limit can be set by changing the [" + IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey() +
+                    "] index level setting."
+            );
+        }
+        doBuild(parentSearchContext, innerHitsContext);
+    }
+
+    protected abstract void doBuild(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException;
 
     public static void extractInnerHits(QueryBuilder query, Map<String, InnerHitContextBuilder> innerHitBuilders) {
         if (query instanceof AbstractQueryBuilder) {

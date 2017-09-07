@@ -24,7 +24,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -138,7 +138,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         ParsedDocument doc = InternalEngineTests.createParsedDoc("1", null);
         Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id())));
         Engine.Index index = new Engine.Index(new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id())), doc);
-        compositeListener.postDelete(randomShardId, delete, new Engine.DeleteResult(1, SequenceNumbersService.UNASSIGNED_SEQ_NO, true));
+        compositeListener.postDelete(randomShardId, delete, new Engine.DeleteResult(1, SequenceNumbers.UNASSIGNED_SEQ_NO, true));
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -162,7 +162,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.postIndex(randomShardId, index, new Engine.IndexResult(0, SequenceNumbersService.UNASSIGNED_SEQ_NO, false));
+        compositeListener.postIndex(randomShardId, index, new Engine.IndexResult(0, SequenceNumbers.UNASSIGNED_SEQ_NO, false));
         assertEquals(0, preIndex.get());
         assertEquals(2, postIndex.get());
         assertEquals(0, postIndexException.get());

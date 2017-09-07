@@ -49,7 +49,7 @@ public class TransportBulkActionTests extends ESTestCase {
     private TransportService transportService;
     private ClusterService clusterService;
     private ThreadPool threadPool;
-    
+
     private TestTransportBulkAction bulkAction;
 
     class TestTransportBulkAction extends TransportBulkAction {

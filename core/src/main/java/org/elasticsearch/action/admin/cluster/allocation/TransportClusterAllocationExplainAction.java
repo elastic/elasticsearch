@@ -66,7 +66,7 @@ public class TransportClusterAllocationExplainAction
                                                    ClusterInfoService clusterInfoService, AllocationDeciders allocationDeciders,
                                                    ShardsAllocator shardAllocator, GatewayAllocator gatewayAllocator) {
         super(settings, ClusterAllocationExplainAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, ClusterAllocationExplainRequest::new);
+            ClusterAllocationExplainRequest::new, indexNameExpressionResolver);
         this.clusterInfoService = clusterInfoService;
         this.allocationDeciders = allocationDeciders;
         this.shardAllocator = shardAllocator;

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -315,7 +316,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
                     ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
                     ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
-                    ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE,
+                    ScriptService.SCRIPT_MAX_COMPILATIONS_RATE,
                     ScriptService.TYPES_ALLOWED_SETTING,
                     ScriptService.CONTEXTS_ALLOWED_SETTING,
                     IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
@@ -355,6 +356,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT,
                     SearchService.DEFAULT_KEEPALIVE_SETTING,
                     SearchService.KEEPALIVE_INTERVAL_SETTING,
+                    SearchService.MAX_KEEPALIVE_SETTING,
                     SearchService.LOW_LEVEL_CANCELLATION_SETTING,
                     Node.WRITE_PORTS_FILE_SETTING,
                     Node.NODE_NAME_SETTING,
@@ -410,6 +412,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
                     FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
                     Node.BREAKER_TYPE_KEY,
+                    OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     IndexGraveyard.SETTING_MAX_TOMBSTONES
             )));
 }

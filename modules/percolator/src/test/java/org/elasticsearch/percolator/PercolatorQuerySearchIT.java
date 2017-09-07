@@ -23,6 +23,8 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -35,11 +37,16 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Arrays;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoPolygonQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
@@ -214,6 +221,40 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("10"));
+    }
+
+    public void testPercolatorGeoQueries() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .addMapping("type", "field1", "type=geo_point", "field2", "type=geo_shape", "query", "type=percolator")
+            );
+
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("query",
+                geoDistanceQuery("field1").point(52.18, 4.38).distance(50, DistanceUnit.KILOMETERS))
+            .endObject()).get();
+
+        client().prepareIndex("test", "type", "2")
+            .setSource(jsonBuilder().startObject().field("query",
+                geoBoundingBoxQuery("field1").setCorners(52.3, 4.4, 52.1, 4.6))
+            .endObject()).get();
+
+        client().prepareIndex("test", "type", "3")
+            .setSource(jsonBuilder().startObject().field("query",
+                geoPolygonQuery("field1", Arrays.asList(new GeoPoint(52.1, 4.4), new GeoPoint(52.3, 4.5), new GeoPoint(52.1, 4.6))))
+            .endObject()).get();
+        refresh();
+
+        BytesReference source = jsonBuilder().startObject()
+            .startObject("field1").field("lat", 52.20).field("lon", 4.51).endObject()
+            .endObject().bytes();
+        SearchResponse response = client().prepareSearch()
+            .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
+            .addSort("_id", SortOrder.ASC)
+            .get();
+        assertHitCount(response, 3);
+        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+        assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
     }
 
     public void testPercolatorQueryExistingDocument() throws Exception {

@@ -53,8 +53,8 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.index.seqno.SequenceNumbersService.NO_OPS_PERFORMED;
-import static org.elasticsearch.index.seqno.SequenceNumbersService.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
@@ -393,14 +393,14 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
                         .stream()
                         .filter(a -> a.equals(primaryId) == false)
                         .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint()
-                            == SequenceNumbersService.UNASSIGNED_SEQ_NO));
+                            == SequenceNumbers.UNASSIGNED_SEQ_NO));
         assertTrue(initializingIds.stream().noneMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
         assertTrue(
                 initializingIds
                         .stream()
                         .filter(a -> a.equals(primaryId) == false)
                         .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint()
-                            == SequenceNumbersService.UNASSIGNED_SEQ_NO));
+                            == SequenceNumbers.UNASSIGNED_SEQ_NO));
 
         // now we will remove some allocation IDs from these and ensure that they propagate through
         final Set<AllocationId> removingActiveAllocationIds = new HashSet<>(randomSubsetOf(activeAllocationIds));
@@ -433,13 +433,13 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
                         .stream()
                         .filter(a -> a.equals(primaryId) == false)
                         .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint()
-                            == SequenceNumbersService.UNASSIGNED_SEQ_NO));
+                            == SequenceNumbers.UNASSIGNED_SEQ_NO));
         assertTrue(newInitializingAllocationIds.stream().noneMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
         assertTrue(
                 newInitializingAllocationIds
                         .stream()
                         .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint()
-                            == SequenceNumbersService.UNASSIGNED_SEQ_NO));
+                            == SequenceNumbers.UNASSIGNED_SEQ_NO));
 
         // the tracking allocation IDs should play no role in determining the global checkpoint
         final Map<AllocationId, Integer> activeLocalCheckpoints =
@@ -737,7 +737,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
     private static void randomLocalCheckpointUpdate(GlobalCheckpointTracker gcp) {
         String allocationId = randomFrom(gcp.localCheckpoints.keySet());
         long currentLocalCheckpoint = gcp.localCheckpoints.get(allocationId).getLocalCheckpoint();
-        gcp.updateLocalCheckpoint(allocationId, Math.max(SequenceNumbersService.NO_OPS_PERFORMED, currentLocalCheckpoint + randomInt(5)));
+        gcp.updateLocalCheckpoint(allocationId, Math.max(SequenceNumbers.NO_OPS_PERFORMED, currentLocalCheckpoint + randomInt(5)));
     }
 
     private static void randomMarkInSync(GlobalCheckpointTracker gcp) {

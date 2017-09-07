@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import static org.hamcrest.Matchers.containsString;
-
 import java.util.Map;
 
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -66,7 +64,7 @@ public class ScriptSortBuilderTests extends ESTestCase {
 
         String ssbPrint = ssb.toString();
 
-        assertThat(ssbPrint, containsString("testtype"));
+        assertTrue(ssbPrint.contains("\"inline\" : \"testscript\""));
     }
     
 }

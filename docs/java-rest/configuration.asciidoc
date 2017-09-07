@@ -116,10 +116,14 @@ https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org
 
 [source,java]
 --------------------------------------------------
-KeyStore keystore = KeyStore.getInstance("jks");
+KeyStore truststore = KeyStore.getInstance("jks");
 try (InputStream is = Files.newInputStream(keyStorePath)) {
-    keystore.load(is, keyStorePass.toCharArray());
+    truststore.load(is, keyStorePass.toCharArray());
 }
+
+SSLContextBuilder sslBuilder = SSLContexts.custom().loadTrustMaterial( truststore, null );
+SSLContext sslContext = sslBuilder.build();
+
 RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
         .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
             @Override

@@ -592,7 +592,7 @@ public final class Definition {
                     Struct painlessInterfaceStruct = javaClassesToPainlessStructs.get(javaSuperInterface);
 
                     if (painlessInterfaceStruct != null) {
-                        String painlessInterfaceStructName = painlessStruct.name;
+                        String painlessInterfaceStructName = painlessInterfaceStruct.name;
 
                         if (painlessSuperStructs.contains(painlessInterfaceStructName) == false) {
                             painlessSuperStructs.add(painlessInterfaceStructName);
@@ -848,7 +848,7 @@ public final class Definition {
 
                 painlessMethod = new Method(whitelistMethod.javaMethodName, ownerStruct, javaAugmentedClass, painlessReturnType,
                     painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle);
-                ownerStruct.staticMethods.put(painlessMethodKey, painlessMethod);
+                ownerStruct.methods.put(painlessMethodKey, painlessMethod);
             } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn.equals(painlessReturnType) &&
                 painlessMethod.arguments.equals(painlessParametersTypes)) == false) {
                 throw new IllegalArgumentException("illegal duplicate member methods [" + painlessMethodKey + "] " +
@@ -957,8 +957,12 @@ public final class Definition {
                 MethodKey methodKey = kvPair.getKey();
                 Method method = kvPair.getValue();
                 if (owner.methods.get(methodKey) == null) {
+                    // TODO: some of these are no longer valid or outright don't work
+                    // TODO: since classes may not come from the Painless classloader
+                    // TODO: and it was dependent on the order of the extends which
+                    // TODO: which no longer exists since this is generated automatically
                     // sanity check, look for missing covariant/generic override
-                    if (owner.clazz.isInterface() && child.clazz == Object.class) {
+                    /*if (owner.clazz.isInterface() && child.clazz == Object.class) {
                         // ok
                     } else if (child.clazz == Spliterator.OfPrimitive.class || child.clazz == PrimitiveIterator.class) {
                         // ok, we rely on generics erasure for these (its guaranteed in the javadocs though!!!!)
@@ -998,7 +1002,7 @@ public final class Definition {
                         } catch (ReflectiveOperationException e) {
                             throw new AssertionError(e);
                         }
-                    }
+                    }*/
                     owner.methods.put(methodKey, method);
                 }
             }

@@ -160,7 +160,7 @@ class Era -> java.time.chrono.Era {
 
 #### Classes
 
-class AbstractChronology -> java.time.chrono.Chronology {
+class AbstractChronology -> java.time.chrono.AbstractChronology {
 }
 
 class HijrahChronology -> java.time.chrono.HijrahChronology {

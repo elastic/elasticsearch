@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
@@ -46,6 +47,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -349,6 +351,37 @@ public class QueryStringIT extends ESIntegTestCase {
             .get();
         assertHitCount(searchResponse, 3L);
         assertSearchHits(searchResponse,  "1", "2", "3");
+    }
+
+    public void testLimitOnExpandedFields() throws Exception {
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        builder.startObject("type1");
+        builder.startObject("properties");
+        for (int i = 0; i < 1025; i++) {
+            builder.startObject("field" + i).field("type", "text").endObject();
+        }
+        builder.endObject(); // properties
+        builder.endObject(); // type1
+        builder.endObject();
+
+        assertAcked(prepareCreate("toomanyfields")
+                .setSettings(Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1200))
+                .addMapping("type1", builder));
+
+        client().prepareIndex("toomanyfields", "type1", "1").setSource("field171", "foo bar baz").get();
+        refresh();
+
+        Exception e = expectThrows(Exception.class, () -> {
+                QueryStringQueryBuilder qb = queryStringQuery("bar");
+                if (randomBoolean()) {
+                    qb.useAllFields(true);
+                }
+                logger.info("--> using {}", qb);
+                client().prepareSearch("toomanyfields").setQuery(qb).get();
+                });
+        assertThat(ExceptionsHelper.detailedMessage(e),
+                containsString("field expansion matches too many fields, limit: 1024, got: 1025"));
     }
 
     private void assertHits(SearchHits hits, String... ids) {

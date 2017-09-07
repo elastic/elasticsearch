@@ -1157,7 +1157,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 ));
         }
         indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg").shardSize(15);
         assertSuggestions("foo", prefix, "suggester10", "suggester9", "suggester8", "suggester7", "suggester6");
     }
 

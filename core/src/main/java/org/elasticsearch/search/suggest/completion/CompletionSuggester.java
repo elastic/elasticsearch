@@ -58,8 +58,8 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(
                 new Text(spare.toString()), 0, spare.length());
             completionSuggestion.addTerm(completionSuggestEntry);
-            TopSuggestDocsCollector collector =
-                new TopDocumentsCollector(suggestionContext.getSize(), suggestionContext.isSkipDuplicates());
+            int shardSize = suggestionContext.getShardSize() != null ? suggestionContext.getShardSize() : suggestionContext.getSize();
+            TopSuggestDocsCollector collector = new TopDocumentsCollector(shardSize, suggestionContext.isSkipDuplicates());
             suggest(searcher, suggestionContext.toQuery(), collector);
             int numResult = 0;
             for (TopSuggestDocs.SuggestScoreDoc suggestScoreDoc : collector.get().scoreLookupDocs()) {

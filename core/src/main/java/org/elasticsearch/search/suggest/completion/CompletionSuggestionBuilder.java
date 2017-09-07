@@ -289,6 +289,9 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         suggestionContext.setSkipDuplicates(skipDuplicates);
         suggestionContext.setFuzzyOptions(fuzzyOptions);
         suggestionContext.setRegexOptions(regexOptions);
+        if (shardSize != null) {
+            suggestionContext.setShardSize(shardSize);
+        }
         MappedFieldType mappedFieldType = mapperService.fullName(suggestionContext.getField());
         if (mappedFieldType == null || mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType == false) {
             throw new IllegalArgumentException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");

@@ -76,13 +76,14 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     private static NamedXContentRegistry xContentRegistry;
     private static ScriptService scriptService;
+    protected static String MOCK_SCRIPT_NAME = "dummy";
 
     @BeforeClass
     public static void init() {
         Settings baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        Map<String, Function<Map<String, Object>, Object>> scripts = Collections.singletonMap("dummy", p -> null);
+        Map<String, Function<Map<String, Object>, Object>> scripts = Collections.singletonMap(MOCK_SCRIPT_NAME, p -> null);
         ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts);
         scriptService = new ScriptService(baseSettings, Collections.singletonMap(engine.getType(), engine), ScriptModule.CORE_CONTEXTS);
 
@@ -134,7 +135,12 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
+            assertWarnings(testItem);
         }
+    }
+
+    protected void assertWarnings(T testItem) {
+        // assert potential warnings based on the test sort configuration. Do nothing by default, subtests can overwrite
     }
 
     /**

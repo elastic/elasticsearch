@@ -639,6 +639,50 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         assertEquals("Hotel Amsterdam in Berlin", searchResponse.getSuggest().getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string());
     }
 
+    public void testSkipDuplicatesWithContexts() throws Exception {
+        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        map.put("type", ContextBuilder.category("type").field("type").build());
+        map.put("cat", ContextBuilder.category("cat").field("cat").build());
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
+        createIndexAndMapping(mapping);
+        int numDocs = randomIntBetween(10, 100);
+        int numUnique = randomIntBetween(1, numDocs);
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            int id = i % numUnique;
+            XContentBuilder source = jsonBuilder()
+                .startObject()
+                    .startObject(FIELD)
+                        .field("input", "suggestion" + id)
+                        .field("weight", id)
+                    .endObject()
+                    .field("cat", "cat" + id % 2)
+                    .field("type", "type" + id)
+                .endObject();
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                .setSource(source));
+        }
+        String[] expected = new String[numUnique];
+        for (int i = 0; i < numUnique; i++) {
+            expected[i] = "suggestion" + (numUnique-1-i);
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder completionSuggestionBuilder =
+            SuggestBuilders.completionSuggestion(FIELD).prefix("sugg").skipDuplicates(true).size(numUnique);
+
+        assertSuggestions("suggestions", completionSuggestionBuilder, expected);
+
+        Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
+        contextMap.put("cat", Arrays.asList(CategoryQueryContext.builder().setCategory("cat0").build()));
+        completionSuggestionBuilder =
+            SuggestBuilders.completionSuggestion(FIELD).prefix("sugg").contexts(contextMap).skipDuplicates(true).size(numUnique);
+
+        String[] expectedModulo = Arrays.stream(expected)
+            .filter((s) -> Integer.parseInt(s.substring("suggestion".length())) % 2 == 0)
+            .toArray(String[]::new);
+        assertSuggestions("suggestions", completionSuggestionBuilder, expectedModulo);
+    }
+
     public void assertSuggestions(String suggestionName, SuggestionBuilder suggestBuilder, String... suggestions) {
         SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(
             new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder)

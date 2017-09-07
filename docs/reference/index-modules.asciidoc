@@ -121,6 +121,11 @@ specific index module:
     <<search-request-scroll,Scroll>> or <<search-request-search-after,Search After>> for a more efficient alternative
     to raising this.
 
+`index.max_inner_result_window`::
+
+    The maximum value of `from + size` for inner hits definition and top hits aggregations to this index. Defaults to
+    `100`. Inner hits and top hits aggregation take heap memory and time proportional to `from + size` and this limits that memory.
+
 `index.max_rescore_window`::
 
     The maximum value of `window_size` for `rescore` requests in searches of this index.

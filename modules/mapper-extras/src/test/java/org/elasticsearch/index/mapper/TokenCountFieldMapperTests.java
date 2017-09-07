@@ -45,6 +45,12 @@ import static org.hamcrest.Matchers.equalTo;
  * Test for {@link TokenCountFieldMapper}.
  */
 public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class, MapperExtrasPlugin.class);
+    }
+
     public void testMerge() throws IOException {
         String stage1Mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("person")
@@ -120,11 +126,6 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
             }
         };
         return analyzer;
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
     }
 
     public void testEmptyName() throws IOException {

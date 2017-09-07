@@ -50,7 +50,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, MapperExtrasPlugin.class);
     }
 
     public void testDefaults() throws Exception {

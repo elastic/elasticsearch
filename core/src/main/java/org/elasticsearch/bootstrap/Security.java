@@ -205,6 +205,11 @@ final class Security {
                     }
                     String property = "codebase." + shortName;
                     if (shortName.startsWith("elasticsearch-rest-client")) {
+                        // The rest client is currently the only example where we have an elasticsearch built artifact
+                        // which needs special permissions in policy files when used. This temporary solution is to
+                        // pass in an extra system property that omits the -version.jar suffix the other properties have.
+                        // That allows the snapshots to reference snapshot builds of the client, and release builds to
+                        // referenced release builds of the client, all with the same grant statements.
                         final String esVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
                         final int index = property.indexOf("-" + esVersion + ".jar");
                         assert index >= 0;
@@ -222,7 +227,6 @@ final class Security {
             } finally {
                 // clear codebase properties
                 for (String property : propertiesSet) {
-                    System.out.println("Unsetting " + property);
                     System.clearProperty(property);
                 }
             }

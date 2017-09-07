@@ -83,6 +83,7 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
      * Rewrites this query builder into its primitive form. By default this method return the builder itself. If the builder
      * did not change the identity reference must be returned otherwise the builder will be rewritten infinitely.
      */
+    @Override
     default QueryBuilder rewrite(QueryRewriteContext queryShardContext) throws IOException {
         return this;
     }

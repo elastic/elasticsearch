@@ -27,11 +27,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 
@@ -135,5 +141,65 @@ public class NestedSortBuilderTests extends ESTestCase {
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomNestedSort(3), NestedSortBuilderTests::copy,
                     NestedSortBuilderTests::mutate);
         }
+    }
+
+    /**
+     * Test that filters and inner nested sorts get rewritten
+     */
+    public void testRewrite() throws IOException {
+        QueryBuilder filterThatRewrites = new MatchNoneQueryBuilder() {
+            @Override
+            protected QueryBuilder doRewrite(org.elasticsearch.index.query.QueryRewriteContext queryShardContext) throws IOException {
+                return new MatchAllQueryBuilder();
+            };
+        };
+        // test that filter gets rewritten
+        NestedSortBuilder original = new NestedSortBuilder("path").setFilter(filterThatRewrites);
+        QueryRewriteContext mockRewriteContext = Mockito.mock(QueryRewriteContext.class);
+        NestedSortBuilder rewritten = original.rewrite(mockRewriteContext);
+        assertNotSame(rewritten, original);
+        assertNotSame(rewritten.getFilter(), original.getFilter());
+
+        // test that inner nested sort gets rewritten
+        original = new NestedSortBuilder("path");
+        original.setNestedSort(new NestedSortBuilder("otherPath").setFilter(filterThatRewrites));
+        rewritten = original.rewrite(mockRewriteContext);
+        assertNotSame(rewritten, original);
+        assertNotSame(rewritten.getNestedSort(), original.getNestedSort());
+
+        // test that both filter and inner nested sort get rewritten
+        original = new NestedSortBuilder("path");
+        original.setFilter(filterThatRewrites);
+        original.setNestedSort(new NestedSortBuilder("otherPath").setFilter(filterThatRewrites));
+        rewritten = original.rewrite(mockRewriteContext);
+        assertNotSame(rewritten, original);
+        assertNotSame(rewritten.getFilter(), original.getFilter());
+        assertNotSame(rewritten.getNestedSort(), original.getNestedSort());
+
+        // test that original stays unchanged if no element rewrites
+        original = new NestedSortBuilder("path");
+        original.setFilter(new MatchNoneQueryBuilder());
+        original.setNestedSort(new NestedSortBuilder("otherPath").setFilter(new MatchNoneQueryBuilder()));
+        rewritten = original.rewrite(mockRewriteContext);
+        assertSame(rewritten, original);
+        assertSame(rewritten.getFilter(), original.getFilter());
+        assertSame(rewritten.getNestedSort(), original.getNestedSort());
+
+        // test that rewrite works recursively
+        original = new NestedSortBuilder("firstLevel");
+        ConstantScoreQueryBuilder constantScoreQueryBuilder = new ConstantScoreQueryBuilder(filterThatRewrites);
+        original.setFilter(constantScoreQueryBuilder);
+        NestedSortBuilder nestedSortThatRewrites = new NestedSortBuilder("thirdLevel")
+                .setFilter(filterThatRewrites);
+        original.setNestedSort(new NestedSortBuilder("secondLevel").setNestedSort(nestedSortThatRewrites));
+        rewritten = original.rewrite(mockRewriteContext);
+        assertNotSame(rewritten, original);
+        assertNotSame(rewritten.getFilter(), constantScoreQueryBuilder);
+        assertNotSame(((ConstantScoreQueryBuilder) rewritten.getFilter()).innerQuery(), constantScoreQueryBuilder.innerQuery());
+
+        assertEquals("secondLevel", rewritten.getNestedSort().getPath());
+        assertNotSame(rewritten.getNestedSort(), original.getNestedSort());
+        assertEquals("thirdLevel", rewritten.getNestedSort().getNestedSort().getPath());
+        assertNotSame(rewritten.getNestedSort().getNestedSort(), nestedSortThatRewrites);
     }
 }

@@ -710,7 +710,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertEquals(4, request.get().getHits().getHits().length);
     }
 
-    public void testSkipRescorePhaseWithSort() throws Exception {
+    public void testRescorePhaseWithInvalidSort() throws Exception {
         assertAcked(prepareCreate("test"));
         for(int i=0;i<5;i++) {
             client().prepareIndex("test", "type", ""+i).setSource("number", 0).get();

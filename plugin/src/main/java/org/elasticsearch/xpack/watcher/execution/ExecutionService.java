@@ -56,6 +56,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.joda.time.DateTimeZone.UTC;
@@ -460,9 +461,9 @@ public class ExecutionService extends AbstractComponent {
             // actions
             ctx.beforeActions();
             for (ActionWrapper action : watch.actions()) {
-                long now = System.currentTimeMillis();
+                long start = System.nanoTime();
                 ActionWrapper.Result actionResult = action.execute(ctx);
-                long executionTime = System.currentTimeMillis() - now;
+                long executionTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
                 String type = action.action().type();
                 actionByTypeExecutionTime.putIfAbsent(type, new MeanMetric());
                 actionByTypeExecutionTime.get(type).inc(executionTime);

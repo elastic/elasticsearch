@@ -61,6 +61,7 @@ teardown:
   - match: { watch_record.status.state.active: true }
   - is_true: watch_record.node
   - match: { watch_record.status.actions.indexme.ack.state: "ackable" }
+  - gt: { watch_record.result.execution_duration: 0 }
 
 ---
 "Test execute watch API with user supplied watch":
@@ -106,3 +107,49 @@ teardown:
       xpack.watcher.execute_watch:
         id: "non-existent-watch"
       catch: missing
+
+---
+"Test execute watch with alternative input":
+
+  - do:
+      xpack.watcher.put_watch:
+        id: "test_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "simple": {
+                "foo": "bar"
+              }
+            },
+            "actions": {
+              "indexme" : {
+                "index" : {
+                  "index" : "my-index",
+                  "doc_type" : "my-type",
+                  "doc_id": "my-id"
+                }
+              }
+            }
+          }
+  - match: { _id: "test_watch" }
+  - match: { created: true }
+
+  - do:
+      xpack.watcher.execute_watch:
+        id: "test_watch"
+        body: >
+          {
+            "alternative_input" : {
+              "spam" : "eggs"
+            }
+          }
+
+  - match: { watch_record.watch_id: "test_watch" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.state.active: true }
+  - is_true: watch_record.node
+  - is_false: watch_record.result.input.payload.foo
+  - is_true: watch_record.result.input.payload.spam

@@ -8,11 +8,15 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
@@ -23,6 +27,7 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
+import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -122,10 +127,10 @@ public class AuthorizationService extends AbstractComponent {
      * have the appropriate privileges for this action/request, an {@link ElasticsearchSecurityException}
      * will be thrown.
      *
-     * @param authentication  The authentication information
-     * @param action          The action
-     * @param request         The request
-     * @throws ElasticsearchSecurityException   If the given user is no allowed to execute the given request
+     * @param authentication The authentication information
+     * @param action         The action
+     * @param request        The request
+     * @throws ElasticsearchSecurityException If the given user is no allowed to execute the given request
      */
     public void authorize(Authentication authentication, String action, TransportRequest request, Role userRole,
                           Role runAsRole) throws ElasticsearchSecurityException {
@@ -262,7 +267,7 @@ public class AuthorizationService extends AbstractComponent {
             throw denial(authentication, action, request, null);
         } else if (TransportActionProxy.isProxyAction(action)) {
             // we authorize proxied actions once they are "unwrapped" on the next node
-            if (TransportActionProxy.isProxyRequest(originalRequest) == false ) {
+            if (TransportActionProxy.isProxyRequest(originalRequest) == false) {
                 throw new IllegalStateException("originalRequest is not a proxy request: [" + originalRequest + "] but action: ["
                         + action + "] is a proxy action");
             }
@@ -358,11 +363,48 @@ public class AuthorizationService extends AbstractComponent {
             }
         }
 
+        if (action.equals(TransportShardBulkAction.ACTION_NAME)) {
+            // is this is performing multiple actions on the index, then check each of those actions.
+            assert request instanceof BulkShardRequest
+                    : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
+
+            if (localIndices.size() != 1) {
+                throw new IllegalStateException("Action " + action + " should operate on exactly 1 local index but was "
+                        + localIndices.size());
+            }
+
+            String index = localIndices.iterator().next();
+            BulkShardRequest bulk = (BulkShardRequest) request;
+            for (BulkItemRequest item : bulk.items()) {
+                final String itemAction = getAction(item);
+                final IndicesAccessControl itemAccessControl = permission.authorize(itemAction, localIndices, metaData,
+                        fieldPermissionsCache);
+                if (itemAccessControl.isGranted() == false) {
+                    item.abort(index, denial(authentication, itemAction, request, null));
+                }
+            }
+        }
+
         grant(authentication, action, originalRequest, null);
     }
 
+    private String getAction(BulkItemRequest item) {
+        final DocWriteRequest docWriteRequest = item.request();
+        switch (docWriteRequest.opType()) {
+            case INDEX:
+            case CREATE:
+                return IndexAction.NAME;
+            case UPDATE:
+                return UpdateAction.NAME;
+            case DELETE:
+                return DeleteAction.NAME;
+        }
+        throw new IllegalArgumentException("No equivalent action for opType [" + docWriteRequest.opType() + "]");
+    }
+
     private ResolvedIndices resolveIndexNames(Authentication authentication, String action, Object indicesRequest,
-            TransportRequest mainRequest, MetaData metaData, AuthorizedIndices authorizedIndices) {
+                                              TransportRequest mainRequest, MetaData metaData,
+                                              AuthorizedIndices authorizedIndices) {
         try {
             return indicesAndAliasesResolver.resolve(indicesRequest, metaData, authorizedIndices);
         } catch (Exception e) {

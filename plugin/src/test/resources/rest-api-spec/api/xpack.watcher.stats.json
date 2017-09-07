@@ -17,6 +17,11 @@
           "type" : "enum",
           "options" : ["_all", "queued_watches", "pending_watches"],
           "description" : "Controls what additional stat metrics should be include in the response"
+        },
+        "emit_stacktraces": {
+          "type" : "boolean",
+          "description" : "Emits stack traces of currently running watches",
+          "required" : false
         }
       }
     },

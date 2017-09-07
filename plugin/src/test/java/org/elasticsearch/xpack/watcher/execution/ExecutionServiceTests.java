@@ -72,6 +72,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -150,7 +151,12 @@ public class ExecutionServiceTests extends ESTestCase {
 
         Condition.Result conditionResult = AlwaysCondition.RESULT_INSTANCE;
         Condition condition = mock(Condition.class);
-        when(condition.execute(any(WatchExecutionContext.class))).thenReturn(conditionResult);
+        // introduce a very short sleep time which we can use to check if the duration in milliseconds is correctly created
+        long randomConditionDurationMs = randomIntBetween(1, 10);
+        when(condition.execute(any(WatchExecutionContext.class))).then(invocationOnMock -> {
+            Thread.sleep(randomConditionDurationMs);
+            return conditionResult;
+        });
 
         // watch level transform
         Transform.Result watchTransformResult = mock(Transform.Result.class);
@@ -202,7 +208,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
         when(watch.transform()).thenReturn(watchTransform);
-        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
+        when(watch.actions()).thenReturn(Collections.singletonList(actionWrapper));
         when(watch.status()).thenReturn(watchStatus);
 
         WatchRecord watchRecord = executionService.execute(context);
@@ -220,6 +226,10 @@ public class ExecutionServiceTests extends ESTestCase {
         verify(condition, times(1)).execute(context);
         verify(watchTransform, times(1)).execute(context, payload);
         verify(action, times(1)).execute("_action", context, payload);
+
+        // test execution duration
+        assertThat(watchRecord.result().executionDurationMs(), is(greaterThanOrEqualTo(randomConditionDurationMs)));
+        assertThat(watchRecord.result().executionTime(), is(notNullValue()));
 
         // test stats
         XContentSource source = new XContentSource(jsonBuilder().map(executionService.usageStats()));

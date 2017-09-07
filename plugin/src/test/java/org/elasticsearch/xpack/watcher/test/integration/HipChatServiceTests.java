@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -65,6 +66,7 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
                 .build();
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/infra/issues/2726")
     public void testSendMessageV1Account() throws Exception {
         HipChatService service = getInstanceFromMaster(HipChatService.class);
         HipChatMessage hipChatMessage = new HipChatMessage(
@@ -82,6 +84,7 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
         assertSentMessagesAreValid(2, messages);
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/infra/issues/2726")
     public void testSendMessageIntegrationAccount() throws Exception {
         HipChatService service = getInstanceFromMaster(HipChatService.class);
         HipChatMessage.Color color = randomFrom(HipChatMessage.Color.values());
@@ -100,6 +103,7 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
         assertSentMessagesAreValid(1, messages);
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/infra/issues/2726")
     public void testSendMessageUserAccount() throws Exception {
         HipChatService service = getInstanceFromMaster(HipChatService.class);
         HipChatMessage.Color color = randomFrom(HipChatMessage.Color.values());
@@ -118,6 +122,7 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
         assertSentMessagesAreValid(3, messages);
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/infra/issues/2726")
     public void testWatchWithHipChatAction() throws Exception {
         HipChatAccount.Profile profile = randomFrom(HipChatAccount.Profile.values());
         HipChatMessage.Color color = randomFrom(HipChatMessage.Color.values());
@@ -180,6 +185,7 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getHits().getTotalHits(), is(1L));
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/infra/issues/2726")
     public void testDefaultValuesForColorAndFormatWorks() {
         HipChatService service = getInstanceFromMaster(HipChatService.class);
         HipChatMessage hipChatMessage = new HipChatMessage(

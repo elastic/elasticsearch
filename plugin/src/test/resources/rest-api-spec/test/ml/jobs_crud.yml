@@ -449,6 +449,8 @@
   - match: { flushed: true }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.state:
         metric: [ metadata ]
         filter_path: metadata.persistent_tasks
@@ -460,6 +462,8 @@
   - match: { closed: true }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.state:
         metric: [ metadata ]
         filter_path: metadata.persistent_tasks
@@ -665,6 +669,8 @@
   - match: { flushed: true }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.state:
         metric: [ metadata ]
         filter_path: metadata.persistent_tasks
@@ -677,6 +683,8 @@
   - match: { closed: true }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.state:
         metric: [ metadata ]
         filter_path: metadata.persistent_tasks

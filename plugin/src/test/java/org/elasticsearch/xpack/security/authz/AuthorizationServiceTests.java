@@ -6,10 +6,20 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.MockIndicesRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -42,7 +52,9 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetAction;
@@ -62,6 +74,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
@@ -75,12 +88,14 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -120,13 +135,6 @@ import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlRequest;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.singleton;
@@ -796,11 +804,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
             requests.add(new Tuple<>(DeleteAction.NAME, new DeleteRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
             requests.add(new Tuple<>(BulkAction.NAME + "[s]",
-                    new DeleteRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+                    createBulkShardRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, DeleteRequest::new)));
             requests.add(new Tuple<>(UpdateAction.NAME, new UpdateRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
             requests.add(new Tuple<>(IndexAction.NAME, new IndexRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
-            requests.add(new Tuple<>(BulkAction.NAME + "[s]", new IndexRequest(SecurityLifecycleService.SECURITY_INDEX_NAME,
-                                                                               "type", "id")));
+            requests.add(new Tuple<>(BulkAction.NAME + "[s]",
+                    createBulkShardRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, IndexRequest::new)));
             requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(SecurityLifecycleService.SECURITY_INDEX_NAME)));
             requests.add(new Tuple<>(TermVectorsAction.NAME,
                     new TermVectorsRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
@@ -926,30 +934,36 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testCompositeActionsIndicesAreCheckedAtTheShardLevel() {
-        String action;
-        switch(randomIntBetween(0, 4)) {
+        final MockIndicesRequest mockRequest = new MockIndicesRequest(IndicesOptions.strictExpandOpen(), "index");
+        final TransportRequest request;
+        final String action;
+        switch (randomIntBetween(0, 4)) {
             case 0:
                 action = MultiGetAction.NAME + "[shard]";
+                request = mockRequest;
                 break;
             case 1:
                 //reindex, msearch, search template, and multi search template delegate to search
                 action = SearchAction.NAME;
+                request = mockRequest;
                 break;
             case 2:
                 action = MultiTermVectorsAction.NAME + "[shard]";
+                request = mockRequest;
                 break;
             case 3:
                 action = BulkAction.NAME + "[s]";
+                request = createBulkShardRequest("index", IndexRequest::new);
                 break;
             case 4:
                 action = "indices:data/read/mpercolate[s]";
+                request = mockRequest;
                 break;
             default:
                 throw new UnsupportedOperationException();
         }
         logger.info("--> action: {}", action);
 
-        TransportRequest request = new MockIndicesRequest(IndicesOptions.strictExpandOpen(), "index");
         User userAllowed = new User("userAllowed", "roleAllowed");
         roleMap.put("roleAllowed", new RoleDescriptor("roleAllowed", null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index").privileges("all").build() }, null));
@@ -979,13 +993,13 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         User userAllowed = new User("userAllowed", "roleAllowed");
         roleMap.put("roleAllowed", new RoleDescriptor("roleAllowed", null,
-                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index").privileges("all").build() }, null));
+                new IndicesPrivileges[]{IndicesPrivileges.builder().indices("index").privileges("all").build()}, null));
         User userDenied = new User("userDenied", "roleDenied");
         roleMap.put("roleDenied", new RoleDescriptor("roleDenied", null,
-                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() }, null));
+                new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null));
         User userSome = new User("userSome", "roleSome");
         roleMap.put("roleSome", new RoleDescriptor("roleSome", null,
-                new IndicesPrivileges[] {
+                new IndicesPrivileges[]{
                         IndicesPrivileges.builder().indices("a").privileges("all").build(),
                         IndicesPrivileges.builder().indices("b").privileges("all").build()
                 }, null));
@@ -996,7 +1010,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorize(createAuthentication(userAllowed), action, request);
             verify(auditTrail).accessGranted(userAllowed, action, request, null);
             assertNotNull(getAccessControlResolver());
-            IndicesAccessControl iac = getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[] {"index"});
+            IndicesAccessControl iac = getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[]{"index"});
             assertTrue(iac.isGranted());
             assertTrue(iac.getIndexPermissions("index").isGranted());
             verify(auditTrail).accessGranted(userAllowed, action, request, singleton("index"));
@@ -1008,7 +1022,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             verify(auditTrail).accessGranted(userDenied, action, request, null);
             assertNotNull(getAccessControlResolver());
             assertThrowsAuthorizationException(
-                    () -> getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[] {"index"}),
+                    () -> getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[]{"index"}),
                     action, "userDenied");
             verify(auditTrail).accessDenied(userDenied, action, request, singleton("index"));
         }
@@ -1018,16 +1032,16 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorize(createAuthentication(userSome), action, request);
             verify(auditTrail).accessGranted(userSome, action, request, null);
             assertNotNull(getAccessControlResolver());
-            IndicesAccessControl iac = getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[] {"a"});
+            IndicesAccessControl iac = getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[]{"a"});
             assertTrue(iac.isGranted());
             assertTrue(iac.getIndexPermissions("a").isGranted());
 
-            iac = getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[] {"b"});
+            iac = getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[]{"b"});
             assertTrue(iac.isGranted());
             assertTrue(iac.getIndexPermissions("b").isGranted());
             verify(auditTrail).accessGranted(userSome, action, request, singleton("b"));
 
-            iac = getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[] {"a", "b"});
+            iac = getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[]{"a", "b"});
             assertTrue(iac.isGranted());
             assertTrue(iac.getIndexPermissions("a").isGranted());
             assertTrue(iac.getIndexPermissions("b").isGranted());
@@ -1035,11 +1049,16 @@ public class AuthorizationServiceTests extends ESTestCase {
             verify(auditTrail).accessGranted(userSome, action, request, singleton("b"));
 
             assertThrowsAuthorizationException(
-                    () -> getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[] {"index", "a", "b"}),
+                    () -> getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[]{"index", "a", "b"}),
                     action, "userSome");
             verify(auditTrail).accessDenied(userSome, action, request, new HashSet<>(Arrays.asList("index", "a", "b")));
         }
         assertNull(getAccessControlResolver());
+    }
+
+    private BulkShardRequest createBulkShardRequest(String indexName, TriFunction<String, String, String, DocWriteRequest<?>> req) {
+        final BulkItemRequest[] items = { new BulkItemRequest(1, req.apply(indexName, "type", "id")) };
+        return new BulkShardRequest(new ShardId(indexName, UUID.randomUUID().toString(), 1), WriteRequest.RefreshPolicy.IMMEDIATE, items);
     }
 
     public void testSameUserPermission() {

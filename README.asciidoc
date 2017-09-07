@@ -110,8 +110,7 @@ For example:
 
 [source, txt]
 -----
-./docs/build_docs.pl --doc elasticsearch-extra/x-pack-elasticsearch/docs/en/index.asciidoc 
---resource=elasticsearch/docs --chunk 1
+./docs/build_docs.pl --doc elasticsearch-extra/x-pack-elasticsearch/docs/en/index.asciidoc --resource=elasticsearch/docs --chunk 1
 -----
 
 For information about building the X-Pack Reference, see the README in the x-pack repo.

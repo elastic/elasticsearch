@@ -1,5 +1,8 @@
 ---
 "Put job on the old cluster and post some data":
+  - skip:
+      version:  "all"
+      reason:   "Awaiting fix of #1760"
 
   - do:
       xpack.ml.put_job:
@@ -45,3 +48,23 @@
       xpack.ml.get_buckets:
         job_id: old-cluster-job
   - match: { count: 1 }
+
+---
+"Put job with empty strings in the configuration":
+  - do:
+      xpack.ml.put_job:
+        job_id: old-cluster-job-empty-fields
+        body:  >
+          {
+            "description": "Cluster upgrade bad config",
+            "analysis_config" : {
+                "influencers": "",
+                "bucket_span": "60s",
+                "detectors" :[{"function":"count","field_name":""}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }

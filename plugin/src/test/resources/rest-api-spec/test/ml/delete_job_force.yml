@@ -1,5 +1,7 @@
 setup:
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_job:
         job_id: force-delete-job
         body:  >
@@ -44,7 +46,7 @@ setup:
   - match: { count: 0 }
 
 ---
-"Test can't force delete an inexistent job":
+"Test cannot force delete a non-existent job":
 
   - do:
       catch: /resource_not_found_exception/

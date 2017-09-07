@@ -25,6 +25,17 @@ set -o pipefail
 # default to `check` if no argument has been supplied
 key=${1-check}
 case $key in
+    intake)
+        GRADLE_CLI_ARGS=(
+            "--info"
+            "compileJava"
+            "compileTestJava"
+            "precommit"
+            "check"
+            "-Dtests.network=true"
+            "-Dtests.badapples=true"
+        )
+        ;;
     packagingTest)
         GRADLE_CLI_ARGS=(
             "--info"
@@ -136,9 +147,32 @@ if [ -z ${USE_EXISTING_ES:+x} ]; then
     GH_USER="elastic"
     BRANCH="master"
 
+    DEPTH=1
+    if [ -n "$BUILD_METADATA" ]; then
+      IFS=';' read -ra metadata <<< "$BUILD_METADATA"
+      for kv in "${metadata[@]}"; do
+        IFS='=' read -ra key_value <<< "$kv"
+        if [ "${key_value[0]}" == "git_ref_elasticsearch" ]; then
+          # Force checked out hash if build metadata is set. We use a depth of 100, which
+          # assumes there are no more than 100 commits between head of the branch and
+          # last-good-commit. This is still quite a bit faster than pulling the entire history.
+          ES_REF="${key_value[1]}"
+          DEPTH=100
+        fi
+      done
+    fi
+
     echo " -> checking out '$BRANCH' branch from $GH_USER/elasticsearch..."
-    git clone -b $BRANCH "https://github.com/$GH_USER/elasticsearch.git" --depth=1
-    echo " -> checked out elasticsearch revision: $(git -C elasticsearch rev-parse HEAD)"
+    git clone -b $BRANCH "https://github.com/$GH_USER/elasticsearch.git" --depth=$DEPTH
+
+    if [ ! -z $ES_REF ]; then
+      echo " -> using elasticsearch ref from build metadata: $ES_REF"
+      git -C elasticsearch checkout $ES_REF
+    else
+      ES_REF="$(git -C elasticsearch rev-parse HEAD)"
+    fi
+
+    echo " -> checked out elasticsearch revision: $ES_REF"
     echo
 
 else
@@ -164,5 +198,9 @@ gradle --stacktrace clean
 
 # Actually run the tests
 gradle "${GRADLE_CLI_ARGS[@]}"
+
+# write the ES hash we checked out to build metadata
+mkdir build
+echo "git_ref_elasticsearch=$ES_REF" > build/build_metadata
 
 # ~*~ shell-script-mode ~*~

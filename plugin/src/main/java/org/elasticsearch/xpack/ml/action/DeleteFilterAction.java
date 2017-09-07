@@ -9,9 +9,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -37,6 +36,7 @@ import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -144,18 +144,18 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final TransportBulkAction transportAction;
+        private final InternalClient client;
         private final ClusterService clusterService;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool,
                 TransportService transportService, ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver,
-                ClusterService clusterService, TransportBulkAction transportAction) {
+                ClusterService clusterService, InternalClient client) {
             super(settings, NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.clusterService = clusterService;
-            this.transportAction = transportAction;
+            this.client = client;
         }
 
         @Override
@@ -181,10 +181,10 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
             }
 
             DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, MlFilter.documentId(filterId));
-            BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(deleteRequest);
-            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            transportAction.execute(bulkRequest, new ActionListener<BulkResponse>() {
+            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+            bulkRequestBuilder.add(deleteRequest);
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            bulkRequestBuilder.execute(new ActionListener<BulkResponse>() {
                 @Override
                 public void onResponse(BulkResponse bulkResponse) {
                     if (bulkResponse.getItems()[0].status() == RestStatus.NOT_FOUND) {

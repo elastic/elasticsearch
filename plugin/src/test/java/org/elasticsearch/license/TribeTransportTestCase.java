@@ -189,6 +189,8 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                 .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                 .put("tribe.t1." + XPackSettings.SECURITY_ENABLED.getKey(), false)
                 .put("tribe.t2." + XPackSettings.SECURITY_ENABLED.getKey(), false)
+                .put("tribe.t1." + XPackSettings.WATCHER_ENABLED.getKey(), false)
+                .put("tribe.t2." + XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put("tribe.t1." + XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
                 .put("tribe.t2." + XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
                 .put("tribe.t1." + MachineLearning.AUTODETECT_PROCESS.getKey(), false)

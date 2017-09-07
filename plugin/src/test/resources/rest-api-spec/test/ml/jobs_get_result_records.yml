@@ -1,5 +1,7 @@
 setup:
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_job:
         job_id: jobs-get-result-records
         body:  >
@@ -14,6 +16,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-anomalies-jobs-get-result-records
         type:   doc
@@ -28,21 +32,25 @@ setup:
           }
 
   - do:
-        index:
-          index:  .ml-anomalies-jobs-get-result-records
-          type:   doc
-          id:     jobs-get-result-records_1464825600000_1_2
-          body:
-            {
-              "job_id": "jobs-get-result-records",
-              "result_type": "record",
-              "timestamp": "2016-06-02T00:00:00Z",
-              "record_score": 80.0,
-              "bucket_span": 1,
-              "is_interim": true
-            }
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index:  .ml-anomalies-jobs-get-result-records
+        type:   doc
+        id:     jobs-get-result-records_1464825600000_1_2
+        body:
+          {
+            "job_id": "jobs-get-result-records",
+            "result_type": "record",
+            "timestamp": "2016-06-02T00:00:00Z",
+            "record_score": 80.0,
+            "bucket_span": 1,
+            "is_interim": true
+          }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
         index: .ml-anomalies-jobs-get-result-records
 

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
@@ -399,6 +400,21 @@ public class AutodetectResultsParserTests extends ESTestCase {
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
                 () -> parser.parseResults(inputStream).forEachRemaining(a -> {}));
         assertEquals("unexpected token [START_ARRAY]", e.getMessage());
+    }
+
+    /**
+     * Ensure that we do not accept NaN values
+     */
+    public void testParsingExceptionNaN() {
+        String json = "[{\"bucket\": {\"job_id\":\"foo\",\"timestamp\":1359453600000,\"bucket_span\":10,\"records\":"
+                + "[{\"timestamp\":1359453600000,\"bucket_span\":10,\"job_id\":\"foo\",\"probability\":NaN,"
+                + "\"by_field_name\":\"airline\",\"by_field_value\":\"JZA\", \"typical\":[1020.08],\"actual\":[0],"
+                + "\"field_name\":\"responsetime\",\"function\":\"max\",\"partition_field_name\":\"\",\"partition_field_value\":\"\"}]}}]";
+        InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
+        AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY);
+
+        expectThrows(ParsingException.class,
+                () -> parser.parseResults(inputStream).forEachRemaining(a -> {}));
     }
 
     public void testConsumeAndCloseStream() throws IOException {

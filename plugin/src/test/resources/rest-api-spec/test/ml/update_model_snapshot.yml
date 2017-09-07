@@ -1,5 +1,7 @@
 setup:
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.ml.put_job:
         job_id: update-model-snapshot
         body:  >
@@ -14,6 +16,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-anomalies-update-model-snapshot
         type:   doc
@@ -28,6 +32,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-anomalies-update-model-snapshot
         type:   doc
@@ -43,6 +49,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
         index: .ml-anomalies-update-model-snapshot
 
@@ -70,10 +78,6 @@ setup:
   - match: { model.description: "new_description" }
 
   - do:
-      indices.refresh:
-        index: .ml-anomalies-update-model-snapshot
-
-  - do:
       xpack.ml.get_model_snapshots:
         job_id: "update-model-snapshot"
         snapshot_id: "snapshot-1"
@@ -81,6 +85,7 @@ setup:
   - match: { count: 1 }
   - match: { model_snapshots.0.snapshot_id: "snapshot-1" }
   - match: { model_snapshots.0.timestamp: 1464825600000 }
+  - match: { model_snapshots.0.description: "new_description" }
 
 ---
 "Test duplicate descriptions are allowed":
@@ -92,10 +97,6 @@ setup:
           {
             "description": "snapshot 2 description"
           }
-
-  - do:
-      indices.refresh:
-        index: .ml-anomalies-update-model-snapshot
 
   - do:
       xpack.ml.get_model_snapshots:

@@ -717,40 +717,37 @@ public class QueryRescorerIT extends ESIntegTestCase {
         }
         refresh();
 
-        SearchRequestBuilder request = client().prepareSearch()
-            .addSort(SortBuilders.fieldSort("number"))
-            .setTrackScores(true)
-            .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50);
-        SearchResponse resp = request.get();
-        assertThat(resp.getHits().totalHits, equalTo(5L));
-        assertThat(resp.getHits().getHits().length, equalTo(5));
-        for (SearchHit hit : resp.getHits().getHits()) {
-            assertThat(hit.getScore(), equalTo(1f));
-        }
+        Exception exc = expectThrows(Exception.class,
+            () -> client().prepareSearch()
+                .addSort(SortBuilders.fieldSort("number"))
+                .setTrackScores(true)
+                .addRescorer(new QueryRescorerBuilder(matchAllQuery()), 50)
+                .get()
+        );
+        assertNotNull(exc.getCause());
+        assertThat(exc.getCause().getMessage(),
+            containsString("Cannot use [sort] option in conjunction with [rescore]."));
 
-        request = client().prepareSearch()
-            .addSort(SortBuilders.fieldSort("number"))
-            .addSort(SortBuilders.scoreSort())
-            .setTrackScores(true)
-            .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50);
-        resp = request.get();
-        assertThat(resp.getHits().totalHits, equalTo(5L));
-        assertThat(resp.getHits().getHits().length, equalTo(5));
-        for (SearchHit hit : resp.getHits().getHits()) {
-            assertThat(hit.getScore(), equalTo(1f));
-        }
+        exc = expectThrows(Exception.class,
+            () -> client().prepareSearch()
+                .addSort(SortBuilders.fieldSort("number"))
+                .addSort(SortBuilders.scoreSort())
+                .setTrackScores(true)
+                .addRescorer(new QueryRescorerBuilder(matchAllQuery()), 50)
+                .get()
+        );
+        assertNotNull(exc.getCause());
+        assertThat(exc.getCause().getMessage(),
+            containsString("Cannot use [sort] option in conjunction with [rescore]."));
 
-        request = client().prepareSearch()
-            .addSort(SortBuilders.scoreSort())
+        SearchResponse resp = client().prepareSearch().addSort(SortBuilders.scoreSort())
             .setTrackScores(true)
-            .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50);
-        resp = request.get();
+            .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50)
+            .get();
         assertThat(resp.getHits().totalHits, equalTo(5L));
         assertThat(resp.getHits().getHits().length, equalTo(5));
         for (SearchHit hit : resp.getHits().getHits()) {
             assertThat(hit.getScore(), equalTo(101f));
         }
-
-
     }
 }

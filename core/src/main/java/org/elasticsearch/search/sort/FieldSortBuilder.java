@@ -408,7 +408,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     @Override
-    public SortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+    public FieldSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         if (nestedFilter == null) {
             return this;
         }

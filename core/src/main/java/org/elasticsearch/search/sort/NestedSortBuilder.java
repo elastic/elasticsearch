@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -148,5 +149,24 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(path, filter, nestedSort);
+    }
+
+    public NestedSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        if (filter == null && nestedSort == null) {
+            return this;
+        }
+        QueryBuilder rewriteFilter = this.filter;
+        NestedSortBuilder rewriteNested = this.nestedSort;
+        if (filter != null) {
+            rewriteFilter = filter.rewrite(ctx);
+        }
+        if (nestedSort != null) {
+            rewriteNested = nestedSort.rewrite(ctx);
+        }
+        if (rewriteFilter != this.filter || rewriteNested != this.nestedSort) {
+            return new NestedSortBuilder(this.path).setFilter(rewriteFilter).setNestedSort(rewriteNested);
+        } else {
+            return this;
+        }
     }
 }

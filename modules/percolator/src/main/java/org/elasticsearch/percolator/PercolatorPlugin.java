@@ -28,11 +28,11 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 
 public class PercolatorPlugin extends Plugin implements MapperPlugin, SearchPlugin {
 
@@ -49,7 +49,10 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, SearchPlug
 
     @Override
     public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-        return singletonList(new PercolatorHighlightSubFetchPhase(settings, context.getHighlighters()));
+        return Arrays.asList(
+            new PercolatorMatchedSlotSubFetchPhase(),
+            new PercolatorHighlightSubFetchPhase(settings, context.getHighlighters())
+        );
     }
 
     @Override
@@ -60,7 +63,7 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, SearchPlug
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser());
+        return singletonMap(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser());
     }
 
 }

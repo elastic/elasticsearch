@@ -502,12 +502,12 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
 
-        GeoQueryContext context1 = GeoQueryContext.builder().setGeoPoint(geoPoints[0]).setBoost(2).build();
+        GeoQueryContext context1 = GeoQueryContext.builder().setGeoPoint(geoPoints[0]).setBoost(11).build();
         GeoQueryContext context2 = GeoQueryContext.builder().setGeoPoint(geoPoints[1]).build();
         CompletionSuggestionBuilder geoBoostingPrefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
                 .contexts(Collections.singletonMap("geo", Arrays.asList(context1, context2)));
 
-        assertSuggestions("foo", geoBoostingPrefix, "suggestion8", "suggestion6", "suggestion4", "suggestion9", "suggestion7");
+        assertSuggestions("foo", geoBoostingPrefix, "suggestion8", "suggestion6", "suggestion4", "suggestion2", "suggestion0");
     }
 
     public void testGeoPointContext() throws Exception {

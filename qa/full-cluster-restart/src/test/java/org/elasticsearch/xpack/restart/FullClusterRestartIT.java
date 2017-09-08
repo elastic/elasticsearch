@@ -76,6 +76,16 @@ public class FullClusterRestartIT extends ESRestTestCase {
     }
 
     @Override
+    protected boolean preserveSnapshotsUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveReposUponCompletion() {
+        return true;
+    }
+
+    @Override
     protected boolean preserveTemplatesUponCompletion() {
         return true;
     }

@@ -162,7 +162,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
     }
 
-    public static final class ScaledFloatFieldType extends MappedFieldType {
+    public static final class ScaledFloatFieldType extends SimpleMappedFieldType {
 
         private double scalingFactor;
 

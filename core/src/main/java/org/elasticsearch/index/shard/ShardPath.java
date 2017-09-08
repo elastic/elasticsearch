@@ -21,8 +21,11 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeEnvironment.NodePath;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexSettings;
 
@@ -31,12 +34,16 @@ import java.math.BigInteger;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 public final class ShardPath {
     public static final String INDEX_FOLDER_NAME = "index";
     public static final String TRANSLOG_FOLDER_NAME = "translog";
 
+    private static Logger logger = Loggers.getLogger(ShardPath.class);
     private final Path path;
     private final ShardId shardId;
     private final Path shardStatePath;
@@ -191,6 +198,8 @@ public final class ShardPath {
             final NodeEnvironment.NodePath[] paths = env.nodePaths();
             NodeEnvironment.NodePath bestPath = null;
             BigInteger maxUsableBytes = BigInteger.valueOf(Long.MIN_VALUE);
+            int totalWeight = 0;
+            List<Tuple<NodePath, Integer>> nodePathWeightList = new ArrayList<>();
             for (NodeEnvironment.NodePath nodePath : paths) {
                 FileStore fileStore = nodePath.fileStore;
 
@@ -206,8 +215,31 @@ public final class ShardPath {
                     maxUsableBytes = usableBytes;
                     bestPath = nodePath;
                 }
+
+                if (estShardSizeInBytes.compareTo(BigInteger.valueOf(fileStore.getUsableSpace())) > 0) {
+                    // Free space not enough, skip
+                    continue;
+                }
+
+                // Use the percent of storage free space as weight
+                int nodePathWeight = Math.toIntExact(fileStore.getUsableSpace() * 100 / fileStore.getTotalSpace());
+                totalWeight += nodePathWeight;
+                nodePathWeightList.add(new Tuple<>(nodePath, nodePathWeight));
             }
 
+            // Use weighted random algorithm to select data path
+            int random = new Random().nextInt(totalWeight);
+            for (Tuple<NodeEnvironment.NodePath, Integer> nodePathWeight : nodePathWeightList) {
+                random -= nodePathWeight.v2();
+                if (random < 0) {
+                    bestPath = nodePathWeight.v1();
+                    statePath = bestPath.resolve(shardId);
+                    dataPath = statePath;
+                    return new ShardPath(indexSettings.hasCustomDataPath(), dataPath, statePath, shardId);
+                }
+            }
+
+            logger.warn("Weighted random selection failed, use least used disk");
             statePath = bestPath.resolve(shardId);
             dataPath = statePath;
         }

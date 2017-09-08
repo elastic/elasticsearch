@@ -1,9 +1,6 @@
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.test.RunTask
 
 description = 'JDBC driver for Elasticsearch'
-
-def generatedResources = "$buildDir/generated-resources/main"
 
 forbiddenApisMain {
   // does not depend on core, so only jdk and http signatures should be checked
@@ -19,7 +16,9 @@ dependencies {
 
   // Used by the embedded sql tests
   testCompile project(path: ':client:transport', configuration: 'runtime')
-  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts') // NOCOMMIT remove me?
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts') // NOCOMMIT this is needed for TestUtils
+                                                                                            // we can remove this when #2432 is in
+  testCompile project(':x-pack-elasticsearch:sql:server')
   testCompile project(':x-pack-elasticsearch:sql:test-utils')
   testCompile "net.sourceforge.csvjdbc:csvjdbc:1.0.31"
 
@@ -47,7 +46,7 @@ apply plugin: 'elasticsearch.rest-test'
 integTest.mustRunAfter test
 
 integTestCluster {
-  distribution = 'zip' // NOCOMMIT make double sure we want all the modules
+  distribution = 'zip' // we need this for painless support
   plugin project(':x-pack-elasticsearch:plugin').path
   /* Get a "clean" test without the other x-pack features here and check them
    * all together later on. */
@@ -59,7 +58,7 @@ integTestCluster {
 }
 
 task run(type: RunTask) {
-  distribution = 'zip' // NOCOMMIT make double sure we want all the modules
+  distribution = 'zip' // we want to run it with painless
   plugin project(':x-pack-elasticsearch:plugin').path
   /* Get a "clean" test without the other x-pack features here and check them
    * all together later on. */

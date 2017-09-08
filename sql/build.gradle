@@ -3,9 +3,6 @@ description = 'SQL for Elasticsearch'
 subprojects {
   apply plugin: 'elasticsearch.build'
 
-  // NOCOMMIT this is abnormal enough it is worth removing
-  sourceSets.test.resources.srcDirs = ["src/test/resources", "src/test/java"]
-
   dependencies {
     testCompile "org.elasticsearch.test:framework:${version}"
   }

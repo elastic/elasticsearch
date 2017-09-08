@@ -14,7 +14,9 @@ dependencies {
 
   // Used by embedded sql instance
   testCompile project(":x-pack-elasticsearch:transport-client")
-  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts') // NOCOMMIT remove this?
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts') // NOCOMMIT this is needed for TestUtils
+                                                                                            // we can remove this when #2432 is in
+  testCompile project(':x-pack-elasticsearch:sql:server')
   testCompile project(':x-pack-elasticsearch:sql:test-utils')
 
   runtime "org.fusesource.jansi:jansi:1.16"
@@ -88,7 +90,7 @@ apply plugin: 'elasticsearch.rest-test'
 integTest.mustRunAfter test
 
 integTestCluster {
-  distribution = 'zip' // NOCOMMIT make double sure we want all the modules
+  distribution = 'zip' // we need this for painless support
   plugin project(':x-pack-elasticsearch:plugin').path
   /* Get a "clean" test without the other x-pack features here and check them
    * all together later on. */

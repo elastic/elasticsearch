@@ -135,6 +135,8 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
         assertThat(response, instanceOf(MetaTableResponse.class));
     }
 
+    // TODO test SqlGetIndicesAction. Skipping for now because of lack of serialization support.
+
     private void setupTestIndex() {
         assertAcked(client().admin().indices().prepareCreate("test").get());
         client().prepareBulk()

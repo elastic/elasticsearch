@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.UnknownFunctionException;
 import org.elasticsearch.xpack.sql.analysis.UnknownIndexException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
-import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.expression.Alias;
@@ -71,11 +70,11 @@ import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
 
-    private final Catalog catalog;
+    private final SqlSession session;
     private final FunctionRegistry functionRegistry;
 
-    public Analyzer(Catalog catalog, FunctionRegistry functionRegistry) {
-        this.catalog = catalog;
+    public Analyzer(SqlSession session, FunctionRegistry functionRegistry) {
+        this.session = session;
         this.functionRegistry = functionRegistry;
     }
 
@@ -243,7 +242,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             TableIdentifier table = plan.table();
             EsIndex found;
             try {
-                found = catalog.getIndex(table.index());
+                found = session.getIndexSync(table.index());
             } catch (SqlIllegalArgumentException e) {
                 throw new AnalysisException(plan, e.getMessage(), e);
             }

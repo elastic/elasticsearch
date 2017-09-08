@@ -9,75 +9,58 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
-import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static org.hamcrest.Matchers.hasSize;
 
 public class EsCatalogTests extends ESTestCase {
     public void testEmpty() {
-        EsCatalog catalog = catalog(ClusterState.builder(ClusterName.DEFAULT).build());
-        assertEquals(emptyList(), catalog.listIndices("*"));
+        Catalog catalog = new EsCatalog(ClusterState.builder(ClusterName.DEFAULT).build());
         assertNull(catalog.getIndex("test"));
     }
 
     public void testIndexExists() throws IOException {
-        EsCatalog catalog = catalog(ClusterState.builder(ClusterName.DEFAULT)
+        Catalog catalog = new EsCatalog(ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(MetaData.builder()
-                        .put(index("test")
+                        .put(index()
                                 .putMapping("test", "{}"))
                         .build())
                 .build());
 
-        List<EsIndex> indices = catalog.listIndices("*"); 
-        assertThat(indices, hasSize(1));
-        assertEquals("test", indices.get(0).name());
         assertEquals(emptyMap(), catalog.getIndex("test").mapping());
     }
 
     public void testIndexWithDefaultType() throws IOException {
-        EsCatalog catalog = catalog(ClusterState.builder(ClusterName.DEFAULT)
+        Catalog catalog = new EsCatalog(ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(MetaData.builder()
-                        .put(index("test")
+                        .put(index()
                                 .putMapping("test", "{}")
                                 .putMapping("_default_", "{}"))
                         .build())
                 .build());
 
-        List<EsIndex> indices = catalog.listIndices("*"); 
-        assertThat(indices, hasSize(1));
-        assertEquals("test", indices.get(0).name());
         assertEquals(emptyMap(), catalog.getIndex("test").mapping());
     }
 
     public void testIndexWithTwoTypes() throws IOException {
-        EsCatalog catalog = catalog(ClusterState.builder(ClusterName.DEFAULT)
+        Catalog catalog = new EsCatalog(ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(MetaData.builder()
-                        .put(index("test")
+                        .put(index()
                                 .putMapping("first_type", "{}")
                                 .putMapping("second_type", "{}"))
                         .build())
                 .build());
 
-        assertEquals(emptyList(), catalog.listIndices("*"));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> catalog.getIndex("test"));
+        Exception e = expectThrows(SqlIllegalArgumentException.class, () -> catalog.getIndex("test"));
         assertEquals(e.getMessage(), "[test] has more than one type [first_type, second_type]");
     }
 
-    private EsCatalog catalog(ClusterState state) {
-        EsCatalog catalog = new EsCatalog(() -> state);
-        catalog.setIndexNameExpressionResolver(new IndexNameExpressionResolver(Settings.EMPTY));
-        return catalog;
-    }
-
-    private IndexMetaData.Builder index(String name) throws IOException {
+    private IndexMetaData.Builder index() throws IOException {
         return IndexMetaData.builder("test")
                 .settings(Settings.builder()
                         .put("index.version.created", Version.CURRENT)

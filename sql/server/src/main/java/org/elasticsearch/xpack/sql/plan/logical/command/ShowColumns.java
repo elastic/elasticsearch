@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
@@ -47,11 +46,10 @@ public class ShowColumns extends Command {
 
     @Override
     protected RowSetCursor execute(SqlSession session) {
-        Catalog catalog = session.catalog();
         List<List<?>> rows = new ArrayList<>();
         EsIndex fetched;
         try {
-            fetched = catalog.getIndex(index);
+            fetched = session.getIndexSync(index);
         } catch (SqlIllegalArgumentException e) {
             throw new IllegalArgumentException(e);
         }

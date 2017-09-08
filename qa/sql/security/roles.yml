@@ -1,6 +1,8 @@
-read_test:
+read_all:
   indices:
     - names: test
+      privileges: [read]
+    - names: bort
       privileges: [read]
 
 read_nothing:
@@ -41,3 +43,8 @@ read_test_without_c_3:
             ]
           }
         }
+
+read_bort:
+  indices:
+    - names: bort
+      privileges: [read]

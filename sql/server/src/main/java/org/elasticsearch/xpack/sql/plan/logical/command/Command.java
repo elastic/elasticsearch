@@ -26,7 +26,7 @@ public abstract class Command extends LogicalPlan implements Executable {
     }
 
     @Override
-    public final void execute(SqlSession session, ActionListener<RowSetCursor> listener) {
+    public void execute(SqlSession session, ActionListener<RowSetCursor> listener) {
         listener.onResponse(execute(session));
     }
 

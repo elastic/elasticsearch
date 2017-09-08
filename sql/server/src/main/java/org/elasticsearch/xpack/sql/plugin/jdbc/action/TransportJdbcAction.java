@@ -38,7 +38,8 @@ public class TransportJdbcAction extends HandledTransportAction<JdbcRequest, Jdb
             SqlLicenseChecker sqlLicenseChecker) {
         super(settings, JdbcAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, JdbcRequest::new);
         this.sqlLicenseChecker = sqlLicenseChecker;
-        this.jdbcServer = new JdbcServer(planExecutor, clusterService.getClusterName().value(), () -> clusterService.localNode().getName(), Version.CURRENT, Build.CURRENT);
+        this.jdbcServer = new JdbcServer(planExecutor, clusterService.getClusterName().value(),
+                () -> clusterService.localNode().getName(), Version.CURRENT, Build.CURRENT);
     }
 
     @Override

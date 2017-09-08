@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.plugin.jdbc;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.sql.JDBCType;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.function.Supplier;
@@ -66,10 +66,10 @@ public class JdbcServer extends AbstractSqlServer {
             listener.onResponse(info((InfoRequest) req));
             break;
         case META_TABLE:
-            listener.onResponse(metaTable((MetaTableRequest) req));
+            metaTable((MetaTableRequest) req, listener);
             break;
         case META_COLUMN:
-            listener.onResponse(metaColumn((MetaColumnRequest) req));
+            metaColumn((MetaColumnRequest) req, listener);
             break;
         case QUERY_INIT:
             queryInit((QueryInitRequest) req, listener);
@@ -97,38 +97,39 @@ public class JdbcServer extends AbstractSqlServer {
         return infoResponse.get();
     }
 
-    public MetaTableResponse metaTable(MetaTableRequest req) {
+    public void metaTable(MetaTableRequest req, ActionListener<Response> listener) {
         String indexPattern = hasText(req.pattern()) ? StringUtils.jdbcToEsPattern(req.pattern()) : "*";
 
-        Collection<EsIndex> indices = executor.catalog().listIndices(indexPattern);
-        return new MetaTableResponse(indices.stream()
-                .map(EsIndex::name)
-                .collect(toList()));
+        executor.newSession(SqlSettings.EMPTY)
+            .getIndices(new String[] {indexPattern}, IndicesOptions.lenientExpandOpen(), ActionListener.wrap(result -> {
+                listener.onResponse(new MetaTableResponse(result.stream()
+                        .map(EsIndex::name)
+                        .collect(toList())));
+            }, listener::onFailure));
     }
 
-    public MetaColumnResponse metaColumn(MetaColumnRequest req) {
+    public void metaColumn(MetaColumnRequest req, ActionListener<Response> listener) {
         String pattern = Strings.hasText(req.tablePattern()) ? StringUtils.jdbcToEsPattern(req.tablePattern()) : "*";
-
-        Collection<EsIndex> indices = executor.catalog().listIndices(pattern);
-
         Pattern columnMatcher = hasText(req.columnPattern()) ? StringUtils.likeRegex(req.columnPattern()) : null;
 
-        List<MetaColumnInfo> resp = new ArrayList<>();
-        for (EsIndex esIndex : indices) {
-            int pos = 0;
-            for (Entry<String, DataType> entry : esIndex.mapping().entrySet()) {
-                pos++;
-                if (columnMatcher == null || columnMatcher.matcher(entry.getKey()).matches()) {
-                    String name = entry.getKey();
-                    String table = esIndex.name();
-                    JDBCType tp = entry.getValue().sqlType();
-                    int size = entry.getValue().precision();
-                    resp.add(new MetaColumnInfo(table, name, tp, size, pos));
+        executor.newSession(SqlSettings.EMPTY)
+            .getIndices(new String[] {pattern}, IndicesOptions.lenientExpandOpen(), ActionListener.wrap(result -> {
+                List<MetaColumnInfo> resp = new ArrayList<>();
+                for (EsIndex esIndex : result) {
+                    int pos = 0;
+                    for (Entry<String, DataType> entry : esIndex.mapping().entrySet()) {
+                        pos++;
+                        if (columnMatcher == null || columnMatcher.matcher(entry.getKey()).matches()) {
+                            String name = entry.getKey();
+                            String table = esIndex.name();
+                            JDBCType tp = entry.getValue().sqlType();
+                            int size = entry.getValue().precision();
+                            resp.add(new MetaColumnInfo(table, name, tp, size, pos));
+                        }
+                    }
                 }
-            }
-        }
-
-        return new MetaColumnResponse(resp);
+                listener.onResponse(new MetaColumnResponse(resp));
+            }, listener::onFailure));
     }
 
 

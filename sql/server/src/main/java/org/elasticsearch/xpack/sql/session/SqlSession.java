@@ -6,10 +6,12 @@
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
+import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
@@ -17,17 +19,20 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
+import org.elasticsearch.xpack.sql.plugin.SqlGetIndicesAction;
 
+import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 public class SqlSession {
 
     private final Client client;
+    private final BiConsumer<SqlGetIndicesAction.Request, ActionListener<SqlGetIndicesAction.Response>> sqlGetIndicesAction;
+    private final Catalog catalog;
 
     private final SqlParser parser;
-    private final Catalog catalog;
     private final FunctionRegistry functionRegistry;
-    private final Analyzer analyzer;
     private final Optimizer optimizer;
     private final Planner planner;
 
@@ -36,7 +41,6 @@ public class SqlSession {
 
     // thread-local used for sharing settings across the plan compilation
     public static final ThreadLocal<SqlSettings> CURRENT = new ThreadLocal<SqlSettings>() {
-
         @Override
         public String toString() {
             return "SQL Session";
@@ -44,18 +48,20 @@ public class SqlSession {
     };
 
     public SqlSession(SqlSession other) {
-        this(other.defaults(), other.client(), other.parser, other.catalog(), other.functionRegistry(), other.analyzer(), other.optimizer(), other.planner());
+        this(other.defaults(), other.client(), other.sqlGetIndicesAction, other.catalog(), other.parser,
+                other.functionRegistry(), other.optimizer(), other.planner());
     }
 
-    public SqlSession(SqlSettings defaults, 
-            Client client, SqlParser parser, Catalog catalog,
-            FunctionRegistry functionRegistry, Analyzer analyzer, Optimizer optimizer, Planner planner) {
+    public SqlSession(SqlSettings defaults, Client client,
+            BiConsumer<SqlGetIndicesAction.Request, ActionListener<SqlGetIndicesAction.Response>> sqlGetIndicesAction,
+            Catalog catalog, SqlParser parser, FunctionRegistry functionRegistry, Optimizer optimizer,
+            Planner planner) {
         this.client = client;
+        this.sqlGetIndicesAction = sqlGetIndicesAction;
+        this.catalog = catalog;
 
         this.parser = parser;
-        this.catalog = catalog;
         this.functionRegistry = functionRegistry;
-        this.analyzer = analyzer;
         this.optimizer = optimizer;
         this.planner = planner;
 
@@ -75,12 +81,29 @@ public class SqlSession {
         return client;
     }
 
+    /**
+     * Get the indices matching a pattern. Prefer this method if possible.
+     */
+    public void getIndices(String[] patterns, IndicesOptions options, ActionListener<List<EsIndex>> listener) {
+        SqlGetIndicesAction.Request request = new SqlGetIndicesAction.Request(options, patterns).local(true);
+        sqlGetIndicesAction.accept(request, ActionListener.wrap(response -> {
+            listener.onResponse(response.indices());
+        }, listener::onFailure));
+    }
+
+    /**
+     * Get an index. Prefer not to use this method as it cannot be made to work with cross cluster search.
+     */
+    public EsIndex getIndexSync(String index) {
+        return catalog.getIndex(index);
+    }
+
     public Planner planner() {
         return planner;
     }
 
     public Analyzer analyzer() {
-        return analyzer;
+        return new Analyzer(this, functionRegistry);
     }
 
     public Optimizer optimizer() {
@@ -96,6 +119,7 @@ public class SqlSession {
     }
 
     public LogicalPlan analyzedPlan(LogicalPlan plan, boolean verify) {
+        Analyzer analyzer = analyzer();
         return verify ? analyzer.verify(analyzer.analyze(plan)) : analyzer.analyze(plan);
     }
 

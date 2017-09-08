@@ -38,7 +38,8 @@ public class TransportCliAction extends HandledTransportAction<CliRequest, CliRe
                               SqlLicenseChecker sqlLicenseChecker) {
         super(settings, CliAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, CliRequest::new);
         this.sqlLicenseChecker = sqlLicenseChecker;
-        this.cliServer = new CliServer(planExecutor, clusterService.getClusterName().value(), () -> clusterService.localNode().getName(), Version.CURRENT, Build.CURRENT);
+        this.cliServer = new CliServer(planExecutor, clusterService.getClusterName().value(),
+                () -> clusterService.localNode().getName(), Version.CURRENT, Build.CURRENT);
     }
 
     @Override

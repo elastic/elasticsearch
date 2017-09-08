@@ -5,20 +5,21 @@
  */
 package org.elasticsearch.xpack.sql.analysis.catalog;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
-import java.util.List;
-
-
+/**
+ * Converts from Elasticsearch's internal metadata ({@link ClusterState})
+ * into a representation that is compatible with SQL (@{link {@link EsIndex}).
+ */
 public interface Catalog {
     /**
      * Lookup the information for a table, returning {@code null} if
      * the index is not found.
-     * @throws SqlIllegalArgumentException if the index is in some way invalid for use with sql
+     * @throws SqlIllegalArgumentException if the index is in some way invalid
+     *      for use with SQL
      */
     @Nullable
     EsIndex getIndex(String index) throws SqlIllegalArgumentException;
-
-    List<EsIndex> listIndices(String pattern);
 }

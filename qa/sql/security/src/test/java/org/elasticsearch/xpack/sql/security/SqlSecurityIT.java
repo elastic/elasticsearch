@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.sql.plugin.SqlGetIndicesAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -38,12 +39,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.sql.RestSqlTestCase.columnInfo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItems;
 
 public class SqlSecurityIT extends ESRestTestCase {
     private static boolean oneTimeSetup = false;
@@ -77,11 +81,13 @@ public class SqlSecurityIT extends ESRestTestCase {
             return;
         }
         StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}\n");
+        bulk.append("{\"index\":{\"_index\": \"test\", \"_type\": \"doc\", \"_id\":\"1\"}\n");
         bulk.append("{\"a\": 1, \"b\": 2, \"c\": 3}\n");
-        bulk.append("{\"index\":{\"_id\":\"2\"}\n");
+        bulk.append("{\"index\":{\"_index\": \"test\", \"_type\": \"doc\", \"_id\":\"2\"}\n");
         bulk.append("{\"a\": 4, \"b\": 5, \"c\": 6}\n");
-        client().performRequest("PUT", "/test/test/_bulk", singletonMap("refresh", "true"),
+        bulk.append("{\"index\":{\"_index\": \"bort\", \"_type\": \"doc\", \"_id\":\"1\"}\n");
+        bulk.append("{\"a\": \"test\"}\n");
+        client().performRequest("PUT", "/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
         /* Wait for the audit log to go quiet and then clear it to protect
          * us from log events coming from other tests. */
@@ -140,9 +146,9 @@ public class SqlSecurityIT extends ESRestTestCase {
 
     // NOCOMMIT we're going to need to test jdbc and cli with these too!
     // NOCOMMIT we'll have to test scrolling as well
-    // NOCOMMIT tests for describing a table and showing tables
+    // NOCOMMIT assert that we don't have more audit logs then what we expect.
 
-    public void testSqlWorksAsAdmin() throws Exception {
+    public void testQueryWorksAsAdmin() throws Exception {
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
                 columnInfo("a", "long"),
@@ -153,18 +159,18 @@ public class SqlSecurityIT extends ESRestTestCase {
                 Arrays.asList(4, 5, 6)));
         expected.put("size", 2);
         assertResponse(expected, runSql("SELECT * FROM test ORDER BY a", null));
-        assertAuditForSqlGranted("test_admin", "test");
+        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
     }
 
-    public void testSqlWithFullAccess() throws Exception {
-        createUser("full_access", "read_test");
+    public void testQueryWithFullAccess() throws Exception {
+        createUser("full_access", "read_all");
 
         assertResponse(runSql("SELECT * FROM test ORDER BY a", null), runSql("SELECT * FROM test ORDER BY a", "full_access"));
-        assertAuditForSqlGranted("test_admin", "test");
-        assertAuditForSqlGranted("full_access", "test");
+        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
+        assertAuditForSqlGetTableSyncGranted("full_access", "test");
     }
 
-    public void testSqlNoAccess() throws Exception {
+    public void testQueryNoAccess() throws Exception {
         createUser("no_access", "read_nothing");
 
         ResponseException e = expectThrows(ResponseException.class, () -> runSql("SELECT * FROM test", "no_access"));
@@ -174,7 +180,7 @@ public class SqlSecurityIT extends ESRestTestCase {
                 && "no_access".equals(m.get("principal")));
     }
 
-    public void testSqlWrongAccess() throws Exception {
+    public void testQueryWrongAccess() throws Exception {
         createUser("wrong_access", "read_something_else");
 
         ResponseException e = expectThrows(ResponseException.class, () -> runSql("SELECT * FROM test", "wrong_access"));
@@ -192,12 +198,12 @@ public class SqlSecurityIT extends ESRestTestCase {
                 && "wrong_access".equals(m.get("principal")));
     }
 
-    public void testSqlSingleFieldGranted() throws Exception {
+    public void testQuerySingleFieldGranted() throws Exception {
         createUser("only_a", "read_test_a");
 
         assertResponse(runSql("SELECT a FROM test", null), runSql("SELECT * FROM test", "only_a"));
-        assertAuditForSqlGranted("test_admin", "test");
-        assertAuditForSqlGranted("only_a", "test");
+        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
+        assertAuditForSqlGetTableSyncGranted("only_a", "test");
         clearAuditEvents();
         expectBadRequest(() -> runSql("SELECT c FROM test", "only_a"), containsString("line 1:8: Unresolved item 'c'"));
         /* The user has permission to query the index but one of the
@@ -206,15 +212,15 @@ public class SqlSecurityIT extends ESRestTestCase {
          * query from the audit side because all the permissions checked
          * out but it failed in SQL because it couldn't compile the
          * query without the metadata for the missing field. */
-        assertAuditForSqlGranted("only_a", "test");
+        assertAuditForSqlGetTableSyncGranted("only_a", "test");
     }
 
-    public void testSqlSingleFieldExcepted() throws Exception {
+    public void testQuerySingleFieldExcepted() throws Exception {
         createUser("not_c", "read_test_a_and_b");
 
         assertResponse(runSql("SELECT a, b FROM test", null), runSql("SELECT * FROM test", "not_c"));
-        assertAuditForSqlGranted("test_admin", "test");
-        assertAuditForSqlGranted("not_c", "test");
+        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
+        assertAuditForSqlGetTableSyncGranted("not_c", "test");
         clearAuditEvents();
         expectBadRequest(() -> runSql("SELECT c FROM test", "not_c"), containsString("line 1:8: Unresolved item 'c'"));
         /* The user has permission to query the index but one of the
@@ -223,14 +229,164 @@ public class SqlSecurityIT extends ESRestTestCase {
          * query from the audit side because all the permissions checked
          * out but it failed in SQL because it couldn't compile the
          * query without the metadata for the missing field. */
-        assertAuditForSqlGranted("not_c", "test");
+        assertAuditForSqlGetTableSyncGranted("not_c", "test");
     }
 
-    public void testSqlDocumentExclued() throws Exception {
+    public void testQueryDocumentExclued() throws Exception {
         createUser("no_3s", "read_test_without_c_3");
 
         assertResponse(runSql("SELECT * FROM test WHERE c != 3", null), runSql("SELECT * FROM test", "no_3s"));
-        assertAuditForSqlGranted("no_3s", "test");
+        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
+        assertAuditForSqlGetTableSyncGranted("no_3s", "test");
+    }
+
+    public void testShowTablesWorksAsAdmin() throws Exception {
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", singletonList(columnInfo("table", "keyword")));
+        expected.put("rows", Arrays.asList(
+                singletonList("bort"),
+                singletonList("test")));
+        expected.put("size", 2);
+        assertResponse(expected, runSql("SHOW TABLES", null));
+        assertAuditEvents(
+                audit(true, SqlAction.NAME, "test_admin", null),
+                audit(true, SqlGetIndicesAction.NAME, "test_admin", hasItems("test", "bort")));
+    }
+
+    public void testShowTablesWorksAsFullAccess() throws Exception {
+        createUser("full_access", "read_all");
+
+        assertResponse(runSql("SHOW TABLES", null), runSql("SHOW TABLES", "full_access"));
+        assertAuditEvents(
+                audit(true, SqlAction.NAME, "test_admin", null),
+                audit(true, SqlGetIndicesAction.NAME, "test_admin", hasItems("test", "bort")),
+                audit(true, SqlAction.NAME, "full_access", null),
+                audit(true, SqlGetIndicesAction.NAME, "full_access", hasItems("test", "bort")));
+    }
+
+    public void testShowTablesWithNoAccess() throws Exception {
+        createUser("no_access", "read_nothing");
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runSql("SHOW TABLES", "no_access"));
+        assertThat(e.getMessage(), containsString("403 Forbidden"));
+        assertAuditEvents(audit(false, SqlAction.NAME, "no_access", null));
+    }
+
+    public void testShowTablesWithLimitedAccess() throws Exception {
+        createUser("read_bort", "read_bort");
+
+        assertResponse(runSql("SHOW TABLES LIKE 'bort'", null), runSql("SHOW TABLES", "read_bort"));
+        assertAuditForSqlGetTableSyncGranted("test_admin", "bort");
+        assertAuditEvents(
+                audit(true, SqlAction.NAME, "test_admin", null),
+                audit(true, SqlGetIndicesAction.NAME, "test_admin", contains("bort")),
+                audit(true, SqlAction.NAME, "read_bort", null),
+                audit(true, SqlGetIndicesAction.NAME, "read_bort", contains("bort")));
+    }
+
+    public void testShowTablesWithLimitedAccessAndPattern() throws Exception {
+        createUser("read_bort", "read_bort");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", singletonList(columnInfo("table", "keyword")));
+        expected.put("rows", emptyList());
+        expected.put("size", 0);
+
+        assertResponse(expected, runSql("SHOW TABLES LIKE 'test'", "read_bort"));
+        assertAuditEvents(
+                audit(true, SqlAction.NAME, "read_bort", null),
+                audit(true, SqlGetIndicesAction.NAME, "read_bort", contains("*", "-*")));
+    }
+
+    public void testDescribeWorksAsAdmin() throws Exception {
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", Arrays.asList(
+                columnInfo("column", "keyword"),
+                columnInfo("type", "keyword")));
+        expected.put("rows", Arrays.asList(
+                Arrays.asList("a", "BIGINT"),
+                Arrays.asList("b", "BIGINT"),
+                Arrays.asList("c", "BIGINT")));
+        expected.put("size", 3);
+        assertResponse(expected, runSql("DESCRIBE test", null));
+        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
+    }
+
+    public void testDescribeWorksAsFullAccess() throws Exception {
+        createUser("full_access", "read_all");
+
+        assertResponse(runSql("DESCRIBE test", null), runSql("DESCRIBE test", "full_access"));
+        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
+        assertAuditForSqlGetTableSyncGranted("full_access", "test");
+    }
+
+    public void testDescribeWithNoAccess() throws Exception {
+        createUser("no_access", "read_nothing");
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runSql("DESCRIBE test", "no_access"));
+        assertThat(e.getMessage(), containsString("403 Forbidden"));
+        assertAuditEvents(m -> "access_denied".equals(m.get("event_type"))
+                && m.get("indices") == null
+                && "no_access".equals(m.get("principal")));
+    }
+
+    public void testDescribeWithWrongAccess() throws Exception {
+        createUser("wrong_access", "read_something_else");
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runSql("DESCRIBE test", "wrong_access"));
+        assertThat(e.getMessage(), containsString("403 Forbidden"));
+        assertAuditEvents(
+                /* This user has permission to run sql queries so they are
+                 * given preliminary authorization. */
+                m -> "access_granted".equals(m.get("event_type"))
+                && null == m.get("indices")
+                && "wrong_access".equals(m.get("principal")),
+                /* But as soon as they attempt to resolve an index that
+                 * they don't have access to they get denied. */
+                m -> "access_denied".equals(m.get("event_type"))
+                && singletonList("test").equals(m.get("indices"))
+                && "wrong_access".equals(m.get("principal")));
+
+    }
+    
+    public void testDescribeSingleFieldGranted() throws Exception {
+        createUser("only_a", "read_test_a");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", Arrays.asList(
+                columnInfo("column", "keyword"),
+                columnInfo("type", "keyword")));
+        expected.put("rows", singletonList(Arrays.asList("a", "BIGINT")));
+        expected.put("size", 1);
+
+        assertResponse(expected, runSql("DESCRIBE test", "only_a"));
+        assertAuditForSqlGetTableSyncGranted("only_a", "test");
+        clearAuditEvents();
+    }
+
+    public void testDescribeSingleFieldExcepted() throws Exception {
+        createUser("not_c", "read_test_a_and_b");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", Arrays.asList(
+                columnInfo("column", "keyword"),
+                columnInfo("type", "keyword")));
+        expected.put("rows", Arrays.asList(
+                Arrays.asList("a", "BIGINT"),
+                Arrays.asList("b", "BIGINT")));
+        expected.put("size", 2);
+
+        assertResponse(expected, runSql("DESCRIBE test", "not_c"));
+        assertAuditForSqlGetTableSyncGranted("not_c", "test");
+        clearAuditEvents();
+    }
+
+    public void testDescribeDocumentExclued() throws Exception {
+        createUser("no_3s", "read_test_without_c_3");
+
+        assertResponse(runSql("DESCRIBE test", null), runSql("DESCRIBE test", "no_3s"));
+        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
+        assertAuditForSqlGetTableSyncGranted("no_3s", "test");
     }
 
     private void expectBadRequest(ThrowingRunnable code, Matcher<String> errorMessageMatcher) {
@@ -271,12 +427,14 @@ public class SqlSecurityIT extends ESRestTestCase {
                 new StringEntity(user.string(), ContentType.APPLICATION_JSON));
     }
 
-    private void assertAuditForSqlGranted(String user, String index) throws Exception {
+    private void assertAuditForSqlGetTableSyncGranted(String user, String index) throws Exception {
         assertAuditEvents(
                 m -> "access_granted".equals(m.get("event_type"))
+                    && SqlAction.NAME.equals(m.get("action"))
                     && m.get("indices") == null
                     && user.equals(m.get("principal")),
                 m -> "access_granted".equals(m.get("event_type"))
+                    && SqlAction.NAME.equals(m.get("action"))
                     && singletonList(index).equals(m.get("indices"))
                     && user.equals(m.get("principal")));
     }
@@ -292,9 +450,21 @@ public class SqlSecurityIT extends ESRestTestCase {
             assertBusy(() -> {
                 XContentBuilder search = JsonXContent.contentBuilder().prettyPrint();
                 search.startObject(); {
-                    search.array("_source", "@timestamp", "indices", "principal", "event_type");
                     search.startObject("query"); {
-                        search.startObject("match").field("action", SqlAction.NAME).endObject();
+                        search.startObject("bool"); {
+                            search.startArray("should"); {
+                                search.startObject(); {
+                                    search.startObject("match").field("action", SqlAction.NAME).endObject();
+                                }
+                                search.endObject();
+                                search.startObject(); {
+                                    search.startObject("match").field("action", SqlGetIndicesAction.NAME).endObject();
+                                }
+                                search.endObject();
+                            }
+                            search.endArray();
+                        }
+                        search.endObject();
                     }
                     search.endObject();
                 }
@@ -339,6 +509,15 @@ public class SqlSecurityIT extends ESRestTestCase {
             }
             throw e;
         }
+    }
+
+    private CheckedFunction<Map<?, ?>, Boolean, Exception> audit(boolean granted, String action,
+            String principal, Matcher<? extends Iterable<? extends String>> indicesMatcher) {
+        String eventType = granted ? "access_granted" : "access_denied";
+        return m -> eventType.equals(m.get("event_type"))
+            && action.equals(m.get("action"))
+            && principal.equals(m.get("principal"))
+            && (indicesMatcher == null ? false == m.containsKey("indices") : indicesMatcher.matches(m.get("indices")));
     }
 
     private void clearAuditEvents() throws Exception {

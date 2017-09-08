@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
@@ -78,13 +77,6 @@ import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
-
-    private final Catalog catalog;
-
-    public Optimizer(Catalog catalog) {
-        this.catalog = catalog;
-    }
-
     public ExecutionInfo debugOptimize(LogicalPlan verified) {
         return verified.optimized() ? null : executeWithInfo(verified);
     }

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.catalog;
 
-import java.util.List;
-
 /**
  * {@link Catalog} implementation that filters the results.
  */
@@ -29,14 +27,7 @@ public class FilteredCatalog implements Catalog {
     }
 
     @Override
-    public List<EsIndex> listIndices(String pattern) {
-        // NOCOMMIT authorize me
-        return delegate.listIndices(pattern);
-    }
-
-    @Override
     public EsIndex getIndex(String index) {
-        // NOCOMMIT we need to think really carefully about how we deal with aliases that resolve into multiple indices.
         EsIndex result = delegate.getIndex(index);
         if (result == null) {
             return null;

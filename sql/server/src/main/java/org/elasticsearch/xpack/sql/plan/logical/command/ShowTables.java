@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
-import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
@@ -13,21 +16,21 @@ import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
-import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
 
 public class ShowTables extends Command {
 
+    @Nullable
     private final String pattern;
 
-    public ShowTables(Location location, String pattern) {
+    public ShowTables(Location location, @Nullable String pattern) {
         super(location);
         this.pattern = pattern;
     }
@@ -42,14 +45,18 @@ public class ShowTables extends Command {
     }
 
     @Override
-    protected RowSetCursor execute(SqlSession session) {
-        List<EsIndex> indices = session.catalog().listIndices(pattern);
-        // Consistent sorting is nice both for testing and humans
-        Collections.sort(indices, comparing(EsIndex::name));
-
-        return Rows.of(output(), indices.stream()
+    public final void execute(SqlSession session, ActionListener<RowSetCursor> listener) {
+        String pattern = Strings.hasText(this.pattern) ? StringUtils.jdbcToEsPattern(this.pattern) : "*";
+        session.getIndices(new String[] {pattern}, IndicesOptions.lenientExpandOpen(), ActionListener.wrap(result -> {
+            listener.onResponse(Rows.of(output(), result.stream()
                 .map(t -> singletonList(t.name()))
-                .collect(toList()));
+                .collect(toList())));
+        }, listener::onFailure));
+    }
+
+    @Override
+    protected RowSetCursor execute(SqlSession session) {
+        throw new UnsupportedOperationException("No synchronous exec");
     }
 
     @Override

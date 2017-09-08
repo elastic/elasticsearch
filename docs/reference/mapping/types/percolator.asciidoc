@@ -277,6 +277,9 @@ now returns matches from the new index:
               "body": "quick brown fox"
             }
           }
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0]
         }
       }
     ]
@@ -472,6 +475,9 @@ This results in a response like this:
               }
             }
           }
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0]
         }
       }
     ]

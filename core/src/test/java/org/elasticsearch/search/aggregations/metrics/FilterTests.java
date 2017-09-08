@@ -29,9 +29,6 @@ public class FilterTests extends BaseAggregationTestCase<FilterAggregationBuilde
     protected FilterAggregationBuilder createTestAggregatorBuilder() {
         FilterAggregationBuilder factory = new FilterAggregationBuilder(randomAlphaOfLengthBetween(1, 20),
                 QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
-        // NORELEASE make RandomQueryBuilder work outside of the
-        // AbstractQueryTestCase
-        // builder.query(RandomQueryBuilder.createQuery(getRandom()));
         return factory;
     }
 

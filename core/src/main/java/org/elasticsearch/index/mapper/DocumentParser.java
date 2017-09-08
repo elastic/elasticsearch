@@ -175,14 +175,21 @@ final class DocumentParser {
     }
 
     private static String[] splitAndValidatePath(String fullFieldPath) {
-        String[] parts = fullFieldPath.split("\\.");
-        for (String part : parts) {
-            if (Strings.hasText(part) == false) {
-                throw new IllegalArgumentException(
-                    "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]");
+        if (fullFieldPath.contains(".")) {
+            String[] parts = fullFieldPath.split("\\.");
+            for (String part : parts) {
+                if (Strings.hasText(part) == false) {
+                    throw new IllegalArgumentException(
+                            "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]");
+                }
             }
+            return parts;
+        } else {
+            if (Strings.isEmpty(fullFieldPath)) {
+                throw new IllegalArgumentException("field name cannot be an empty string");
+            }
+            return new String[] {fullFieldPath};
         }
-        return parts;
     }
 
     /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */

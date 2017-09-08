@@ -79,7 +79,8 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "target node version [%s] is the same or newer than source node version [%s]",
                     target.node().getVersion(), source.node().getVersion());
         } else {
-            return allocation.decision(Decision.NO, NAME, "target node version [%s] is older than the source node version [%s]",
+            return allocation.decision(Decision.NO, NAME, "target node version [%s] is older than the source node version [%s] and may " +
+                            "not support codecs or postings formats for a newer Lucene version",
                     target.node().getVersion(), source.node().getVersion());
         }
     }
@@ -90,7 +91,8 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "target node version [%s] is the same or newer than snapshot version [%s]",
                 target.node().getVersion(), recoverySource.version());
         } else {
-            return allocation.decision(Decision.NO, NAME, "target node version [%s] is older than the snapshot version [%s]",
+            return allocation.decision(Decision.NO, NAME, "target node version [%s] is older than the snapshot version [%s] and may " +
+                            "not support codecs or postings formats for a newer Lucene version",
                 target.node().getVersion(), recoverySource.version());
         }
     }

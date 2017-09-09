@@ -39,7 +39,10 @@ public final class ResponseException extends IOException {
     }
 
     private static String buildMessage(Response response) throws IOException {
-        String message = response.getRequestLine().getMethod() + " " + response.getHost() + response.getRequestLine().getUri()
+        String message = response.getRequestLine().getMethod() + " " + response.getHost();
+        if (!message.endsWith("/") && !response.getRequestLine().getUri().startsWith("/"))
+            message += "/";
+        message += response.getRequestLine().getUri()
                 + ": " + response.getStatusLine().toString();
 
         HttpEntity entity = response.getEntity();

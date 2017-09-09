@@ -236,7 +236,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             standardOutput = new ByteArrayOutputStream()
             doLast {
                 String version = standardOutput.toString().trim()
-                if ((version ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/) == false) {
+                if ((version ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/) == false && (version ==~ /Vagrant 2\.[0-9]\.[0-9]+/) == false) {
                     throw new InvalidUserDataException("Illegal version of vagrant [${version}]. Need [Vagrant 1.8.6+]")
                 }
             }

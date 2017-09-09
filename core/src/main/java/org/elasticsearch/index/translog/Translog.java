@@ -43,7 +43,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
@@ -634,7 +634,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return Stream.concat(readers.stream(), Stream.of(current))
             .filter(reader -> {
                 final long maxSeqNo = reader.getCheckpoint().maxSeqNo;
-                return maxSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO || maxSeqNo >= minSeqNo;
+                return maxSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || maxSeqNo >= minSeqNo;
             });
     }
 
@@ -978,7 +978,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 seqNo = in.readLong();
                 primaryTerm = in.readLong();
             } else {
-                seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
                 primaryTerm = 0;
             }
         }
@@ -1182,7 +1182,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 seqNo = in.readLong();
                 primaryTerm = in.readLong();
             } else {
-                seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
                 primaryTerm = 0;
             }
         }
@@ -1329,7 +1329,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         public NoOp(final long seqNo, final long primaryTerm, final String reason) {
-            assert seqNo > SequenceNumbersService.NO_OPS_PERFORMED;
+            assert seqNo > SequenceNumbers.NO_OPS_PERFORMED;
             assert primaryTerm >= 0;
             assert reason != null;
             this.seqNo = seqNo;

@@ -72,7 +72,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
     public void testSort() throws Exception {
         List<CompletionSuggestion> suggestions = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(randomIntBetween(1, 5)), randomIntBetween(1, 20)));
+            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(randomIntBetween(1, 5)), randomIntBetween(1, 20), false));
         }
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
@@ -139,7 +139,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             int size = randomIntBetween(1, 20);
             maxSuggestSize += size;
-            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(randomIntBetween(1, 5)), size));
+            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(randomIntBetween(1, 5)), size, false));
         }
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
@@ -202,7 +202,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             List<CompletionSuggestion> shardSuggestion = new ArrayList<>();
             for (CompletionSuggestion completionSuggestion : suggestions) {
                 CompletionSuggestion suggestion = new CompletionSuggestion(
-                    completionSuggestion.getName(), completionSuggestion.getSize());
+                    completionSuggestion.getName(), completionSuggestion.getSize(), false);
                 final CompletionSuggestion.Entry completionEntry = new CompletionSuggestion.Entry(new Text(""), 0, 5);
                 suggestion.addTerm(completionEntry);
                 int optionSize = randomIntBetween(1, suggestion.getSize());

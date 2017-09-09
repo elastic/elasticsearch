@@ -57,14 +57,6 @@ public class SortBuilders {
     }
 
     /**
-     * Constructs a new nested sort builder.
-     *
-     */
-    public static NestedSortBuilder nestedSort(String path) {
-        return new NestedSortBuilder(path);
-    }
-
-    /**
      * A geo distance based sort.
      *
      * @param fieldName The geo point like field name.

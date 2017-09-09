@@ -42,6 +42,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
@@ -57,6 +58,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -139,8 +141,8 @@ final class Request {
             bulkContentType = XContentType.JSON;
         }
 
-        byte separator = bulkContentType.xContent().streamSeparator();
-        ContentType requestContentType = ContentType.create(bulkContentType.mediaType());
+        final byte separator = bulkContentType.xContent().streamSeparator();
+        final ContentType requestContentType = createContentType(bulkContentType);
 
         ByteArrayOutputStream content = new ByteArrayOutputStream();
         for (DocWriteRequest<?> request : bulkRequest.requests()) {
@@ -268,7 +270,7 @@ final class Request {
         parameters.withWaitForActiveShards(indexRequest.waitForActiveShards());
 
         BytesRef source = indexRequest.source().toBytesRef();
-        ContentType contentType = ContentType.create(indexRequest.getContentType().mediaType());
+        ContentType contentType = createContentType(indexRequest.getContentType());
         HttpEntity entity = new ByteArrayEntity(source.bytes, source.offset, source.length, contentType);
 
         return new Request(method, endpoint, parameters.getParams(), entity);
@@ -352,7 +354,7 @@ final class Request {
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
-        return new ByteArrayEntity(source.bytes, source.offset, source.length, ContentType.create(xContentType.mediaType()));
+        return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
     static String endpoint(String[] indices, String[] types, String endpoint) {
@@ -370,6 +372,17 @@ final class Request {
             }
         }
         return joiner.toString();
+    }
+
+    /**
+     * Returns a {@link ContentType} from a given {@link XContentType}.
+     *
+     * @param xContentType the {@link XContentType}
+     * @return the {@link ContentType}
+     */
+    @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
+    static ContentType createContentType(final XContentType xContentType) {
+        return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
     }
 
     /**

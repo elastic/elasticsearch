@@ -82,6 +82,7 @@ After this, the `SearchSourceBuilder` only needs to be added to the
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-setter]
 --------------------------------------------------
 
+[[java-rest-high-document-search-request-building-queries]]
 ===== Building queries
 
 Search queries are created using `QueryBuilder` objects. A `QueryBuilder` exists
@@ -125,7 +126,7 @@ to the `SearchSourceBuilder` as follows:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-query-setter]
 --------------------------------------------------
 
-The <<java-rest-high-search-queries, Search Queries>> page gives a list of all available search queries with
+The <<java-rest-high-query-builders, Building Queries>> page gives a list of all available search queries with
 their corresponding `QueryBuilder` objects and `QueryBuilders` helper methods.
 
 
@@ -178,6 +179,7 @@ setters with a similar name (e.g. `#preTags(String ...)`).
 
 Highlighted text fragments can <<java-rest-high-retrieve-highlighting,later be retrieved>> from the `SearchResponse`.
 
+[[java-rest-high-document-search-request-building-aggs]]
 ===== Requesting Aggregations
 
 Aggregations can be added to the search by first creating the appropriate
@@ -190,7 +192,7 @@ sub-aggregation on the average age of employees in the company:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations]
 --------------------------------------------------
 
-The <<java-rest-high-aggregations, Aggregations>> page gives a list of all available aggregations with
+The <<java-rest-high-aggregation-builders, Building Aggregations>> page gives a list of all available aggregations with
 their corresponding `AggregationBuilder` objects and `AggregationBuilders` helper methods.
 
 We will later see how to <<java-rest-high-retrieve-aggs,access aggregations>> in the `SearchResponse`.

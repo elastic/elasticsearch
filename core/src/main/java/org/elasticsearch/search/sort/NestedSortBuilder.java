@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import static org.elasticsearch.search.sort.SortBuilder.parseNestedFilter;
-
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,16 +27,19 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class NestedSortBuilder implements Writeable, Writeable.Reader<NestedSortBuilder>, ToXContentObject {
+import static org.elasticsearch.search.sort.SortBuilder.parseNestedFilter;
+
+public class NestedSortBuilder implements Writeable, ToXContentObject {
     public static final ParseField NESTED_FIELD = new ParseField("nested");
     public static final ParseField PATH_FIELD = new ParseField("path");
     public static final ParseField FILTER_FIELD = new ParseField("filter");
 
-    private String path;
+    private final String path;
     private QueryBuilder filter;
     private NestedSortBuilder nestedSort;
 
@@ -47,24 +48,13 @@ public class NestedSortBuilder implements Writeable, Writeable.Reader<NestedSort
     }
 
     public NestedSortBuilder(StreamInput in) throws IOException {
-        read(in);
-    }
-
-    public NestedSortBuilder(NestedSortBuilder other) {
-        if (other != null) {
-            this.path = other.path;
-            this.filter = other.filter;
-            this.nestedSort = other.nestedSort;
-        }
+        path = in.readOptionalString();
+        filter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
     }
 
     public String getPath() {
         return path;
-    }
-
-    public NestedSortBuilder setPath(final String path) {
-        this.path = path;
-        return this;
     }
 
     public QueryBuilder getFilter() {
@@ -93,19 +83,6 @@ public class NestedSortBuilder implements Writeable, Writeable.Reader<NestedSort
         out.writeOptionalString(path);
         out.writeOptionalNamedWriteable(filter);
         out.writeOptionalWriteable(nestedSort);
-    }
-
-    /**
-     * Read {@code V}-type value from a stream.
-     *
-     * @param in Input to read the value from
-     */
-    @Override
-    public NestedSortBuilder read(final StreamInput in) throws IOException {
-        path = in.readOptionalString();
-        filter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
-        return this;
     }
 
     @Override
@@ -172,5 +149,24 @@ public class NestedSortBuilder implements Writeable, Writeable.Reader<NestedSort
     @Override
     public int hashCode() {
         return Objects.hash(path, filter, nestedSort);
+    }
+
+    public NestedSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        if (filter == null && nestedSort == null) {
+            return this;
+        }
+        QueryBuilder rewriteFilter = this.filter;
+        NestedSortBuilder rewriteNested = this.nestedSort;
+        if (filter != null) {
+            rewriteFilter = filter.rewrite(ctx);
+        }
+        if (nestedSort != null) {
+            rewriteNested = nestedSort.rewrite(ctx);
+        }
+        if (rewriteFilter != this.filter || rewriteNested != this.nestedSort) {
+            return new NestedSortBuilder(this.path).setFilter(rewriteFilter).setNestedSort(rewriteNested);
+        } else {
+            return this;
+        }
     }
 }

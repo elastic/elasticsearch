@@ -225,7 +225,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
                     // - Since taskCount will now be incremented forever, it will never be 10 again,
                     //   so there will be no further adjustments
                     logger.debug("[{}]: too many incoming tasks while queue size adjustment occurs, resetting measurements to 0", name);
-                    totalTaskNanos.getAndSet(0);
+                    totalTaskNanos.getAndSet(1);
                     taskCount.getAndSet(0);
                     startNs = System.nanoTime();
                 } else {

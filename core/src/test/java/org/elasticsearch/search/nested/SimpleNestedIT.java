@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
@@ -629,11 +630,11 @@ public class SimpleNestedIT extends ESIntegTestCase {
             .setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("acl.operation.user.username")
-                    .setNestedSort(SortBuilders.nestedSort("acl")
+                    .setNestedSort(new NestedSortBuilder("acl")
                         .setFilter(QueryBuilders.termQuery("acl.access_id", "1"))
-                        .setNestedSort(SortBuilders.nestedSort("acl.operation")
+                        .setNestedSort(new NestedSortBuilder("acl.operation")
                             .setFilter(QueryBuilders.termQuery("acl.operation.name", "read"))
-                            .setNestedSort(SortBuilders.nestedSort("acl.operation.user"))))
+                            .setNestedSort(new NestedSortBuilder("acl.operation.user"))))
                     .sortMode(SortMode.MAX)
                     .order(SortOrder.ASC)
             )
@@ -652,11 +653,11 @@ public class SimpleNestedIT extends ESIntegTestCase {
             .setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("acl.operation.user.username")
-                    .setNestedSort(SortBuilders.nestedSort("acl")
+                    .setNestedSort(new NestedSortBuilder("acl")
                         .setFilter(QueryBuilders.termQuery("acl.access_id", "1"))
-                        .setNestedSort(SortBuilders.nestedSort("acl.operation")
+                        .setNestedSort(new NestedSortBuilder("acl.operation")
                             .setFilter(QueryBuilders.termQuery("acl.operation.name", "read"))
-                            .setNestedSort(SortBuilders.nestedSort("acl.operation.user"))))
+                            .setNestedSort(new NestedSortBuilder("acl.operation.user"))))
                     .sortMode(SortMode.MIN)
                     .order(SortOrder.ASC)
             )
@@ -674,10 +675,10 @@ public class SimpleNestedIT extends ESIntegTestCase {
             .setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("acl.operation.user.id")
-                    .setNestedSort(SortBuilders.nestedSort("acl")
-                        .setNestedSort(SortBuilders.nestedSort("acl.operation")
+                    .setNestedSort(new NestedSortBuilder("acl")
+                        .setNestedSort(new NestedSortBuilder("acl.operation")
                             .setFilter(QueryBuilders.termQuery("acl.operation.name", "execute"))
-                            .setNestedSort(SortBuilders.nestedSort("acl.operation.user")
+                            .setNestedSort(new NestedSortBuilder("acl.operation.user")
                                 .setFilter(QueryBuilders.termsQuery("acl.operation.user.username", "matt", "luca")))))
                     .missing("_first")
                     .sortMode(SortMode.MIN)
@@ -696,10 +697,10 @@ public class SimpleNestedIT extends ESIntegTestCase {
             .setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("acl.operation.user.username")
-                    .setNestedSort(SortBuilders.nestedSort("acl")
-                        .setNestedSort(SortBuilders.nestedSort("acl.operation")
+                    .setNestedSort(new NestedSortBuilder("acl")
+                        .setNestedSort(new NestedSortBuilder("acl.operation")
                             .setFilter(QueryBuilders.termQuery("acl.operation.name", "execute"))
-                            .setNestedSort(SortBuilders.nestedSort("acl.operation.user")
+                            .setNestedSort(new NestedSortBuilder("acl.operation.user")
                                 .setFilter(QueryBuilders.termsQuery("acl.operation.user.username", "matt", "luca")))))
                     .sortMode(SortMode.MIN)
                     .order(SortOrder.DESC)
@@ -942,9 +943,9 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort(
                         SortBuilders.fieldSort("parent.child.child_values")
-                                .setNestedSort(SortBuilders.nestedSort("parent")
+                                .setNestedSort(new NestedSortBuilder("parent")
                                     .setFilter(QueryBuilders.termQuery("parent.filter", false))
-                                    .setNestedSort(SortBuilders.nestedSort("parent.child")))
+                                    .setNestedSort(new NestedSortBuilder("parent.child")))
                                 .sortMode(SortMode.MAX)
                                 .order(SortOrder.ASC)
                 )

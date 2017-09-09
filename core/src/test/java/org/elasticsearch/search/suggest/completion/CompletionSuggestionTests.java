@@ -24,6 +24,7 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -38,7 +39,7 @@ public class CompletionSuggestionTests extends ESTestCase {
         String name = randomAlphaOfLength(10);
         int size = randomIntBetween(3, 5);
         for (int i = 0; i < nShards; i++) {
-            CompletionSuggestion suggestion = new CompletionSuggestion(name, size);
+            CompletionSuggestion suggestion = new CompletionSuggestion(name, size, false);
             suggestion.addTerm(new CompletionSuggestion.Entry(new Text(""), 0, 0));
             shardSuggestions.add(suggestion);
         }

@@ -1747,6 +1747,10 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
         @Override
         public RolloverRequestBuilder prepareRolloverIndex(String... aliases) {
+            if (aliases.length == 0) {
+                throw new IllegalArgumentException("at least one alias or wildcard expected");
+            }
+
             final RolloverRequestBuilder builder = new RolloverRequestBuilder(this, RolloverAction.INSTANCE);
             for(String alias: aliases) {
                 builder.addAlias(alias);

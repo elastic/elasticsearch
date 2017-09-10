@@ -237,14 +237,17 @@ public class RolloverIT extends ESIntegTestCase {
         ensureGreen(index);
         RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.responses().get(0).getOldIndex(), equalTo(index));
-        assertThat(response.responses().get(0).getNewIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000002"));
+        assertThat(response.responses().get(0).getNewIndex(),
+            equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000002"));
         assertThat(response.responses().get(0).isDryRun(), equalTo(false));
         assertThat(response.responses().get(0).isRolledOver(), equalTo(true));
         assertThat(response.responses().get(0).getConditionStatus().size(), equalTo(0));
 
         response = client().admin().indices().prepareRolloverIndex("test_alias").get();
-        assertThat(response.responses().get(0).getOldIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000002"));
-        assertThat(response.responses().get(0).getNewIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000003"));
+        assertThat(response.responses().get(0).getOldIndex(),
+            equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000002"));
+        assertThat(response.responses().get(0).getNewIndex(),
+            equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000003"));
         assertThat(response.responses().get(0).isDryRun(), equalTo(false));
         assertThat(response.responses().get(0).isRolledOver(), equalTo(true));
         assertThat(response.responses().get(0).getConditionStatus().size(), equalTo(0));
@@ -257,8 +260,10 @@ public class RolloverIT extends ESIntegTestCase {
             IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
 
         response = client().admin().indices().prepareRolloverIndex("test_alias").setNewIndexName("<test-{now/d}-000004>").get();
-        assertThat(response.responses().get(0).getOldIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000003"));
-        assertThat(response.responses().get(0).getNewIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now) + "-000004"));
+        assertThat(response.responses().get(0).getOldIndex(),
+            equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000003"));
+        assertThat(response.responses().get(0).getNewIndex(),
+            equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now) + "-000004"));
         assertThat(response.responses().get(0).isDryRun(), equalTo(false));
         assertThat(response.responses().get(0).isRolledOver(), equalTo(true));
         assertThat(response.responses().get(0).getConditionStatus().size(), equalTo(0));

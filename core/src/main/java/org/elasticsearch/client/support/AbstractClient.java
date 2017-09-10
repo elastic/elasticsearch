@@ -1746,8 +1746,12 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public RolloverRequestBuilder prepareRolloverIndex(String alias) {
-            return new RolloverRequestBuilder(this, RolloverAction.INSTANCE).addAlias(alias);
+        public RolloverRequestBuilder prepareRolloverIndex(String... aliases) {
+            final RolloverRequestBuilder builder = new RolloverRequestBuilder(this, RolloverAction.INSTANCE);
+            for(String alias: aliases) {
+                builder.addAlias(alias);
+            }
+            return builder;
         }
 
         @Override

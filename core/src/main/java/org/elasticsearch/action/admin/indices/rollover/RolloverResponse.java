@@ -36,7 +36,7 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
-public class RolloverResponse extends ActionResponse implements ToXContentObject {
+public final class RolloverResponse extends ActionResponse implements ToXContentObject {
 
     private static final String NEW_INDEX = "new_index";
     private static final String OLD_INDEX = "old_index";
@@ -167,12 +167,8 @@ public class RolloverResponse extends ActionResponse implements ToXContentObject
         this.failures = failures;
     }
 
-    SingleAliasRolloverResponse first() {
-        if (responses.isEmpty()) {
-            throw new IllegalStateException("Response for at least 1 alias is expected");
-        }
-
-        return responses.get(0);
+    List<SingleAliasRolloverResponse> responses() {
+        return responses;
     }
 
     @Override
@@ -181,6 +177,7 @@ public class RolloverResponse extends ActionResponse implements ToXContentObject
         int responsesSize = in.readVInt();
         for (int j = 0; j < responsesSize; j++) {
             final SingleAliasRolloverResponse response = new SingleAliasRolloverResponse();
+            response.alias = in.readString();
             response.oldIndex = in.readString();
             response.newIndex = in.readString();
             int conditionSize = in.readVInt();
@@ -204,6 +201,7 @@ public class RolloverResponse extends ActionResponse implements ToXContentObject
         super.writeTo(out);
         out.writeVInt(responses.size());
         for (SingleAliasRolloverResponse response: responses) {
+            out.writeString(response.alias);
             out.writeString(response.oldIndex);
             out.writeString(response.newIndex);
             out.writeVInt(response.conditionStatus.size());
@@ -220,16 +218,10 @@ public class RolloverResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, Params params) throws IOException {
-        if (responses.isEmpty() && failures.isEmpty()) {
-            throw new IllegalStateException("Response for at least 1 alias is expected");
-        }
-
         builder.startObject();
-        builder.field(DRY_RUN, responses.get(0).isDryRun());
-
         // keep compatibility with single alias Rollover
         if (responses.size() == 1) {
-            first().toXContent(builder, params);
+            responses.get(0).toXContent(builder, params);
         }
 
         builder.startObject("rolled_over_aliases");
@@ -240,18 +232,15 @@ public class RolloverResponse extends ActionResponse implements ToXContentObject
         }
         builder.endObject();
 
-        if (failures.size() > 0) {
-            builder.startObject("failed_aliases");
-            for (Map.Entry<String, Exception> entry : failures.entrySet()) {
-                builder.startObject(entry.getKey());
-                ElasticsearchException.generateThrowableXContent(builder, params, entry.getValue());
-                builder.endObject();
-            }
+        builder.startObject("failed_aliases");
+        for (Map.Entry<String, Exception> entry : failures.entrySet()) {
+            builder.startObject(entry.getKey());
+            ElasticsearchException.generateThrowableXContent(builder, params, entry.getValue());
             builder.endObject();
         }
-
         builder.endObject();
 
+        builder.endObject();
         return builder;
     }
 }

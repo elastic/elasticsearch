@@ -21,6 +21,15 @@ bin/elasticsearch-keystore add azure.client.default.key
 
 Where `account` is the azure account name and `key` the azure secret key.
 
+You can specify an `endpoint_suffix` for storage account explicitly. Defaults to `core.windows.net`.
+
+[source,sh]
+-------------------------------------------------------------------
+bin/elasticsearch-keystore add azure.client.default.account
+bin/elasticsearch-keystore add azure.client.default.key
+bin/elasticsearch-keystore add azure.client.default.endpoint_suffix
+-------------------------------------------------------------------
+
 Note that you can also define more than one account:
 
 [source,sh]

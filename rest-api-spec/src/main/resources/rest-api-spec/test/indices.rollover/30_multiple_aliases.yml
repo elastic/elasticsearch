@@ -39,7 +39,6 @@
           conditions:
             max_docs: 1
 
-  - match: { dry_run: false }
   - match: { rolled_over_aliases.logs_search1.rolled_over: true }
   - match: { rolled_over_aliases.logs_search2.rolled_over: false }
-
+  - length: { failed_aliases: 0 }

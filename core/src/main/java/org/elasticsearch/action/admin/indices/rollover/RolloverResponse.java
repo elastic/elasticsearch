@@ -140,6 +140,7 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
             builder.field(OLD_INDEX, oldIndex);
             builder.field(NEW_INDEX, newIndex);
             builder.field(ROLLED_OVER, rolledOver);
+            builder.field(DRY_RUN, dryRun);
             builder.field(ACKNOWLEDGED, acknowledged);
             builder.field(SHARDS_ACKED, shardsAcked);
             builder.startObject(CONDITIONS);

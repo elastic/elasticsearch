@@ -51,6 +51,12 @@ public final class AzureStorageSettings {
         key -> SecureSetting.secureString(key, null));
 
     /**
+     * Azure endpoint suffix. Default to core.windows.net (CloudStorageAccount.DEFAULT_DNS).
+     */
+    public static final AffixSetting<SecureString> ENDPOINT_SUFFIX_SETTING = Setting.affixKeySetting(PREFIX, "endpoint_suffix",
+        key -> SecureSetting.secureString(key, null));
+
+    /**
      * max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT).
      */
     private static final Setting<Integer> MAX_RETRIES_SETTING =
@@ -85,15 +91,17 @@ public final class AzureStorageSettings {
     private final String name;
     private final String account;
     private final String key;
+    private final String endpointSuffix;
     private final TimeValue timeout;
     @Deprecated
     private final boolean activeByDefault;
     private final int maxRetries;
 
-    public AzureStorageSettings(String account, String key, TimeValue timeout, int maxRetries) {
+    public AzureStorageSettings(String account, String key, String endpointSuffix, TimeValue timeout, int maxRetries) {
         this.name = null;
         this.account = account;
         this.key = key;
+        this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.activeByDefault = false;
         this.maxRetries = maxRetries;
@@ -104,6 +112,7 @@ public final class AzureStorageSettings {
         this.name = name;
         this.account = account;
         this.key = key;
+        this.endpointSuffix = null;
         this.timeout = timeout;
         this.activeByDefault = activeByDefault;
         this.maxRetries = maxRetries;
@@ -116,6 +125,10 @@ public final class AzureStorageSettings {
 
     public String getKey() {
         return key;
+    }
+
+    public String getEndpointSuffix() {
+        return endpointSuffix;
     }
 
     public String getAccount() {
@@ -141,6 +154,7 @@ public final class AzureStorageSettings {
         sb.append("name='").append(name).append('\'');
         sb.append(", account='").append(account).append('\'');
         sb.append(", key='").append(key).append('\'');
+        sb.append(", endpointSuffix='").append(endpointSuffix).append('\'');
         sb.append(", activeByDefault='").append(activeByDefault).append('\'');
         sb.append(", timeout=").append(timeout);
         sb.append(", maxRetries=").append(maxRetries);
@@ -185,8 +199,10 @@ public final class AzureStorageSettings {
     /** Parse settings for a single client. */
     static AzureStorageSettings getClientSettings(Settings settings, String clientName) {
         try (SecureString account = getConfigValue(settings, clientName, ACCOUNT_SETTING);
-             SecureString key = getConfigValue(settings, clientName, KEY_SETTING)) {
+             SecureString key = getConfigValue(settings, clientName, KEY_SETTING);
+             SecureString endpointSuffix = getConfigValue(settings, clientName, ENDPOINT_SUFFIX_SETTING)) {
             return new AzureStorageSettings(account.toString(), key.toString(),
+                endpointSuffix.toString(),
                 getValue(settings, clientName, TIMEOUT_SETTING),
                 getValue(settings, clientName, MAX_RETRIES_SETTING));
         }

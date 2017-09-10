@@ -102,14 +102,18 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
     void createClient(AzureStorageSettings azureStorageSettings) {
         try {
-            logger.trace("creating new Azure storage client using account [{}], key [{}]",
-                azureStorageSettings.getAccount(), azureStorageSettings.getKey());
+            logger.trace("creating new Azure storage client using account [{}], key [{}], endpoint suffix [{}]",
+                azureStorageSettings.getAccount(), azureStorageSettings.getKey(), azureStorageSettings.getEndpointSuffix());
 
             String storageConnectionString =
                 "DefaultEndpointsProtocol=https;"
                     + "AccountName=" + azureStorageSettings.getAccount() + ";"
                     + "AccountKey=" + azureStorageSettings.getKey();
 
+            String endpointSuffix = azureStorageSettings.getEndpointSuffix();
+            if (endpointSuffix != null && !endpointSuffix.isEmpty()) {
+                storageConnectionString += ";EndpointSuffix=" + endpointSuffix;
+            }
             // Retrieve storage account from connection-string.
             CloudStorageAccount storageAccount = CloudStorageAccount.parse(storageConnectionString);
 

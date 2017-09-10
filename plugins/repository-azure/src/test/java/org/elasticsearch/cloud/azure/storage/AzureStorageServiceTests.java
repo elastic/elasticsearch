@@ -22,6 +22,8 @@ package org.elasticsearch.cloud.azure.storage;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
+import com.microsoft.azure.storage.core.Base64;
+
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -38,8 +40,10 @@ import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.DEPRECA
 import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.DEPRECATED_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureSettingsParserTests.getConcreteSetting;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isEmptyString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -82,10 +86,31 @@ public class AzureStorageServiceTests extends ESTestCase {
         secureSettings.setString("azure.client.azure2.key", "mykey2");
         secureSettings.setString("azure.client.azure3.account", "myaccount3");
         secureSettings.setString("azure.client.azure3.key", "mykey3");
+        secureSettings.setString("azure.client.azure3.endpoint_suffix", "my_endpoint_suffix");
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
 
         Map<String, AzureStorageSettings> loadedSettings = AzureStorageSettings.load(settings);
         assertThat(loadedSettings.keySet(), containsInAnyOrder("azure1","azure2","azure3","default"));
+
+        assertThat(loadedSettings.get("azure1").getEndpointSuffix(), isEmptyString());
+        assertThat(loadedSettings.get("azure2").getEndpointSuffix(), isEmptyString());
+        assertThat(loadedSettings.get("azure3").getEndpointSuffix(), equalTo("my_endpoint_suffix"));
+    }
+
+    public void testCreateClientWithEndpointSuffix() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("azure.client.azure1.account", "myaccount1");
+        secureSettings.setString("azure.client.azure1.key", Base64.encode("mykey1".getBytes()));
+        secureSettings.setString("azure.client.azure1.endpoint_suffix", "my_endpoint_suffix");
+        secureSettings.setString("azure.client.azure2.account", "myaccount2");
+        secureSettings.setString("azure.client.azure2.key", Base64.encode("mykey2".getBytes()));
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceImpl(settings, AzureStorageSettings.load(settings));
+        CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
+        assertThat(client1.getEndpoint().toString(), equalTo("https://myaccount1.blob.my_endpoint_suffix"));
+
+        CloudBlobClient client2 = azureStorageService.getSelectedClient("azure2", LocationMode.PRIMARY_ONLY);
+        assertThat(client2.getEndpoint().toString(), equalTo("https://myaccount2.blob.core.windows.net"));
     }
 
     public void testGetSelectedClientWithNoPrimaryAndSecondary() {

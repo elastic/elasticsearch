@@ -11,6 +11,11 @@ elasticsearch 5.0 and have now been removed. Use painless instead.
 Native scripts have been removed. Instead,
 <<modules-scripting-engine, implement a `ScriptEngine`>>.
 
+==== File scripts removed
+
+File scripts have been removed. Instead, use stored scripts. The associated setting
+`path.scripts` has also been removed.
+
 ==== Date fields now return dates
 
 `doc.some_date_field.value` now returns ++ReadableDateTime++s instead of

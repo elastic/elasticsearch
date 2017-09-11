@@ -19,6 +19,9 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -30,11 +33,16 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.replication.RecoveryDuringReplicationTests;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.translog.Translog;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class RecoveryTests extends ESIndexLevelReplicationTestCase {
 
@@ -130,6 +138,49 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.assertAllEqual(1);
 
             assertThat(newReplica.getTranslog().totalOperations(), equalTo(translogOps));
+        }
+    }
+
+    public void testDifferentHistoryUUIDDisablesOPsRecovery() throws Exception {
+        try (ReplicationGroup shards = createGroup(1)) {
+            shards.startAll();
+            // index some shared docs
+            final int flushedDocs = 10;
+            final int nonFlushedDocs = randomIntBetween(0, 10);
+            final int numDocs = flushedDocs + nonFlushedDocs;
+            shards.indexDocs(flushedDocs);
+            shards.flush();
+            shards.indexDocs(nonFlushedDocs);
+
+            IndexShard replica = shards.getReplicas().get(0);
+            shards.removeReplica(replica);
+            replica.close("test", false);
+            IndexWriterConfig iwc = new IndexWriterConfig(null)
+                .setCommitOnClose(false)
+                // we don't want merges to happen here - we call maybe merge on the engine
+                // later once we stared it up otherwise we would need to wait for it here
+                // we also don't specify a codec here and merges should use the engines for this index
+                .setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+            Map<String, String> userData = new HashMap<>(replica.store().readLastCommittedSegmentsInfo().getUserData());
+            try (IndexWriter writer = new IndexWriter(replica.store().directory(), iwc)) {
+                userData.put(Translog.HISTORY_UUID_KEY, "_not_the_chosen_one_");
+                writer.setLiveCommitData(userData.entrySet());
+                writer.commit();
+            }
+            replica.store().close();
+            IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
+            shards.recoverReplica(newReplica);
+            // file based recovery should be made
+            assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
+            assertThat(newReplica.getTranslog().totalOperations(), equalTo(numDocs));
+
+            // history uuid was restored
+            final String historyUUID = shards.getPrimary().getTranslog().getHistoryUUID();
+            assertThat(newReplica.getTranslog().getHistoryUUID(), equalTo(historyUUID));
+            assertThat(newReplica.commitStats().getUserData().get(Translog.HISTORY_UUID_KEY), equalTo(historyUUID));
+
+            shards.assertAllEqual(numDocs);
         }
     }
 }

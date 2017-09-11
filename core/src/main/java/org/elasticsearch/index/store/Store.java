@@ -79,6 +79,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -1025,6 +1026,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public Map<String, String> getCommitUserData() {
             return commitUserData;
+        }
+
+        /**
+         * returns the history uuid the store points at
+         */
+        public String getHistoryUUID() {
+            return commitUserData.getOrDefault(Translog.HISTORY_UUID_KEY, Translog.HISTORY_UUID_NA);
         }
 
         /**

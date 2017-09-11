@@ -214,7 +214,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         timeout = new TimeValue(in);
         index = in.readString();
         routedBasedOnClusterVersion = in.readVLong();
-        if (in.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_6_0)) {
             primaryTerm = in.readVLong();
         } else {
             primaryTerm = 0L;
@@ -234,7 +234,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         timeout.writeTo(out);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
-        if (out.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_6_0)) {
             out.writeVLong(primaryTerm);
         }
     }

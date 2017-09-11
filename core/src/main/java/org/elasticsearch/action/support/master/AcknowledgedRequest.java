@@ -78,7 +78,7 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     protected void readTimeout(StreamInput in) throws IOException {
         // in older ES versions, we would explicitly call this method in subclasses
         // now we properly serialize the timeout value as part of the readFrom method
-        if (in.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_6_0)) {
             timeout = new TimeValue(in);
         }
     }
@@ -90,7 +90,7 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     protected void writeTimeout(StreamOutput out) throws IOException {
         // in older ES versions, we would explicitly call this method in subclasses
         // now we properly serialize the timeout value as part of the writeTo method
-        if (out.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_6_0)) {
             timeout.writeTo(out);
         }
     }
@@ -103,7 +103,7 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_5_6_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
             timeout = new TimeValue(in);
         }
     }
@@ -111,7 +111,7 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_5_6_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
             timeout.writeTo(out);
         }
     }

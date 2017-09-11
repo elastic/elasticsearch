@@ -199,7 +199,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         }
         nowInMillis = in.readVLong();
         requestCache = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_5_6_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
             clusterAlias = in.readOptionalString();
         }
     }
@@ -221,7 +221,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
             out.writeVLong(nowInMillis);
         }
         out.writeOptionalBoolean(requestCache);
-        if (out.getVersion().onOrAfter(Version.V_5_6_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
             out.writeOptionalString(clusterAlias);
         }
     }

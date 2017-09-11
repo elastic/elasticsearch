@@ -109,7 +109,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(
             Settings.builder().put("search.remote.connect", false).build(), null);
         DiscoveryNode node = new DiscoveryNode("node_1", LocalTransportAddress.buildUnique(),
-            VersionUtils.getPreviousVersion(Version.V_5_6_0_UNRELEASED));
+            VersionUtils.getPreviousVersion(Version.V_5_6_0));
         SearchAsyncActionTests.MockConnection mockConnection = new SearchAsyncActionTests.MockConnection(node);
         IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
             () -> searchTransportService.sendCanMatch(mockConnection, null, null, null));

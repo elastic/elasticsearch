@@ -337,6 +337,17 @@
   - match: { results_retention_days: 40 }
 
   - do:
+      catch: "/Invalid update value for analysis_limits: model_memory_limit cannot be decreased; existing is 20mb, update had 1mb/"
+      xpack.ml.update_job:
+        job_id: jobs-crud-update-job
+        body:  >
+          {
+            "analysis_limits": {
+              "model_memory_limit": "1mb"
+            }
+          }
+
+  - do:
       catch: request
       xpack.ml.update_job:
         job_id: _all

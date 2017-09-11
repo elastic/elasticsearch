@@ -62,7 +62,6 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
-
     public void testRetentionPolicyChangeDuringRecovery() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startPrimary();

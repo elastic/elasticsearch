@@ -1036,6 +1036,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         /**
+         * returns the translog uuid the store points at
+         */
+        public String getTranslogUUID() {
+            return commitUserData.get(Translog.TRANSLOG_UUID_KEY);
+        }
+
+        /**
          * Returns true iff this metadata contains the given file.
          */
         public boolean contains(String existingFile) {

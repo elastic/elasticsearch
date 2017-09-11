@@ -1708,8 +1708,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @return the global checkpoint
      * @throws IOException if an I/O exception occurred reading the checkpoint
      */
-    public static final long readGlobalCheckpoint(final Path location) throws IOException {
-        return Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME)).globalCheckpoint;
+    public static final long readGlobalCheckpoint(final Path location, final String translogUUID, final String historyUUID)
+        throws IOException {
+        return readCheckpoint(location.resolve(CHECKPOINT_FILE_NAME), translogUUID, historyUUID).globalCheckpoint;
     }
 
     /**

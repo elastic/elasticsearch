@@ -177,7 +177,8 @@ public class InternalEngine extends Engine {
                 switch (openMode) {
                     case OPEN_INDEX_AND_TRANSLOG:
                         writer = createWriter(false);
-                        final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
+                        final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath(),
+                            loadTranslogUUIDFromCommit(writer), loadHistoryUUIDFromCommit(writer));
                         seqNoStats = store.loadSeqNoStats(globalCheckpoint);
                         break;
                     case OPEN_INDEX_CREATE_TRANSLOG:
@@ -353,7 +354,6 @@ public class InternalEngine extends Engine {
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
         final String translogUUID;
         final String historyUUID;
-        final String existingHistoryUUID = loadHistoryUUIDFromCommit(writer);
         final boolean requiresCommit;
         switch (openMode) {
             case CREATE_INDEX_AND_TRANSLOG:
@@ -363,14 +363,7 @@ public class InternalEngine extends Engine {
                 break;
             case OPEN_INDEX_CREATE_TRANSLOG:
                 translogUUID = null; // create a new one;
-                if (existingHistoryUUID == null) {
-                    // we are recovering an old primary, generate a history
-                    assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
-                        "index was created after 6_0_0_rc1 but has no history uuid";
-                    historyUUID = HISTORY_UUID_NA;
-                } else {
-                    historyUUID = existingHistoryUUID;
-                }
+                historyUUID = loadHistoryUUIDFromCommit(writer);
                 requiresCommit = true;
                 break;
             case OPEN_INDEX_AND_TRANSLOG:
@@ -379,10 +372,9 @@ public class InternalEngine extends Engine {
                 if (translogUUID == null) {
                     throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
                 }
-                if (existingHistoryUUID == null) {
+                final String existingHistoryUUID = loadHistoryUUIDFromCommit(writer);
+                if (existingHistoryUUID.equals(HISTORY_UUID_NA)) {
                     // we are recovering an old primary, generate a history
-                    assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
-                        "index was created after 6_0_0_rc1 but has no history uuid";
                     historyUUID = UUIDs.randomBase64UUID();
                     requiresCommit = true;
                 } else {
@@ -437,9 +429,15 @@ public class InternalEngine extends Engine {
         }
     }
 
-    @Nullable
     private String loadHistoryUUIDFromCommit(final IndexWriter writer) throws IOException {
-        return commitDataAsMap(writer).get(HISTORY_UUID_KEY);
+        String uuid = commitDataAsMap(writer).get(HISTORY_UUID_KEY);
+        if (uuid == null) {
+            assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
+                "index was created after 6_0_0_rc1 but has no history uuid";
+            return HISTORY_UUID_NA;
+        } else {
+            return uuid;
+        }
     }
 
     private SearcherManager createSearcherManager() throws EngineException {

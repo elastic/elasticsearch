@@ -50,6 +50,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -317,7 +318,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         final long startingSeqNo;
         if (metadataSnapshot.size() > 0) {
-            startingSeqNo = getStartingSeqNo(recoveryTarget);
+            startingSeqNo = getStartingSeqNo(recoveryTarget, metadataSnapshot.getHistoryUUID(), metadataSnapshot.getHistoryUUID());
         } else {
             startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
@@ -348,12 +349,14 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      * Get the starting sequence number for a sequence-number-based request.
      *
      * @param recoveryTarget the target of the recovery
+     * @param translogUUID the expected translog uuid
+     * @param historyUUID the expected history uuid
      * @return the starting sequence number or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if obtaining the starting sequence number
      * failed
      */
-    public static long getStartingSeqNo(final RecoveryTarget recoveryTarget) {
+    public static long getStartingSeqNo(final RecoveryTarget recoveryTarget, final String translogUUID, final String historyUUID) {
         try {
-            final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation());
+            final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), translogUUID, historyUUID);
             final SeqNoStats seqNoStats = recoveryTarget.store().loadSeqNoStats(globalCheckpoint);
             if (seqNoStats.getMaxSeqNo() <= seqNoStats.getGlobalCheckpoint()) {
                 assert seqNoStats.getLocalCheckpoint() <= seqNoStats.getGlobalCheckpoint();
@@ -366,7 +369,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             } else {
                 return SequenceNumbers.UNASSIGNED_SEQ_NO;
             }
-        } catch (final IOException e) {
+        } catch (final IOException|TranslogCorruptedException e) {
             /*
              * This can happen, for example, if a phase one of the recovery completed successfully, a network partition happens before the
              * translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk and

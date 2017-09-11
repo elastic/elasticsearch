@@ -1,12 +1,5 @@
 setup:
   - do:
-      indices.create:
-          index: test_1
-          body:
-            settings:
-              index.max_docvalue_fields_search: 2
-
-  - do:
       index:
           index:  test_1
           type:   test
@@ -60,10 +53,21 @@ setup:
 
 ---
 "Docvalues_fields size limit":
+  - skip:
+      version: " - 6.99.99"
+      reason: soft limit for docvalue_fields only available as of 7.0.0
+
+  - do:
+      indices.create:
+          index: test_2
+          body:
+            settings:
+              index.max_docvalue_fields_search: 2
+
   - do:
       catch:      /Trying to retrieve too many docvalue_fields\. Must be less than or equal to[:] \[2\] but was \[3\]\. This limit can be set by changing the \[index.max_docvalue_fields_search\] index level setting\./
       search:
-        index: test_1
+        index: test_2
         body:
           query:
             match_all: {}

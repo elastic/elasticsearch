@@ -104,7 +104,7 @@ public final class IndexSettings {
      * doc values might incur a per-field per-document seek.
      */
     public static final Setting<Integer> MAX_DOCVALUE_FIELDS_SEARCH_SETTING =
-        Setting.intSetting("index.max_docvalue_fields_search", 100, 1, Property.Dynamic, Property.IndexScope);
+        Setting.intSetting("index.max_docvalue_fields_search", 100, 0, Property.Dynamic, Property.IndexScope);
     /**
      * Index setting describing the maximum size of the rescore window. Defaults to {@link #MAX_RESULT_WINDOW_SETTING}
      * because they both do the same thing: control the size of the heap of hits.

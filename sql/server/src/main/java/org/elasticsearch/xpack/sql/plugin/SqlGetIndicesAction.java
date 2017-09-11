@@ -33,8 +33,10 @@ import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 
 import static java.util.Comparator.comparing;
@@ -113,6 +115,24 @@ public class SqlGetIndicesAction
         public Request indicesOptions(IndicesOptions indicesOptions) {
             this.indicesOptions = indicesOptions;
             return this;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || obj.getClass() != getClass()) {
+                return false;
+            }
+            Request other = (Request) obj;
+            return Arrays.equals(indices, other.indices)
+                    && indicesOptions.equals(other.indicesOptions)
+                    && local == other.local
+                    && masterNodeTimeout.equals(other.masterNodeTimeout)
+                    && getParentTask().equals(other.getParentTask());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(Arrays.hashCode(indices), indicesOptions, local, masterNodeTimeout, getParentTask());
         }
     }
 

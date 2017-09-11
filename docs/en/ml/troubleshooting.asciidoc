@@ -4,9 +4,11 @@
 Use the information in this section to troubleshoot common problems and find
 answers for frequently asked questions.
 
+* <<ml-rollingupgrade>>
+* <<ml-mappingclash>>
+
 To get help, see <<xpack-help>>.
 
-[float]
 [[ml-rollingupgrade]]
 === Machine learning features unavailable after rolling upgrade
 
@@ -31,3 +33,28 @@ After you upgrade all master-eligible nodes to {es} {version} and {xpack}
 features to re-initialize.
 
 For more information, see {ref}/rolling-upgrades.html[Rolling upgrades].
+
+[[ml-mappingclash]]
+=== Job creation failure due to mapping clash
+
+This problem occurs when you try to create a job.
+
+*Symptoms:*
+
+* Illegal argument exception occurs when you click *Create Job* in {kib} or run
+the create job API. For example:
+`Save failed: [status_exception] This job would cause a mapping clash
+with existing field [field_name] - avoid the clash by assigning a dedicated
+results index` or `Save failed: [illegal_argument_exception] Can't merge a non
+object mapping [field_name] with an object mapping [field_name]`.
+
+*Resolution:*
+
+This issue typically occurs when two or more jobs store their results in the
+same index and the results contain fields with the same name but different
+data types or different `fields` settings. 
+
+By default, {ml} results are stored in the `.ml-anomalies-shared` index in {es}.
+To resolve this issue, click *Advanced > Use dedicated index* when you create
+the job in {kib}. If you are using the create job API, specify an index name in
+the `results_index_name` property.

@@ -138,11 +138,15 @@ public class Version implements Comparable<Version> {
     public static final Version V_5_5_1 = new Version(V_5_5_1_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
     public static final int V_5_5_2_ID = 5050299;
     public static final Version V_5_5_2 = new Version(V_5_5_2_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
-    public static final int V_5_5_3_ID_UNRELEASED = 5050399;
-    public static final Version V_5_5_3_UNRELEASED = new Version(V_5_5_3_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_6_0);
-    public static final int V_5_6_0_ID_UNRELEASED = 5060099;
-    public static final Version V_5_6_0_UNRELEASED = new Version(V_5_6_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_6_0);
-    public static final Version CURRENT = V_5_6_0_UNRELEASED;
+    public static final int V_5_5_3_ID = 5050399;
+    public static final Version V_5_5_3 = new Version(V_5_5_3_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_5_4_ID_UNRELEASED = 5050499;
+    public static final Version V_5_5_4_UNRELEASED = new Version(V_5_5_4_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_6_0_ID = 5060099;
+    public static final Version V_5_6_0 = new Version(V_5_6_0_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_6_1_ID_UNRELEASED = 5060199;
+    public static final Version V_5_6_1_UNRELEASED = new Version(V_5_6_1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final Version CURRENT = V_5_6_1_UNRELEASED;
 
     // unreleased versions must be added to the above list with the suffix _UNRELEASED (with the exception of CURRENT)
 
@@ -157,10 +161,14 @@ public class Version implements Comparable<Version> {
 
     public static Version fromId(int id) {
         switch (id) {
-            case V_5_6_0_ID_UNRELEASED:
-                return V_5_6_0_UNRELEASED;
-            case V_5_5_3_ID_UNRELEASED:
-                return V_5_5_3_UNRELEASED;
+            case V_5_6_1_ID_UNRELEASED:
+                return V_5_6_1_UNRELEASED;
+            case V_5_6_0_ID:
+                return V_5_6_0;
+            case V_5_5_4_ID_UNRELEASED:
+                return V_5_5_4_UNRELEASED;
+            case V_5_5_3_ID:
+                return V_5_5_3;
             case V_5_5_2_ID:
                 return V_5_5_2;
             case V_5_5_1_ID:

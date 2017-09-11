@@ -67,7 +67,7 @@ public class Build {
                     // we are not in tests but build.snapshot is set, bail hard
                     throw new IllegalStateException("build.snapshot set to [" + buildSnapshot + "] but not running tests");
                 }
-                isSnapshot = Booleans.parseBoolean(buildSnapshot);
+                isSnapshot = Booleans.parseBooleanExact(buildSnapshot)
             } else {
                 isSnapshot = true;
             }

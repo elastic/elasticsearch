@@ -71,13 +71,11 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
     @Inject
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
-                            TransportNodesListGatewayMetaState nodesListGatewayMetaState,
                             MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
         throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
-        nodesListGatewayMetaState.init(this);
 
         if (DiscoveryNode.isDataNode(settings)) {
             ensureNoPre019ShardState(nodeEnv);

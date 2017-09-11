@@ -2,10 +2,39 @@
 [[migration-api-upgrade]]
 === Migration Upgrade API
 
-The Migration Upgrade API performs the upgrade of internal indices to make them compatible with the next major version.
+The Migration Upgrade API performs the upgrade of internal indices to make them
+compatible with the next major version.
 
-Indices need to be upgraded one at a time by submitting a POST request to the
-`/_xpack/migration/upgrade/index_name` endpoint:
+[float]
+==== Request
+
+`POST /_xpack/migration/upgrade/<index_name>`
+
+[float]
+==== Description
+
+Indices must be upgraded one at a time.
+
+[float]
+==== Path Parameters
+
+`index_name`::
+  (string) Identifier for the index.
+
+`wait_for_completion`::
+  (boolean) Defines whether the upgrade call blocks until the upgrade process is
+  finished. The default value is `true`. If set to `false`, the upgrade can be
+  performed asynchronously.
+
+//==== Query Parameters
+
+//==== Authorization
+
+[float]
+==== Examples
+
+The following example submits a POST request to the
+`/_xpack/migration/upgrade/<index_name>` endpoint:
 
 [source,js]
 --------------------------------------------------
@@ -38,8 +67,8 @@ A successful call returns the statistics about the upgrade process:
 --------------------------------------------------
 // NOTCONSOLE
 
-By default, the upgrade call blocks until the upgrade process is finished. For large indices the upgrade can be
-performed asynchronously by specifying `wait_for_completion=false` parameter:
+The following example upgrades a large index asynchronously by specifying the
+`wait_for_completion` parameter:
 
 [source,js]
 --------------------------------------------------
@@ -58,7 +87,8 @@ This call should return the id of the upgrade process task:
 --------------------------------------------------
 // NOTCONSOLE
 
-The status of the running or finished upgrade requests can be obtained using <<tasks,Task API>>:
+The status of the running or finished upgrade requests can be obtained by using
+the <<tasks,Task API>>:
 
 [source,js]
 --------------------------------------------------
@@ -102,7 +132,7 @@ GET _tasks/PFvgv7T6TGumRyFF3vqTFg:1137?detailed=true
 --------------------------------------------------
 // NOTCONSOLE
 
-<1> `true` in the `completed` field indicates that the upgrade request has finished, `false` means that
-request is still executing
+<1> If the `completed` field value is `true`, the upgrade request has finished.
+If it is `false`, the request is still running.
 
-<2> the `response` field contains the status of the upgrade request
+<2> The `response` field contains the status of the upgrade request.

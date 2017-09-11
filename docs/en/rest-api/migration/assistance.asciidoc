@@ -2,11 +2,35 @@
 [[migration-api-assistance]]
 === Migration Assistance API
 
-The Migration Assistance API analyzes existing indices in the cluster and returns the information
-about indices that require some changes before the cluster can be upgraded to the next major version.
+The Migration Assistance API analyzes existing indices in the cluster and
+returns the information about indices that require some changes before the
+cluster can be upgraded to the next major version.
 
-To see a list of indices that needs to be upgraded or reindexed, submit a GET request to the
-`/_xpack/migration/assistance` endpoint:
+[float]
+==== Request
+
+`GET /_xpack/migration/assistance` +
+
+`GET /_xpack/migration/assistance/<index_name>`
+
+//==== Description
+
+[float]
+==== Path Parameters
+
+`index_name`::
+  (string) Identifier for the index. It can be an index name or a wildcard
+  expression.
+
+//==== Query Parameters
+
+//==== Authorization
+
+[float]
+==== Examples
+
+To see a list of indices that needs to be upgraded or reindexed, submit a GET
+request to the `/_xpack/migration/assistance` endpoint:
 
 [source,js]
 --------------------------------------------------
@@ -38,8 +62,8 @@ A successful call returns a list of indices that need to updated or reindexed:
 --------------------------------------------------
 // NOTCONSOLE
 
-To check a particular index or set of indices, specify this index name or mask as the last part of the
-`/_xpack/migration/assistance/index_name` endpoint:
+To check a particular index or set of indices, specify this index name or mask
+as the last part of the `/_xpack/migration/assistance/index_name` endpoint:
 
 [source,js]
 --------------------------------------------------
@@ -48,8 +72,8 @@ GET /_xpack/migration/assistance/my_*
 // CONSOLE
 // TEST[skip:cannot create an old index in docs test]
 
-A successful call returns a list of indices that needs to updated or reindexed and match the index specified
-on the endpoint:
+A successful call returns a list of indices that needs to updated or reindexed
+and match the index specified on the endpoint:
 
 [source,js]
 --------------------------------------------------

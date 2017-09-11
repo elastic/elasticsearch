@@ -57,7 +57,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         String randomType = randomFrom("id", "source");
         configMap.put(randomType, "foo");
         ScriptProcessor processor = factory.create(null, randomAlphaOfLength(10), configMap);
-        assertThat(processor.getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        assertThat(processor.getScript().getLang(), equalTo(randomType.equals("id") ? null : Script.DEFAULT_SCRIPT_LANG));
         assertThat(processor.getScript().getType().toString(), equalTo(ingestScriptParamToType.get(randomType)));
         assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
     }
@@ -69,7 +69,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put(randomType, "foo");
         configMap.put("params", randomParams);
         ScriptProcessor processor = factory.create(null, randomAlphaOfLength(10), configMap);
-        assertThat(processor.getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        assertThat(processor.getScript().getLang(), equalTo(randomType.equals("id") ? null : Script.DEFAULT_SCRIPT_LANG));
         assertThat(processor.getScript().getType().toString(), equalTo(ingestScriptParamToType.get(randomType)));
         assertThat(processor.getScript().getParams(), equalTo(randomParams));
     }

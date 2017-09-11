@@ -49,11 +49,12 @@ public final class IndexWarmer extends AbstractComponent {
 
     private final List<Listener> listeners;
 
-    IndexWarmer(Settings settings, ThreadPool threadPool, Listener... listeners) {
+    IndexWarmer(Settings settings, ThreadPool threadPool, IndexFieldDataService indexFieldDataService,
+                Listener... listeners) {
         super(settings);
         ArrayList<Listener> list = new ArrayList<>();
         final Executor executor = threadPool.executor(ThreadPool.Names.WARMER);
-        list.add(new FieldDataWarmer(executor));
+        list.add(new FieldDataWarmer(executor, indexFieldDataService));
 
         Collections.addAll(list, listeners);
         this.listeners = Collections.unmodifiableList(list);
@@ -110,8 +111,11 @@ public final class IndexWarmer extends AbstractComponent {
     private static class FieldDataWarmer implements IndexWarmer.Listener {
 
         private final Executor executor;
-        FieldDataWarmer(Executor executor) {
+        private final IndexFieldDataService indexFieldDataService;
+
+        FieldDataWarmer(Executor executor, IndexFieldDataService indexFieldDataService) {
             this.executor = executor;
+            this.indexFieldDataService = indexFieldDataService;
         }
 
         @Override
@@ -128,7 +132,6 @@ public final class IndexWarmer extends AbstractComponent {
                     warmUpGlobalOrdinals.put(indexName, fieldType);
                 }
             }
-            final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
             final CountDownLatch latch = new CountDownLatch(warmUpGlobalOrdinals.size());
             for (final MappedFieldType fieldType : warmUpGlobalOrdinals.values()) {
                 executor.execute(() -> {

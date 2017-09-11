@@ -75,25 +75,16 @@ public class NioClientTests extends ESTestCase {
     public void testCreateConnections() throws IOException, InterruptedException {
         NioSocketChannel channel1 = mock(NioSocketChannel.class);
         ConnectFuture connectFuture1 = mock(ConnectFuture.class);
-        CloseFuture closeFuture1 = mock(CloseFuture.class);
         NioSocketChannel channel2 = mock(NioSocketChannel.class);
         ConnectFuture connectFuture2 = mock(ConnectFuture.class);
-        CloseFuture closeFuture2 = mock(CloseFuture.class);
 
-        when(channelFactory.openNioChannel(address.address())).thenReturn(channel1, channel2);
-        when(channel1.getCloseFuture()).thenReturn(closeFuture1);
+        when(channelFactory.openNioChannel(address.address(), selector, listener)).thenReturn(channel1, channel2);
         when(channel1.getConnectFuture()).thenReturn(connectFuture1);
-        when(channel2.getCloseFuture()).thenReturn(closeFuture2);
         when(channel2.getConnectFuture()).thenReturn(connectFuture2);
         when(connectFuture1.awaitConnectionComplete(5, TimeUnit.MILLISECONDS)).thenReturn(true);
         when(connectFuture2.awaitConnectionComplete(5, TimeUnit.MILLISECONDS)).thenReturn(true);
 
         client.connectToChannels(node, channels,  TimeValue.timeValueMillis(5), listener);
-
-        verify(closeFuture1).setListener(listener);
-        verify(closeFuture2).setListener(listener);
-        verify(selector).registerSocketChannel(channel1);
-        verify(selector).registerSocketChannel(channel2);
 
         assertEquals(channel1, channels[0]);
         assertEquals(channel2, channels[1]);
@@ -102,18 +93,13 @@ public class NioClientTests extends ESTestCase {
     public void testWithADifferentConnectTimeout() throws IOException, InterruptedException {
         NioSocketChannel channel1 = mock(NioSocketChannel.class);
         ConnectFuture connectFuture1 = mock(ConnectFuture.class);
-        CloseFuture closeFuture1 = mock(CloseFuture.class);
 
-        when(channelFactory.openNioChannel(address.address())).thenReturn(channel1);
-        when(channel1.getCloseFuture()).thenReturn(closeFuture1);
+        when(channelFactory.openNioChannel(address.address(), selector, listener)).thenReturn(channel1);
         when(channel1.getConnectFuture()).thenReturn(connectFuture1);
         when(connectFuture1.awaitConnectionComplete(3, TimeUnit.MILLISECONDS)).thenReturn(true);
 
         channels = new NioSocketChannel[1];
         client.connectToChannels(node, channels,  TimeValue.timeValueMillis(3), listener);
-
-        verify(closeFuture1).setListener(listener);
-        verify(selector).registerSocketChannel(channel1);
 
         assertEquals(channel1, channels[0]);
     }
@@ -126,7 +112,7 @@ public class NioClientTests extends ESTestCase {
         ConnectFuture connectFuture2 = mock(ConnectFuture.class);
         CloseFuture closeFuture2 = mock(CloseFuture.class);
 
-        when(channelFactory.openNioChannel(address.address())).thenReturn(channel1, channel2);
+        when(channelFactory.openNioChannel(address.address(), selector, listener)).thenReturn(channel1, channel2);
         when(channel1.getCloseFuture()).thenReturn(closeFuture1);
         when(channel1.getConnectFuture()).thenReturn(connectFuture1);
         when(channel2.getCloseFuture()).thenReturn(closeFuture2);
@@ -151,16 +137,12 @@ public class NioClientTests extends ESTestCase {
     public void testConnectionException() throws IOException, InterruptedException {
         NioSocketChannel channel1 = mock(NioSocketChannel.class);
         ConnectFuture connectFuture1 = mock(ConnectFuture.class);
-        CloseFuture closeFuture1 = mock(CloseFuture.class);
         NioSocketChannel channel2 = mock(NioSocketChannel.class);
         ConnectFuture connectFuture2 = mock(ConnectFuture.class);
-        CloseFuture closeFuture2 = mock(CloseFuture.class);
         IOException ioException = new IOException();
 
-        when(channelFactory.openNioChannel(address.address())).thenReturn(channel1, channel2);
-        when(channel1.getCloseFuture()).thenReturn(closeFuture1);
+        when(channelFactory.openNioChannel(address.address(), selector, listener)).thenReturn(channel1, channel2);
         when(channel1.getConnectFuture()).thenReturn(connectFuture1);
-        when(channel2.getCloseFuture()).thenReturn(closeFuture2);
         when(channel2.getConnectFuture()).thenReturn(connectFuture2);
         when(connectFuture1.awaitConnectionComplete(5, TimeUnit.MILLISECONDS)).thenReturn(true);
         when(connectFuture2.awaitConnectionComplete(5, TimeUnit.MILLISECONDS)).thenReturn(false);

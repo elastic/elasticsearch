@@ -58,28 +58,4 @@ public class DiscoveryNodeTests extends ESTestCase {
         assertEquals(transportAddress.getAddress(), serialized.getAddress().getAddress());
         assertEquals(transportAddress.getPort(), serialized.getAddress().getPort());
     }
-
-    public void testDiscoveryNodeSerializationToOldVersion() throws Exception {
-        InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
-        TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
-
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-        streamOutput.setVersion(Version.V_5_0_0);
-        node.writeTo(streamOutput);
-
-        StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
-        in.setVersion(Version.V_5_0_0);
-        DiscoveryNode serialized = new DiscoveryNode(in);
-        assertEquals(transportAddress.address().getHostString(), serialized.getHostName());
-        assertEquals(transportAddress.address().getHostString(), serialized.getAddress().address().getHostString());
-        assertEquals(transportAddress.getAddress(), serialized.getHostAddress());
-        assertEquals(transportAddress.getAddress(), serialized.getAddress().getAddress());
-        assertEquals(transportAddress.getPort(), serialized.getAddress().getPort());
-        assertFalse("if the minimum index compatibility version moves past 5.0.3, remove the special casing in DiscoverNode(StreamInput)" +
-                " and the TransportAddress(StreamInput, String) constructor",
-            Version.CURRENT.minimumIndexCompatibilityVersion().after(Version.V_5_0_2));
-        // serialization can happen from an old cluster-state in a full cluster restart
-        // hence we need to maintain this until we drop index bwc
-    }
 }

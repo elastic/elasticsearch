@@ -38,23 +38,26 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 final class PercolateQuery extends Query implements Accountable {
 
     // cost of matching the query against the document, arbitrary as it would be really complex to estimate
-    public static final float MATCH_COST = 1000;
+    private static final float MATCH_COST = 1000;
 
+    private final String name;
     private final QueryStore queryStore;
-    private final BytesReference documentSource;
+    private final List<BytesReference> documents;
     private final Query candidateMatchesQuery;
     private final Query verifiedMatchesQuery;
     private final IndexSearcher percolatorIndexSearcher;
 
-    PercolateQuery(QueryStore queryStore, BytesReference documentSource,
+    PercolateQuery(String name, QueryStore queryStore, List<BytesReference> documents,
                    Query candidateMatchesQuery, IndexSearcher percolatorIndexSearcher, Query verifiedMatchesQuery) {
-        this.documentSource = Objects.requireNonNull(documentSource);
+        this.name = name;
+        this.documents = Objects.requireNonNull(documents);
         this.candidateMatchesQuery = Objects.requireNonNull(candidateMatchesQuery);
         this.queryStore = Objects.requireNonNull(queryStore);
         this.percolatorIndexSearcher = Objects.requireNonNull(percolatorIndexSearcher);
@@ -65,7 +68,7 @@ final class PercolateQuery extends Query implements Accountable {
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = candidateMatchesQuery.rewrite(reader);
         if (rewritten != candidateMatchesQuery) {
-            return new PercolateQuery(queryStore, documentSource, rewritten, percolatorIndexSearcher, verifiedMatchesQuery);
+            return new PercolateQuery(name, queryStore, documents, rewritten, percolatorIndexSearcher, verifiedMatchesQuery);
         } else {
             return this;
         }
@@ -164,15 +167,19 @@ final class PercolateQuery extends Query implements Accountable {
         };
     }
 
-    public IndexSearcher getPercolatorIndexSearcher() {
+    String getName() {
+        return name;
+    }
+
+    IndexSearcher getPercolatorIndexSearcher() {
         return percolatorIndexSearcher;
     }
 
-    public BytesReference getDocumentSource() {
-        return documentSource;
+    List<BytesReference> getDocuments() {
+        return documents;
     }
 
-    public QueryStore getQueryStore() {
+    QueryStore getQueryStore() {
         return queryStore;
     }
 
@@ -193,13 +200,22 @@ final class PercolateQuery extends Query implements Accountable {
 
     @Override
     public String toString(String s) {
-        return "PercolateQuery{document_source={" + documentSource.utf8ToString() + "},inner={" +
+        StringBuilder sources = new StringBuilder();
+        for (BytesReference document : documents) {
+            sources.append(document.utf8ToString());
+            sources.append('\n');
+        }
+        return "PercolateQuery{document_sources={" + sources + "},inner={" +
             candidateMatchesQuery.toString(s)  + "}}";
     }
 
     @Override
     public long ramBytesUsed() {
-        return documentSource.ramBytesUsed();
+        long ramUsed = 0L;
+        for (BytesReference document : documents) {
+            ramUsed += document.ramBytesUsed();
+        }
+        return ramUsed;
     }
 
     @FunctionalInterface

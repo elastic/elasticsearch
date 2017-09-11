@@ -23,9 +23,11 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters.InternalBucket;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -90,4 +92,30 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
         return ParsedFilters.class;
     }
 
+    @Override
+    protected InternalFilters mutateInstance(InternalFilters instance) {
+        String name = instance.getName();
+        List<InternalBucket> buckets = instance.getBuckets();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 2)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            buckets = new ArrayList<>(buckets);
+            buckets.add(new InternalFilters.InternalBucket("test", randomIntBetween(0, 1000), InternalAggregations.EMPTY, keyed));
+            break;
+        case 2:
+        default:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        }
+        return new InternalFilters(name, buckets, keyed, pipelineAggregators, metaData);
+    }
 }

@@ -75,7 +75,7 @@ public class CustomQueryParserIT extends ESIntegTestCase {
     private static QueryShardContext queryShardContext() {
         IndicesService indicesService = internalCluster().getDataNodeInstance(IndicesService.class);
         return indicesService.indexServiceSafe(resolveIndex("index")).newQueryShardContext(
-                randomInt(20), null, () -> { throw new UnsupportedOperationException(); });
+                randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
     }
 
     //see #11120

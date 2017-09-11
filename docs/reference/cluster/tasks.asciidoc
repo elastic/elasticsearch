@@ -1,7 +1,7 @@
 [[tasks]]
 == Task Management API
 
-experimental[The Task Management API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
+beta[The Task Management API is new and should still be considered a beta feature.  The API may change in ways that are not backwards compatible]
 
 [float]
 === Current Tasks Information
@@ -57,6 +57,8 @@ The result will look similar to the following:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
+// We can't test tasks output
 
 It is also possible to retrieve information for a particular task:
 
@@ -117,6 +119,8 @@ might look like:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
+// We can't test tasks output
 
 The new `description` field contains human readable text that identifies the
 particular request that the task is performing such as identifying the search
@@ -179,7 +183,6 @@ nodes `nodeId1` and `nodeId2`.
 POST _tasks/_cancel?nodes=nodeId1,nodeId2&actions=*reindex
 --------------------------------------------------
 // CONSOLE
-
 
 [float]
 === Task Grouping

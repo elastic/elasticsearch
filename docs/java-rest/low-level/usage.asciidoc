@@ -4,6 +4,11 @@
 This section describes how to get started with the low-level REST client from
 getting the artifact to using it in an application.
 
+[[java-rest-low-javadoc]]
+=== Javadoc
+
+The javadoc for the low level REST client can be found at {rest-client-javadoc}/index.html.
+
 [[java-rest-low-usage-maven]]
 === Maven Repository
 
@@ -27,7 +32,7 @@ Add the following to your `pom.xml` file:
 --------------------------------------------------
 <dependency>
     <groupId>org.elasticsearch.client</groupId>
-    <artifactId>rest</artifactId>
+    <artifactId>elasticsearch-rest-client</artifactId>
     <version>{version}</version>
 </dependency>
 --------------------------------------------------
@@ -41,7 +46,7 @@ Add the following to your `build.gradle` file:
 ["source","groovy",subs="attributes"]
 --------------------------------------------------
 dependencies {
-    compile 'org.elasticsearch.client:rest:{version}'
+    compile 'org.elasticsearch.client:elasticsearch-rest-client:{version}'
 }
 --------------------------------------------------
 
@@ -60,6 +65,82 @@ http://hc.apache.org/httpcomponents-asyncclient-dev/[Apache Http Async Client]
 - commons-codec:commons-codec
 - commons-logging:commons-logging
 
+[[java-rest-low-usage-shading]]
+=== Shading
+
+In order to avoid version conflicts, the dependencies can be shaded and packaged
+within the client in a single JAR file (sometimes called an "uber JAR" or "fat
+JAR"). Shading a dependency consists of taking its content (resources files and
+Java class files) and renaming some of its packages before putting them in the
+same JAR file as the low-level Java REST client. Shading a JAR can be
+accomplished by 3rd-party plugins for Gradle and Maven.
+
+Be advised that shading a JAR also has implications. Shading the Commons Logging
+layer, for instance, means that 3rd-party logging backends need to be shaded as
+well.
+
+[[java-rest-low-usage-shading-maven]]
+==== Maven configuration
+
+Here is a configuration using the Maven
+https://maven.apache.org/plugins/maven-shade-plugin/index.html[Shade]
+plugin. Add the following to your `pom.xml` file:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-shade-plugin</artifactId>
+            <version>3.1.0</version>
+            <executions>
+                <execution>
+                    <phase>package</phase>
+                    <goals><goal>shade</goal></goals>
+                    <configuration>
+                        <relocations>
+                            <relocation>
+                                <pattern>org.apache.http</pattern>
+                                <shadedPattern>hidden.org.apache.http</shadedPattern>
+                            </relocation>
+                            <relocation>
+                                <pattern>org.apache.logging</pattern>
+                                <shadedPattern>hidden.org.apache.logging</shadedPattern>
+                            </relocation>
+                            <relocation>
+                                <pattern>org.apache.commons.codec</pattern>
+                                <shadedPattern>hidden.org.apache.commons.codec</shadedPattern>
+                            </relocation>
+                            <relocation>
+                                <pattern>org.apache.commons.logging</pattern>
+                                <shadedPattern>hidden.org.apache.commons.logging</shadedPattern>
+                            </relocation>
+                        </relocations>
+                    </configuration>
+                </execution>
+            </executions>
+        </plugin>
+    </plugins>
+</build>
+--------------------------------------------------
+
+[[java-rest-low-usage-shading-gradle]]
+==== Gradle configuration
+
+Here is a configuration using the Gradle
+https://github.com/johnrengelman/shadow[ShadowJar] plugin. Add the following to
+your `build.gradle` file:
+
+["source","groovy",subs="attributes"]
+--------------------------------------------------
+shadowJar {
+    relocate 'org.apache.http', 'hidden.org.apache.http'
+    relocate 'org.apache.logging', 'hidden.org.apache.logging'
+    relocate 'org.apache.commons.codec', 'hidden.org.apache.commons.codec'
+    relocate 'org.apache.commons.logging', 'hidden.org.apache.commons.logging'
+}
+--------------------------------------------------
 
 [[java-rest-low-usage-initialization]]
 === Initialization

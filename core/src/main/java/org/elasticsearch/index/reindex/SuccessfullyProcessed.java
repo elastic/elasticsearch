@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 /**
- * Implemented by {@link BulkByScrollTask} and {@link BulkByScrollTask.Status} to consistently implement
+ * Implemented by {@link WorkerBulkByScrollTaskState} and {@link BulkByScrollTask.Status} to consistently implement
  * {@link #getSuccessfullyProcessed()}.
  */
 public interface SuccessfullyProcessed {

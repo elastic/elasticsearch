@@ -21,10 +21,11 @@
     about `max_map_count`. This is set via `sysctl` before starting
     elasticsearch. Defaults to `262144`.
 
-`CONF_DIR`::
+`ES_PATH_CONF`::
 
-    Configuration file directory (which needs to include `elasticsearch.yml`
-    and `log4j2.properties` files), defaults to `/etc/elasticsearch`.
+    Configuration file directory (which needs to include `elasticsearch.yml`,
+    `jvm.options`, and `log4j2.properties` files); defaults to
+    `/etc/elasticsearch`.
 
 `ES_JAVA_OPTS`::
 

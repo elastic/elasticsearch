@@ -20,7 +20,6 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -35,7 +34,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
@@ -47,8 +47,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
@@ -59,29 +57,33 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends ESTestCase {
+
     private static final int NUMBER_OF_TESTBUILDERS = 20;
 
     protected static NamedWriteableRegistry namedWriteableRegistry;
 
     private static NamedXContentRegistry xContentRegistry;
     private static ScriptService scriptService;
+    protected static String MOCK_SCRIPT_NAME = "dummy";
 
     @BeforeClass
-    public static void init() throws IOException {
+    public static void init() {
         Settings baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        Map<String, Function<Map<String, Object>, Object>> scripts = Collections.singletonMap("dummy", p -> null);
+        Map<String, Function<Map<String, Object>, Object>> scripts = Collections.singletonMap(MOCK_SCRIPT_NAME, p -> null);
         ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts);
         scriptService = new ScriptService(baseSettings, Collections.singletonMap(engine.getType(), engine), ScriptModule.CORE_CONTEXTS);
 
@@ -94,6 +96,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
         xContentRegistry = null;
+        scriptService = null;
     }
 
     /** Returns random sort that is put under test */
@@ -132,7 +135,12 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
+            assertWarnings(testItem);
         }
+    }
+
+    protected void assertWarnings(T testItem) {
+        // assert potential warnings based on the test sort configuration. Do nothing by default, subtests can overwrite
     }
 
     /**
@@ -166,7 +174,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     /**
      * Test equality and hashCode properties
      */
-    public void testEqualsAndHashcode() throws IOException {
+    public void testEqualsAndHashcode() {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             checkEqualsAndHashCode(createTestItem(), this::copy, this::mutate);
         }
@@ -176,22 +184,14 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
             Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
-        IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
-                cache, null, null);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
+        BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fieldIndexName) -> {
+            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName);
+            return builder.build(idxSettings, fieldType, new IndexFieldDataCache.None(), null, null);
+        };
+        return new QueryShardContext(0, idxSettings, bitsetFilterCache, indexFieldDataLookup, null, null, scriptService,
+                xContentRegistry(), namedWriteableRegistry, null, null, () -> randomNonNegativeLong(), null) {
 
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-            }
-
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-            }
-        });
-        long nowInMillis = randomNonNegativeLong();
-        return new QueryShardContext(0, idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                xContentRegistry(), null, null, () -> nowInMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);
@@ -207,7 +207,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     /**
      * Return a field type. We use {@link NumberFieldMapper.NumberFieldType} by default since it is compatible with all sort modes
-     * Tests that require other field type than double can override this.
+     * Tests that require other field types can override this.
      */
     protected MappedFieldType provideMappedFieldType(String name) {
         NumberFieldMapper.NumberFieldType doubleFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);

@@ -58,6 +58,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
+    public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
+
     private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -76,6 +78,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     private int batchedReduceSize = 512;
 
     private int maxConcurrentShardRequests = 0;
+
+    private int preFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -105,12 +109,65 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         this.source = source;
     }
 
+    /**
+     * Constructs a new search request from reading the specified stream.
+     *
+     * @param in The stream the request is read from
+     * @throws IOException if there is an issue reading the stream
+     */
+    public SearchRequest(StreamInput in) throws IOException {
+        super(in);
+        searchType = SearchType.fromId(in.readByte());
+        indices = new String[in.readVInt()];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = in.readString();
+        }
+        routing = in.readOptionalString();
+        preference = in.readOptionalString();
+        scroll = in.readOptionalWriteable(Scroll::new);
+        source = in.readOptionalWriteable(SearchSourceBuilder::new);
+        types = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        requestCache = in.readOptionalBoolean();
+        batchedReduceSize = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
+            maxConcurrentShardRequests = in.readVInt();
+            preFilterShardSize = in.readVInt();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeByte(searchType.id());
+        out.writeVInt(indices.length);
+        for (String index : indices) {
+            out.writeString(index);
+        }
+        out.writeOptionalString(routing);
+        out.writeOptionalString(preference);
+        out.writeOptionalWriteable(scroll);
+        out.writeOptionalWriteable(source);
+        out.writeStringArray(types);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeOptionalBoolean(requestCache);
+        out.writeVInt(batchedReduceSize);
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
+            out.writeVInt(maxConcurrentShardRequests);
+            out.writeVInt(preFilterShardSize);
+        }
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (source != null && source.trackTotalHits() == false && scroll() != null) {
             validationException =
                 addValidationError("disabling [track_total_hits] is not allowed in a scroll context", validationException);
+        }
+        if (source != null && source.from() > 0 &&  scroll() != null) {
+            validationException =
+                addValidationError("using [from] is not allowed in a scroll context", validationException);
         }
         return validationException;
     }
@@ -325,6 +382,28 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         }
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
     }
+    /**
+     * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public void setPreFilterShardSize(int preFilterShardSize) {
+        if (preFilterShardSize < 1) {
+            throw new IllegalArgumentException("preFilterShardSize must be >= 1");
+        }
+        this.preFilterShardSize = preFilterShardSize;
+    }
+
+    /**
+     * Returns a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public int getPreFilterShardSize() {
+        return preFilterShardSize;
+    }
 
     /**
      * Returns <code>true</code> iff the maxConcurrentShardRequest is set.
@@ -355,6 +434,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 sb.append("], ");
                 sb.append("search_type[").append(searchType).append("], ");
                 if (source != null) {
+
                     sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
                 } else {
                     sb.append("source[]");
@@ -366,44 +446,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        searchType = SearchType.fromId(in.readByte());
-        indices = new String[in.readVInt()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readString();
-        }
-        routing = in.readOptionalString();
-        preference = in.readOptionalString();
-        scroll = in.readOptionalWriteable(Scroll::new);
-        source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        types = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        requestCache = in.readOptionalBoolean();
-        batchedReduceSize = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            maxConcurrentShardRequests = in.readVInt();
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeByte(searchType.id());
-        out.writeVInt(indices.length);
-        for (String index : indices) {
-            out.writeString(index);
-        }
-        out.writeOptionalString(routing);
-        out.writeOptionalString(preference);
-        out.writeOptionalWriteable(scroll);
-        out.writeOptionalWriteable(source);
-        out.writeStringArray(types);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeOptionalBoolean(requestCache);
-        out.writeVInt(batchedReduceSize);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            out.writeVInt(maxConcurrentShardRequests);
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -425,13 +468,14 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Arrays.equals(types, that.types) &&
                 Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
                 Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
+                Objects.equals(preFilterShardSize, that.preFilterShardSize) &&
                 Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions, maxConcurrentShardRequests);
+                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize);
     }
 
     @Override
@@ -447,6 +491,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", scroll=" + scroll +
                 ", maxConcurrentShardRequests=" + maxConcurrentShardRequests +
                 ", batchedReduceSize=" + batchedReduceSize +
+                ", preFilterShardSize=" + preFilterShardSize +
                 ", source=" + source + '}';
     }
 }

@@ -140,7 +140,7 @@ public class IndexModuleTests extends ESTestCase {
     private IndexService newIndexService(IndexModule module) throws IOException {
         return module.newIndexService(nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays, threadPool,
                 scriptService, null, indicesQueryCache, mapperRegistry,
-                new IndicesFieldDataCache(settings, listener));
+                new IndicesFieldDataCache(settings, listener), writableRegistry());
     }
 
     public void testWrapperIsBound() throws IOException {
@@ -284,7 +284,7 @@ public class IndexModuleTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), emptyAnalysisRegistry);
-        module.addSimilarity("test_similarity", (string, providerSettings, indexLevelSettings) -> new SimilarityProvider() {
+        module.addSimilarity("test_similarity", (string, providerSettings, indexLevelSettings, scriptService) -> new SimilarityProvider() {
             @Override
             public String name() {
                 return string;

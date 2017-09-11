@@ -175,7 +175,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             // slip the extra document into the replica
             remainingReplica.applyIndexOperationOnReplica(
                     remainingReplica.getLocalCheckpoint() + 1,
-                    remainingReplica.getPrimaryTerm(),
                     1,
                     VersionType.EXTERNAL,
                     randomNonNegativeLong(),
@@ -351,7 +350,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             closeShards(replica);
 
             docs += pendingDocs;
-            primaryEngineFactory.latchIndexers();
+            primaryEngineFactory.latchIndexers(pendingDocs);
             CountDownLatch pendingDocsDone = new CountDownLatch(pendingDocs);
             for (int i = 0; i < pendingDocs; i++) {
                 final String id = "pending_" + i;
@@ -451,7 +450,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         public long indexTranslogOperations(final List<Translog.Operation> operations, final int totalTranslogOps)
                              throws IOException {
                             // index a doc which is not part of the snapshot, but also does not complete on replica
-                            replicaEngineFactory.latchIndexers();
+                            replicaEngineFactory.latchIndexers(1);
                             threadPool.generic().submit(() -> {
                                 try {
                                     shards.index(new IndexRequest(index.getName(), "type", "pending").source("{}", XContentType.JSON));
@@ -594,10 +593,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         private final AtomicReference<CountDownLatch> blockReference = new AtomicReference<>();
         private final AtomicReference<CountDownLatch> blockedIndexers = new AtomicReference<>();
 
-        public synchronized void latchIndexers() {
+        public synchronized void latchIndexers(int count) {
             final CountDownLatch block = new CountDownLatch(1);
             blocks.add(block);
-            blockedIndexers.set(new CountDownLatch(1));
+            blockedIndexers.set(new CountDownLatch(count));
             assert blockReference.compareAndSet(null, block);
         }
 

@@ -20,12 +20,23 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
  */
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
 
 group = 'org.elasticsearch.client'
+archivesBaseName = 'elasticsearch-rest-high-level-client'
+
+publishing {
+    publications {
+        nebula {
+            artifactId = archivesBaseName
+        }
+    }
+}
 
 dependencies {
   compile "org.elasticsearch:elasticsearch:${version}"
-  compile "org.elasticsearch.client:rest:${version}"
+  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
   compile "org.elasticsearch.plugin:parent-join-client:${version}"
   compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
 
@@ -48,4 +59,5 @@ forbiddenApisMain {
   // core does not depend on the httpclient for compile so we add the signatures here. We don't add them for test as they are already
   // specified
   signaturesURLs += [PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
+  signaturesURLs += [file('src/main/resources/forbidden/rest-high-level-signatures.txt').toURI().toURL()]
 }

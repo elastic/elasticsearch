@@ -25,7 +25,6 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 
@@ -37,7 +36,7 @@ public class RemoveSettingKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new RemoveSettingKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path configPath) {
+            protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
                 return env;
             }
         };
@@ -76,6 +75,6 @@ public class RemoveSettingKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertFalse(settings.contains("foo"));
         assertFalse(settings.contains("baz"));
         assertTrue(settings.contains("bar"));
-        assertEquals(1, settings.size());
+        assertEquals(2, settings.size()); // account for keystore.seed too
     }
 }

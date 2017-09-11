@@ -45,8 +45,8 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                                        ClusterService clusterService, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver,
                                        SearchTransportService searchTransportService, SearchPhaseController searchPhaseController) {
-        super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                SearchScrollRequest::new);
+        super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, SearchScrollRequest::new,
+            indexNameExpressionResolver);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.searchPhaseController = searchPhaseController;

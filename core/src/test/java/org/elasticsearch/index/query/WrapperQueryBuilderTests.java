@@ -24,14 +24,16 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.io.UnsupportedEncodingException;
 
 public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQueryBuilder> {
@@ -44,13 +46,21 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     @Override
     protected WrapperQueryBuilder doCreateTestQueryBuilder() {
         QueryBuilder wrappedQuery = RandomQueryBuilder.createQuery(random());
+        BytesReference bytes;
+        try {
+            bytes = XContentHelper.toXContent(wrappedQuery, XContentType.JSON, false);
+        } catch(IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
         switch (randomInt(2)) {
             case 0:
                 return new WrapperQueryBuilder(wrappedQuery.toString());
             case 1:
-                return new WrapperQueryBuilder(BytesReference.toBytes(((ToXContentToBytes)wrappedQuery).buildAsBytes()));
+
+                return new WrapperQueryBuilder(BytesReference.toBytes(bytes));
             case 2:
-                return new WrapperQueryBuilder(((ToXContentToBytes)wrappedQuery).buildAsBytes());
+                return new WrapperQueryBuilder(bytes);
             default:
                 throw new UnsupportedOperationException();
         }

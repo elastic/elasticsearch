@@ -21,15 +21,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -180,7 +175,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new AbstractLatLonPointDVIndexFieldData.Builder();
         }
@@ -190,31 +185,9 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
             throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead: ["
                 + name() + "]");
         }
-
-        @Override
-        public FieldStats.GeoPoint stats(IndexReader reader) throws IOException {
-            String field = name();
-            FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(name());
-            if (fi == null) {
-                return null;
-            }
-            final long size = PointValues.size(reader, field);
-            if (size == 0) {
-                return new FieldStats.GeoPoint(reader.maxDoc(), -1L, -1L, -1L, isSearchable(), isAggregatable());
-            }
-            final int docCount = PointValues.getDocCount(reader, field);
-            byte[] min = PointValues.getMinPackedValue(reader, field);
-            byte[] max = PointValues.getMaxPackedValue(reader, field);
-            GeoPoint minPt = new GeoPoint(GeoEncodingUtils.decodeLatitude(min, 0), GeoEncodingUtils.decodeLongitude(min, Integer.BYTES));
-            GeoPoint maxPt = new GeoPoint(GeoEncodingUtils.decodeLatitude(max, 0), GeoEncodingUtils.decodeLongitude(max, Integer.BYTES));
-            return new FieldStats.GeoPoint(reader.maxDoc(), docCount, -1L, size, isSearchable(), isAggregatable(),
-                minPt, maxPt);
-        }
     }
 
-    protected void parse(ParseContext originalContext, GeoPoint point) throws IOException {
-        // Geopoint fields, by default, will not be included in _all
-        final ParseContext context = originalContext.setIncludeInAllDefault(false);
+    protected void parse(ParseContext context, GeoPoint point) throws IOException {
 
         if (ignoreMalformed.value() == false) {
             if (point.lat() > 90.0 || point.lat() < -90.0) {

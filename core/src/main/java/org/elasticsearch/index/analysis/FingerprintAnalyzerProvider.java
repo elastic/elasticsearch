@@ -33,19 +33,21 @@ import org.elasticsearch.index.IndexSettings;
  */
 public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 
-    public static ParseField MAX_OUTPUT_SIZE = FingerprintTokenFilterFactory.MAX_OUTPUT_SIZE;
+    public static ParseField SEPARATOR = new ParseField("separator");
+    public static ParseField MAX_OUTPUT_SIZE = new ParseField("max_output_size");
 
-    public static int DEFAULT_MAX_OUTPUT_SIZE = FingerprintTokenFilterFactory.DEFAULT_MAX_OUTPUT_SIZE;
+    public static int DEFAULT_MAX_OUTPUT_SIZE = 255;
     public static CharArraySet DEFAULT_STOP_WORDS = CharArraySet.EMPTY_SET;
+    public static final char DEFAULT_SEPARATOR  = ' ';
 
     private final FingerprintAnalyzer analyzer;
 
     public FingerprintAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
-        char separator = FingerprintTokenFilterFactory.parseSeparator(settings);
+        char separator = parseSeparator(settings);
         int maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(),DEFAULT_MAX_OUTPUT_SIZE);
-        CharArraySet stopWords = Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, DEFAULT_STOP_WORDS);
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, DEFAULT_STOP_WORDS);
 
         this.analyzer = new FingerprintAnalyzer(stopWords, separator, maxOutputSize);
     }
@@ -53,5 +55,17 @@ public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<A
     @Override
     public FingerprintAnalyzer get() {
         return analyzer;
+    }
+
+    public static char parseSeparator(Settings settings) throws IllegalArgumentException {
+        String customSeparator = settings.get(SEPARATOR.getPreferredName());
+        if (customSeparator == null) {
+            return DEFAULT_SEPARATOR;
+        } else if (customSeparator.length() == 1) {
+            return customSeparator.charAt(0);
+        }
+
+        throw new IllegalArgumentException("Setting [separator] must be a single, non-null character. ["
+                + customSeparator + "] was provided.");
     }
 }

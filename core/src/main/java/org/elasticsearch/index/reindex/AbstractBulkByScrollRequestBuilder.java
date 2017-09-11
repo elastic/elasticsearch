@@ -145,8 +145,8 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
-    public Self setSlices(int workers) {
-        request.setSlices(workers);
+    public Self setSlices(int slices) {
+        request.setSlices(slices);
         return self();
     }
 }

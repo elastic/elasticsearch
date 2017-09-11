@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Set;
@@ -29,16 +31,6 @@ import java.util.Set;
  * Encapsulates the local and global checkpoints into a single service for use as a shard component.
  */
 public class SequenceNumbersService extends AbstractIndexShardComponent {
-
-    /**
-     * Represents an unassigned sequence number (e.g., can be used on primary operations before they are executed).
-     */
-    public static final long UNASSIGNED_SEQ_NO = -2L;
-
-    /**
-     * Represents no operations have been performed on the shard.
-     */
-    public static final long NO_OPS_PERFORMED = -1L;
 
     /**
      * Represents a local checkpoint coming from a pre-6.0 node
@@ -50,15 +42,15 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
 
     /**
      * Initialize the sequence number service. The {@code maxSeqNo} should be set to the last sequence number assigned by this shard, or
-     * {@link SequenceNumbersService#NO_OPS_PERFORMED}, {@code localCheckpoint} should be set to the last known local checkpoint for this
-     * shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}, and {@code globalCheckpoint} should be set to the last known global
-     * checkpoint for this shard, or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
+     * {@link SequenceNumbers#NO_OPS_PERFORMED}, {@code localCheckpoint} should be set to the last known local checkpoint for this
+     * shard, or {@link SequenceNumbers#NO_OPS_PERFORMED}, and {@code globalCheckpoint} should be set to the last known global
+     * checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}.
      *
      * @param shardId          the shard this service is providing tracking local checkpoints for
      * @param indexSettings    the index settings
-     * @param maxSeqNo         the last sequence number assigned by this shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}
-     * @param localCheckpoint  the last known local checkpoint for this shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}
-     * @param globalCheckpoint the last known global checkpoint for this shard, or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}
+     * @param maxSeqNo         the last sequence number assigned by this shard, or {@link SequenceNumbers#NO_OPS_PERFORMED}
+     * @param localCheckpoint  the last known local checkpoint for this shard, or {@link SequenceNumbers#NO_OPS_PERFORMED}
+     * @param globalCheckpoint the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
      */
     public SequenceNumbersService(
         final ShardId shardId,
@@ -170,6 +162,15 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
+     * Returns the current replication group for the shard.
+     *
+     * @return the replication group
+     */
+    public ReplicationGroup getReplicationGroup() {
+        return globalCheckpointTracker.getReplicationGroup();
+    }
+
+    /**
      * Returns the global checkpoint for the shard.
      *
      * @return the global checkpoint
@@ -205,17 +206,17 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
 
     /**
      * Notifies the service of the current allocation IDs in the cluster state. See
-     * {@link GlobalCheckpointTracker#updateFromMaster(long, Set, Set, Set)} for details.
+     * {@link GlobalCheckpointTracker#updateFromMaster(long, Set, IndexShardRoutingTable, Set)} for details.
      *
      * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
      * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
-     * @param initializingAllocationIds   the allocation IDs of the currently initializing shard copies
+     * @param routingTable                the shard routing table
      * @param pre60AllocationIds          the allocation IDs of shards that are allocated to pre-6.0 nodes
      */
     public void updateAllocationIdsFromMaster(
-            final long applyingClusterStateVersion, final Set<String> inSyncAllocationIds, final Set<String> initializingAllocationIds,
+            final long applyingClusterStateVersion, final Set<String> inSyncAllocationIds, final IndexShardRoutingTable routingTable,
             final Set<String> pre60AllocationIds) {
-        globalCheckpointTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds,
+        globalCheckpointTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, routingTable,
             pre60AllocationIds);
     }
 

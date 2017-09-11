@@ -74,7 +74,7 @@ import static org.mockito.Mockito.when;
 public class TemplateUpgradeServiceTests extends ESTestCase {
 
     private final ClusterService clusterService = new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
-        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
+        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, Collections.emptyMap());
 
     public void testCalculateChangesAddChangeAndDelete() {
 

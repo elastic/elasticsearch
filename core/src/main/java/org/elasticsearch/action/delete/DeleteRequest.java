@@ -229,26 +229,6 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
      * use because the DeleteRequest object will always be wrapped in a bulk request envelope, which is where this *should* be set.
      */
     @Override
-    public long primaryTerm() {
-        throw new UnsupportedOperationException("primary term should never be set on DeleteRequest");
-    }
-
-    /**
-     * Override this method from ReplicationAction, this is where we are storing our state in the request object (which we really shouldn't
-     * do). Once the transport client goes away we can move away from making this available, but in the meantime this is dangerous to set or
-     * use because the DeleteRequest object will always be wrapped in a bulk request envelope, which is where this *should* be set.
-     */
-    @Override
-    public void primaryTerm(long term) {
-        throw new UnsupportedOperationException("primary term should never be set on DeleteRequest");
-    }
-
-    /**
-     * Override this method from ReplicationAction, this is where we are storing our state in the request object (which we really shouldn't
-     * do). Once the transport client goes away we can move away from making this available, but in the meantime this is dangerous to set or
-     * use because the DeleteRequest object will always be wrapped in a bulk request envelope, which is where this *should* be set.
-     */
-    @Override
     public DeleteRequest setShardId(ShardId shardId) {
         throw new UnsupportedOperationException("shard id should never be set on DeleteRequest");
     }

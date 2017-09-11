@@ -143,11 +143,11 @@ This will yield the same result as the previous request.
 
 `df`::
     The default field to use when no field prefix is defined within
-    the query. Defaults to _all field.
+    the query.
 
 `analyzer`::
     The analyzer name to be used when analyzing the query
-    string. Defaults to the analyzer of the _all field.
+    string. Defaults to the default search analyzer.
 
 `analyze_wildcard`::
     Should wildcard and prefix queries be analyzed or

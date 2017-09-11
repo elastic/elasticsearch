@@ -21,7 +21,12 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.HalfFloatPoint;
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
@@ -81,6 +86,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.network.InetAddresses.forString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CandidateQueryTests extends ESSingleNodeTestCase {
@@ -287,10 +293,179 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         duelRun(queryStore, memoryIndex, shardSearcher);
     }
 
+    public void testRangeQueries() throws Exception {
+        List<ParseContext.Document> docs = new ArrayList<>();
+        addQuery(IntPoint.newRangeQuery("int_field", 0, 5), docs);
+        addQuery(LongPoint.newRangeQuery("long_field", 5L, 10L), docs);
+        addQuery(HalfFloatPoint.newRangeQuery("half_float_field", 10, 15), docs);
+        addQuery(FloatPoint.newRangeQuery("float_field", 15, 20), docs);
+        addQuery(DoublePoint.newRangeQuery("double_field", 20, 25), docs);
+        addQuery(InetAddressPoint.newRangeQuery("ip_field", forString("192.168.0.1"), forString("192.168.0.10")), docs);
+        indexWriter.addDocuments(docs);
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        shardSearcher.setQueryCache(null);
+
+        MemoryIndex memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new IntPoint("int_field", 3)), new WhitespaceAnalyzer());
+        IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+        Query query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+        TopDocs topDocs = shardSearcher.search(query, 1);
+        assertEquals(1L, topDocs.totalHits);
+        assertEquals(1, topDocs.scoreDocs.length);
+        assertEquals(0, topDocs.scoreDocs[0].doc);
+
+        memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new LongPoint("long_field", 7L)), new WhitespaceAnalyzer());
+        percolateSearcher = memoryIndex.createSearcher();
+        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+        topDocs = shardSearcher.search(query, 1);
+        assertEquals(1L, topDocs.totalHits);
+        assertEquals(1, topDocs.scoreDocs.length);
+        assertEquals(1, topDocs.scoreDocs[0].doc);
+
+        memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new HalfFloatPoint("half_float_field", 12)),
+            new WhitespaceAnalyzer());
+        percolateSearcher = memoryIndex.createSearcher();
+        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+        topDocs = shardSearcher.search(query, 1);
+        assertEquals(1L, topDocs.totalHits);
+        assertEquals(1, topDocs.scoreDocs.length);
+        assertEquals(2, topDocs.scoreDocs[0].doc);
+
+        memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new FloatPoint("float_field", 17)), new WhitespaceAnalyzer());
+        percolateSearcher = memoryIndex.createSearcher();
+        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+        topDocs = shardSearcher.search(query, 1);
+        assertEquals(1, topDocs.totalHits);
+        assertEquals(1, topDocs.scoreDocs.length);
+        assertEquals(3, topDocs.scoreDocs[0].doc);
+
+        memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new DoublePoint("double_field", 21)), new WhitespaceAnalyzer());
+        percolateSearcher = memoryIndex.createSearcher();
+        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+        topDocs = shardSearcher.search(query, 1);
+        assertEquals(1, topDocs.totalHits);
+        assertEquals(1, topDocs.scoreDocs.length);
+        assertEquals(4, topDocs.scoreDocs[0].doc);
+
+        memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new InetAddressPoint("ip_field",
+            forString("192.168.0.4"))), new WhitespaceAnalyzer());
+        percolateSearcher = memoryIndex.createSearcher();
+        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+        topDocs = shardSearcher.search(query, 1);
+        assertEquals(1, topDocs.totalHits);
+        assertEquals(1, topDocs.scoreDocs.length);
+        assertEquals(5, topDocs.scoreDocs[0].doc);
+    }
+
+    public void testDuelRangeQueries() throws Exception {
+        List<ParseContext.Document> documents = new ArrayList<>();
+
+        int lowerInt = randomIntBetween(0, 256);
+        int upperInt = lowerInt + randomIntBetween(0, 32);
+        addQuery(IntPoint.newRangeQuery("int_field", lowerInt, upperInt), documents);
+
+        long lowerLong = randomIntBetween(0, 256);
+        long upperLong = lowerLong + randomIntBetween(0, 32);
+        addQuery(LongPoint.newRangeQuery("long_field", lowerLong, upperLong), documents);
+
+        float lowerHalfFloat = randomIntBetween(0, 256);
+        float upperHalfFloat = lowerHalfFloat + randomIntBetween(0, 32);
+        addQuery(HalfFloatPoint.newRangeQuery("half_float_field", lowerHalfFloat, upperHalfFloat), documents);
+
+        float lowerFloat = randomIntBetween(0, 256);
+        float upperFloat = lowerFloat + randomIntBetween(0, 32);
+        addQuery(FloatPoint.newRangeQuery("float_field", lowerFloat, upperFloat), documents);
+
+        double lowerDouble = randomDoubleBetween(0, 256, true);
+        double upperDouble = lowerDouble + randomDoubleBetween(0, 32, true);
+        addQuery(DoublePoint.newRangeQuery("double_field", lowerDouble, upperDouble), documents);
+
+        int lowerIpPart = randomIntBetween(0, 255);
+        int upperIpPart = randomIntBetween(lowerIpPart, 255);
+        addQuery(InetAddressPoint.newRangeQuery("ip_field", forString("192.168.1." + lowerIpPart),
+            forString("192.168.1." + upperIpPart)), documents);
+
+        indexWriter.addDocuments(documents);
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        // Disable query cache, because ControlQuery cannot be cached...
+        shardSearcher.setQueryCache(null);
+
+        int randomInt = randomIntBetween(lowerInt, upperInt);
+        Iterable<? extends IndexableField> doc = Collections.singleton(new IntPoint("int_field", randomInt));
+        MemoryIndex memoryIndex = MemoryIndex.fromDocument(doc, new WhitespaceAnalyzer());
+        TopDocs result = executeQuery(queryStore, memoryIndex, shardSearcher);
+        assertThat(result.scoreDocs.length, equalTo(1));
+        assertThat(result.scoreDocs[0].doc, equalTo(0));
+        duelRun(queryStore, memoryIndex, shardSearcher);
+        doc = Collections.singleton(new IntPoint("int_field", randomInt()));
+        memoryIndex = MemoryIndex.fromDocument(doc, new WhitespaceAnalyzer());
+        duelRun(queryStore, memoryIndex, shardSearcher);
+
+        long randomLong = randomIntBetween((int) lowerLong, (int) upperLong);
+        doc = Collections.singleton(new LongPoint("long_field", randomLong));
+        memoryIndex = MemoryIndex.fromDocument(doc, new WhitespaceAnalyzer());
+        result = executeQuery(queryStore, memoryIndex, shardSearcher);
+        assertThat(result.scoreDocs.length, equalTo(1));
+        assertThat(result.scoreDocs[0].doc, equalTo(1));
+        duelRun(queryStore, memoryIndex, shardSearcher);
+        doc = Collections.singleton(new LongPoint("long_field", randomLong()));
+        memoryIndex = MemoryIndex.fromDocument(doc, new WhitespaceAnalyzer());
+        duelRun(queryStore, memoryIndex, shardSearcher);
+
+        float randomHalfFloat = randomIntBetween((int) lowerHalfFloat, (int) upperHalfFloat);
+        doc = Collections.singleton(new HalfFloatPoint("half_float_field", randomHalfFloat));
+        memoryIndex = MemoryIndex.fromDocument(doc, new WhitespaceAnalyzer());
+        result = executeQuery(queryStore, memoryIndex, shardSearcher);
+        assertThat(result.scoreDocs.length, equalTo(1));
+        assertThat(result.scoreDocs[0].doc, equalTo(2));
+        duelRun(queryStore, memoryIndex, shardSearcher);
+        doc = Collections.singleton(new HalfFloatPoint("half_float_field", randomFloat()));
+        memoryIndex = MemoryIndex.fromDocument(doc, new WhitespaceAnalyzer());
+        duelRun(queryStore, memoryIndex, shardSearcher);
+
+        float randomFloat = randomIntBetween((int) lowerFloat, (int) upperFloat);
+        doc = Collections.singleton(new FloatPoint("float_field", randomFloat));
+        memoryIndex = MemoryIndex.fromDocument(doc, new WhitespaceAnalyzer());
+        result = executeQuery(queryStore, memoryIndex, shardSearcher);
+        assertThat(result.scoreDocs.length, equalTo(1));
+        assertThat(result.scoreDocs[0].doc, equalTo(3));
+        duelRun(queryStore, memoryIndex, shardSearcher);
+        doc = Collections.singleton(new FloatPoint("float_field", randomFloat()));
+        memoryIndex = MemoryIndex.fromDocument(doc, new WhitespaceAnalyzer());
+        duelRun(queryStore, memoryIndex, shardSearcher);
+
+        double randomDouble = randomDoubleBetween(lowerDouble, upperDouble, true);
+        doc = Collections.singleton(new DoublePoint("double_field", randomDouble));
+        memoryIndex = MemoryIndex.fromDocument(doc, new WhitespaceAnalyzer());
+        result = executeQuery(queryStore, memoryIndex, shardSearcher);
+        assertThat(result.scoreDocs.length, equalTo(1));
+        assertThat(result.scoreDocs[0].doc, equalTo(4));
+        duelRun(queryStore, memoryIndex, shardSearcher);
+        doc = Collections.singleton(new DoublePoint("double_field", randomFloat()));
+        memoryIndex = MemoryIndex.fromDocument(doc, new WhitespaceAnalyzer());
+        duelRun(queryStore, memoryIndex, shardSearcher);
+
+        doc = Collections.singleton(new InetAddressPoint("ip_field",
+            forString("192.168.1." + randomIntBetween(lowerIpPart, upperIpPart))));
+        memoryIndex = MemoryIndex.fromDocument(doc, new WhitespaceAnalyzer());
+        result = executeQuery(queryStore, memoryIndex, shardSearcher);
+        assertThat(result.scoreDocs.length, equalTo(1));
+        assertThat(result.scoreDocs[0].doc, equalTo(5));
+        duelRun(queryStore, memoryIndex, shardSearcher);
+        doc = Collections.singleton(new InetAddressPoint("ip_field",
+            forString("192.168.1." + randomIntBetween(0, 255))));
+        memoryIndex = MemoryIndex.fromDocument(doc, new WhitespaceAnalyzer());
+        duelRun(queryStore, memoryIndex, shardSearcher);
+    }
+
     private void duelRun(PercolateQuery.QueryStore queryStore, MemoryIndex memoryIndex, IndexSearcher shardSearcher) throws IOException {
         boolean requireScore = randomBoolean();
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
-        Query percolateQuery = fieldType.percolateQuery(queryStore, new BytesArray("{}"), percolateSearcher);
+        Query percolateQuery = fieldType.percolateQuery("_name", queryStore,
+            Collections.singletonList(new BytesArray("{}")), percolateSearcher);
         Query query = requireScore ? percolateQuery : new ConstantScoreQuery(percolateQuery);
         TopDocs topDocs = shardSearcher.search(query, 10);
 
@@ -317,6 +492,15 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(query, parseContext);
         docs.add(parseContext.doc());
         queries.add(query);
+    }
+
+    private TopDocs executeQuery(PercolateQuery.QueryStore queryStore,
+                                 MemoryIndex memoryIndex,
+                                 IndexSearcher shardSearcher) throws IOException {
+        IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+        Query percolateQuery = fieldType.percolateQuery("_name", queryStore,
+            Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+        return shardSearcher.search(percolateQuery, 10);
     }
 
     private static final class CustomQuery extends Query {

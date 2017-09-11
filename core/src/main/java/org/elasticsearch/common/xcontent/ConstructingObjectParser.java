@@ -108,7 +108,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
      *        ObjectParser.
      * @param builder A function that builds the object from an array of Objects. Declare this inline with the parser, casting the elements
      *        of the array to the arguments so they work with your favorite constructor. The objects in the array will be in the same order
-     *        that you declared the {{@link #constructorArg()}s and none will be null. If any of the constructor arguments aren't defined in
+     *        that you declared the {@link #constructorArg()}s and none will be null. If any of the constructor arguments aren't defined in
      *        the XContent then parsing will throw an error. We use an array here rather than a {@code Map<String, Object>} to save on
      *        allocations.
      */
@@ -125,7 +125,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
      *        from external systems, never when parsing requests from users.
      * @param builder A function that builds the object from an array of Objects. Declare this inline with the parser, casting the elements
      *        of the array to the arguments so they work with your favorite constructor. The objects in the array will be in the same order
-     *        that you declared the {{@link #constructorArg()}s and none will be null. If any of the constructor arguments aren't defined in
+     *        that you declared the {@link #constructorArg()}s and none will be null. If any of the constructor arguments aren't defined in
      *        the XContent then parsing will throw an error. We use an array here rather than a {@code Map<String, Object>} to save on
      *        allocations.
      */
@@ -142,7 +142,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
      *        from external systems, never when parsing requests from users.
      * @param builder A binary function that builds the object from an array of Objects and the parser context.  Declare this inline with
      *        the parser, casting the elements of the array to the arguments so they work with your favorite constructor. The objects in
-     *        the array will be in the same order that you declared the {{@link #constructorArg()}s and none will be null. The second
+     *        the array will be in the same order that you declared the {@link #constructorArg()}s and none will be null. The second
      *        argument is the value of the context provided to the {@link #parse(XContentParser, Object) parse function}. If any of the
      *        constructor arguments aren't defined in the XContent then parsing will throw an error. We use an array here rather than a
      *        {@code Map<String, Object>} to save on allocations.
@@ -293,6 +293,10 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             objectParser.declareNamedObjects(queueingConsumer(consumer, parseField), namedObjectParser,
                     wrapOrderedModeCallBack(orderedModeCallback), parseField);
         }
+    }
+
+    public String getName() {
+        return objectParser.getName();
     }
 
     private Consumer<Target> wrapOrderedModeCallBack(Consumer<Value> callback) {

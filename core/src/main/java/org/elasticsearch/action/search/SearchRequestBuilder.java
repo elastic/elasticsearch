@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -415,25 +415,25 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder, int)}.
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescorerBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
-    public SearchRequestBuilder setRescorer(RescoreBuilder<?> rescorer) {
+    public SearchRequestBuilder setRescorer(RescorerBuilder<?> rescorer) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer);
     }
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder, int)}.
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescorerBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @param window   rescore window
      * @return this for chaining
      */
-    public SearchRequestBuilder setRescorer(RescoreBuilder rescorer, int window) {
+    public SearchRequestBuilder setRescorer(RescorerBuilder rescorer, int window) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer.windowSize(window));
     }
@@ -444,7 +444,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
-    public SearchRequestBuilder addRescorer(RescoreBuilder<?> rescorer) {
+    public SearchRequestBuilder addRescorer(RescorerBuilder<?> rescorer) {
         sourceBuilder().addRescorer(rescorer);
         return this;
     }
@@ -456,7 +456,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param window   rescore window
      * @return this for chaining
      */
-    public SearchRequestBuilder addRescorer(RescoreBuilder<?> rescorer, int window) {
+    public SearchRequestBuilder addRescorer(RescorerBuilder<?> rescorer, int window) {
         sourceBuilder().addRescorer(rescorer.windowSize(window));
         return this;
     }
@@ -533,6 +533,17 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
         this.request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+        return this;
+    }
+
+    /**
+     * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public SearchRequestBuilder setPreFilterShardSize(int preFilterShardSize) {
+        this.request.setPreFilterShardSize(preFilterShardSize);
         return this;
     }
 }

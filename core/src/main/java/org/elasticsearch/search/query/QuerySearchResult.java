@@ -21,6 +21,7 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -58,6 +59,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private boolean hasScoreDocs;
     private long totalHits;
     private float maxScore;
+    private long serviceTimeEWMA = -1;
+    private int nodeQueueSize = -1;
 
     public QuerySearchResult() {
     }
@@ -228,6 +231,24 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return this;
     }
 
+    public long serviceTimeEWMA() {
+        return this.serviceTimeEWMA;
+    }
+
+    public QuerySearchResult serviceTimeEWMA(long serviceTimeEWMA) {
+        this.serviceTimeEWMA = serviceTimeEWMA;
+        return this;
+    }
+
+    public int nodeQueueSize() {
+        return this.nodeQueueSize;
+    }
+
+    public QuerySearchResult nodeQueueSize(int nodeQueueSize) {
+        this.nodeQueueSize = nodeQueueSize;
+        return this;
+    }
+
     /**
      * Returns <code>true</code> if this result has any suggest score docs
      */
@@ -278,6 +299,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
         terminatedEarly = in.readOptionalBoolean();
         profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
         hasProfileResults = profileShardResults != null;
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            serviceTimeEWMA = in.readZLong();
+            nodeQueueSize = in.readInt();
+        } else {
+            serviceTimeEWMA = -1;
+            nodeQueueSize = -1;
+        }
     }
 
     @Override
@@ -315,6 +343,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeBoolean(searchTimedOut);
         out.writeOptionalBoolean(terminatedEarly);
         out.writeOptionalWriteable(profileShardResults);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            out.writeZLong(serviceTimeEWMA);
+            out.writeInt(nodeQueueSize);
+        }
     }
 
     public long getTotalHits() {

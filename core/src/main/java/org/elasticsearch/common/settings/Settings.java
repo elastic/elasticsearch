@@ -27,6 +27,8 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -35,7 +37,8 @@ import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -62,7 +65,6 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -79,7 +81,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 /**
  * An immutable settings implementation.
  */
-public final class Settings implements ToXContent {
+public final class Settings implements ToXContentFragment {
 
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
@@ -321,41 +323,20 @@ public final class Settings implements ToXContent {
     }
 
     /**
+     * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
+     * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
+     * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
+     */
+    static class DeprecationLoggerHolder {
+        static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Settings.class));
+    }
+
+    /**
      * Returns the setting value (as boolean) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
     public Boolean getAsBoolean(String setting, Boolean defaultValue) {
         return Booleans.parseBoolean(get(setting), defaultValue);
-    }
-
-    // TODO #22298: Delete this method and update call sites to <code>#getAsBoolean(String, Boolean)</code>.
-    /**
-     * Returns the setting value (as boolean) associated with the setting key. If it does not exist, returns the default value provided.
-     * If the index was created on Elasticsearch below 6.0, booleans will be parsed leniently otherwise they are parsed strictly.
-     *
-     * See {@link Booleans#isBooleanLenient(char[], int, int)} for the definition of a "lenient boolean"
-     * and {@link Booleans#isBoolean(char[], int, int)} for the definition of a "strict boolean".
-     *
-     * @deprecated Only used to provide automatic upgrades for pre 6.0 indices.
-     */
-    @Deprecated
-    public Boolean getAsBooleanLenientForPreEs6Indices(
-        final Version indexVersion,
-        final String setting,
-        final Boolean defaultValue,
-        final DeprecationLogger deprecationLogger) {
-        if (indexVersion.before(Version.V_6_0_0_alpha1)) {
-            //Only emit a warning if the setting's value is not a proper boolean
-            final String value = get(setting, "false");
-            if (Booleans.isBoolean(value) == false) {
-                @SuppressWarnings("deprecation")
-                boolean convertedValue = Booleans.parseBooleanLenient(get(setting), defaultValue);
-                deprecationLogger.deprecated("The value [{}] of setting [{}] is not coerced into boolean anymore. Please change " +
-                    "this value to [{}].", value, setting, String.valueOf(convertedValue));
-                return convertedValue;
-            }
-        }
-        return getAsBoolean(setting, defaultValue);
     }
 
     /**

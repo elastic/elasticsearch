@@ -37,7 +37,7 @@ import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
@@ -165,9 +165,9 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                  */
                 final Matcher<Long> globalCheckpointMatcher;
                 if (shardRouting.primary()) {
-                    globalCheckpointMatcher = numDocs == 0 ? equalTo(SequenceNumbersService.NO_OPS_PERFORMED) : equalTo(numDocs - 1L);
+                    globalCheckpointMatcher = numDocs == 0 ? equalTo(SequenceNumbers.NO_OPS_PERFORMED) : equalTo(numDocs - 1L);
                 } else {
-                    globalCheckpointMatcher = numDocs == 0 ? equalTo(SequenceNumbersService.NO_OPS_PERFORMED)
+                    globalCheckpointMatcher = numDocs == 0 ? equalTo(SequenceNumbers.NO_OPS_PERFORMED)
                         : anyOf(equalTo(numDocs - 1L), equalTo(numDocs - 2L));
                 }
                 assertThat(shardRouting + " global checkpoint mismatch", shardStats.getGlobalCheckpoint(), globalCheckpointMatcher);
@@ -177,7 +177,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             // simulate a background global checkpoint sync at which point we expect the global checkpoint to advance on the replicas
             shards.syncGlobalCheckpoint();
 
-            final long noOpsPerformed = SequenceNumbersService.NO_OPS_PERFORMED;
+            final long noOpsPerformed = SequenceNumbers.NO_OPS_PERFORMED;
             for (IndexShard shard : shards) {
                 final SeqNoStats shardStats = shard.seqNoStats();
                 final ShardRouting shardRouting = shard.routingEntry();
@@ -326,9 +326,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             long expectedPrimaryTerm,
             String failureMessage) throws IOException {
         for (IndexShard indexShard : replicationGroup) {
-            try(Translog.View view = indexShard.acquireTranslogView()) {
-                assertThat(view.estimateTotalOperations(SequenceNumbersService.NO_OPS_PERFORMED), equalTo(expectedOperation));
-                final Translog.Snapshot snapshot = view.snapshot(SequenceNumbersService.NO_OPS_PERFORMED);
+            try(Translog.Snapshot snapshot = indexShard.getTranslog().newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(expectedOperation));
                 long expectedSeqNo = 0L;
                 Translog.Operation op = snapshot.next();
                 do {

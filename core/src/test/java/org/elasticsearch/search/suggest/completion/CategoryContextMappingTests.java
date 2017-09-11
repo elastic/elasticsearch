@@ -20,9 +20,14 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,11 +37,15 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.search.suggest.completion.context.CategoryContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -46,6 +55,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CategoryContextMappingTests extends ESSingleNodeTestCase {
@@ -699,10 +709,41 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
     public void testParsingContextFromDocument() throws Exception {
         CategoryContextMapping mapping = ContextBuilder.category("cat").field("category").build();
         ParseContext.Document document = new ParseContext.Document();
-        document.add(new StringField("category", "category1", Field.Store.NO));
+
+        KeywordFieldMapper.KeywordFieldType keyword = new KeywordFieldMapper.KeywordFieldType();
+        keyword.setName("category");
+        document.add(new Field(keyword.name(), new BytesRef("category1"), keyword));
+        // Ignore doc values
+        document.add(new SortedSetDocValuesField(keyword.name(), new BytesRef("category1")));
         Set<CharSequence> context = mapping.parseContext(document);
         assertThat(context.size(), equalTo(1));
         assertTrue(context.contains("category1"));
+
+
+        document = new ParseContext.Document();
+        TextFieldMapper.TextFieldType text = new TextFieldMapper.TextFieldType();
+        text.setName("category");
+        document.add(new Field(text.name(), "category1", text));
+        // Ignore stored field
+        document.add(new StoredField(text.name(), "category1", text));
+        context = mapping.parseContext(document);
+        assertThat(context.size(), equalTo(1));
+        assertTrue(context.contains("category1"));
+
+        document = new ParseContext.Document();
+        document.add(new SortedSetDocValuesField("category", new BytesRef("category")));
+        context = mapping.parseContext(document);
+        assertThat(context.size(), equalTo(0));
+
+        document = new ParseContext.Document();
+        document.add(new SortedDocValuesField("category", new BytesRef("category")));
+        context = mapping.parseContext(document);
+        assertThat(context.size(), equalTo(0));
+
+        final ParseContext.Document doc = new ParseContext.Document();
+        doc.add(new IntPoint("category", 36));
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> mapping.parseContext(doc));
+        assertThat(exc.getMessage(), containsString("Failed to parse context field [category]"));
     }
 
     static void assertContextSuggestFields(IndexableField[] fields, int expected) {

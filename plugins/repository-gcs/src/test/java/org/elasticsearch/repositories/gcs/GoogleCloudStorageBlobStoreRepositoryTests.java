@@ -30,6 +30,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.junit.BeforeClass;
 
+import java.net.SocketPermission;
+import java.security.AccessController;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicReference;
@@ -80,6 +82,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
         @Override
         public Storage createClient(String accountName, String application,
                                     TimeValue connectTimeout, TimeValue readTimeout) throws Exception {
+            // The actual impl might open a connection. So check we have permission when this call is made.
+            AccessController.checkPermission(new SocketPermission("*", "connect"));
             return storage.get();
         }
     }

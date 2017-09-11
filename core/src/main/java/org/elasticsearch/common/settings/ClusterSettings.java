@@ -31,7 +31,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -71,7 +73,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
@@ -91,7 +92,6 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
@@ -246,6 +246,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
                     HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH,
                     HttpTransportSettings.SETTING_HTTP_RESET_COOKIES,
+                    HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY,
+                    HttpTransportSettings.SETTING_HTTP_TCP_KEEP_ALIVE,
+                    HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS,
+                    HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
+                    HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
                     HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
@@ -311,7 +316,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
                     ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
                     ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
-                    ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE,
+                    ScriptService.SCRIPT_MAX_COMPILATIONS_RATE,
                     ScriptService.TYPES_ALLOWED_SETTING,
                     ScriptService.CONTEXTS_ALLOWED_SETTING,
                     IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
@@ -351,6 +356,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT,
                     SearchService.DEFAULT_KEEPALIVE_SETTING,
                     SearchService.KEEPALIVE_INTERVAL_SETTING,
+                    SearchService.MAX_KEEPALIVE_SETTING,
                     SearchService.LOW_LEVEL_CANCELLATION_SETTING,
                     Node.WRITE_PORTS_FILE_SETTING,
                     Node.NODE_NAME_SETTING,
@@ -369,13 +375,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ThreadContext.DEFAULT_HEADERS_SETTING,
                     ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING,
                     ESLoggerFactory.LOG_LEVEL_SETTING,
-                    TribeService.BLOCKS_METADATA_SETTING,
-                    TribeService.BLOCKS_WRITE_SETTING,
-                    TribeService.BLOCKS_WRITE_INDICES_SETTING,
-                    TribeService.BLOCKS_READ_INDICES_SETTING,
-                    TribeService.BLOCKS_METADATA_INDICES_SETTING,
-                    TribeService.ON_CONFLICT_SETTING,
-                    TribeService.TRIBE_NAME_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
                     NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
                     OsService.REFRESH_INTERVAL_SETTING,
@@ -399,6 +398,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     BootstrapSettings.MEMORY_LOCK_SETTING,
                     BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
                     BootstrapSettings.CTRLHANDLER_SETTING,
+                    KeyStoreWrapper.SEED_SETTING,
                     IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,
@@ -411,6 +411,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
                     ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
                     FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
-                    Node.BREAKER_TYPE_KEY
+                    Node.BREAKER_TYPE_KEY,
+                    OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                    IndexGraveyard.SETTING_MAX_TOMBSTONES
             )));
 }

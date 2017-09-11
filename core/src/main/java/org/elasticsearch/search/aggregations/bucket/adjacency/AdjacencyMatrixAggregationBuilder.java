@@ -27,10 +27,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -45,7 +47,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 
-public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilder<AdjacencyMatrixAggregationBuilder> {
+public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilder<AdjacencyMatrixAggregationBuilder>
+        implements MultiBucketAggregationBuilder {
     public static final String NAME = "adjacency_matrix";
 
     private static final String DEFAULT_SEPARATOR = "&";
@@ -195,7 +198,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
 
         List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
         for (KeyedFilter kf : filters) {
-            rewrittenFilters.add(new KeyedFilter(kf.key(), QueryBuilder.rewriteQuery(kf.filter(), context.getQueryShardContext())));
+            rewrittenFilters.add(new KeyedFilter(kf.key(), Rewriteable.rewrite(kf.filter(), context.getQueryShardContext(), true)));
         }
 
         return new AdjacencyMatrixAggregatorFactory(name, rewrittenFilters, separator, context, parent,

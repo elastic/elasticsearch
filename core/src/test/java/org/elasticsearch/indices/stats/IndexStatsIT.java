@@ -92,7 +92,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, randomDynamicTemplates = false)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0)
 @SuppressCodecs("*") // requires custom completion format
 public class IndexStatsIT extends ESIntegTestCase {
 

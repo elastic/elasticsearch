@@ -202,11 +202,18 @@ public final class RestClientBuilder {
 
         HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
                 //default settings for connection pooling may be too constraining
-                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL);
+                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL).useSystemProperties();
         if (httpClientConfigCallback != null) {
             httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
         }
-        return httpClientBuilder.build();
+
+        final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
+        return AccessController.doPrivileged(new PrivilegedAction<CloseableHttpAsyncClient>() {
+            @Override
+            public CloseableHttpAsyncClient run() {
+                return finalBuilder.build();
+            }
+        });
     }
 
     /**

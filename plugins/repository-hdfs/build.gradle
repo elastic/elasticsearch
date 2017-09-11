@@ -57,6 +57,7 @@ dependencies {
   compile 'commons-lang:commons-lang:2.6'
   compile 'javax.servlet:servlet-api:2.5'
   compile "org.slf4j:slf4j-api:${versions.slf4j}"
+  compile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
 
   hdfsFixture project(':test:fixtures:hdfs-fixture')
 }
@@ -470,9 +471,8 @@ thirdPartyAudit.excludes = [
   // internal java api: sun.misc.SignalHandler
   'org.apache.hadoop.util.SignalLogger$Handler',
 
-  // optional dependencies of slf4j-api
-  'org.slf4j.impl.StaticMDCBinder',
-  'org.slf4j.impl.StaticMarkerBinder',
+  // we are not pulling in slf4j-ext, this is okay, Log4j will fallback gracefully
+  'org.slf4j.ext.EventData',
 
   'org.apache.log4j.AppenderSkeleton',
   'org.apache.log4j.AsyncAppender',
@@ -493,8 +493,6 @@ thirdPartyAudit.excludes = [
   'com.squareup.okhttp.ResponseBody'
 ]
 
-// Gradle 2.13 bundles org.slf4j.impl.StaticLoggerBinder in its core.jar which leaks into the forbidden APIs ant task
-// Gradle 2.14+ does not bundle this class anymore so we need to properly exclude it here.
-if (GradleVersion.current() > GradleVersion.version("2.13")) {
-  thirdPartyAudit.excludes += ['org.slf4j.impl.StaticLoggerBinder']
+if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.excludes += ['javax.xml.bind.annotation.adapters.HexBinaryAdapter']
 }

@@ -238,13 +238,10 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * Also templates may be part of the 'source' parameter in a script.  The Parser
      * can handle this case as well.
      *
-     * @param lang    An optional parameter to allow for use of the deprecated stored
-     *                script namespace.  This will be used to specify the language
-     *                coming in as a url parameter from a request or for stored templates.
      * @param content The content from the request to be parsed as described above.
      * @return        The parsed {@link StoredScriptSource}.
      */
-    public static StoredScriptSource parse(String lang, BytesReference content, XContentType xContentType) {
+    public static StoredScriptSource parse(BytesReference content, XContentType xContentType) {
         try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, content)) {
             Token token = parser.nextToken();
 
@@ -253,6 +250,10 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             }
 
             token = parser.nextToken();
+
+            if (token == Token.END_OBJECT) {
+                return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
+            }
 
             if (token != Token.FIELD_NAME) {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + ", expected [" +
@@ -264,37 +265,17 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             if (SCRIPT_PARSE_FIELD.getPreferredName().equals(name)) {
                 token = parser.nextToken();
 
-                if (token == Token.VALUE_STRING) {
-                    if (lang == null) {
-                        throw new IllegalArgumentException(
-                            "must specify lang as a url parameter when using the deprecated stored script namespace");
-                    }
-
-                    return new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
-                } else if (token == Token.START_OBJECT) {
-                    if (lang == null) {
-                        return PARSER.apply(parser, null).build();
-                    } else {
-                        //this is really for search templates, that need to be converted to json format
-                        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                            builder.copyCurrentStructure(parser);
-                            return new StoredScriptSource(lang, builder.string(), Collections.emptyMap());
-                        }
-                    }
-
+                if (token == Token.START_OBJECT) {
+                    return PARSER.apply(parser, null).build();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected [{, <source>]");
                 }
             } else {
-                if (lang == null) {
-                    throw new IllegalArgumentException("unexpected stored script format");
-                }
-
                 if (TEMPLATE_PARSE_FIELD.getPreferredName().equals(name)) {
                     token = parser.nextToken();
 
                     if (token == Token.VALUE_STRING) {
-                        return new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
+                        return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, parser.text(), Collections.emptyMap());
                     }
                 }
 
@@ -307,7 +288,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                         builder.copyCurrentStructure(parser);
                     }
 
-                    return new StoredScriptSource(lang, builder.string(), Collections.emptyMap());
+                    return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, builder.string(), Collections.emptyMap());
                 }
             }
         } catch (IOException ioe) {
@@ -365,7 +346,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     /**
      * Standard StoredScriptSource constructor.
      * @param lang    The language to compile the script with.  Must not be {@code null}.
-     * @param source    The source source to compile with.  Must not be {@code null}.
+     * @param source  The source source to compile with.  Must not be {@code null}.
      * @param options Compiler options to be compiled with.  Must not be {@code null},
      *                use an empty {@link Map} to represent no options.
      */

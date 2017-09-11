@@ -19,18 +19,18 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.SecureSM;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.transport.TcpTransport;
 
-import java.io.FilePermission;
 import java.io.IOException;
 import java.net.SocketPermission;
 import java.net.URISyntaxException;
@@ -45,12 +45,17 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.URIParameter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
+import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
 
 /**
  * Initializes SecurityManager with necessary permissions.
@@ -190,6 +195,7 @@ final class Security {
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
     static Policy readPolicy(URL policyFile, Set<URL> codebases) {
         try {
+            List<String> propertiesSet = new ArrayList<>();
             try {
                 // set codebase properties
                 for (URL url : codebases) {
@@ -197,7 +203,22 @@ final class Security {
                     if (shortName.endsWith(".jar") == false) {
                         continue; // tests :(
                     }
-                    String previous = System.setProperty("codebase." + shortName, url.toString());
+                    String property = "codebase." + shortName;
+                    if (shortName.startsWith("elasticsearch-rest-client")) {
+                        // The rest client is currently the only example where we have an elasticsearch built artifact
+                        // which needs special permissions in policy files when used. This temporary solution is to
+                        // pass in an extra system property that omits the -version.jar suffix the other properties have.
+                        // That allows the snapshots to reference snapshot builds of the client, and release builds to
+                        // referenced release builds of the client, all with the same grant statements.
+                        final String esVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
+                        final int index = property.indexOf("-" + esVersion + ".jar");
+                        assert index >= 0;
+                        String restClientAlias = property.substring(0, index);
+                        propertiesSet.add(restClientAlias);
+                        System.setProperty(restClientAlias, url.toString());
+                    }
+                    propertiesSet.add(property);
+                    String previous = System.setProperty(property, url.toString());
                     if (previous != null) {
                         throw new IllegalStateException("codebase property already set: " + shortName + "->" + previous);
                     }
@@ -205,12 +226,8 @@ final class Security {
                 return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
             } finally {
                 // clear codebase properties
-                for (URL url : codebases) {
-                    String shortName = PathUtils.get(url.toURI()).getFileName().toString();
-                    if (shortName.endsWith(".jar") == false) {
-                        continue; // tests :(
-                    }
-                    System.clearProperty("codebase." + shortName);
+                for (String property : propertiesSet) {
+                    System.clearProperty(property);
                 }
             }
         } catch (NoSuchAlgorithmException | URISyntaxException e) {
@@ -240,10 +257,10 @@ final class Security {
                 throw new RuntimeException(e);
             }
             // resource itself
-            policy.add(new FilePermission(path.toString(), "read,readlink"));
-            // classes underneath
             if (Files.isDirectory(path)) {
-                policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", "read,readlink"));
+                addDirectoryPath(policy, "class.path", path, "read,readlink");
+            } else {
+                addSingleFilePath(policy, path, "read,readlink");
             }
         }
     }
@@ -251,22 +268,23 @@ final class Security {
     /**
      * Adds access to all configurable paths.
      */
-    static void addFilePermissions(Permissions policy, Environment environment) {
+    static void addFilePermissions(Permissions policy, Environment environment) throws IOException {
         // read-only dirs
-        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink");
-        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink");
-        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink");
-        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
-        addPath(policy, "path.conf'", environment.configFile(), "read,readlink");
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink");
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink");
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink");
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
+        addDirectoryPath(policy, "path.conf'", environment.configFile(), "read,readlink");
         // read-write dirs
-        addPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete");
-        addPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete");
+        addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete");
+        addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete");
         if (environment.sharedDataFile() != null) {
-            addPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(), "read,readlink,write,delete");
+            addDirectoryPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(),
+                "read,readlink,write,delete");
         }
         final Set<Path> dataFilesPaths = new HashSet<>();
         for (Path path : environment.dataFiles()) {
-            addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
+            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
             /*
              * We have to do this after adding the path because a side effect of that is that the directory is created; the Path#toRealPath
              * invocation will fail if the directory does not already exist. We use Path#toRealPath to follow symlinks and handle issues
@@ -282,11 +300,11 @@ final class Security {
             }
         }
         for (Path path : environment.repoFiles()) {
-            addPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
+            addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
         }
         if (environment.pidFile() != null) {
             // we just need permission to remove the file if its elsewhere.
-            policy.add(new FilePermission(environment.pidFile().toString(), "delete"));
+            addSingleFilePath(policy, environment.pidFile(), "delete");
         }
     }
 
@@ -365,27 +383,6 @@ final class Security {
         // listen is always called with 'localhost' but use wildcard to be sure, no name service is consulted.
         // see SocketPermission implies() code
         policy.add(new SocketPermission("*:" + portRange, "listen,resolve"));
-    }
-
-    /**
-     * Add access to path (and all files underneath it); this also creates the directory if it does not exist.
-     *
-     * @param policy            current policy to add permissions to
-     * @param configurationName the configuration name associated with the path (for error messages only)
-     * @param path              the path itself
-     * @param permissions       set of file permissions to grant to the path
-     */
-    static void addPath(Permissions policy, String configurationName, Path path, String permissions) {
-        // paths may not exist yet, this also checks accessibility
-        try {
-            ensureDirectoryExists(path);
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to access '" + configurationName + "' (" + path + ")", e);
-        }
-
-        // add each path twice: once for itself, again for files underneath it
-        policy.add(new FilePermission(path.toString(), permissions));
-        policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
     }
 
     /**

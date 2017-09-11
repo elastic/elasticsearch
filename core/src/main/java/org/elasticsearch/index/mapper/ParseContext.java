@@ -22,11 +22,9 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -264,11 +262,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public AllEntries allEntries() {
-            return in.allEntries();
-        }
-
-        @Override
         public boolean externalValueSet() {
             return in.externalValueSet();
         }
@@ -312,7 +305,6 @@ public abstract class ParseContext {
 
         private SeqNoFieldMapper.SequenceIDFields seqID;
 
-        private final AllEntries allEntries;
 
         private final List<Mapper> dynamicMappers;
 
@@ -328,7 +320,6 @@ public abstract class ParseContext {
             this.documents.add(document);
             this.version = null;
             this.sourceToParse = source;
-            this.allEntries = new AllEntries();
             this.dynamicMappers = new ArrayList<>();
         }
 
@@ -414,11 +405,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public AllEntries allEntries() {
-            return this.allEntries;
-        }
-
-        @Override
         public void addDynamicMapper(Mapper mapper) {
             dynamicMappers.add(mapper);
         }
@@ -430,22 +416,6 @@ public abstract class ParseContext {
     }
 
     public abstract DocumentMapperParser docMapperParser();
-
-    /** Return a view of this {@link ParseContext} that changes the return
-     *  value of {@link #getIncludeInAllDefault()}. */
-    public final ParseContext setIncludeInAllDefault(boolean includeInAll) {
-        return new FilterParseContext(this) {
-            @Override
-            public Boolean getIncludeInAllDefault() {
-                return includeInAll;
-            }
-        };
-    }
-
-    /** Whether field values should be added to the _all field by default. */
-    public Boolean getIncludeInAllDefault() {
-        return null;
-    }
 
     /**
      * Return a new context that will be within a copy-to operation.
@@ -542,37 +512,6 @@ public abstract class ParseContext {
     public abstract SeqNoFieldMapper.SequenceIDFields seqID();
 
     public abstract void seqID(SeqNoFieldMapper.SequenceIDFields seqID);
-
-    public final boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
-        return includeInAll(includeInAll, mapper.fieldType().indexOptions() != IndexOptions.NONE);
-    }
-
-    /**
-     * Is all included or not. Will always disable it if {@link org.elasticsearch.index.mapper.AllFieldMapper#enabled()}
-     * is <tt>false</tt>. If its enabled, then will return <tt>true</tt> only if the specific flag is <tt>null</tt> or
-     * its actual value (so, if not set, defaults to "true") and the field is indexed.
-     */
-    private boolean includeInAll(Boolean includeInAll, boolean indexed) {
-        if (isWithinCopyTo()) {
-            return false;
-        }
-        if (isWithinMultiFields()) {
-            return false;
-        }
-        if (!docMapper().allFieldMapper().enabled()) {
-            return false;
-        }
-        if (includeInAll == null) {
-            includeInAll = getIncludeInAllDefault();
-        }
-        // not explicitly set
-        if (includeInAll == null) {
-            return indexed;
-        }
-        return includeInAll;
-    }
-
-    public abstract AllEntries allEntries();
 
     /**
      * Return a new context that will have the external value set.

@@ -35,7 +35,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
@@ -176,6 +175,7 @@ public class InternalTestClusterTests extends ESTestCase {
         final int numClientNodes = randomIntBetween(0, 2);
         final String clusterName1 = "shared1";
         final String clusterName2 = "shared2";
+        String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -184,7 +184,7 @@ public class InternalTestClusterTests extends ESTestCase {
                         NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                         2 * ((masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes))
                     .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
                 if (autoManageMinMasterNodes == false) {
                     assert minNumDataNodes == maxNumDataNodes;
                     assert masterNodes == false;
@@ -201,7 +201,7 @@ public class InternalTestClusterTests extends ESTestCase {
             @Override
             public Settings transportClientSettings() {
                 return Settings.builder()
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
 
@@ -209,7 +209,7 @@ public class InternalTestClusterTests extends ESTestCase {
         String nodePrefix = "foobar";
 
         Path baseDir = createTempDir();
-        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class);
+        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class);
         InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, mockPlugins, Function.identity());
@@ -253,6 +253,7 @@ public class InternalTestClusterTests extends ESTestCase {
         final int maxNumDataNodes = 2;
         final int numClientNodes = randomIntBetween(0, 2);
         final String clusterName1 = "shared1";
+        String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -260,7 +261,7 @@ public class InternalTestClusterTests extends ESTestCase {
                     .put(
                         NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                         2 + (masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes)
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                     .build();
             }
 
@@ -272,7 +273,7 @@ public class InternalTestClusterTests extends ESTestCase {
             @Override
             public Settings transportClientSettings() {
                 return Settings.builder()
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
         boolean enableHttpPipelining = randomBoolean();
@@ -280,7 +281,7 @@ public class InternalTestClusterTests extends ESTestCase {
         Path baseDir = createTempDir();
         InternalTestCluster cluster = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             true, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
-            enableHttpPipelining, nodePrefix, Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class),
+            enableHttpPipelining, nodePrefix, Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class),
             Function.identity());
         try {
             cluster.beforeTest(random(), 0.0);
@@ -360,6 +361,8 @@ public class InternalTestClusterTests extends ESTestCase {
     public void testDifferentRolesMaintainPathOnRestart() throws Exception {
         final Path baseDir = createTempDir();
         final int numNodes = 5;
+
+        String transportClient = getTestTransportType();
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false,
                 false, 0, 0, "test", new NodeConfigurationSource() {
             @Override
@@ -367,7 +370,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 return Settings.builder()
                         .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numNodes)
                         .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                        .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
+                        .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                         .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0)
                         // speedup join timeout as setting initial state timeout to 0 makes split
                         // elections more likely
@@ -383,9 +386,9 @@ public class InternalTestClusterTests extends ESTestCase {
             @Override
             public Settings transportClientSettings() {
                 return Settings.builder()
-                        .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
+                        .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
-        }, 0, randomBoolean(), "", Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class), Function.identity());
+        }, 0, randomBoolean(), "", Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class), Function.identity());
         cluster.beforeTest(random(), 0.0);
         List<DiscoveryNode.Role> roles = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
@@ -447,12 +450,13 @@ public class InternalTestClusterTests extends ESTestCase {
     }
 
     public void testTwoNodeCluster() throws Exception {
+        String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false)
                     .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                     .build();
             }
 
@@ -464,7 +468,7 @@ public class InternalTestClusterTests extends ESTestCase {
             @Override
             public Settings transportClientSettings() {
                 return Settings.builder()
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
         boolean enableHttpPipelining = randomBoolean();
@@ -472,7 +476,7 @@ public class InternalTestClusterTests extends ESTestCase {
         Path baseDir = createTempDir();
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false, true, 2, 2,
             "test", nodeConfigurationSource, 0, enableHttpPipelining, nodePrefix,
-            Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class), Function.identity());
+            Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class), Function.identity());
         try {
             cluster.beforeTest(random(), 0.0);
             assertMMNinNodeSetting(cluster, 2);

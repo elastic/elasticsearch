@@ -113,7 +113,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     private final TransportService transportService;
     private final MasterService masterService;
-    private final ClusterName clusterName;
     private final DiscoverySettings discoverySettings;
     protected final ZenPing zenPing; // protected to allow tests access
     private final MasterFaultDetection masterFD;
@@ -169,7 +168,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         this.maxPingsFromAnotherMaster = MAX_PINGS_FROM_ANOTHER_MASTER_SETTING.get(settings);
         this.sendLeaveRequest = SEND_LEAVE_REQUEST_SETTING.get(settings);
         this.threadPool = threadPool;
-        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
+        ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.committedState = new AtomicReference<>();
 
         this.masterElectionIgnoreNonMasters = MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING.get(settings);
@@ -238,7 +237,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // set initial state
             assert committedState.get() == null;
             assert localNode != null;
-            ClusterState initialState = ClusterState.builder(clusterName)
+            ClusterState.Builder builder = clusterApplier.newClusterStateBuilder();
+            ClusterState initialState = builder
                 .blocks(ClusterBlocks.builder()
                     .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
                     .addGlobalBlock(discoverySettings.getNoMasterBlock()))
@@ -885,7 +885,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         } else {
             // we do this in a couple of places including the cluster update thread. This one here is really just best effort
             // to ensure we fail as fast as possible.
+            MembershipAction.ensureNodesCompatibility(node.getVersion(), state.getNodes());
             MembershipAction.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
+            if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
+                MembershipAction.ensureMajorVersionBarrier(node.getVersion(), state.getNodes().getMinNodeVersion());
+            }
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
 

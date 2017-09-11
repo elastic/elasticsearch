@@ -1,8 +1,6 @@
 [[painless-getting-started]]
 == Getting Started with Painless
 
-experimental[The Painless scripting language is new and is still marked as experimental. The syntax or API may be changed in the future in non-backwards compatible ways if required.]
-
 include::painless-description.asciidoc[]
 
 [[painless-examples]]

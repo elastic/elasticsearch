@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 
@@ -120,5 +121,10 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public ScoreSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        return this;
     }
 }

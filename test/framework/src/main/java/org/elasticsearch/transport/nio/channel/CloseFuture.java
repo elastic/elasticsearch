@@ -19,35 +19,37 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.util.concurrent.BaseFuture;
+import org.elasticsearch.action.support.PlainListenableActionFuture;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
 
-public class CloseFuture extends BaseFuture<NioChannel> {
-
-    private final SetOnce<Consumer<NioChannel>> listener = new SetOnce<>();
+public class CloseFuture extends PlainListenableActionFuture<NioChannel> {
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
         throw new UnsupportedOperationException("Cannot cancel close future");
     }
 
-    public void awaitClose() throws InterruptedException, IOException {
+    public void awaitClose() throws IOException {
         try {
             super.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             throw (IOException) e.getCause();
         }
     }
 
-    public void awaitClose(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException, IOException {
+    public void awaitClose(long timeout, TimeUnit unit) throws TimeoutException, IOException {
         try {
             super.get(timeout, unit);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             throw (IOException) e.getCause();
         }
@@ -76,29 +78,13 @@ public class CloseFuture extends BaseFuture<NioChannel> {
         return super.isDone();
     }
 
-    public void setListener(Consumer<NioChannel> listener) {
-        this.listener.set(listener);
-    }
-
-    void channelClosed(NioChannel channel) {
-        boolean set = set(channel);
-        if (set) {
-            Consumer<NioChannel> listener = this.listener.get();
-            if (listener != null) {
-                listener.accept(channel);
-            }
-        }
+    boolean channelClosed(NioChannel channel) {
+        return set(channel);
     }
 
 
-    void channelCloseThrewException(NioChannel channel, IOException ex) {
-        boolean set = setException(ex);
-        if (set) {
-            Consumer<NioChannel> listener = this.listener.get();
-            if (listener != null) {
-                listener.accept(channel);
-            }
-        }
+    boolean channelCloseThrewException(IOException ex) {
+        return setException(ex);
     }
 
 }

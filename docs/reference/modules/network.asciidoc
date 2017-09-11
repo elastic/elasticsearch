@@ -92,7 +92,7 @@ also limit this with the use of `:ipv4` of `:ipv6` specifiers. For example,
 ================================
 
 More special settings are available when running in the cloud with either the
-{plugins}/discovery-ec2-discovery.html#discovery-ec2-network-host[EC2 discovery plugin] or the
+{plugins}/discovery-ec2.html[EC2 discovery plugin] or the
 {plugins}/discovery-gce-network-host.html#discovery-gce-network-host[Google Compute Engine discovery plugin]
 installed.
 
@@ -179,4 +179,3 @@ HTTP::
 
 Exposes the JSON-over-HTTP interface used by all clients other than the Java
 clients. See the <<modules-http,HTTP module>> for more information.
-

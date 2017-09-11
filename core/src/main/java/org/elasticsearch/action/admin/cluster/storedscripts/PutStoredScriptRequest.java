@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.StoredScriptSource;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -37,22 +38,22 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptRequest> {
 
     private String id;
-    private String lang;
     private String context;
     private BytesReference content;
     private XContentType xContentType;
+    private StoredScriptSource source;
 
     public PutStoredScriptRequest() {
         super();
     }
 
-    public PutStoredScriptRequest(String id, String lang, String context, BytesReference content, XContentType xContentType) {
+    public PutStoredScriptRequest(String id, String context, BytesReference content, XContentType xContentType, StoredScriptSource source) {
         super();
         this.id = id;
-        this.lang = lang;
         this.context = context;
         this.content = content;
         this.xContentType = Objects.requireNonNull(xContentType);
+        this.source = source;
     }
 
     @Override
@@ -63,10 +64,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
             validationException = addValidationError("must specify id for stored script", validationException);
         } else if (id.contains("#")) {
             validationException = addValidationError("id cannot contain '#' for stored script", validationException);
-        }
-
-        if (lang != null && lang.contains("#")) {
-            validationException = addValidationError("lang cannot contain '#' for stored script", validationException);
         }
 
         if (content == null) {
@@ -82,17 +79,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
 
     public PutStoredScriptRequest id(String id) {
         this.id = id;
-
-        return this;
-    }
-
-    public String lang() {
-        return lang;
-    }
-
-    public PutStoredScriptRequest lang(String lang) {
-        this.lang = lang;
-
         return this;
     }
 
@@ -113,12 +99,17 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         return xContentType;
     }
 
+    public StoredScriptSource source() {
+        return source;
+    }
+
     /**
      * Set the script source and the content type of the bytes.
      */
     public PutStoredScriptRequest content(BytesReference content, XContentType xContentType) {
         this.content = content;
         this.xContentType = Objects.requireNonNull(xContentType);
+        this.source = StoredScriptSource.parse(content, xContentType);
         return this;
     }
 
@@ -126,12 +117,9 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
 
-        lang = in.readString();
-
-        if (lang.isEmpty()) {
-            lang = null;
+        if (in.getVersion().before(Version.V_6_0_0_alpha2)) {
+            in.readString(); // read lang from previous versions
         }
-
         id = in.readOptionalString();
         content = in.readBytesReference();
         if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
@@ -141,6 +129,9 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         }
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
             context = in.readOptionalString();
+            source = new StoredScriptSource(in);
+        } else {
+            source = StoredScriptSource.parse(content, xContentType == null ? XContentType.JSON : xContentType);
         }
     }
 
@@ -148,7 +139,9 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
 
-        out.writeString(lang == null ? "" : lang);
+        if (out.getVersion().before(Version.V_6_0_0_alpha2)) {
+            out.writeString(source == null ? "" : source.getLang());
+        }
         out.writeOptionalString(id);
         out.writeBytesReference(content);
         if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
@@ -156,6 +149,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         }
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
             out.writeOptionalString(context);
+            source.writeTo(out);
         }
     }
 
@@ -169,6 +163,8 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
             // ignore
         }
 
-        return "put stored script {id [" + id + "]" + (lang != null ? ", lang [" + lang + "]" : "") + ", content [" + source + "]}";
+        return "put stored script {id [" + id + "]" +
+            (context != null ? ", context [" + context + "]" : "") +
+            ", content [" + source + "]}";
     }
 }

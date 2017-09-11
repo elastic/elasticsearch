@@ -41,7 +41,7 @@ public class MockSearchServiceTests extends ESTestCase {
         final long nowInMillis = randomNonNegativeLong();
         SearchContext s = new TestSearchContext(new QueryShardContext(0,
             new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY), null, null, null, null, null, xContentRegistry(),
-            null, null, () -> nowInMillis)) {
+            writableRegistry(), null, null, () -> nowInMillis, null)) {
 
             @Override
             public SearchShardTarget shardTarget() {

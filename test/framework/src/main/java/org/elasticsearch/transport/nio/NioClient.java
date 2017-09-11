@@ -35,14 +35,10 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class NioClient {
-
-    private static final int CLOSED = -1;
 
     private final Logger logger;
     private final OpenChannels openChannels;
@@ -72,12 +68,10 @@ public class NioClient {
         final InetSocketAddress address = node.getAddress().address();
         try {
             for (int i = 0; i < channels.length; i++) {
-                SocketSelector socketSelector = selectorSupplier.get();
-                NioSocketChannel nioSocketChannel = channelFactory.openNioChannel(address);
+                SocketSelector selector = selectorSupplier.get();
+                NioSocketChannel nioSocketChannel = channelFactory.openNioChannel(address, selector, closeListener);
                 openChannels.clientChannelOpened(nioSocketChannel);
-                nioSocketChannel.getCloseFuture().setListener(closeListener);
                 connections.add(nioSocketChannel);
-                socketSelector.registerSocketChannel(nioSocketChannel);
             }
 
             Exception ex = null;
@@ -142,10 +136,6 @@ public class NioClient {
         for (final NioSocketChannel socketChannel : connections) {
             try {
                 socketChannel.closeAsync().awaitClose();
-            } catch (InterruptedException inner) {
-                logger.trace("exception while closing channel", e);
-                e.addSuppressed(inner);
-                Thread.currentThread().interrupt();
             } catch (Exception inner) {
                 logger.trace("exception while closing channel", e);
                 e.addSuppressed(inner);

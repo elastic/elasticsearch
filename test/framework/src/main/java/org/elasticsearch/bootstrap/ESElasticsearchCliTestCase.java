@@ -21,6 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -43,16 +44,16 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
             final boolean expectedInit,
             final Consumer<String> outputConsumer,
             final InitConsumer initConsumer,
-            String... args) throws Exception {
+            final String... args) throws Exception {
         final MockTerminal terminal = new MockTerminal();
-        Path home = createTempDir();
+        final Path home = createTempDir();
         try {
             final AtomicBoolean init = new AtomicBoolean();
             final int status = Elasticsearch.main(args, new Elasticsearch() {
                 @Override
-                protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path configPath) {
+                protected Environment createEnv(final Terminal terminal, final Map<String, String> settings) throws UserException {
                     final Settings realSettings = Settings.builder().put("path.home", home).put(settings).build();
-                    return new Environment(realSettings, configPath);
+                    return new Environment(realSettings, home.resolve("config"));
                 }
                 @Override
                 void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv) {

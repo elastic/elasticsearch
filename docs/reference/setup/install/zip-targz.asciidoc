@@ -164,7 +164,7 @@ directory so that you do not delete important data later on.
 | conf
   | Configuration files including `elasticsearch.yml`
   | $ES_HOME/config
-  | path.conf
+  | <<config-files-location,ES_PATH_CONF>>
 
 | data
   | The location of the data files of each index / shard allocated

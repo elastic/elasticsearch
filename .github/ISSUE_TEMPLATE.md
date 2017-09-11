@@ -22,7 +22,7 @@ Issues that do not follow these guidelines are likely to be closed.
 
 <!-- Bug report -->
 
-**Elasticsearch version**:
+**Elasticsearch version** (`bin/elasticsearch --version`):
 
 **Plugins installed**: []
 

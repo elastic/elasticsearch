@@ -35,7 +35,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -125,7 +124,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                         .builder()
                         .put("discovery.type", "single-node")
                         .put("http.enabled", false)
-                        .put("transport.type", "mock-socket-network")
+                        .put("transport.type", getTestTransportType())
                         /*
                          * We align the port ranges of the two as then with zen discovery these two
                          * nodes would find each other.
@@ -152,7 +151,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                         0,
                         false,
                         "other",
-                        Collections.singletonList(MockTcpTransportPlugin.class),
+                        Collections.singletonList(getTestTransportPlugin()),
                         Function.identity())) {
             other.beforeTest(random(), 0);
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();

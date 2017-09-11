@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -39,7 +40,7 @@ import java.util.List;
 /**
  * Shard snapshot metadata
  */
-public class BlobStoreIndexShardSnapshot implements ToXContent {
+public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
 
     /**
      * Information about snapshotted file

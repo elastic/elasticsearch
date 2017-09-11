@@ -41,10 +41,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
 
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -129,36 +129,29 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with current version
         BytesStreamOutput outStream = new BytesStreamOutput();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
+        outStream.setVersion(version);
         diffs.writeTo(outStream);
         StreamInput inStream = outStream.bytes().streamInput();
         inStream = new NamedWriteableAwareStreamInput(inStream, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
+        inStream.setVersion(version);
         Diff<ClusterState> serializedDiffs = ClusterState.readDiffFrom(inStream, clusterState.nodes().getLocalNode());
         ClusterState stateAfterDiffs = serializedDiffs.apply(ClusterState.EMPTY_STATE);
         assertThat(stateAfterDiffs.custom(RestoreInProgress.TYPE), includeRestore ? notNullValue() : nullValue());
         assertThat(stateAfterDiffs.custom(SnapshotDeletionsInProgress.TYPE), notNullValue());
 
-        // serialize with old version
-        outStream = new BytesStreamOutput();
-        outStream.setVersion(Version.CURRENT.minimumIndexCompatibilityVersion());
-        diffs.writeTo(outStream);
-        inStream = outStream.bytes().streamInput();
-        inStream.setVersion(outStream.getVersion());
-        inStream = new NamedWriteableAwareStreamInput(inStream, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
-        serializedDiffs = ClusterState.readDiffFrom(inStream, clusterState.nodes().getLocalNode());
-        stateAfterDiffs = serializedDiffs.apply(ClusterState.EMPTY_STATE);
-        assertThat(stateAfterDiffs.custom(RestoreInProgress.TYPE), includeRestore ? notNullValue() : nullValue());
-        assertThat(stateAfterDiffs.custom(SnapshotDeletionsInProgress.TYPE), nullValue());
-
-        // remove the custom and try serializing again with old version
+        // remove the custom and try serializing again
         clusterState = ClusterState.builder(clusterState).removeCustom(SnapshotDeletionsInProgress.TYPE).incrementVersion().build();
         outStream = new BytesStreamOutput();
+        outStream.setVersion(version);
         diffs.writeTo(outStream);
         inStream = outStream.bytes().streamInput();
         inStream = new NamedWriteableAwareStreamInput(inStream, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
+        inStream.setVersion(version);
         serializedDiffs = ClusterState.readDiffFrom(inStream, clusterState.nodes().getLocalNode());
         stateAfterDiffs = serializedDiffs.apply(stateAfterDiffs);
         assertThat(stateAfterDiffs.custom(RestoreInProgress.TYPE), includeRestore ? notNullValue() : nullValue());
-        assertThat(stateAfterDiffs.custom(SnapshotDeletionsInProgress.TYPE), nullValue());
+        assertThat(stateAfterDiffs.custom(SnapshotDeletionsInProgress.TYPE), notNullValue());
     }
 
 }

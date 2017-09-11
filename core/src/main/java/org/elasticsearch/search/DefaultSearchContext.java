@@ -39,7 +39,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -68,7 +68,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -81,6 +81,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 final class DefaultSearchContext extends SearchContext {
 
@@ -142,7 +143,7 @@ final class DefaultSearchContext extends SearchContext {
     private SearchContextAggregations aggregations;
     private SearchContextHighlight highlight;
     private SuggestionSearchContext suggest;
-    private List<RescoreSearchContext> rescore;
+    private List<RescoreContext> rescore;
     private volatile long keepAlive;
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
@@ -154,8 +155,8 @@ final class DefaultSearchContext extends SearchContext {
     private FetchPhase fetchPhase;
 
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
-                         IndexService indexService, IndexShard indexShard,
-                         BigArrays bigArrays, Counter timeEstimateCounter, TimeValue timeout, FetchPhase fetchPhase) {
+                         IndexService indexService, IndexShard indexShard, BigArrays bigArrays, Counter timeEstimateCounter,
+                         TimeValue timeout, FetchPhase fetchPhase, String clusterAlias) {
         this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -172,7 +173,8 @@ final class DefaultSearchContext extends SearchContext {
         this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.timeEstimateCounter = timeEstimateCounter;
         this.timeout = timeout;
-        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis);
+        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis,
+            clusterAlias);
         queryShardContext.setTypes(request.types());
         queryBoost = request.indexBoost();
     }
@@ -210,12 +212,15 @@ final class DefaultSearchContext extends SearchContext {
                             + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey() + "] index level setting.");
         }
         if (rescore != null) {
+            if (sort != null) {
+                throw new QueryPhaseExecutionException(this, "Cannot use [sort] option in conjunction with [rescore].");
+            }
             int maxWindow = indexService.getIndexSettings().getMaxRescoreWindow();
-            for (RescoreSearchContext rescoreContext: rescore) {
-                if (rescoreContext.window() > maxWindow) {
-                    throw new QueryPhaseExecutionException(this, "Rescore window [" + rescoreContext.window() + "] is too large. It must "
-                            + "be less than [" + maxWindow + "]. This prevents allocating massive heaps for storing the results to be "
-                            + "rescored. This limit can be set by changing the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
+            for (RescoreContext rescoreContext: rescore) {
+                if (rescoreContext.getWindowSize() > maxWindow) {
+                    throw new QueryPhaseExecutionException(this, "Rescore window [" + rescoreContext.getWindowSize() + "] is too large. "
+                            + "It must be less than [" + maxWindow + "]. This prevents allocating massive heaps for storing the results "
+                            + "to be rescored. This limit can be set by changing the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
                             + "] index level setting.");
 
                 }
@@ -234,7 +239,7 @@ final class DefaultSearchContext extends SearchContext {
 
         // initialize the filtering alias based on the provided filters
         try {
-            final QueryBuilder queryBuilder = request.filteringAliases();
+            final QueryBuilder queryBuilder = request.getAliasFilter().getQueryBuilder();
             aliasFilter = queryBuilder == null ? null : queryBuilder.toFilter(queryShardContext);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -398,7 +403,7 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public List<RescoreSearchContext> rescore() {
+    public List<RescoreContext> rescore() {
         if (rescore == null) {
             return Collections.emptyList();
         }
@@ -406,7 +411,7 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public void addRescore(RescoreSearchContext rescore) {
+    public void addRescore(RescoreContext rescore) {
         if (this.rescore == null) {
             this.rescore = new ArrayList<>();
         }
@@ -492,8 +497,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public IndexFieldDataService fieldData() {
-        return indexService.fieldData();
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
+        return queryShardContext.getForField(fieldType);
     }
 
     @Override

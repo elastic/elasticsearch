@@ -28,10 +28,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -70,6 +73,16 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
+                public AliasFilter getAliasFilter() {
+                    return new AliasFilter(QueryBuilders.matchAllQuery(), "foo");
+                }
+
+                @Override
+                public void setAliasFilter(AliasFilter filter) {
+
+                }
+
+                @Override
                 public void source(SearchSourceBuilder source) {
                     searchSourceBuilder = source;
                 }
@@ -81,11 +94,6 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
                 @Override
                 public SearchType searchType() {
-                    return null;
-                }
-
-                @Override
-                public QueryBuilder filteringAliases() {
                     return null;
                 }
 
@@ -125,7 +133,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public void rewrite(QueryShardContext context) throws IOException {
+                public Rewriteable getRewriteable() {
+                    return null;
                 }
 
                 @Override

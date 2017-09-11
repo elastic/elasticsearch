@@ -48,6 +48,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -151,7 +152,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
     static class CustomRestClient extends RestHighLevelClient {
 
         private CustomRestClient(RestClient restClient) {
-            super(restClient);
+            super(restClient, RestClient::close, Collections.emptyList());
         }
 
         MainResponse custom(MainRequest mainRequest, Header... headers) throws IOException {

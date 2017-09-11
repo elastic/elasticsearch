@@ -87,7 +87,8 @@ verify_archive_installation() {
     assert_file "$ESHOME" d elasticsearch elasticsearch 755
     assert_file "$ESHOME/bin" d elasticsearch elasticsearch 755
     assert_file "$ESHOME/bin/elasticsearch" f elasticsearch elasticsearch 755
-    assert_file "$ESHOME/bin/elasticsearch.in.sh" f elasticsearch elasticsearch 755
+    assert_file "$ESHOME/bin/elasticsearch-env" f elasticsearch elasticsearch 755
+    assert_file "$ESHOME/bin/elasticsearch-keystore" f elasticsearch elasticsearch 755
     assert_file "$ESHOME/bin/elasticsearch-plugin" f elasticsearch elasticsearch 755
     assert_file "$ESHOME/bin/elasticsearch-translog" f elasticsearch elasticsearch 755
     assert_file "$ESCONFIG" d elasticsearch elasticsearch 755

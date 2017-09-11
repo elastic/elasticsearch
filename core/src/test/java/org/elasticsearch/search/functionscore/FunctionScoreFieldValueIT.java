@@ -113,7 +113,10 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
         assertEquals(response.getHits().getAt(0).getScore(), response.getHits().getAt(2).getScore(), 0);
 
 
-        // n divided by 0 is infinity, which should provoke an exception.
+        client().prepareIndex("test", "type1", "2").setSource("test", -1, "body", "foo").get();
+        refresh();
+
+        // -1 divided by 0 is infinity, which should provoke an exception.
         try {
             response = client().prepareSearch("test")
                     .setExplain(randomBoolean())

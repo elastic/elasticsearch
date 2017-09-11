@@ -39,6 +39,7 @@ tweets from the twitter index for a certain user. The result is:
     "_shards" : {
         "total" : 5,
         "successful" : 5,
+        "skipped" : 0,
         "failed" : 0
     }
 }

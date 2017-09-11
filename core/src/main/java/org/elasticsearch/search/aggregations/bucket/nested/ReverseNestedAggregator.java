@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
@@ -41,7 +42,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class ReverseNestedAggregator extends SingleBucketAggregator {
+public class ReverseNestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     static final ParseField PATH_FIELD = new ParseField("path");
 

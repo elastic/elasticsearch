@@ -20,6 +20,7 @@
 package org.elasticsearch.common;
 
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
@@ -36,7 +37,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.StringTokenizer;
@@ -792,11 +792,22 @@ public class Strings {
 
     /**
      * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
-     * Wraps the output into an anonymous object.
+     * Wraps the output into an anonymous object if needed. The content is not pretty-printed
+     * nor human readable.
      */
     public static String toString(ToXContent toXContent) {
+        return toString(toXContent, false, false);
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object if needed. Allows to control whether the outputted
+     * json needs to be pretty printed and human readable.
+     *
+     */
+    public static String toString(ToXContent toXContent, boolean pretty, boolean human) {
         try {
-            XContentBuilder builder = JsonXContent.contentBuilder();
+            XContentBuilder builder = createBuilder(pretty, human);
             if (toXContent.isFragment()) {
                 builder.startObject();
             }
@@ -806,8 +817,28 @@ public class Strings {
             }
             return builder.string();
         } catch (IOException e) {
-            return "Error building toString out of XContent: " + ExceptionsHelper.stackTrace(e);
+            try {
+                XContentBuilder builder = createBuilder(pretty, human);
+                builder.startObject();
+                builder.field("error", "error building toString out of XContent: " + e.getMessage());
+                builder.field("stack_trace", ExceptionsHelper.stackTrace(e));
+                builder.endObject();
+                return builder.string();
+            } catch (IOException e2) {
+                throw new ElasticsearchException("cannot generate error message for deserialization", e);
+            }
         }
+    }
+
+    private static XContentBuilder createBuilder(boolean pretty, boolean human) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        if (pretty) {
+            builder.prettyPrint();
+        }
+        if (human) {
+            builder.humanReadable(true);
+        }
+        return builder;
     }
 
     /**

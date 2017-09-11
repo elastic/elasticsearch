@@ -25,6 +25,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -50,9 +51,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -136,6 +139,7 @@ import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_M
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -333,7 +337,8 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b");
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b");
         // Some tests make use of scripting quite a bit, so increase the limit for integration tests
-        builder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 1000);
+        builder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "1000/1m");
+        builder.put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), random.nextBoolean());
         if (TEST_NIGHTLY) {
             builder.put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), RandomNumbers.randomIntBetween(random, 5, 10));
             builder.put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), RandomNumbers.randomIntBetween(random, 5, 10));
@@ -378,7 +383,7 @@ public final class InternalTestCluster extends TestCluster {
         return builder.build();
     }
 
-    private Collection<Class<? extends Plugin>> getPlugins() {
+    public Collection<Class<? extends Plugin>> getPlugins() {
         Set<Class<? extends Plugin>> plugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
         plugins.addAll(mockPlugins);
         return plugins;
@@ -608,6 +613,10 @@ public final class InternalTestCluster extends TestCluster {
             throw new IllegalArgumentException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " must be configured");
         }
         SecureSettings secureSettings = finalSettings.getSecureSettings();
+        if (secureSettings instanceof MockSecureSettings) {
+            // we clone this here since in the case of a node restart we might need it again
+            secureSettings = ((MockSecureSettings) secureSettings).clone();
+        }
         MockNode node = new MockNode(finalSettings.build(), plugins, nodeConfigurationSource.nodeConfigPath(nodeId));
         try {
             IOUtils.close(secureSettings);
@@ -971,8 +980,10 @@ public final class InternalTestCluster extends TestCluster {
                 .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                 .put("logger.level", nodeSettings.get("logger.level", "INFO"))
                 .put(settings);
-            if ( NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
-                builder.put(NetworkModule.TRANSPORT_TYPE_KEY, NetworkModule.TRANSPORT_TYPE_SETTING.get(settings));
+            if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
+                builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), NetworkModule.TRANSPORT_TYPE_SETTING.get(settings));
+            } else {
+                builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), getTestTransportType());
             }
             TransportClient client = new MockTransportClient(builder.build(), plugins);
             client.addTransportAddress(addr);
@@ -1117,6 +1128,7 @@ public final class InternalTestCluster extends TestCluster {
         assertShardIndexCounter();
         //check that shards that have same sync id also contain same number of documents
         assertSameSyncIdSameDocs();
+        assertOpenTranslogReferences();
     }
 
     private void assertSameSyncIdSameDocs() {
@@ -1167,6 +1179,24 @@ public final class InternalTestCluster extends TestCluster {
                             } catch (IOException e) {
                                 throw new RuntimeException("caught exception while building response [" + response + "]", e);
                             }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    private void assertOpenTranslogReferences() throws Exception {
+        assertBusy(() -> {
+            final Collection<NodeAndClient> nodesAndClients = nodes.values();
+            for (NodeAndClient nodeAndClient : nodesAndClients) {
+                IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+                for (IndexService indexService : indexServices) {
+                    for (IndexShard indexShard : indexService) {
+                        try {
+                            indexShard.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
+                        } catch (AlreadyClosedException ok) {
+                            // all good
                         }
                     }
                 }
@@ -1939,6 +1969,11 @@ public final class InternalTestCluster extends TestCluster {
 
             };
         };
+    }
+
+    @Override
+    public NamedWriteableRegistry getNamedWriteableRegistry() {
+        return getInstance(NamedWriteableRegistry.class);
     }
 
     /**

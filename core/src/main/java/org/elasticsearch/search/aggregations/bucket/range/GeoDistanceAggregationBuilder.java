@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -44,6 +45,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range.FROM_FIELD;
+import static org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range.KEY_FIELD;
+import static org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range.TO_FIELD;
 
 public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoDistanceAggregationBuilder> {
     public static final String NAME = "geo_distance";
@@ -167,25 +172,38 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         double from = 0.0;
         double to = Double.POSITIVE_INFINITY;
         String key = null;
-        String toOrFromOrKey = null;
+        String currentFieldName = null;
         Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                toOrFromOrKey = parser.currentName();
+                currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (Range.FROM_FIELD.match(toOrFromOrKey)) {
+                if (FROM_FIELD.match(currentFieldName)) {
                     from = parser.doubleValue();
-                } else if (Range.TO_FIELD.match(toOrFromOrKey)) {
+                } else if (TO_FIELD.match(currentFieldName)) {
                     to = parser.doubleValue();
+                } else {
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (Range.KEY_FIELD.match(toOrFromOrKey)) {
+                if (KEY_FIELD.match(currentFieldName)) {
                     key = parser.text();
-                } else if (Range.FROM_FIELD.match(toOrFromOrKey)) {
+                } else if (FROM_FIELD.match(currentFieldName)) {
                     fromAsStr = parser.text();
-                } else if (Range.TO_FIELD.match(toOrFromOrKey)) {
+                } else if (TO_FIELD.match(currentFieldName)) {
                     toAsStr = parser.text();
+                } else {
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
+            } else if (token == XContentParser.Token.VALUE_NULL) {
+                if (FROM_FIELD.match(currentFieldName) || TO_FIELD.match(currentFieldName)
+                        || KEY_FIELD.match(currentFieldName)) {
+                    // ignore null value
+                } else {
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            } else {
+                XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
             }
         }
         if (fromAsStr != null || toAsStr != null) {

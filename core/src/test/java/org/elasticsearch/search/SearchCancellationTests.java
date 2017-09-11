@@ -72,21 +72,10 @@ public class SearchCancellationTests extends ESTestCase {
         reader = null;
     }
 
-
-    public void testLowLevelCancellableCollector() throws IOException {
-        TotalHitCountCollector collector = new TotalHitCountCollector();
-        AtomicBoolean cancelled = new AtomicBoolean();
-        CancellableCollector cancellableCollector = new CancellableCollector(cancelled::get, true, collector);
-        final LeafCollector leafCollector = cancellableCollector.getLeafCollector(reader.leaves().get(0));
-        leafCollector.collect(0);
-        cancelled.set(true);
-        expectThrows(TaskCancelledException.class, () -> leafCollector.collect(1));
-    }
-
     public void testCancellableCollector() throws IOException {
         TotalHitCountCollector collector = new TotalHitCountCollector();
         AtomicBoolean cancelled = new AtomicBoolean();
-        CancellableCollector cancellableCollector = new CancellableCollector(cancelled::get, false, collector);
+        CancellableCollector cancellableCollector = new CancellableCollector(cancelled::get, collector);
         final LeafCollector leafCollector = cancellableCollector.getLeafCollector(reader.leaves().get(0));
         leafCollector.collect(0);
         cancelled.set(true);

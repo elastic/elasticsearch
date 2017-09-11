@@ -3,8 +3,6 @@
 
 An aggregation that returns interesting or unusual occurrences of terms in a set.
 
-experimental[The `significant_terms` aggregation can be very heavy when run on large indices.  Work is in progress to provide more lightweight sampling techniques.  As a result, the API for this feature may change in non-backwards compatible ways]
-
 .Example use cases:
 * Suggesting "H5N1" when users search for "bird flu" in text
 * Identifying the merchant that is the "common point of compromise" from the transaction history of credit card owners reporting loss
@@ -17,6 +15,50 @@ They are the terms that have undergone a significant change in popularity measur
 If the term "H5N1" only exists in 5 documents in a 10 million document index and yet is found in 4 of the 100 documents that make up a user's search results
 that is significant and probably very relevant to their search. 5/10,000,000 vs 4/100 is a big swing in frequency.
 
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /reports
+{
+    "mappings": {
+        "report": {
+            "properties": {
+                "force": {
+                    "type": "keyword"
+                },
+                "crime_type": {
+                    "type": "keyword"
+                }
+            }
+        }
+    }
+}
+
+POST /reports/report/_bulk?refresh
+{"index":{"_id":0}}
+{"force": "British Transport Police", "crime_type": "Bicycle theft"}
+{"index":{"_id":1}}
+{"force": "British Transport Police", "crime_type": "Bicycle theft"}
+{"index":{"_id":2}}
+{"force": "British Transport Police", "crime_type": "Bicycle theft"}
+{"index":{"_id":3}}
+{"force": "British Transport Police", "crime_type": "Robbery"}
+{"index":{"_id":4}}
+{"force": "Metropolitan Police Service", "crime_type": "Robbery"}
+{"index":{"_id":5}}
+{"force": "Metropolitan Police Service", "crime_type": "Bicycle theft"}
+{"index":{"_id":6}}
+{"force": "Metropolitan Police Service", "crime_type": "Robbery"}
+{"index":{"_id":7}}
+{"force": "Metropolitan Police Service", "crime_type": "Robbery"}
+
+-------------------------------------------------
+// NOTCONSOLE
+// TESTSETUP
+
+//////////////////////////
+
 ==== Single-set analysis
 
 In the simplest case, the _foreground_ set of interest is the search results matched by a query and the _background_
@@ -26,17 +68,20 @@ Example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "query" : {
         "terms" : {"force" : [ "British Transport Police" ]}
     },
     "aggregations" : {
-        "significantCrimeTypes" : {
+        "significant_crime_types" : {
             "significant_terms" : { "field" : "crime_type" }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -44,9 +89,8 @@ Response:
 --------------------------------------------------
 {
     ...
-
     "aggregations" : {
-        "significantCrimeTypes" : {
+        "significant_crime_types" : {
             "doc_count": 47347,
             "bg_count": 5064554,
             "buckets" : [
@@ -62,6 +106,8 @@ Response:
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/: (0\.)?[0-9]+/: $body.$_path/]
 
 When querying an index of all crimes from all police forces, what these results show is that the British Transport Police force
 stand out as a force dealing with a disproportionately large number of bicycle thefts. Ordinarily, bicycle thefts represent only 1% of crimes (66799/5064554)
@@ -83,12 +129,13 @@ Example using a parent aggregation for segmentation:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggregations": {
         "forces": {
             "terms": {"field": "force"},
             "aggregations": {
-                "significantCrimeTypes": {
+                "significant_crime_types": {
                     "significant_terms": {"field": "crime_type"}
                 }
             }
@@ -96,6 +143,8 @@ Example using a parent aggregation for segmentation:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -103,14 +152,15 @@ Response:
 --------------------------------------------------
 {
  ...
-
  "aggregations": {
     "forces": {
+        "doc_count_error_upper_bound": 1375,
+        "sum_other_doc_count": 7879845,
         "buckets": [
             {
                 "key": "Metropolitan Police Service",
                 "doc_count": 894038,
-                "significantCrimeTypes": {
+                "significant_crime_types": {
                     "doc_count": 894038,
                     "bg_count": 5064554,
                     "buckets": [
@@ -119,7 +169,7 @@ Response:
                             "doc_count": 27617,
                             "score": 0.0599,
                             "bg_count": 53182
-                        },
+                        }
                         ...
                     ]
                 }
@@ -127,7 +177,7 @@ Response:
             {
                 "key": "British Transport Police",
                 "doc_count": 47347,
-                "significantCrimeTypes": {
+                "significant_crime_types": {
                     "doc_count": 47347,
                     "bg_count": 5064554,
                     "buckets": [
@@ -136,16 +186,19 @@ Response:
                             "doc_count": 3640,
                             "score": 0.371,
                             "bg_count": 66799
-                        },
+                        }
                         ...
                     ]
                 }
             }
         ]
     }
+  }
 }
-
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/: (0\.)?[0-9]+/: $body.$_path/]
+// TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 
 Now we have anomaly detection for each of the police forces using a single request.
 
@@ -154,15 +207,16 @@ area to identify unusual hot-spots of a particular crime type:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs": {
         "hotspots": {
-            "geohash_grid" : {
-                "field":"location",
-                "precision":5,
+            "geohash_grid": {
+                "field": "location",
+                "precision": 5
             },
             "aggs": {
-                "significantCrimeTypes": {
+                "significant_crime_types": {
                     "significant_terms": {"field": "crime_type"}
                 }
             }
@@ -170,6 +224,7 @@ area to identify unusual hot-spots of a particular crime type:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 This example uses the `geohash_grid` aggregation to create result buckets that represent geographic areas, and inside each
 bucket we can identify anomalous levels of a crime type in these tightly-focused areas e.g.
@@ -285,6 +340,7 @@ Mutual information as described in "Information Retrieval", Manning et al., Chap
 	      "include_negatives": true
 	 }
 --------------------------------------------------
+// NOTCONSOLE
 
 Mutual information does not differentiate between terms that are descriptive for the subset or for documents outside the subset. The significant terms therefore can contain terms that appear more or less frequent in the subset than outside the subset. To filter out the terms that appear less often in the subset than in documents outside the subset, `include_negatives` can be set to `false`.
 
@@ -295,7 +351,7 @@ Per default, the assumption is that the documents in the bucket are also contain
 
 "background_is_superset": false
 --------------------------------------------------
-
+// NOTCONSOLE
 
 ===== Chi square
 Chi square as described in "Information Retrieval", Manning et al., Chapter 13.5.2 can be used as significance score by adding the parameter
@@ -306,7 +362,7 @@ Chi square as described in "Information Retrieval", Manning et al., Chapter 13.5
 	 "chi_square": {
 	 }
 --------------------------------------------------
-
+// NOTCONSOLE
 Chi square behaves like mutual information and can be configured with the same parameters `include_negatives` and `background_is_superset`.
 
 
@@ -319,7 +375,7 @@ Google normalized distance  as described in "The Google Similarity Distance", Ci
 	 "gnd": {
 	 }
 --------------------------------------------------
-
+// NOTCONSOLE
 `gnd` also accepts the `background_is_superset` parameter.
 
 
@@ -338,7 +394,7 @@ Multiple observations are typically required to reinforce a view so it is recomm
 	 "percentage": {
 	 }
 --------------------------------------------------
-
+// NOTCONSOLE
 
 ===== Which one is best?
 
@@ -362,7 +418,7 @@ Customized scores can be implemented via a script:
 	      }
             }
 --------------------------------------------------
-
+// NOTCONSOLE
 Scripts can be inline (as in above example), indexed or stored on disk. For details on the options, see <<modules-scripting, script documentation>>.
 
 Available parameters in the script are
@@ -402,6 +458,7 @@ It is possible to only return terms that match more than a configured number of 
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "tags" : {
@@ -413,7 +470,7 @@ It is possible to only return terms that match more than a configured number of 
     }
 }
 --------------------------------------------------
-
+// CONSOLE
 The above aggregation would only return tags which have been found in 10 hits or more. Default value is `3`.
 
 
@@ -444,9 +501,12 @@ context:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "query" : {
-        "match" : "madrid"
+        "match" : {
+            "city" : "madrid"
+        }
     },
     "aggs" : {
         "tags" : {
@@ -460,6 +520,7 @@ context:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The above filter would help focus in on terms that were peculiar to the city of Madrid rather than revealing
 terms like "Spanish" that are unusual in the full index's worldwide context but commonplace in the subset of documents containing the
@@ -474,32 +535,26 @@ It is possible (although rarely required) to filter the values for which buckets
 `exclude` parameters which are based on a regular expression string or arrays of exact terms. This functionality mirrors the features
 described in the <<search-aggregations-bucket-terms-aggregation,terms aggregation>> documentation.
 
-
-===== Execution hint
-
+==== Execution hint
 
 There are different mechanisms by which terms aggregations can be executed:
 
  - by using field values directly in order to aggregate data per-bucket (`map`)
- - by using ordinals of the field and preemptively allocating one bucket per ordinal value (`global_ordinals`)
- - by using ordinals of the field and dynamically allocating one bucket per ordinal value (`global_ordinals_hash`)
+ - by using global ordinals of the field and allocating one bucket per global ordinal (`global_ordinals`)
 
 Elasticsearch tries to have sensible defaults so this is something that generally doesn't need to be configured.
 
-`map` should only be considered when very few documents match a query. Otherwise the ordinals-based execution modes
-are significantly faster. By default, `map` is only used when running an aggregation on scripts, since they don't have
+`global_ordinals` is the default option for `keyword` field, it uses global ordinals to allocates buckets dynamically
+so memory usage is linear to the number of values of the documents that are part of the aggregation scope.
+
+`map` should only be considered when very few documents match a query. Otherwise the ordinals-based execution mode
+is significantly faster. By default, `map` is only used when running an aggregation on scripts, since they don't have
 ordinals.
-
-`global_ordinals` is the second fastest option, but the fact that it preemptively allocates buckets can be memory-intensive,
-especially if you have one or more sub aggregations. It is used by default on top-level terms aggregations.
-
-`global_ordinals_hash` on the contrary to `global_ordinals` and `global_ordinals_low_cardinality` allocates buckets dynamically
-so memory usage is linear to the number of values of the documents that are part of the aggregation scope. It is used by default
-in inner aggregations.
 
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "tags" : {
@@ -511,7 +566,8 @@ in inner aggregations.
     }
 }
 --------------------------------------------------
+// CONSOLE
 
-<1> the possible values are `map`, `global_ordinals` and `global_ordinals_hash`
+<1> the possible values are `map`, `global_ordinals`
 
 Please note that Elasticsearch will ignore this execution hint if it is not applicable.

@@ -88,7 +88,9 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
     protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
-        settings = Settings.builder().put(settings).put(TcpTransport.PORT.getKey(), "0").build();
+        settings = Settings.builder().put(settings)
+            .put(TcpTransport.PORT.getKey(), "0")
+            .build();
         MockTransportService transportService = nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
         transportService.start();
         return transportService;

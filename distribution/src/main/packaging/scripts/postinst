@@ -100,10 +100,15 @@ fi
 chown -R elasticsearch:elasticsearch /var/lib/elasticsearch
 chown -R elasticsearch:elasticsearch /var/log/elasticsearch
 chown -R root:elasticsearch /etc/elasticsearch
+chmod g+s /etc/elasticsearch
 chmod 0750 /etc/elasticsearch
 
+if [ -f /etc/default/elasticsearch ]; then
+   chown root:elasticsearch /etc/default/elasticsearch
+fi
+
 if [ -f /etc/sysconfig/elasticsearch ]; then
-   chmod 0660 /etc/sysconfig/elasticsearch
+   chown root:elasticsearch /etc/sysconfig/elasticsearch
 fi
 
 ${scripts.footer}

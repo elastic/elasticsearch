@@ -64,7 +64,6 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
-@ClusterScope(randomDynamicTemplates = false)
 public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
     @Override

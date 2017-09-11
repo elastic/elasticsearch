@@ -19,9 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import java.io.IOException;
-import java.util.Arrays;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -36,9 +33,11 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -62,11 +61,11 @@ public class TransportClientIT extends ESIntegTestCase {
                 .put(internalCluster().getDefaultSettings())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
-                .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
+                .put("transport.type", getTestTransportType())
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put("cluster.name", "foobar")
-                .build(), Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class)).start()) {
+                .build(), Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class)).start()) {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);
             // since we force transport clients there has to be one node started that we connect to.
@@ -95,8 +94,10 @@ public class TransportClientIT extends ESIntegTestCase {
     }
 
     public void testThatTransportClientSettingCannotBeChanged() {
+        String transport = getTestTransportType();
         Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), transport)
             .build();
         try (TransportClient client = new MockTransportClient(baseSettings)) {
             Settings settings = client.injector.getInstance(Settings.class);

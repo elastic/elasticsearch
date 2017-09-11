@@ -28,6 +28,8 @@ import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
@@ -48,6 +50,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * {@link QueryBuilder} that builds a GeoShape Query
@@ -77,6 +80,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     private final String fieldName;
 
     private final ShapeBuilder shape;
+    private final Supplier<ShapeBuilder> supplier;
 
     private SpatialStrategy strategy;
 
@@ -133,6 +137,15 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         this.shape = shape;
         this.indexedShapeId = indexedShapeId;
         this.indexedShapeType = indexedShapeType;
+        this.supplier = null;
+    }
+
+    private GeoShapeQueryBuilder(String fieldName, Supplier<ShapeBuilder> supplier, String indexedShapeId, String indexedShapeType) {
+        this.fieldName = fieldName;
+        this.shape = null;
+        this.supplier = supplier;
+        this.indexedShapeId = indexedShapeId;
+        this.indexedShapeType = indexedShapeType;
     }
 
     /**
@@ -155,10 +168,14 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         relation = ShapeRelation.readFromStream(in);
         strategy = in.readOptionalWriteable(SpatialStrategy::readFromStream);
         ignoreUnmapped = in.readBoolean();
+        supplier = null;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        if (supplier != null) {
+            throw new IllegalStateException("supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+        }
         out.writeString(fieldName);
         boolean hasShape = shape != null;
         out.writeBoolean(hasShape);
@@ -312,7 +329,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) {
-        if (shape == null) {
+        if (shape == null || supplier != null) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
         final ShapeBuilder shapeToQuery = shape;
@@ -361,47 +378,59 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
      * @param path
      *            Name or path of the field in the Shape Document where the
      *            Shape itself is located
-     * @return Shape with the given ID
-     * @throws IOException
-     *             Can be thrown while parsing the Shape Document and extracting
-     *             the Shape
      */
-    private ShapeBuilder fetch(Client client, GetRequest getRequest, String path) throws IOException {
+    private void fetch(Client client, GetRequest getRequest, String path, ActionListener<ShapeBuilder> listener) {
         if (ShapesAvailability.JTS_AVAILABLE == false) {
             throw new IllegalStateException("JTS not available");
         }
         getRequest.preference("_local");
         getRequest.operationThreaded(false);
-        GetResponse response = client.get(getRequest).actionGet();
-        if (!response.isExists()) {
-            throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() + "] not found");
-        }
-        if (response.isSourceEmpty()) {
-            throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() +
-                    "] source disabled");
-        }
+        client.get(getRequest, new ActionListener<GetResponse>(){
 
-        String[] pathElements = path.split("\\.");
-        int currentPathSlot = 0;
-
-        // It is safe to use EMPTY here because this never uses namedObject
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, response.getSourceAsBytesRef())) {
-            XContentParser.Token currentToken;
-            while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (currentToken == XContentParser.Token.FIELD_NAME) {
-                    if (pathElements[currentPathSlot].equals(parser.currentName())) {
-                        parser.nextToken();
-                        if (++currentPathSlot == pathElements.length) {
-                            return ShapeBuilder.parse(parser);
-                        }
-                    } else {
-                        parser.nextToken();
-                        parser.skipChildren();
+            @Override
+            public void onResponse(GetResponse response) {
+                try {
+                    if (!response.isExists()) {
+                        throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type()
+                            + "] not found");
                     }
+                    if (response.isSourceEmpty()) {
+                        throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() +
+                            "] source disabled");
+                    }
+
+                    String[] pathElements = path.split("\\.");
+                    int currentPathSlot = 0;
+
+                    // It is safe to use EMPTY here because this never uses namedObject
+                    try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, response.getSourceAsBytesRef())) {
+                        XContentParser.Token currentToken;
+                        while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (currentToken == XContentParser.Token.FIELD_NAME) {
+                                if (pathElements[currentPathSlot].equals(parser.currentName())) {
+                                    parser.nextToken();
+                                    if (++currentPathSlot == pathElements.length) {
+                                        listener.onResponse(ShapeBuilder.parse(parser));
+                                    }
+                                } else {
+                                    parser.nextToken();
+                                    parser.skipChildren();
+                                }
+                            }
+                        }
+                        throw new IllegalStateException("Shape with name [" + getRequest.id() + "] found but missing " + path + " field");
+                    }
+                } catch (Exception e) {
+                    onFailure(e);
                 }
             }
-            throw new IllegalStateException("Shape with name [" + getRequest.id() + "] found but missing " + path + " field");
-        }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+
     }
 
     public static SpatialArgs getArgs(ShapeBuilder shape, ShapeRelation relation) {
@@ -573,6 +602,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                 && Objects.equals(indexedShapeType, other.indexedShapeType)
                 && Objects.equals(relation, other.relation)
                 && Objects.equals(shape, other.shape)
+                && Objects.equals(supplier, other.supplier)
                 && Objects.equals(strategy, other.strategy)
                 && Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
     }
@@ -580,7 +610,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, indexedShapeId, indexedShapeIndex,
-                indexedShapePath, indexedShapeType, relation, shape, strategy, ignoreUnmapped);
+                indexedShapePath, indexedShapeType, relation, shape, strategy, ignoreUnmapped, supplier);
     }
 
     @Override
@@ -589,11 +619,21 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        if (this.shape == null) {
-            GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
-            ShapeBuilder shape = fetch(queryShardContext.getClient(), getRequest, indexedShapePath);
-            return new GeoShapeQueryBuilder(this.fieldName, shape).relation(relation).strategy(strategy);
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (supplier != null) {
+            return supplier.get() == null ? this : new GeoShapeQueryBuilder(this.fieldName, supplier.get()).relation(relation).strategy
+                (strategy);
+        } else if (this.shape == null) {
+            SetOnce<ShapeBuilder> supplier = new SetOnce<>();
+            queryRewriteContext.registerAsyncAction((client, listener) -> {
+                GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
+                fetch(client, getRequest, indexedShapePath, ActionListener.wrap(builder-> {
+                    supplier.set(builder);
+                    listener.onResponse(null);
+                }, listener::onFailure));
+            });
+            return new GeoShapeQueryBuilder(this.fieldName, supplier::get, this.indexedShapeId, this.indexedShapeType).relation(relation)
+                .strategy(strategy);
         }
         return this;
     }

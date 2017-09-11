@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
@@ -38,7 +39,7 @@ import static java.util.Collections.unmodifiableMap;
  * Wrapper around everything that defines a mapping, without references to
  * utility classes like MapperService, ...
  */
-public final class Mapping implements ToXContent {
+public final class Mapping implements ToXContentFragment {
 
     final Version indexCreated;
     final RootObjectMapper root;

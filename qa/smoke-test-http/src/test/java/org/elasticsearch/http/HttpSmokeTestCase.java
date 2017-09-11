@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;
@@ -38,14 +39,16 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
     @SuppressWarnings("unchecked")
     @BeforeClass
     public static void setUpTransport() {
-        nodeTransportTypeKey = getTypeKey(randomFrom(MockTcpTransportPlugin.class, Netty4Plugin.class));
+        nodeTransportTypeKey = getTypeKey(randomFrom(getTestTransportPlugin(), Netty4Plugin.class));
         nodeHttpTypeKey = getTypeKey(Netty4Plugin.class);
-        clientTypeKey = getTypeKey(randomFrom(MockTcpTransportPlugin.class,Netty4Plugin.class));
+        clientTypeKey = getTypeKey(randomFrom(getTestTransportPlugin(), Netty4Plugin.class));
     }
 
     private static String getTypeKey(Class<? extends Plugin> clazz) {
         if (clazz.equals(MockTcpTransportPlugin.class)) {
             return MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
+        } else if (clazz.equals(NioTransportPlugin.class)) {
+            return NioTransportPlugin.NIO_TRANSPORT_NAME;
         } else {
             assert clazz.equals(Netty4Plugin.class);
             return Netty4Plugin.NETTY_TRANSPORT_NAME;
@@ -63,12 +66,12 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTcpTransportPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(getTestTransportPlugin(), Netty4Plugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(MockTcpTransportPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(getTestTransportPlugin(), Netty4Plugin.class);
     }
 
     @Override

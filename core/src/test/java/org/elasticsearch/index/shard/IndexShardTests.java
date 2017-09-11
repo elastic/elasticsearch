@@ -771,6 +771,8 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // this time there should not be a sync since all the replica copies are caught up with the primary
         assertFalse(synced.get());
+
+        closeShards(secondReplicaShard, firstReplicaShard, primaryShard);
     }
 
     public void testRestoreLocalCheckpointTrackerFromTranslogOnPromotion() throws IOException, InterruptedException {

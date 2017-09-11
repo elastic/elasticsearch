@@ -281,8 +281,8 @@ setup:
 ---
 "Skip duplicates with contexts should work":
   - skip:
-      version: " - 6.99.99"
-      reason: skip_duplicates was added in 7.0 (TODO should be backported to 6.1)
+      version: " - 6.0.99"
+      reason: skip_duplicates was added in 6.1
 
   - do:
       index:

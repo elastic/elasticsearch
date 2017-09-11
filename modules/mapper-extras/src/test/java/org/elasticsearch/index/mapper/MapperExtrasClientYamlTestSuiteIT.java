@@ -19,24 +19,22 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-public class MapperExtrasPlugin extends Plugin implements MapperPlugin {
+/** Runs yaml rest tests */
+public class MapperExtrasClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    @Override
-    public Map<String, Mapper.TypeParser> getMappers() {
-        Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
-        mappers.put(ScaledFloatFieldMapper.CONTENT_TYPE, new ScaledFloatFieldMapper.TypeParser());
-        mappers.put(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser());
-        for (RangeFieldMapper.RangeType type : RangeFieldMapper.RangeType.values()) {
-            mappers.put(type.typeName(), new RangeFieldMapper.TypeParser(type));
-        }
-        return Collections.unmodifiableMap(mappers);
+    public MapperExtrasClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
     }
 
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
+    }
 }
+

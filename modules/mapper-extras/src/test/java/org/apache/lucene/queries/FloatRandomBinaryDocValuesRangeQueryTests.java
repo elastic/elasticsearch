@@ -56,7 +56,7 @@ public class FloatRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryD
         }
     }
 
-    private static class FloatTestRange extends AbstractRange {
+    private static class FloatTestRange extends AbstractRange<Float> {
         float min;
         float max;
 
@@ -66,7 +66,7 @@ public class FloatRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryD
         }
 
         @Override
-        public Object getMin() {
+        public Float getMin() {
             return min;
         }
 
@@ -82,7 +82,7 @@ public class FloatRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryD
         }
 
         @Override
-        public Object getMax() {
+        public Float getMax() {
             return max;
         }
 

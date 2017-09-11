@@ -95,7 +95,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Object to = nextTo(from);
 
         assertEquals(getExpectedRangeQuery(relation, from, to, includeLower, includeUpper),
-            ft.rangeQuery(from, to, includeLower, includeUpper, relation, context));
+            ft.rangeQuery(from, to, includeLower, includeUpper, relation, null, null, context));
     }
 
     private Query getExpectedRangeQuery(ShapeRelation relation, Object from, Object to, boolean includeLower, boolean includeUpper) {

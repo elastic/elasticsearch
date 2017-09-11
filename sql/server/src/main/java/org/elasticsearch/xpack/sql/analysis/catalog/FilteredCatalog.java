@@ -11,11 +11,12 @@ package org.elasticsearch.xpack.sql.analysis.catalog;
 public class FilteredCatalog implements Catalog {
     public interface Filter {
         /**
-         * Filter an index. Returning {@code null} will act as though
-         * the index wasn't found. Will never be called with a {@code null}
-         * parameter.
+         * Filter an index. Will only be called with valid,
+         * found indices but gets the entire {@link GetIndexResult}
+         * from the delegate catalog in case it wants to return
+         * it unchanged.
          */
-        EsIndex filterIndex(EsIndex index);
+        GetIndexResult filterIndex(GetIndexResult delegateResult);
     }
 
     private Catalog delegate;
@@ -27,10 +28,10 @@ public class FilteredCatalog implements Catalog {
     }
 
     @Override
-    public EsIndex getIndex(String index) {
-        EsIndex result = delegate.getIndex(index);
-        if (result == null) {
-            return null;
+    public GetIndexResult getIndex(String index) {
+        GetIndexResult result = delegate.getIndex(index);
+        if (false == result.isValid() || result.get() == null) {
+            return result;
         }
         return filter.filterIndex(result);
     }

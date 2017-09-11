@@ -11,6 +11,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
+import org.elasticsearch.xpack.sql.analysis.catalog.Catalog.GetIndexResult;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.catalog.FilteredCatalog;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -42,21 +43,24 @@ public class SecurityCatalogFilter implements FilteredCatalog.Filter {
     }
 
     @Override
-    public EsIndex filterIndex(EsIndex index) {
+    public GetIndexResult filterIndex(GetIndexResult delegateResult) {
         if (false == licenseState.isAuthAllowed()) {
             /* If security is disabled the index authorization won't be available.
              * It is technically possible there to be a race between licensing
              * being enabled and sql requests that might cause us to fail on those
              * requests but that should be rare. */
-            return index;
+            return delegateResult;
         }
+        EsIndex index = delegateResult.get();
         IndexAccessControl permissions = getAccessControlResolver()
                 .apply(OPTIONS, new String[] {index.name()})
                 .getIndexPermissions(index.name());
         /* Fetching the permissions always checks if they are granted. If they aren't
-         * then it throws an exception. */
+         * then it throws an exception. This is ok even for list requests because this
+         * will only ever be called on indices that are authorized because of security's
+         * request filtering. */
         if (false == permissions.getFieldPermissions().hasFieldLevelSecurity()) {
-            return index;
+            return delegateResult;
         }
         Map<String, DataType> filteredMapping = new HashMap<>(index.mapping().size());
         for (Map.Entry<String, DataType> entry : index.mapping().entrySet()) {
@@ -64,7 +68,7 @@ public class SecurityCatalogFilter implements FilteredCatalog.Filter {
                 filteredMapping.put(entry.getKey(), entry.getValue());
             }
         }
-        return new EsIndex(index.name(), filteredMapping, index.aliases(), index.settings());
+        return GetIndexResult.valid(new EsIndex(index.name(), filteredMapping, index.aliases(), index.settings()));
     }
 
     private BiFunction<IndicesOptions, String[], IndicesAccessControl> getAccessControlResolver() {

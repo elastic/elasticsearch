@@ -22,7 +22,8 @@ class InMemoryCatalog implements Catalog {
     }
 
     @Override
-    public EsIndex getIndex(String index) {
-        return indices.get(index);
+    public GetIndexResult getIndex(String index) {
+        EsIndex result = indices.get(index);
+        return result == null ? GetIndexResult.notFound(index) : GetIndexResult.valid(result);
     }
 }

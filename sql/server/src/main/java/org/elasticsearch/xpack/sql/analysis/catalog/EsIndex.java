@@ -5,15 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.analysis.catalog;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.Types;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -51,13 +46,6 @@ public class EsIndex {
 
     public Settings settings() {
         return settings;
-    }
-
-    static EsIndex build(IndexMetaData metadata, @Nullable MappingMetaData type) {
-        Map<String, DataType> mapping = type != null ? Types.fromEs(type.sourceAsMap()) : emptyMap();
-
-        List<String> aliases = Arrays.asList(metadata.getAliases().keys().toArray(String.class));
-        return new EsIndex(metadata.getIndex().getName(), mapping, aliases, metadata.getSettings());
     }
 
     @Override

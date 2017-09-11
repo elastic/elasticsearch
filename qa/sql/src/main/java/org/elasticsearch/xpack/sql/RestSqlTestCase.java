@@ -124,7 +124,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
     }
 
     public void testMissingIndex() throws IOException {
-        expectBadRequest(() -> runSql("SELECT foo FROM missing"), containsString("1:17: Cannot resolve index [missing]"));
+        expectBadRequest(() -> runSql("SELECT foo FROM missing"), containsString("1:17: index [missing] does not exist"));
     }
 
     public void testMissingField() throws IOException {

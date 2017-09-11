@@ -27,8 +27,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
+import org.elasticsearch.xpack.sql.analysis.catalog.Catalog.GetIndexResult;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
 
 import java.io.IOException;
@@ -162,7 +162,7 @@ public class SqlGetIndicesAction
     }
 
     public static class TransportAction extends TransportMasterNodeReadAction<Request, Response> {
-        private final Function<ClusterState, Catalog> catalog;
+        private final Function<ClusterState, Catalog> catalogSupplier;
         private final SqlLicenseChecker licenseChecker;
 
         @Inject
@@ -171,7 +171,7 @@ public class SqlGetIndicesAction
                 IndexNameExpressionResolver indexNameExpressionResolver, CatalogHolder catalog, SqlLicenseChecker licenseChecker) {
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.catalog = catalog.catalog;
+            this.catalogSupplier = catalog.catalogSupplier;
             this.licenseChecker = licenseChecker;
         }
 
@@ -189,7 +189,7 @@ public class SqlGetIndicesAction
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
             licenseChecker.checkIfSqlAllowed();
-            operation(indexNameExpressionResolver, catalog, request, state, listener);
+            operation(indexNameExpressionResolver, catalogSupplier, request, state, listener);
         }
 
         @Override
@@ -202,10 +202,10 @@ public class SqlGetIndicesAction
          * Class that holds that {@link Catalog} to aid in guice binding.
          */
         public static class CatalogHolder {
-            final Function<ClusterState, Catalog> catalog;
+            final Function<ClusterState, Catalog> catalogSupplier;
 
-            public CatalogHolder(Function<ClusterState, Catalog> catalog) {
-                this.catalog = catalog;
+            public CatalogHolder(Function<ClusterState, Catalog> catalogSupplier) {
+                this.catalogSupplier = catalogSupplier;
             }
         }
     }
@@ -219,20 +219,15 @@ public class SqlGetIndicesAction
      * what the user has permission to access, and leaves an appropriate
      * audit trail.
      */
-    public static void operation(IndexNameExpressionResolver indexNameExpressionResolver, Function<ClusterState, Catalog> catalog,
+    public static void operation(IndexNameExpressionResolver indexNameExpressionResolver, Function<ClusterState, Catalog> catalogSupplier,
             Request request, ClusterState state, ActionListener<Response> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         List<EsIndex> results = new ArrayList<>(concreteIndices.length);
+        Catalog catalog = catalogSupplier.apply(state);
         for (String index : concreteIndices) {
-            EsIndex esIndex;
-            try {
-                esIndex = catalog.apply(state).getIndex(index);
-            } catch (SqlIllegalArgumentException e) {
-                assert e.getMessage().contains("has more than one type");
-                esIndex = null;
-            }
-            if (esIndex != null) {
-                results.add(esIndex);
+            GetIndexResult result = catalog.getIndex(index);
+            if (result.isValid()) {
+                results.add(result.get());
             }
         }
 

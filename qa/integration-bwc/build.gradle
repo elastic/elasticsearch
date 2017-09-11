@@ -23,13 +23,6 @@ import org.elasticsearch.gradle.VersionProperties
 
 apply plugin: 'elasticsearch.standalone-test'
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
-    description = 'Runs backwards compatibility tests.'
-    group = 'verification'
-}
-
 dependencies {
     testCompile project(path: ':modules:mapper-extras', configuration: 'runtime')
 }

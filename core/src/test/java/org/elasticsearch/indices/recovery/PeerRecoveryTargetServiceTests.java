@@ -76,8 +76,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
 
             final Translog translog = replica.getTranslog();
-            translogLocation.set(
-                    writeTranslog(replica.shardId(), translog.getTranslogUUID(), translog.currentFileGeneration(), maxSeqNo - 1));
+            translogLocation.set(writeTranslog(replica.shardId(), translog.getTranslogUUID(), translog.getHistoryUUID(),
+                        translog.currentFileGeneration(), maxSeqNo - 1));
 
             // commit is good, global checkpoint is at least max *committed* which is NO_OPS_PERFORMED
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(0L));
@@ -89,8 +89,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             // commit is not good, global checkpoint is below max
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
 
-            translogLocation.set(
-                    writeTranslog(replica.shardId(), translog.getTranslogUUID(), translog.currentFileGeneration(), maxSeqNo));
+            translogLocation.set(writeTranslog(replica.shardId(), translog.getTranslogUUID(), translog.getHistoryUUID(),
+                translog.currentFileGeneration(), maxSeqNo));
 
             // commit is good, global checkpoint is above max
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(localCheckpoint + 1));
@@ -103,6 +103,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     private Path writeTranslog(
             final ShardId shardId,
             final String translogUUID,
+            final String historyUUID,
             final long generation,
             final long globalCheckpoint
             ) throws IOException {
@@ -112,6 +113,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         try (TranslogWriter ignored = TranslogWriter.create(
                 shardId,
                 translogUUID,
+                historyUUID,
                 generation,
                 resolve,
                 FileChannel::open,

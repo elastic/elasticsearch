@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.ESTestCase;
 
@@ -89,7 +90,8 @@ public class TranslogVersionTests extends ESTestCase {
             final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
             final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
             final Checkpoint checkpoint =
-                    new Checkpoint(Files.size(path), 1, id, minSeqNo, maxSeqNo, SequenceNumbers.UNASSIGNED_SEQ_NO, id);
+                    new Checkpoint(Files.size(path), 1, id, minSeqNo, maxSeqNo, SequenceNumbers.UNASSIGNED_SEQ_NO, id,
+                        UUIDs.randomBase64UUID(random()), UUIDs.randomBase64UUID(random()));
             return TranslogReader.open(channel, path, checkpoint, null);
         }
     }

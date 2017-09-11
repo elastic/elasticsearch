@@ -25,6 +25,8 @@ import joptsimple.OptionSpec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
@@ -37,6 +39,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -51,6 +54,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -133,8 +137,10 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
                 throw new ElasticsearchException("shard must have a valid translog generation and UUID but got: [{}] and: [{}]",
                         translogGeneration, translogUUID);
             }
+            final String historyUUID = UUIDs.randomBase64UUID();
             terminal.println("Translog Generation: " + translogGeneration);
             terminal.println("Translog UUID      : " + translogUUID);
+            terminal.println("History UUID      : " + historyUUID);
 
             Path tempEmptyCheckpoint = translogPath.resolve("temp-" + Translog.CHECKPOINT_FILE_NAME);
             Path realEmptyCheckpoint = translogPath.resolve(Translog.CHECKPOINT_FILE_NAME);
@@ -146,7 +152,7 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
             // Write empty checkpoint and translog to empty files
             long gen = Long.parseLong(translogGeneration);
             int translogLen = writeEmptyTranslog(tempEmptyTranslog, translogUUID);
-            writeEmptyCheckpoint(tempEmptyCheckpoint, translogLen, gen);
+            writeEmptyCheckpoint(tempEmptyCheckpoint, translogLen, gen, translogUUID, historyUUID);
 
             terminal.println("Removing existing translog files");
             IOUtils.rm(translogFiles.toArray(new Path[]{}));
@@ -159,6 +165,22 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
             // Fsync the translog directory after rename
             IOUtils.fsync(translogPath, true);
 
+            // commit the new histroy id
+            IndexWriterConfig iwc = new IndexWriterConfig(null)
+                .setCommitOnClose(false)
+                // we don't want merges to happen here - we call maybe merge on the engine
+                // later once we stared it up otherwise we would need to wait for it here
+                // we also don't specify a codec here and merges should use the engines for this index
+                .setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                Map<String, String> newCommitData = new HashMap<>(commitData);
+                newCommitData.put(Translog.HISTORY_UUID_KEY, historyUUID);
+                writer.setLiveCommitData(newCommitData.entrySet());
+                writer.commit();
+            }
+
         } catch (LockObtainFailedException lofe) {
             throw new ElasticsearchException("Failed to lock shard's directory at [" + idxLocation + "], is Elasticsearch still running?");
         }
@@ -167,9 +189,10 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
     }
 
     /** Write a checkpoint file to the given location with the given generation */
-    public static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration) throws IOException {
+    public static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration, String translogUUID,
+                                            String historyUUID) throws IOException {
         Checkpoint emptyCheckpoint = Checkpoint.emptyTranslogCheckpoint(translogLength, translogGeneration,
-            SequenceNumbers.UNASSIGNED_SEQ_NO, translogGeneration);
+            SequenceNumbers.UNASSIGNED_SEQ_NO, translogGeneration, translogUUID, historyUUID);
         Checkpoint.write(FileChannel::open, filename, emptyCheckpoint,
             StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
         // fsync with metadata here to make sure.

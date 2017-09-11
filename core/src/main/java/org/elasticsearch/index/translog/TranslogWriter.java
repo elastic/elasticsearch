@@ -118,8 +118,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         out.writeBytes(ref.bytes, ref.offset, ref.length);
     }
 
-    public static TranslogWriter create(ShardId shardId, String translogUUID, long fileGeneration, Path file, ChannelFactory channelFactory,
-                                        ByteSizeValue bufferSize, final LongSupplier globalCheckpointSupplier,
+    public static TranslogWriter create(ShardId shardId, String translogUUID, String historyUUID, long fileGeneration, Path file,
+                                        ChannelFactory channelFactory, ByteSizeValue bufferSize,
+                                        final LongSupplier globalCheckpointSupplier,
                                         final long initialMinTranslogGen, final LongSupplier minTranslogGenerationSupplier)
         throws IOException {
         final BytesRef ref = new BytesRef(translogUUID);
@@ -132,7 +133,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             writeHeader(out, ref);
             channel.force(true);
             final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(firstOperationOffset, fileGeneration,
-                globalCheckpointSupplier.getAsLong(), initialMinTranslogGen);
+                globalCheckpointSupplier.getAsLong(), initialMinTranslogGen, translogUUID, historyUUID);
             writeCheckpoint(channelFactory, file.getParent(), checkpoint);
             return new TranslogWriter(channelFactory, shardId, checkpoint, channel, file, bufferSize,
                 globalCheckpointSupplier, minTranslogGenerationSupplier);
@@ -256,7 +257,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     @Override
     synchronized Checkpoint getCheckpoint() {
         return new Checkpoint(totalOffset, operationCounter, generation, minSeqNo, maxSeqNo,
-            globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong());
+            globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong(),
+            lastSyncedCheckpoint.translogUUID, lastSyncedCheckpoint.historyUUID);
     }
 
     @Override
@@ -386,17 +388,18 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     private static Checkpoint writeCheckpoint(
-            ChannelFactory channelFactory,
-            long syncPosition,
-            int numOperations,
-            long minSeqNo,
-            long maxSeqNo,
-            long globalCheckpoint,
-            long minTranslogGeneration,
-            Path translogFile,
-            long generation) throws IOException {
+        ChannelFactory channelFactory,
+        long syncPosition,
+        int numOperations,
+        long minSeqNo,
+        long maxSeqNo,
+        long globalCheckpoint,
+        long minTranslogGeneration,
+        Path translogFile,
+        long generation, String translogUUID, String historyUUID) throws IOException {
         final Checkpoint checkpoint =
-            new Checkpoint(syncPosition, numOperations, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration);
+            new Checkpoint(syncPosition, numOperations, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration,
+                translogUUID, historyUUID);
         writeCheckpoint(channelFactory, translogFile, checkpoint);
         return checkpoint;
     }

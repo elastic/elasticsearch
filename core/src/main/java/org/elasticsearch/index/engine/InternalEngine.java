@@ -48,6 +48,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -95,6 +96,9 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.index.translog.Translog.HISTORY_UUID_KEY;
+import static org.elasticsearch.index.translog.Translog.HISTORY_UUID_NA;
+
 public class InternalEngine extends Engine {
 
     /**
@@ -141,7 +145,6 @@ public class InternalEngine extends Engine {
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
-
 
     public InternalEngine(EngineConfig engineConfig) throws EngineException {
         super(engineConfig);
@@ -348,18 +351,53 @@ public class InternalEngine extends Engine {
     private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) throws IOException {
         assert openMode != null;
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-        String translogUUID = null;
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            translogUUID = loadTranslogUUIDFromCommit(writer);
-            // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
-            if (translogUUID == null) {
-                throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
-            }
+        final String translogUUID;
+        final String historyUUID;
+        final String existingHistoryUUID = loadHistoryUUIDFromCommit(writer);
+        final boolean requiresCommit;
+        switch (openMode) {
+            case CREATE_INDEX_AND_TRANSLOG:
+                translogUUID = null;
+                historyUUID = UUIDs.randomBase64UUID();
+                requiresCommit = true;
+                break;
+            case OPEN_INDEX_CREATE_TRANSLOG:
+                translogUUID = null; // create a new one;
+                if (existingHistoryUUID == null) {
+                    // we are recovering an old primary, generate a history
+                    assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
+                        "index was created after 6_0_0_rc1 but has no history uuid";
+                    historyUUID = HISTORY_UUID_NA;
+                } else {
+                    historyUUID = existingHistoryUUID;
+                }
+                requiresCommit = true;
+                break;
+            case OPEN_INDEX_AND_TRANSLOG:
+                translogUUID = loadTranslogUUIDFromCommit(writer);
+                // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
+                if (translogUUID == null) {
+                    throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
+                }
+                if (existingHistoryUUID == null) {
+                    // we are recovering an old primary, generate a history
+                    assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
+                        "index was created after 6_0_0_rc1 but has no history uuid";
+                    historyUUID = UUIDs.randomBase64UUID();
+                    requiresCommit = true;
+                } else {
+                    historyUUID = existingHistoryUUID;
+                    requiresCommit = false;
+                }
+                break;
+            default:
+                throw new IllegalStateException("unknown mode: " + openMode);
         }
-        final Translog translog = new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
-        if (translogUUID == null) {
-            assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OpenMode must not be "
-                + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
+        final Translog translog = new Translog(translogConfig, translogUUID, historyUUID, translogDeletionPolicy, globalCheckpointSupplier);
+        if (requiresCommit) {
+            assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG ||
+                config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)
+                : "OpenMode must not be" + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG + ", index is post 6.0.0rc1";
             boolean success = false;
             try {
                 commitIndexWriter(writer, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
@@ -397,6 +435,11 @@ public class InternalEngine extends Engine {
         } else {
             return null;
         }
+    }
+
+    @Nullable
+    private String loadHistoryUUIDFromCommit(final IndexWriter writer) throws IOException {
+        return commitDataAsMap(writer).get(HISTORY_UUID_KEY);
     }
 
     private SearcherManager createSearcherManager() throws EngineException {
@@ -1861,6 +1904,7 @@ public class InternalEngine extends Engine {
             final String translogFileGeneration = Long.toString(translogGeneration.translogFileGeneration);
             final String translogUUID = translogGeneration.translogUUID;
             final String localCheckpointValue = Long.toString(localCheckpoint);
+            final String historyUUID = translog.getHistoryUUID();
 
             writer.setLiveCommitData(() -> {
                 /*
@@ -1872,7 +1916,7 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> commitData = new HashMap<>(5);
+                final Map<String, String> commitData = new HashMap<>(6);
                 commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGeneration);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpointValue);
@@ -1881,6 +1925,7 @@ public class InternalEngine extends Engine {
                 }
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
+                commitData.put(HISTORY_UUID_KEY, historyUUID);
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });
@@ -1990,7 +2035,7 @@ public class InternalEngine extends Engine {
      * Gets the commit data from {@link IndexWriter} as a map.
      */
     private static Map<String, String> commitDataAsMap(final IndexWriter indexWriter) {
-        Map<String, String> commitData = new HashMap<>(5);
+        Map<String, String> commitData = new HashMap<>(6);
         for (Map.Entry<String, String> entry : indexWriter.getLiveCommitData()) {
             commitData.put(entry.getKey(), entry.getValue());
         }

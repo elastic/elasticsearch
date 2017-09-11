@@ -31,8 +31,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -52,6 +54,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -758,6 +762,40 @@ public class FullClusterRestartIT extends ESRestTestCase {
         checkSnapshot("old_snap", count, oldClusterVersion);
         if (false == runningAgainstOldCluster) {
             checkSnapshot("new_snap", count, Version.CURRENT);
+        }
+    }
+
+    public void testHistoryUUIDIsAdded() throws Exception {
+        if (runningAgainstOldCluster) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("settings");
+                mappingsAndSettings.field("number_of_shards", 1);
+                mappingsAndSettings.field("number_of_replicas", 1);
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
+                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+        } else {
+            Response response = client().performRequest("GET", index + "/_stats", singletonMap("level", "shards"));
+            List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
+            String globalHistoryUUID = null;
+            for (Object shard : shardStats) {
+                final String nodeId = ObjectPath.evaluate(shard, "routing.node");
+                final Boolean primary = ObjectPath.evaluate(shard, "routing.primary");
+                String historyUUID = ObjectPath.evaluate(shard, "commit.user_date.history_uuid");
+                assertThat("no history uuid found on " + nodeId + " (primary: " + primary + ")", historyUUID, notNullValue());
+                assertThat("history uuid is _na_ on " + nodeId + " (primary: " + primary + ")", historyUUID,
+                    not(equalTo(Translog.HISTORY_UUID_NA)));
+                if (globalHistoryUUID == null) {
+                    globalHistoryUUID = historyUUID;
+                } else {
+                    assertThat("history uuid mismatch on " + nodeId + " (primary: " + primary + ")", historyUUID,
+                        equalTo(globalHistoryUUID));
+                }
+            }
         }
     }
 

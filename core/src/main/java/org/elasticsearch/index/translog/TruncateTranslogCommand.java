@@ -105,66 +105,68 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
         if (Files.exists(idxLocation) == false || Files.isDirectory(idxLocation) == false) {
             throw new ElasticsearchException("unable to find a shard at [" + idxLocation + "], which must exist and be a directory");
         }
-
-        // Hold the lock open for the duration of the tool running
-        try (Directory dir = FSDirectory.open(idxLocation, NativeFSLockFactory.INSTANCE);
-                Lock writeLock = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            Set<Path> translogFiles;
-            try {
-                terminal.println("Checking existing translog files");
-                translogFiles = filesInDirectory(translogPath);
-            } catch (IOException e) {
-                terminal.println("encountered IOException while listing directory, aborting...");
-                throw new ElasticsearchException("failed to find existing translog files", e);
-            }
-
-            // Warn about ES being stopped and files being deleted
-            warnAboutDeletingFiles(terminal, translogFiles, batch);
-
-            List<IndexCommit> commits;
-            try {
-                terminal.println("Reading translog UUID information from Lucene commit from shard at [" + idxLocation + "]");
-                commits = DirectoryReader.listCommits(dir);
-            } catch (IndexNotFoundException infe) {
-                throw new ElasticsearchException("unable to find a valid shard at [" + idxLocation + "]", infe);
-            }
-
-            // Retrieve the generation and UUID from the existing data
-            Map<String, String> commitData = commits.get(commits.size() - 1).getUserData();
-            String translogGeneration = commitData.get(Translog.TRANSLOG_GENERATION_KEY);
-            String translogUUID = commitData.get(Translog.TRANSLOG_UUID_KEY);
-            if (translogGeneration == null || translogUUID == null) {
-                throw new ElasticsearchException("shard must have a valid translog generation and UUID but got: [{}] and: [{}]",
-                        translogGeneration, translogUUID);
-            }
+        try (Directory dir = FSDirectory.open(idxLocation, NativeFSLockFactory.INSTANCE)) {
             final String historyUUID = UUIDs.randomBase64UUID();
-            terminal.println("Translog Generation: " + translogGeneration);
-            terminal.println("Translog UUID      : " + translogUUID);
-            terminal.println("History UUID      : " + historyUUID);
+            final Map<String, String> commitData;
+            // Hold the lock open for the duration of the tool running
+            try (Lock writeLock = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+                Set<Path> translogFiles;
+                try {
+                    terminal.println("Checking existing translog files");
+                    translogFiles = filesInDirectory(translogPath);
+                } catch (IOException e) {
+                    terminal.println("encountered IOException while listing directory, aborting...");
+                    throw new ElasticsearchException("failed to find existing translog files", e);
+                }
 
-            Path tempEmptyCheckpoint = translogPath.resolve("temp-" + Translog.CHECKPOINT_FILE_NAME);
-            Path realEmptyCheckpoint = translogPath.resolve(Translog.CHECKPOINT_FILE_NAME);
-            Path tempEmptyTranslog = translogPath.resolve("temp-" + Translog.TRANSLOG_FILE_PREFIX +
-                            translogGeneration + Translog.TRANSLOG_FILE_SUFFIX);
-            Path realEmptyTranslog = translogPath.resolve(Translog.TRANSLOG_FILE_PREFIX +
-                            translogGeneration + Translog.TRANSLOG_FILE_SUFFIX);
+                // Warn about ES being stopped and files being deleted
+                warnAboutDeletingFiles(terminal, translogFiles, batch);
 
-            // Write empty checkpoint and translog to empty files
-            long gen = Long.parseLong(translogGeneration);
-            int translogLen = writeEmptyTranslog(tempEmptyTranslog, translogUUID);
-            writeEmptyCheckpoint(tempEmptyCheckpoint, translogLen, gen, translogUUID, historyUUID);
+                List<IndexCommit> commits;
+                try {
+                    terminal.println("Reading translog UUID information from Lucene commit from shard at [" + idxLocation + "]");
+                    commits = DirectoryReader.listCommits(dir);
+                } catch (IndexNotFoundException infe) {
+                    throw new ElasticsearchException("unable to find a valid shard at [" + idxLocation + "]", infe);
+                }
 
-            terminal.println("Removing existing translog files");
-            IOUtils.rm(translogFiles.toArray(new Path[]{}));
+                // Retrieve the generation and UUID from the existing data
+                commitData = commits.get(commits.size() - 1).getUserData();
+                String translogGeneration = commitData.get(Translog.TRANSLOG_GENERATION_KEY);
+                String translogUUID = commitData.get(Translog.TRANSLOG_UUID_KEY);
+                if (translogGeneration == null || translogUUID == null) {
+                    throw new ElasticsearchException("shard must have a valid translog generation and UUID but got: [{}] and: [{}]",
+                        translogGeneration, translogUUID);
+                }
+                terminal.println("Translog Generation: " + translogGeneration);
+                terminal.println("Translog UUID      : " + translogUUID);
+                terminal.println("History UUID      : " + historyUUID);
 
-            terminal.println("Creating new empty checkpoint at [" + realEmptyCheckpoint + "]");
-            Files.move(tempEmptyCheckpoint, realEmptyCheckpoint, StandardCopyOption.ATOMIC_MOVE);
-            terminal.println("Creating new empty translog at [" + realEmptyTranslog + "]");
-            Files.move(tempEmptyTranslog, realEmptyTranslog, StandardCopyOption.ATOMIC_MOVE);
+                Path tempEmptyCheckpoint = translogPath.resolve("temp-" + Translog.CHECKPOINT_FILE_NAME);
+                Path realEmptyCheckpoint = translogPath.resolve(Translog.CHECKPOINT_FILE_NAME);
+                Path tempEmptyTranslog = translogPath.resolve("temp-" + Translog.TRANSLOG_FILE_PREFIX +
+                    translogGeneration + Translog.TRANSLOG_FILE_SUFFIX);
+                Path realEmptyTranslog = translogPath.resolve(Translog.TRANSLOG_FILE_PREFIX +
+                    translogGeneration + Translog.TRANSLOG_FILE_SUFFIX);
 
-            // Fsync the translog directory after rename
-            IOUtils.fsync(translogPath, true);
+                // Write empty checkpoint and translog to empty files
+                long gen = Long.parseLong(translogGeneration);
+                int translogLen = writeEmptyTranslog(tempEmptyTranslog, translogUUID);
+                writeEmptyCheckpoint(tempEmptyCheckpoint, translogLen, gen, translogUUID, historyUUID);
 
+                terminal.println("Removing existing translog files");
+                IOUtils.rm(translogFiles.toArray(new Path[]{}));
+
+                terminal.println("Creating new empty checkpoint at [" + realEmptyCheckpoint + "]");
+                Files.move(tempEmptyCheckpoint, realEmptyCheckpoint, StandardCopyOption.ATOMIC_MOVE);
+                terminal.println("Creating new empty translog at [" + realEmptyTranslog + "]");
+                Files.move(tempEmptyTranslog, realEmptyTranslog, StandardCopyOption.ATOMIC_MOVE);
+
+                // Fsync the translog directory after rename
+                IOUtils.fsync(translogPath, true);
+            }
+
+            terminal.println("Marking index with the new history uuid");
             // commit the new histroy id
             IndexWriterConfig iwc = new IndexWriterConfig(null)
                 .setCommitOnClose(false)
@@ -173,14 +175,12 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
                 // we also don't specify a codec here and merges should use the engines for this index
                 .setMergePolicy(NoMergePolicy.INSTANCE)
                 .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 Map<String, String> newCommitData = new HashMap<>(commitData);
                 newCommitData.put(Translog.HISTORY_UUID_KEY, historyUUID);
                 writer.setLiveCommitData(newCommitData.entrySet());
                 writer.commit();
             }
-
         } catch (LockObtainFailedException lofe) {
             throw new ElasticsearchException("Failed to lock shard's directory at [" + idxLocation + "], is Elasticsearch still running?");
         }

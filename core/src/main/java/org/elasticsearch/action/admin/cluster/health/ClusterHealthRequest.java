@@ -40,6 +40,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private TimeValue timeout = new TimeValue(30, TimeUnit.SECONDS);
     private ClusterHealthStatus waitForStatus;
     private boolean waitForNoRelocatingShards = false;
+    private boolean waitForNoInitializingShards = false;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
@@ -104,6 +105,10 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         return waitForNoRelocatingShards;
     }
 
+    public boolean waitForNoInitializingShards() {
+        return waitForNoInitializingShards;
+    }
+
     /**
      * Sets whether the request should wait for there to be no relocating shards before
      * retrieving the cluster health status.  Defaults to {@code false}, meaning the
@@ -112,6 +117,17 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      */
     public ClusterHealthRequest waitForNoRelocatingShards(boolean waitForNoRelocatingShards) {
         this.waitForNoRelocatingShards = waitForNoRelocatingShards;
+        return this;
+    }
+
+    /**
+     * Sets whether the request should wait for there to be no intializing shards before
+     * retrieving the cluster health status.  Defaults to {@code false}, meaning the
+     * operation does not wait on there being no more relocating shards.  Set to <code>true</code>
+     * to wait until the number of relocating shards in the cluster is 0.
+     */
+    public ClusterHealthRequest waitForNoInitializingShards(boolean waitForNoInitializingShards) {
+        this.waitForNoInitializingShards = waitForNoInitializingShards;
         return this;
     }
 
@@ -189,6 +205,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             waitForStatus = ClusterHealthStatus.fromValue(in.readByte());
         }
         waitForNoRelocatingShards = in.readBoolean();
+        waitForNoInitializingShards = in.readBoolean();
         waitForActiveShards = ActiveShardCount.readFrom(in);
         waitForNodes = in.readString();
         if (in.readBoolean()) {
@@ -215,6 +232,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             out.writeByte(waitForStatus.value());
         }
         out.writeBoolean(waitForNoRelocatingShards);
+        out.writeBoolean(waitForNoInitializingShards);
         waitForActiveShards.writeTo(out);
         out.writeString(waitForNodes);
         if (waitForEvents == null) {

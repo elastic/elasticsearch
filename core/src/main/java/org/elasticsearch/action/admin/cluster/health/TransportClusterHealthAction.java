@@ -149,6 +149,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForNoRelocatingShards() == false) {
             waitFor--;
         }
+        if (request.waitForNoInitializingShards() == false) {
+            waitFor--;
+        }
         if (request.waitForActiveShards().equals(ActiveShardCount.NONE)) {
             waitFor--;
         }
@@ -219,6 +222,10 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             waitForCounter++;
         }
         if (request.waitForNoRelocatingShards() && response.getRelocatingShards() == 0) {
+            waitForCounter++;
+        }
+        if (request.waitForNoInitializingShards() && !clusterState.getRoutingNodes().hasInactivePrimaries() &&
+            !clusterState.getRoutingNodes().hasInactiveShards()) {
             waitForCounter++;
         }
         if (request.waitForActiveShards().equals(ActiveShardCount.NONE) == false) {

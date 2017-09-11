@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -140,7 +143,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         jobBuilder.setDataDescription(new DataDescription.Builder());
         jobBuilder.setCreateTime(new Date());
 
-        Job updatedJob = update.mergeWithJob(jobBuilder.build());
+        Job updatedJob = update.mergeWithJob(jobBuilder.build(), new ByteSizeValue(0L));
 
         assertEquals(update.getGroups(), updatedJob.getGroups());
         assertEquals(update.getDescription(), updatedJob.getDescription());
@@ -170,5 +173,76 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertTrue(update.isAutodetectProcessUpdate());
         update = new JobUpdate.Builder("foo").setDetectorUpdates(Collections.singletonList(mock(JobUpdate.DetectorUpdate.class))).build();
         assertTrue(update.isAutodetectProcessUpdate());
+    }
+
+    public void testUpdateAnalysisLimitWithLowerValue() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        Detector.Builder d1 = new Detector.Builder("info_content", "domain");
+        d1.setOverFieldName("mlcategory");
+        Detector.Builder d2 = new Detector.Builder("min", "field");
+        d2.setOverFieldName("host");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(d1.build(), d2.build()));
+        ac.setCategorizationFieldName("cat_field");
+        jobBuilder.setAnalysisConfig(ac);
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        jobBuilder.setCreateTime(new Date());
+        jobBuilder.setAnalysisLimits(new AnalysisLimits(42L, null));
+
+        JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(41L, null)).build();
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> update.mergeWithJob(jobBuilder.build(), new ByteSizeValue(0L)));
+        assertEquals("Invalid update value for analysis_limits: model_memory_limit cannot be decreased; existing is 42mb, update had 41mb",
+                e.getMessage());
+    }
+
+    public void testUpdateAnalysisLimitWithValueGreaterThanMax() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        Detector.Builder d1 = new Detector.Builder("info_content", "domain");
+        d1.setOverFieldName("mlcategory");
+        Detector.Builder d2 = new Detector.Builder("min", "field");
+        d2.setOverFieldName("host");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(d1.build(), d2.build()));
+        ac.setCategorizationFieldName("cat_field");
+        jobBuilder.setAnalysisConfig(ac);
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        jobBuilder.setCreateTime(new Date());
+        jobBuilder.setAnalysisLimits(new AnalysisLimits(256L, null));
+
+        JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(1024L, null)).build();
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> update.mergeWithJob(jobBuilder.build(), new ByteSizeValue(512L, ByteSizeUnit.MB)));
+        assertEquals("model_memory_limit [1gb] must be less than the value of the xpack.ml.max_model_memory_limit setting [512mb]",
+                e.getMessage());
+    }
+
+    public void testUpdate_withAnalysisLimitsPreviouslyUndefined() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        Detector.Builder d1 = new Detector.Builder("info_content", "domain");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(d1.build()));
+        jobBuilder.setAnalysisConfig(ac);
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        jobBuilder.setCreateTime(new Date());
+
+        JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(null, null)).build();
+        Job updated = update.mergeWithJob(jobBuilder.build(), new ByteSizeValue(0L));
+        assertNull(updated.getAnalysisLimits().getModelMemoryLimit());
+
+        JobUpdate updateWithLimit = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(2048L, null)).build();
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> updateWithLimit.mergeWithJob(jobBuilder.build(), new ByteSizeValue(8000L, ByteSizeUnit.MB)));
+        assertEquals("Invalid update value for analysis_limits: model_memory_limit cannot be decreased; existing is 4gb, update had 2gb",
+                e.getMessage());
+
+        JobUpdate updateAboveMaxLimit = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(8000L, null)).build();
+
+        e = expectThrows(ElasticsearchStatusException.class,
+                () -> updateAboveMaxLimit.mergeWithJob(jobBuilder.build(), new ByteSizeValue(5000L, ByteSizeUnit.MB)));
+        assertEquals("model_memory_limit [7.8gb] must be less than the value of the xpack.ml.max_model_memory_limit setting [4.8gb]",
+                e.getMessage());
+
+        updateAboveMaxLimit.mergeWithJob(jobBuilder.build(), new ByteSizeValue(10000L, ByteSizeUnit.MB));
     }
 }

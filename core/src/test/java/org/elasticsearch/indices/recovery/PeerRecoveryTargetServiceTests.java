@@ -88,7 +88,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             // but using translog uuids of history uuids breaks stuff
             boolean wrongTUID = randomBoolean();
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget,
-                wrongTUID ? "bla" : translogUUID, wrongTUID == false || randomBoolean() ? "bla" : historyUUID), equalTo(0L));
+                wrongTUID ? "bla" : translogUUID, wrongTUID == false || randomBoolean() ? "bla" : historyUUID),
+                equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
 
             replica.flush(new FlushRequest());
 

@@ -8,6 +8,26 @@ provided using the `replacement` parameter (supporting referencing the
 original text, as explained
 http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendReplacement(java.lang.StringBuffer,%20java.lang.String)[here]).
 
+Example
+
+
+
+```
+GET _analyze
+{
+  "tokenizer": "standard",
+  "char_filter": [
+      {
+        "type" : "pattern_replace",
+        "pattern" : "http://(.*)",
+        "replacement" : "https://$1"
+      }
+    ],
+    "text" : "http://www.elastic.co"
+}
+```
+
+
 [WARNING]
 .Beware of Pathological Regular Expressions
 ========================================

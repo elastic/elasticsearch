@@ -16,9 +16,8 @@ public class DayOfYearTests extends ESTestCase {
 
     public void testAsColumnProcessor() {
         assertEquals(1, extract(dateTime(0), UTC));
-        // NOCOMMIT: these time zones are not getting resolved on mac and extract seems to ignore the timezone anyway
-//        assertEquals(1, extract(dateTime(0), DateTimeZone.forID("GMT+1")));
-//        assertEquals(365, extract(dateTime(0), DateTimeZone.forID("GMT-1")));
+        assertEquals(1, extract(dateTime(0), DateTimeZone.forID("+01:00")));
+        assertEquals(365, extract(dateTime(0), DateTimeZone.forID("-01:00")));
     }
 
     private DateTime dateTime(long millisSinceEpoch) {

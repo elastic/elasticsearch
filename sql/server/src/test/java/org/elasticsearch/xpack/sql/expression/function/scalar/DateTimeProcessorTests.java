@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class DateTimeProcessorTests extends AbstractWireSerializingTestCase<DateTimeProcessor> {
     public static DateTimeProcessor randomDateTimeProcessor() {
-        return new DateTimeProcessor(randomFrom(DateTimeExtractor.values()));
+        return new DateTimeProcessor(randomFrom(DateTimeExtractor.values()), DateTimeZone.UTC);
     }
 
     @Override
@@ -30,16 +30,17 @@ public class DateTimeProcessorTests extends AbstractWireSerializingTestCase<Date
 
     @Override
     protected DateTimeProcessor mutateInstance(DateTimeProcessor instance) throws IOException {
-        return new DateTimeProcessor(randomValueOtherThan(instance.extractor(), () -> randomFrom(DateTimeExtractor.values())));
+        return new DateTimeProcessor(randomValueOtherThan(instance.extractor(), () -> randomFrom(DateTimeExtractor.values())),
+                DateTimeZone.UTC);
     }
 
     public void testApply() {
-        DateTimeProcessor proc = new DateTimeProcessor(DateTimeExtractor.YEAR);
+        DateTimeProcessor proc = new DateTimeProcessor(DateTimeExtractor.YEAR, DateTimeZone.UTC);
         assertEquals(1970, proc.apply(0L));
         assertEquals(1970, proc.apply(new DateTime(0L, DateTimeZone.UTC)));
         assertEquals(2017, proc.apply(new DateTime(2017, 01, 02, 10, 10, DateTimeZone.UTC)));
 
-        proc = new DateTimeProcessor(DateTimeExtractor.DAY_OF_MONTH);
+        proc = new DateTimeProcessor(DateTimeExtractor.DAY_OF_MONTH, DateTimeZone.UTC);
         assertEquals(1, proc.apply(0L));
         assertEquals(1, proc.apply(new DateTime(0L, DateTimeZone.UTC)));
         assertEquals(2, proc.apply(new DateTime(2017, 01, 02, 10, 10, DateTimeZone.UTC)));

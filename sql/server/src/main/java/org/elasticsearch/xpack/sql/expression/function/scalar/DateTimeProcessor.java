@@ -18,18 +18,22 @@ public class DateTimeProcessor implements ColumnProcessor {
     public static final String NAME = "d";
 
     private final DateTimeExtractor extractor;
+    private final DateTimeZone timeZone;
 
-    public DateTimeProcessor(DateTimeExtractor extractor) {
+    public DateTimeProcessor(DateTimeExtractor extractor, DateTimeZone timeZone) {
         this.extractor = extractor;
+        this.timeZone = timeZone;
     }
 
     DateTimeProcessor(StreamInput in) throws IOException {
         extractor = in.readEnum(DateTimeExtractor.class);
+        timeZone = DateTimeZone.forID(in.readString());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(extractor);
+        out.writeString(timeZone.getID());
     }
 
     @Override
@@ -43,13 +47,16 @@ public class DateTimeProcessor implements ColumnProcessor {
 
     @Override
     public Object apply(Object l) {
-        ReadableDateTime dt = null;
+        ReadableDateTime dt;
         // most dates are returned as long
         if (l instanceof Long) {
-            dt = new DateTime((Long) l, DateTimeZone.UTC);
+            dt = new DateTime(((Long) l).longValue(), DateTimeZone.UTC);
         }
         else {
             dt = (ReadableDateTime) l;
+        }
+        if (!timeZone.getID().equals("UTC")) {
+            dt = dt.toDateTime().withZone(timeZone);
         }
         return extractor.extract(dt);
     }

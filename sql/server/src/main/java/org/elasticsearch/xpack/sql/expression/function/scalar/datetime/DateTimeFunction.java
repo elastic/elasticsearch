@@ -86,7 +86,7 @@ public abstract class DateTimeFunction extends ScalarFunction implements TimeZon
 
     @Override
     public final ColumnProcessor asProcessor() {
-        return new DateTimeProcessor(extractor());
+        return new DateTimeProcessor(extractor(), timeZone);
     }
 
     protected abstract DateTimeExtractor extractor();

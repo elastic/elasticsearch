@@ -120,7 +120,7 @@ public class IpFieldMapper extends FieldMapper {
         }
     }
 
-    public static final class IpFieldType extends MappedFieldType {
+    public static final class IpFieldType extends SimpleMappedFieldType {
 
         public IpFieldType() {
             super();

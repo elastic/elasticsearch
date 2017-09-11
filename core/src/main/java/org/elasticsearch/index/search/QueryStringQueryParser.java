@@ -51,8 +51,8 @@ import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -396,14 +396,8 @@ public class QueryStringQueryParser extends XQueryParser {
             Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
             BytesRef part1Binary = part1 == null ? null : normalizer.normalize(field, part1);
             BytesRef part2Binary = part2 == null ? null : normalizer.normalize(field, part2);
-            Query rangeQuery;
-            if (currentFieldType instanceof DateFieldMapper.DateFieldType && timeZone != null) {
-                DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) this.currentFieldType;
-                rangeQuery = dateFieldType.rangeQuery(part1Binary, part2Binary,
-                    startInclusive, endInclusive, timeZone, null, context);
-            } else {
-                rangeQuery = currentFieldType.rangeQuery(part1Binary, part2Binary, startInclusive, endInclusive, context);
-            }
+            Query rangeQuery = currentFieldType.rangeQuery(part1Binary, part2Binary,
+                startInclusive, endInclusive, null, timeZone, null, context);
             return rangeQuery;
         } catch (RuntimeException e) {
             if (lenient) {

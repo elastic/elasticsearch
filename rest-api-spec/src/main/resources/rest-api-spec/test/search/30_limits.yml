@@ -70,6 +70,7 @@ setup:
             match_all: {}
           docvalue_fields: ["one", "two", "three"]
 
+---
 "Script_fields size limit":
   - skip:
       version: " - 6.99.99"

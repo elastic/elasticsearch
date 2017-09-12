@@ -105,7 +105,7 @@ public final class IndexSettings {
      * script fields is a costly operation.
      */
     public static final Setting<Integer> MAX_SCRIPT_FIELDS_SETTING =
-        Setting.intSetting("index.max_script_fields", 50, 0, Property.Dynamic, Property.IndexScope);
+        Setting.intSetting("index.max_script_fields", 32, 0, Property.Dynamic, Property.IndexScope);
 
     /**
      * Index setting describing the maximum value of allowed `docvalue_fields`that can be retrieved

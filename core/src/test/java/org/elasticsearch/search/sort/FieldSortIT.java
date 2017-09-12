@@ -860,7 +860,16 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testIgnoreUnmapped() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        assertIgnoreUnmapped(Version.CURRENT);
+    }
+
+    public void testIgnoreUnmappedBWC() throws Exception{
+        // test BWC with indices created in 2.x
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_4_6);
+        assertIgnoreUnmapped(version);
+    }
+
+    private void assertIgnoreUnmapped(Version version) throws IOException {
         prepareCreate("test")
             .setSettings(Settings.builder().put(indexSettings()).put("index.version.created", version).build()).get();
 

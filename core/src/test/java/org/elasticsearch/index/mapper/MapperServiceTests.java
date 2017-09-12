@@ -167,7 +167,16 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testUnmappedFieldType() {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        assertUnmappedFieldType(Version.CURRENT);
+    }
+
+    public void testUnmappedFieldTypeBWC() {
+        // test BWC with indices created in 2.x
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_4_6);
+        assertUnmappedFieldType(version);
+    }
+
+    private void assertUnmappedFieldType(Version version) {
         MapperService mapperService =
             createIndex("index", Settings.builder().put("index.version.created", version).build()).mapperService();
         assertThat(mapperService.unmappedFieldType("keyword"), instanceOf(KeywordFieldType.class));

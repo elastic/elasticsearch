@@ -235,7 +235,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         }
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles,
-            VersionUtils.randomVersionBetween(random(), Version.V_5_6_0_UNRELEASED, null));
+            VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, null));
     }
 
 }

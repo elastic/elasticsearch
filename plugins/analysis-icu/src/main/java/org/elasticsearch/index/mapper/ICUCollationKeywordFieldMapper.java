@@ -588,7 +588,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         this.variableTop = variableTop;
         this.hiraganaQuaternaryMode = hiraganaQuaternaryMode;
         this.collator = collator;
-        if (indexCreatedVersion.onOrAfter(Version.V_5_6_0_UNRELEASED)) {
+        if (indexCreatedVersion.onOrAfter(Version.V_5_6_0)) {
             getDVField = SortedSetDocValuesField::new;
         } else {
             getDVField = SortedDocValuesField::new;

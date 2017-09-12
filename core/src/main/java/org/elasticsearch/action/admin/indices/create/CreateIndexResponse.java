@@ -50,7 +50,7 @@ public class CreateIndexResponse extends AcknowledgedResponse {
         super.readFrom(in);
         readAcknowledged(in);
         shardsAcked = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_5_6_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
             index = in.readString();
         }
     }
@@ -60,7 +60,7 @@ public class CreateIndexResponse extends AcknowledgedResponse {
         super.writeTo(out);
         writeAcknowledged(out);
         out.writeBoolean(shardsAcked);
-        if (out.getVersion().onOrAfter(Version.V_5_6_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
             out.writeString(index);
         }
     }

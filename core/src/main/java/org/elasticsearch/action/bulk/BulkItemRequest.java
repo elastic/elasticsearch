@@ -120,7 +120,7 @@ public class BulkItemRequest implements Streamable {
             request.version(primaryResponse.getVersion());
             request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
         }
-        if (in.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_6_0)) {
             boolean ignoreOnReplica = in.readBoolean();
             assert ignoreOnReplica == isIgnoreOnReplica() :
                 "ignoreOnReplica mismatch. wire [" + ignoreOnReplica + "], ours [" + isIgnoreOnReplica() + "]";
@@ -132,7 +132,7 @@ public class BulkItemRequest implements Streamable {
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequest(out, request);
         out.writeOptionalStreamable(primaryResponse);
-        if (out.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_6_0)) {
             out.writeBoolean(isIgnoreOnReplica());
         }
     }

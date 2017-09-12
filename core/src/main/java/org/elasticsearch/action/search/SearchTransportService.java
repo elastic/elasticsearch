@@ -107,7 +107,7 @@ public class SearchTransportService extends AbstractComponent {
 
     public void sendCanMatch(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task, final
                             ActionListener<CanMatchResponse> listener) {
-        if (connection.getNode().getVersion().onOrAfter(Version.V_5_6_0_UNRELEASED)) {
+        if (connection.getNode().getVersion().onOrAfter(Version.V_5_6_0)) {
             transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NAME, request, task,
                 TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchResponse::new));
         } else {

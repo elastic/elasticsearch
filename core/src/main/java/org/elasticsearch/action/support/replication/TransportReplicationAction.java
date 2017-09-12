@@ -1094,11 +1094,11 @@ public abstract class TransportReplicationAction<
         @Override
         public void readFrom(StreamInput in) throws IOException {
             targetAllocationID = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_5_6_0_UNRELEASED)) {
+            if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
                 primaryTerm = in.readVLong();
             }
             request.readFrom(in);
-            if (in.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
+            if (in.getVersion().before(Version.V_5_6_0)) {
                 primaryTerm = request.primaryTerm(); // for bwc with ES < v5.6, that has the primary term on the inner ReplicationRequest
             }
         }
@@ -1106,7 +1106,7 @@ public abstract class TransportReplicationAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(targetAllocationID);
-            if (out.getVersion().onOrAfter(Version.V_5_6_0_UNRELEASED)) {
+            if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
                 out.writeVLong(primaryTerm);
             } else {
                 // ensure that inner ReplicationRequest has primary term set

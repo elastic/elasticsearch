@@ -606,8 +606,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         clusterState = ClusterState.builder(clusterState).nodes(
                 DiscoveryNodes.builder(clusterState.nodes())
-                .add(newNode("node3-6.x", VersionUtils.randomVersionBetween(random(), Version.V_5_6_0_UNRELEASED, null)))
-                .add(newNode("node4-6.x", VersionUtils.randomVersionBetween(random(), Version.V_5_6_0_UNRELEASED, null))))
+                .add(newNode("node3-6.x", VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, null)))
+                .add(newNode("node4-6.x", VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, null))))
                 .build();
 
         // start all the replicas

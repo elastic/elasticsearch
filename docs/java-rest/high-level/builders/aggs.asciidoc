@@ -1,4 +1,4 @@
-[[java-rest-high-aggregations]]
+[[java-rest-high-aggregation-builders]]
 === Building Aggregations
 
 This page lists all the available aggregations with their corresponding `AggregationBuilder` class name and helper method name in the

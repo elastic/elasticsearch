@@ -39,8 +39,12 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
@@ -581,7 +585,40 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         iae = expectThrows(IllegalArgumentException.class,
                 () -> sortBuilder.setNestedSort(new NestedSortBuilder("otherPath")).setNestedFilter(QueryBuilders.matchAllQuery()));
         assertEquals("Setting both nested_path/nested_filter and nested not allowed", iae.getMessage());
+    }
 
+    /**
+     * Test the the nested Filter gets rewritten
+     */
+    public void testNestedRewrites() throws IOException {
+        GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", 0.0, 0.0);
+        RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
+            @Override
+            public QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+                return new MatchNoneQueryBuilder();
+            }
+        };
+        sortBuilder.setNestedPath("path").setNestedFilter(rangeQuery);
+        GeoDistanceSortBuilder rewritten = (GeoDistanceSortBuilder) sortBuilder
+                .rewrite(createMockShardContext());
+        assertNotSame(rangeQuery, rewritten.getNestedFilter());
+    }
+
+    /**
+     * Test the the nested sort gets rewritten
+     */
+    public void testNestedSortRewrites() throws IOException {
+        GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", 0.0, 0.0);
+        RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
+            @Override
+            public QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+                return new MatchNoneQueryBuilder();
+            }
+        };
+        sortBuilder.setNestedSort(new NestedSortBuilder("path").setFilter(rangeQuery));
+        GeoDistanceSortBuilder rewritten = (GeoDistanceSortBuilder) sortBuilder
+                .rewrite(createMockShardContext());
+        assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
     }
 
 }

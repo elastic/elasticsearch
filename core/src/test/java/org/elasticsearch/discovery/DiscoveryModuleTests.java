@@ -20,6 +20,8 @@ package org.elasticsearch.discovery;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
@@ -40,10 +42,12 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
@@ -160,7 +164,23 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     public void testLazyConstructionHostsProvider() {
         DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom",
-            () -> { throw new AssertionError("created hosts provider which was not selected"); });
+            () -> {
+                throw new AssertionError("created hosts provider which was not selected");
+            });
         newModule(Settings.EMPTY, Collections.singletonList(plugin));
+    }
+
+    public void testJoinValidator() {
+        BiConsumer<DiscoveryNode, ClusterState> consumer = (a, b) -> {};
+        DiscoveryModule module = newModule(Settings.EMPTY, Collections.singletonList(new DiscoveryPlugin() {
+            @Override
+            public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
+                return consumer;
+            }
+        }));
+        ZenDiscovery discovery = (ZenDiscovery) module.getDiscovery();
+        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators = discovery.getOnJoinValidators();
+        assertEquals(2, onJoinValidators.size());
+        assertTrue(onJoinValidators.contains(consumer));
     }
 }

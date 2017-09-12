@@ -124,6 +124,7 @@ public final class QueryParserHelper {
                 !multiField, !allField, fieldSuffix);
             resolvedFields.putAll(fieldMap);
         }
+        checkForTooManyFields(resolvedFields);
         return resolvedFields;
     }
 
@@ -184,6 +185,13 @@ public final class QueryParserHelper {
             }
             fields.put(fieldName, weight);
         }
+        checkForTooManyFields(fields);
         return fields;
+    }
+
+    private static void checkForTooManyFields(Map<String, Float> fields) {
+        if (fields.size() > 1024) {
+            throw new IllegalArgumentException("field expansion matches too many fields, limit: 1024, got: " + fields.size());
+        }
     }
 }

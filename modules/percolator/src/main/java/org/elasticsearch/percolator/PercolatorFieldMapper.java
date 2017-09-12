@@ -41,7 +41,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MurmurHash3;
@@ -55,7 +54,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -237,7 +235,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             throw new QueryShardException(context, "Percolator fields are not searchable directly, use a percolate query instead");
         }
 
-        Query percolateQuery(PercolateQuery.QueryStore queryStore, BytesReference documentSource,
+        Query percolateQuery(String name, PercolateQuery.QueryStore queryStore, List<BytesReference> documents,
                              IndexSearcher searcher) throws IOException {
             IndexReader indexReader = searcher.getIndexReader();
             Query candidateMatchesQuery = createCandidateQuery(indexReader);
@@ -249,9 +247,9 @@ public class PercolatorFieldMapper extends FieldMapper {
             if (indexReader.maxDoc() == 1) {
                 verifiedMatchesQuery = new TermQuery(new Term(extractionResultField.name(), EXTRACTION_COMPLETE));
             } else {
-                verifiedMatchesQuery = new MatchNoDocsQuery("nested docs, so no verified matches");
+                verifiedMatchesQuery = new MatchNoDocsQuery("multiple/nested docs, so no verified matches");
             }
-            return new PercolateQuery(queryStore, documentSource, candidateMatchesQuery, searcher, verifiedMatchesQuery);
+            return new PercolateQuery(name, queryStore, documents, candidateMatchesQuery, searcher, verifiedMatchesQuery);
         }
 
         Query createCandidateQuery(IndexReader indexReader) throws IOException {

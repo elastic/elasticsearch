@@ -22,12 +22,8 @@ package org.elasticsearch.cloud.azure.storage;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,22 +39,6 @@ public interface AzureStorageService {
 
     ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
     ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
-
-    final class Storage {
-        @Deprecated
-        public static final String PREFIX = "cloud.azure.storage.";
-
-        @Deprecated
-        public static final Setting<Settings> STORAGE_ACCOUNTS = Setting.groupSetting(Storage.PREFIX, Setting.Property.NodeScope);
-
-        /**
-         * Azure timeout (defaults to -1 minute)
-         * @deprecated We don't want to support global timeout settings anymore
-         */
-        @Deprecated
-        static final Setting<TimeValue> TIMEOUT_SETTING =
-            Setting.timeSetting("cloud.azure.storage.timeout", TimeValue.timeValueMinutes(-1), Property.NodeScope, Property.Deprecated);
-    }
 
     boolean doesContainerExist(String account, LocationMode mode, String container);
 

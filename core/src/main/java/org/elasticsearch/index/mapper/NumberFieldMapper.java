@@ -44,7 +44,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -836,7 +835,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
     }
 
-    public static final class NumberFieldType extends MappedFieldType {
+    public static final class NumberFieldType extends SimpleMappedFieldType {
 
         NumberType type;
 

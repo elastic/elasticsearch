@@ -289,6 +289,8 @@ public class TokenServiceTests extends ESTestCase {
             anotherService.getAndValidateToken(requestContext, future);
             assertNull(future.get());
         }
+        assertWarnings("[xpack.security.authc.token.passphrase] setting was deprecated in Elasticsearch and will be removed in a future" +
+                " release! See the breaking changes documentation for the next major version.");
     }
 
     public void testInvalidatedToken() throws Exception {
@@ -478,5 +480,7 @@ public class TokenServiceTests extends ESTestCase {
             assertEquals(Version.V_5_6_0, serialized.getAuthentication().getVersion());
             assertArrayEquals(new String[] {"admin"}, serialized.getAuthentication().getUser().roles());
         }
+        assertWarnings("[xpack.security.authc.token.passphrase] setting was deprecated in Elasticsearch and will be removed in a future" +
+                " release! See the breaking changes documentation for the next major version.");
     }
 }

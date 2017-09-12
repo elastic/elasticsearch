@@ -116,7 +116,8 @@ public final class TokenService extends AbstractComponent {
     private static final String TYPE = "doc";
 
     public static final String THREAD_POOL_NAME = XPackPlugin.SECURITY + "-token-key";
-    public static final Setting<SecureString> TOKEN_PASSPHRASE = SecureSetting.secureString("xpack.security.authc.token.passphrase", null);
+    public static final Setting<SecureString> TOKEN_PASSPHRASE = SecureSetting.secureString("xpack.security.authc.token.passphrase", null,
+            Property.Deprecated);
     public static final Setting<TimeValue> TOKEN_EXPIRATION = Setting.timeSetting("xpack.security.authc.token.timeout",
             TimeValue.timeValueMinutes(20L), TimeValue.timeValueSeconds(1L), Property.NodeScope);
     public static final Setting<TimeValue> DELETE_INTERVAL = Setting.timeSetting("xpack.security.authc.token.delete.interval",

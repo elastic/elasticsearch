@@ -29,6 +29,8 @@ public class TokenPassphraseBootstrapCheckTests extends ESTestCase {
 
         secureSettings.setString(TokenService.TOKEN_PASSPHRASE.getKey(), randomAlphaOfLengthBetween(1, MINIMUM_PASSPHRASE_LENGTH - 1));
         assertTrue(new TokenPassphraseBootstrapCheck(settings).check());
+        assertWarnings("[xpack.security.authc.token.passphrase] setting was deprecated in Elasticsearch and will be removed in a future" +
+                " release! See the breaking changes documentation for the next major version.");
     }
 
     public void testTokenPassphraseCheckServiceDisabled() throws Exception {
@@ -42,6 +44,8 @@ public class TokenPassphraseBootstrapCheckTests extends ESTestCase {
 
         secureSettings.setString(TokenService.TOKEN_PASSPHRASE.getKey(), randomAlphaOfLengthBetween(1, 30));
         assertFalse(new TokenPassphraseBootstrapCheck(settings).check());
+        assertWarnings("[xpack.security.authc.token.passphrase] setting was deprecated in Elasticsearch and will be removed in a future" +
+                " release! See the breaking changes documentation for the next major version.");
     }
 
     public void testTokenPassphraseCheckAfterSecureSettingsClosed() throws Exception {
@@ -53,5 +57,7 @@ public class TokenPassphraseBootstrapCheckTests extends ESTestCase {
         final TokenPassphraseBootstrapCheck check = new TokenPassphraseBootstrapCheck(settings);
         secureSettings.close();
         assertTrue(check.check());
+        assertWarnings("[xpack.security.authc.token.passphrase] setting was deprecated in Elasticsearch and will be removed in a future" +
+                " release! See the breaking changes documentation for the next major version.");
     }
 }

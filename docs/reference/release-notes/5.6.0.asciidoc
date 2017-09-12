@@ -3,6 +3,14 @@
 
 Also see <<breaking-changes-5.6>>.
 
+[[breaking-msi-5.6.0]]
+[float]
+=== Breaking MSI Windows Installer changes
+
+Upgrades from 5.5.0, 5.5.1, 5.5.2. See https://github.com/elastic/windows-installers/releases/tag/v5.6.0[release notes]::
+* `ES_HOME` and `ES_CONFIG` environment variables unset after successful upgrade
+* Windows Service stopped after successful upgrade
+
 [[breaking-java-5.6.0]]
 [float]
 === Breaking Java changes

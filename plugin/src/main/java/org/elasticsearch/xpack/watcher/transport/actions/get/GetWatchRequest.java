@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.get;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.watcher.watch.Watch;
@@ -17,7 +17,7 @@ import java.io.IOException;
 /**
  * The request to get the watch by name (id)
  */
-public class GetWatchRequest extends MasterNodeReadRequest<GetWatchRequest> {
+public class GetWatchRequest extends ActionRequest {
 
     private String id;
 

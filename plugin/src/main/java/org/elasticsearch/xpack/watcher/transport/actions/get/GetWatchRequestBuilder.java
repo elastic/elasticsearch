@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.get;
 
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * A delete document action request builder.
  */
-public class GetWatchRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetWatchRequest, GetWatchResponse,
+public class GetWatchRequestBuilder extends ActionRequestBuilder<GetWatchRequest, GetWatchResponse,
         GetWatchRequestBuilder> {
 
     public GetWatchRequestBuilder(ElasticsearchClient client, String id) {

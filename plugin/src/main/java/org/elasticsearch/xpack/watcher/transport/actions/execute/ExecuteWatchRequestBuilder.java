@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.execute;
 
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -19,7 +19,7 @@ import java.util.Map;
 /**
  * A execute watch action request builder.
  */
-public class ExecuteWatchRequestBuilder extends MasterNodeOperationRequestBuilder<ExecuteWatchRequest, ExecuteWatchResponse,
+public class ExecuteWatchRequestBuilder extends ActionRequestBuilder<ExecuteWatchRequest, ExecuteWatchResponse,
         ExecuteWatchRequestBuilder> {
 
     public ExecuteWatchRequestBuilder(ElasticsearchClient client) {

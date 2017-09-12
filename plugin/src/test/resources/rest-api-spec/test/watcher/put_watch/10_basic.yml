@@ -7,7 +7,6 @@
   - do:
       xpack.watcher.put_watch:
         id: "my_watch"
-        master_timeout: "40s"
         body:  > 
           {
             "trigger": {

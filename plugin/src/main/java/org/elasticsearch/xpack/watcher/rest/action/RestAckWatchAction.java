@@ -29,6 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * The rest action to ack a watch
  */
 public class RestAckWatchAction extends WatcherRestHandler {
+
     public RestAckWatchAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, URI_BASE + "/watch/{id}/_ack", this);
@@ -49,7 +50,6 @@ public class RestAckWatchAction extends WatcherRestHandler {
         if (actions != null) {
             ackWatchRequest.setActionIds(actions);
         }
-        ackWatchRequest.masterNodeTimeout(request.paramAsTime("master_timeout", ackWatchRequest.masterNodeTimeout()));
         return channel -> client.ackWatch(ackWatchRequest, new RestBuilderListener<AckWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(AckWatchResponse response, XContentBuilder builder) throws Exception {
@@ -60,5 +60,4 @@ public class RestAckWatchAction extends WatcherRestHandler {
             }
         });
     }
-    
 }

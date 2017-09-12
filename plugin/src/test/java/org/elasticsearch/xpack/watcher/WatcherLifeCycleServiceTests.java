@@ -41,7 +41,6 @@ import java.util.concurrent.ExecutorService;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -406,43 +405,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         verify(watcherService, never()).start(any(ClusterState.class));
     }
 
-    public void testWatcherPausesOnNonMasterWhenOldNodesHoldWatcherIndex() {
-        DiscoveryNodes nodes = new DiscoveryNodes.Builder()
-                .masterNodeId("node_1").localNodeId("node_2")
-                .add(newNode("node_1"))
-                .add(newNode("node_2"))
-                .add(newNode("oldNode", VersionUtils.randomVersionBetween(random(), Version.V_5_5_0, Version.V_6_0_0_alpha2)))
-                .build();
-
-        Index index = new Index(Watch.INDEX, "foo");
-        ShardId shardId = new ShardId(index, 0);
-        IndexRoutingTable routingTable = IndexRoutingTable.builder(index)
-                .addShard(TestShardRouting.newShardRouting(shardId, "node_2", true, STARTED))
-                .addShard(TestShardRouting.newShardRouting(shardId, "oldNode", false, STARTED)).build();
-
-        Settings.Builder indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 6);
-
-        IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(Watch.INDEX).settings(indexSettings);
-
-        ClusterState state = ClusterState.builder(new ClusterName("my-cluster"))
-                .nodes(nodes)
-                .routingTable(RoutingTable.builder().add(routingTable).build())
-                .metaData(MetaData.builder().put(indexMetaDataBuilder))
-                .build();
-
-        WatcherState watcherState = randomFrom(WatcherState.values());
-        when(watcherService.state()).thenReturn(watcherState);
-
-        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
-        if (watcherState == WatcherState.STARTED || watcherState == WatcherState.STARTING) {
-            verify(watcherService).pauseExecution(any(String.class));
-        }
-    }
-
     public void testWatcherStartsOnlyOnMasterWhenOldNodesAreInCluster() throws Exception {
         DiscoveryNodes nodes = new DiscoveryNodes.Builder()
                 .masterNodeId("node_1").localNodeId("node_1")
@@ -457,29 +419,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
         verify(watcherService).start(any(ClusterState.class));
-    }
-
-    public void testDistributedWatchExecutionDisabledWith5xNodesInCluster() throws Exception {
-        DiscoveryNodes nodes = new DiscoveryNodes.Builder()
-                .masterNodeId("node_1").localNodeId("node_1")
-                .add(newNode("node_1"))
-                .add(newNode("node_2", VersionUtils.randomVersionBetween(random(), Version.V_5_5_0, Version.V_6_0_0_alpha2)))
-                .build();
-
-        ClusterState state = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).build();
-
-        assertThat(WatcherLifeCycleService.isWatchExecutionDistributed(state), is(false));
-    }
-
-    public void testDistributedWatchExecutionEnabled() throws Exception {
-        DiscoveryNodes nodes = new DiscoveryNodes.Builder()
-                .masterNodeId("master_node").localNodeId("master_node")
-                .add(newNode("master_node", VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_beta1, Version.CURRENT)))
-                .add(newNode("data_node_6x", VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_beta1, Version.CURRENT)))
-                .build();
-        ClusterState state = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).build();
-
-        assertThat(WatcherLifeCycleService.isWatchExecutionDistributed(state), is(true));
     }
 
     private static DiscoveryNode newNode(String nodeName) {

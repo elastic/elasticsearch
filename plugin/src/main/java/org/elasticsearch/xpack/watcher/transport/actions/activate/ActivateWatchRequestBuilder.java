@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.activate;
 
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * A activate watch action request builder.
  */
-public class ActivateWatchRequestBuilder extends MasterNodeOperationRequestBuilder<ActivateWatchRequest, ActivateWatchResponse,
+public class ActivateWatchRequestBuilder extends ActionRequestBuilder<ActivateWatchRequest, ActivateWatchResponse,
         ActivateWatchRequestBuilder> {
 
     public ActivateWatchRequestBuilder(ElasticsearchClient client) {

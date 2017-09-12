@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.activate;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
@@ -18,9 +17,7 @@ import java.io.IOException;
 /**
  * A ack watch request to ack a watch by name (id)
  */
-public class ActivateWatchRequest extends MasterNodeRequest<ActivateWatchRequest> {
-
-    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
+public class ActivateWatchRequest extends ActionRequest {
 
     private String watchId;
     private boolean activate;
@@ -32,7 +29,6 @@ public class ActivateWatchRequest extends MasterNodeRequest<ActivateWatchRequest
     public ActivateWatchRequest(String watchId, boolean activate) {
         this.watchId = watchId;
         this.activate = activate;
-        masterNodeTimeout(DEFAULT_TIMEOUT);
     }
 
     /**

@@ -35,21 +35,3 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE
 
-[float]
-==== Timeouts
-
-When deleting a watch while it is executing, the delete action will block and
-wait for the watch execution to finish. Depending on the nature of the watch, in
-some situations this can take a while. For this reason, the delete watch action
-is associated with a timeout that is set to 10 seconds by default. You can
-control this timeout by passing in the `master_timeout` parameter.
-
-The following snippet shows how to change the default timeout of the delete
-action to 30 seconds:
-
-[source,js]
---------------------------------------------------
-DELETE _xpack/watcher/watch/my_watch?master_timeout=30s
---------------------------------------------------
-// CONSOLE
-// TEST[setup:my_active_watch]

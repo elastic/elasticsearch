@@ -46,7 +46,6 @@ public class RestPutWatchAction extends WatcherRestHandler implements RestReques
     protected RestChannelConsumer doPrepareRequest(final RestRequest request, WatcherClient client) throws IOException {
         PutWatchRequest putWatchRequest =
                 new PutWatchRequest(request.param("id"), request.content(), request.getXContentType());
-        putWatchRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putWatchRequest.masterNodeTimeout()));
         putWatchRequest.setActive(request.paramAsBoolean("active", putWatchRequest.isActive()));
         return channel -> client.putWatch(putWatchRequest, new RestBuilderListener<PutWatchResponse>(channel) {
             @Override

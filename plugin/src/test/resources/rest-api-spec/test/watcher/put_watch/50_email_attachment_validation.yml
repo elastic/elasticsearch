@@ -8,7 +8,6 @@
       catch: /Configured URL is empty/
       xpack.watcher.put_watch:
         id: "my_watch"
-        master_timeout: "40s"
         body:  >
           {
             "trigger": {
@@ -48,7 +47,6 @@
       catch: /Malformed URL/
       xpack.watcher.put_watch:
         id: "my_watch"
-        master_timeout: "40s"
         body:  >
           {
             "trigger": {

@@ -785,7 +785,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             for (Object shard : shardStats) {
                 final String nodeId = ObjectPath.evaluate(shard, "routing.node");
                 final Boolean primary = ObjectPath.evaluate(shard, "routing.primary");
-                String historyUUID = ObjectPath.evaluate(shard, "commit.user_date.history_uuid");
+                String historyUUID = ObjectPath.evaluate(shard, "commit.user_data.history_uuid");
                 assertThat("no history uuid found on " + nodeId + " (primary: " + primary + ")", historyUUID, notNullValue());
                 assertThat("history uuid is _na_ on " + nodeId + " (primary: " + primary + ")", historyUUID,
                     not(equalTo(Translog.HISTORY_UUID_NA)));

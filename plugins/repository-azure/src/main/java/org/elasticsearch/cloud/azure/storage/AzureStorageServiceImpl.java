@@ -30,6 +30,7 @@ import com.microsoft.azure.storage.blob.BlobProperties;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
+import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
 import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -39,17 +40,12 @@ import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.repositories.RepositoryException;
 
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.UnknownHostException;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -72,38 +68,10 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
         logger.debug("starting azure storage client instance");
 
-        registerProxy();
-
         // We register all regular azure clients
         for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : this.storageSettings.entrySet()) {
             logger.debug("registering regular client for account [{}]", azureStorageSettingsEntry.getKey());
             createClient(azureStorageSettingsEntry.getValue());
-        }
-    }
-
-    private void registerProxy() {
-        // Register the proxy if we have any
-        Proxy.Type proxyType = Storage.PROXY_TYPE_SETTING.get(settings);
-        String proxyHost = Storage.PROXY_HOST_SETTING.get(settings);
-        Integer proxyPort = Storage.PROXY_PORT_SETTING.get(settings);
-
-        // Validate proxy settings
-        if (proxyType.equals(Proxy.Type.DIRECT) && (proxyPort != 0 || Strings.hasText(proxyHost))) {
-            throw new SettingsException("Azure Proxy port or host have been set but proxy type is not defined.");
-        }
-        if (proxyType.equals(Proxy.Type.DIRECT) == false && (proxyPort == 0 || Strings.isEmpty(proxyHost))) {
-            throw new SettingsException("Azure Proxy type has been set but proxy host or port is not defined.");
-        }
-
-        if (proxyType.equals(Proxy.Type.DIRECT)) {
-            OperationContext.setDefaultProxy(null);
-        } else {
-            logger.debug("Using azure proxy [{}] with [{}:{}].", proxyType, proxyHost, proxyPort);
-            try {
-                OperationContext.setDefaultProxy(new Proxy(proxyType, new InetSocketAddress(InetAddress.getByName(proxyHost), proxyPort)));
-            } catch (UnknownHostException e) {
-                throw new SettingsException("Azure proxy host is unknown.", e);
-            }
         }
     }
 
@@ -165,12 +133,23 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         return client;
     }
 
+    private OperationContext generateOperationContext(String clientName) {
+        OperationContext context = new OperationContext();
+        AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
+
+        if (azureStorageSettings.getProxy() != null) {
+            context.setProxy(azureStorageSettings.getProxy());
+        }
+
+        return context;
+    }
+
     @Override
     public boolean doesContainerExist(String account, LocationMode mode, String container) {
         try {
             CloudBlobClient client = this.getSelectedClient(account, mode);
             CloudBlobContainer blobContainer = client.getContainerReference(container);
-            return SocketAccess.doPrivilegedException(blobContainer::exists);
+            return SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, generateOperationContext(account)));
         } catch (Exception e) {
             logger.error("can not access container [{}]", container);
         }
@@ -182,7 +161,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
         logger.trace("removing container [{}]", container);
-        SocketAccess.doPrivilegedException(blobContainer::deleteIfExists);
+        SocketAccess.doPrivilegedException(() -> blobContainer.deleteIfExists(null, null, generateOperationContext(account)));
     }
 
     @Override
@@ -191,7 +170,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             CloudBlobClient client = this.getSelectedClient(account, mode);
             CloudBlobContainer blobContainer = client.getContainerReference(container);
             logger.trace("creating container [{}]", container);
-            SocketAccess.doPrivilegedException(blobContainer::createIfNotExists);
+            SocketAccess.doPrivilegedException(() -> blobContainer.createIfNotExists(null, null, generateOperationContext(account)));
         } catch (IllegalArgumentException e) {
             logger.trace((Supplier<?>) () -> new ParameterizedMessage("fails creating container [{}]", container), e);
             throw new RepositoryException(container, e.getMessage(), e);
@@ -208,7 +187,8 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         SocketAccess.doPrivilegedVoidException(() -> {
             if (blobContainer.exists()) {
                 // We list the blobs using a flat blob listing mode
-                for (ListBlobItem blobItem : blobContainer.listBlobs(path, true)) {
+                for (ListBlobItem blobItem : blobContainer.listBlobs(path, true, EnumSet.noneOf(BlobListingDetails.class), null,
+                    generateOperationContext(account))) {
                     String blobName = blobNameFromUri(blobItem.getUri());
                     logger.trace("removing blob [{}] full URI was [{}]", blobName, blobItem.getUri());
                     deleteBlob(account, mode, container, blobName);
@@ -242,9 +222,9 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (SocketAccess.doPrivilegedException(blobContainer::exists)) {
+        if (SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, generateOperationContext(account)))) {
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
-            return SocketAccess.doPrivilegedException(azureBlob::exists);
+            return SocketAccess.doPrivilegedException(() -> azureBlob.exists(null, null, generateOperationContext(account)));
         }
 
         return false;
@@ -257,10 +237,11 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (SocketAccess.doPrivilegedException(blobContainer::exists)) {
+        if (SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, generateOperationContext(account)))) {
             logger.trace("container [{}]: blob [{}] found. removing.", container, blob);
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
-            SocketAccess.doPrivilegedVoidException(azureBlob::delete);
+            SocketAccess.doPrivilegedVoidException(() -> azureBlob.delete(DeleteSnapshotsOption.NONE, null, null,
+                generateOperationContext(account)));
         }
     }
 
@@ -269,7 +250,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         logger.trace("reading container [{}], blob [{}]", container, blob);
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlockBlob blockBlobReference = client.getContainerReference(container).getBlockBlobReference(blob);
-        return SocketAccess.doPrivilegedException(blockBlobReference::openInputStream);
+        return SocketAccess.doPrivilegedException(() -> blockBlobReference.openInputStream(null, null, generateOperationContext(account)));
     }
 
     @Override
@@ -277,7 +258,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         logger.trace("writing container [{}], blob [{}]", container, blob);
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlockBlob blockBlobReference = client.getContainerReference(container).getBlockBlobReference(blob);
-        return SocketAccess.doPrivilegedException(blockBlobReference::openOutputStream);
+        return SocketAccess.doPrivilegedException(() -> blockBlobReference.openOutputStream(null, null, generateOperationContext(account)));
     }
 
     @Override
@@ -294,7 +275,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         SocketAccess.doPrivilegedVoidException(() -> {
             if (blobContainer.exists()) {
                 for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix == null ? "" : prefix), false,
-                    enumBlobListingDetails, null, null)) {
+                    enumBlobListingDetails, null, generateOperationContext(account))) {
                     URI uri = blobItem.getUri();
                     logger.trace("blob url [{}]", uri);
 
@@ -318,11 +299,11 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
         CloudBlockBlob blobSource = blobContainer.getBlockBlobReference(sourceBlob);
-        if (SocketAccess.doPrivilegedException(blobSource::exists)) {
+        if (SocketAccess.doPrivilegedException(() -> blobSource.exists(null, null, generateOperationContext(account)))) {
             CloudBlockBlob blobTarget = blobContainer.getBlockBlobReference(targetBlob);
             SocketAccess.doPrivilegedVoidException(() -> {
-                blobTarget.startCopy(blobSource);
-                blobSource.delete();
+                blobTarget.startCopy(blobSource, null, null, null, generateOperationContext(account));
+                blobSource.delete(DeleteSnapshotsOption.NONE, null, null, generateOperationContext(account));
             });
             logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}] -> done", container, sourceBlob, targetBlob);
         }

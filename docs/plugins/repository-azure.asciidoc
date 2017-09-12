@@ -67,17 +67,13 @@ The Azure Repository plugin works with all Standard storage accounts
 https://azure.microsoft.com/en-gb/documentation/articles/storage-premium-storage[Premium Locally Redundant Storage] (`Premium_LRS`) is **not supported** as it is only usable as VM disk storage, not as general storage.
 ===============================================
 
-You can define a global proxy applicable to each azure client using the following settings:
+You can register a proxy per client using the following settings:
 
 [source,yaml]
 ----
-cloud:
-    azure:
-        storage:
-            proxy:
-                host: proxy.host
-                port: 8888
-                type: http
+azure.client.default.proxy.host: proxy.host
+azure.client.default.proxy.port: 8888
+azure.client.default.proxy.type: http
 ----
 
 Supported values for `proxy.type` are `http` or `socks`. When `proxy.type` is set, `proxy.host` and `proxy.port` must

@@ -65,9 +65,9 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin {
             AzureStorageSettings.ACCOUNT_SETTING,
             AzureStorageSettings.KEY_SETTING,
             AzureStorageSettings.TIMEOUT_SETTING,
-            AzureStorageService.Storage.PROXY_TYPE_SETTING,
-            AzureStorageService.Storage.PROXY_HOST_SETTING,
-            AzureStorageService.Storage.PROXY_PORT_SETTING
+            AzureStorageSettings.PROXY_TYPE_SETTING,
+            AzureStorageSettings.PROXY_HOST_SETTING,
+            AzureStorageSettings.PROXY_PORT_SETTING
         );
     }
 }

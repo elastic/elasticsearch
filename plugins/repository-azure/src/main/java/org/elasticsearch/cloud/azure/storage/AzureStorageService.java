@@ -43,20 +43,6 @@ public interface AzureStorageService {
     ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
     ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
 
-    // TODO Move that it's now obsolete
-    @Deprecated
-    final class Storage {
-        /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
-        public static final Setting<Proxy.Type> PROXY_TYPE_SETTING = new Setting<>("cloud.azure.storage.proxy.type", "direct",
-            s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)), Setting.Property.NodeScope);
-        /** The host name of a proxy to connect to azure through. */
-        public static final Setting<String> PROXY_HOST_SETTING =
-            Setting.simpleString("cloud.azure.storage.proxy.host", Setting.Property.NodeScope);
-        /** The port of a proxy to connect to azure through. */
-        public static final Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("cloud.azure.storage.proxy.port", 0, 0, 65535,
-            Setting.Property.NodeScope);
-    }
-
     boolean doesContainerExist(String account, LocationMode mode, String container);
 
     void removeContainer(String account, LocationMode mode, String container) throws URISyntaxException, StorageException;

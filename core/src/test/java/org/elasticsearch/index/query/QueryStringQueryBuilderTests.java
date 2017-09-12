@@ -61,7 +61,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -408,8 +407,11 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             Query expectedQuery = new BooleanQuery.Builder()
                     .add(new BooleanQuery.Builder()
                             .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST)
-                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST).build(), defaultOp)
-                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), defaultOp)
+                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST).build(), Occur.SHOULD)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), Occur.SHOULD)
+                    .build();
+            expectedQuery = new BooleanQuery.Builder()
+                    .add(expectedQuery, defaultOp)
                     .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
 
@@ -433,10 +435,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     .add(new TermQuery(new Term(STRING_FIELD_NAME, "that")), Occur.MUST)
                     .add(new BooleanQuery.Builder()
                             .add(new BooleanQuery.Builder()
-                                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST)
-                                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST)
-                                 .build(), defaultOp)
-                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), defaultOp)
+                                    .add(new BooleanQuery.Builder()
+                                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST)
+                                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST)
+                                            .build(), Occur.SHOULD)
+                                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), Occur.SHOULD)
+                                    .build(), defaultOp)
                             .build(), Occur.MUST_NOT)
                     .add(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), Occur.MUST)
                     .build();

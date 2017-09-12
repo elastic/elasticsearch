@@ -221,7 +221,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                     queryBuilder.topLeft().lon(),
                     queryBuilder.bottomRight().lon()), indexQuery);
             Query dvQuery = ((IndexOrDocValuesQuery) query).getRandomAccessQuery();
-            assertEquals(LatLonDocValuesField.newBoxQuery(queryBuilder.fieldName(),
+            assertEquals(LatLonDocValuesField.newSlowBoxQuery(queryBuilder.fieldName(),
                     queryBuilder.bottomRight().lat(),
                     queryBuilder.topLeft().lat(),
                     queryBuilder.topLeft().lon(),

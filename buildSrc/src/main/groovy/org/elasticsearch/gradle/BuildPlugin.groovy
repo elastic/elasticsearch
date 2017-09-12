@@ -35,19 +35,20 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.file.CopySpec
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.internal.jvm.Jvm
 import org.gradle.process.ExecResult
 import org.gradle.util.GradleVersion
 
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
-
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
@@ -78,7 +79,7 @@ class BuildPlugin implements Plugin<Project> {
         configureConfigurations(project)
         project.ext.versions = VersionProperties.versions
         configureCompile(project)
-        configureJavadocJar(project)
+        configureJavadoc(project)
         configureSourcesJar(project)
         configurePomGeneration(project)
 
@@ -120,6 +121,7 @@ class BuildPlugin implements Plugin<Project> {
                 println "  JDK Version           : ${gradleJavaVersionDetails}"
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
+            println "  Random Testing Seed   : ${project.testSeed}"
 
             // enforce gradle version
             GradleVersion minGradle = GradleVersion.version('3.3')
@@ -287,7 +289,7 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.provided.dependencies.all(disableTransitiveDeps)
     }
 
-    /** Adds repositores used by ES dependencies */
+    /** Adds repositories used by ES dependencies */
     static void configureRepositories(Project project) {
         RepositoryHandler repos = project.repositories
         if (System.getProperty("repos.mavenlocal") != null) {
@@ -393,8 +395,11 @@ class BuildPlugin implements Plugin<Project> {
             project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom t ->
                 // place the pom next to the jar it is for
                 t.destination = new File(project.buildDir, "distributions/${project.archivesBaseName}-${project.version}.pom")
-                // build poms with assemble
-                project.assemble.dependsOn(t)
+                // build poms with assemble (if the assemble task exists)
+                Task assemble = project.tasks.findByName('assemble')
+                if (assemble) {
+                    assemble.dependsOn(t)
+                }
             }
         }
     }
@@ -403,8 +408,9 @@ class BuildPlugin implements Plugin<Project> {
     static void configureCompile(Project project) {
         project.ext.compactProfile = 'compact3'
         project.afterEvaluate {
-            // fail on all javac warnings
             project.tasks.withType(JavaCompile) {
+                File gradleJavaHome = Jvm.current().javaHome
+                // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
                 options.fork = true
                 options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
                 options.forkOptions.memoryMaximumSize = "1g"
@@ -421,6 +427,7 @@ class BuildPlugin implements Plugin<Project> {
                  * -serial because we don't use java serialization.
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
+                // fail on all javac warnings
                 options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
 
                 // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
@@ -435,13 +442,23 @@ class BuildPlugin implements Plugin<Project> {
                     // hack until gradle supports java 9's new "--release" arg
                     assert minimumJava == JavaVersion.VERSION_1_8
                     options.compilerArgs << '--release' << '8'
-                    doFirst{
-                        sourceCompatibility = null
-                        targetCompatibility = null
+                    if (GradleVersion.current().getBaseVersion() < GradleVersion.version("4.1")) {
+                        // this hack is not needed anymore since Gradle 4.1, see https://github.com/gradle/gradle/pull/2474
+                        doFirst {
+                            sourceCompatibility = null
+                            targetCompatibility = null
+                        }
                     }
                 }
             }
         }
+    }
+
+    static void configureJavadoc(Project project) {
+        project.tasks.withType(Javadoc) {
+            executable = new File(project.javaHome, 'bin/javadoc')
+        }
+        configureJavadocJar(project)
     }
 
     /** Adds a javadocJar task to generate a jar containing javadocs. */
@@ -463,8 +480,10 @@ class BuildPlugin implements Plugin<Project> {
         project.assemble.dependsOn(sourcesJarTask)
     }
 
-    /** Adds additional manifest info to jars, and adds source and javadoc jars */
+    /** Adds additional manifest info to jars */
     static void configureJars(Project project) {
+        project.ext.licenseFile = null
+        project.ext.noticeFile = null
         project.tasks.withType(Jar) { Jar jarTask ->
             // we put all our distributable files under distributions
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
@@ -486,6 +505,20 @@ class BuildPlugin implements Plugin<Project> {
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
                     logger.warn('Building without git revision id.')
                     jarTask.manifest.attributes('Change': 'Unknown')
+                }
+            }
+            // add license/notice files
+            project.afterEvaluate {
+                if (project.licenseFile == null || project.noticeFile == null) {
+                    throw new GradleException("Must specify license and notice file for project ${project.path}")
+                }
+                jarTask.into('META-INF') {
+                    from(project.licenseFile.parent) {
+                        include project.licenseFile.name
+                    }
+                    from(project.noticeFile.parent) {
+                        include project.noticeFile.name
+                    }
                 }
             }
         }
@@ -516,8 +549,6 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.artifact', project.name
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
-            // Breaking change in JDK-9, revert to JDK-8 behavior for now, see https://github.com/elastic/elasticsearch/issues/21534
-            systemProperty 'jdk.io.permissionsUseCanonicalPath', 'true'
             systemProperty 'jna.nosys', 'true'
             // default test sysprop values
             systemProperty 'tests.ifNoTests', 'fail'
@@ -525,7 +556,12 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
                 if (property.getKey().startsWith('tests.') ||
-                    property.getKey().startsWith('es.')) {
+                        property.getKey().startsWith('es.')) {
+                    if (property.getKey().equals('tests.seed')) {
+                        /* The seed is already set on the project so we
+                         * shouldn't attempt to override it. */
+                        continue;
+                    }
                     systemProperty property.getKey(), property.getValue()
                 }
             }

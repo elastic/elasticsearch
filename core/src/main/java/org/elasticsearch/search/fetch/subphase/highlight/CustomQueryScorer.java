@@ -24,8 +24,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
 import org.apache.lucene.search.highlight.WeightedSpanTermExtractor;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.io.IOException;
 import java.util.Map;
@@ -87,8 +87,8 @@ public final class CustomQueryScorer extends QueryScorer {
                 return;
             } else if (query instanceof FunctionScoreQuery) {
                 super.extract(((FunctionScoreQuery) query).getSubQuery(), boost, terms);
-            } else if (query instanceof FiltersFunctionScoreQuery) {
-                super.extract(((FiltersFunctionScoreQuery) query).getSubQuery(), boost, terms);
+            } else if (query instanceof ESToParentBlockJoinQuery) {
+                super.extract(((ESToParentBlockJoinQuery) query).getChildQuery(), boost, terms);
             } else {
                 super.extract(query, boost, terms);
             }

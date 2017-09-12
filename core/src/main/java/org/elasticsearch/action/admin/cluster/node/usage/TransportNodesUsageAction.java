@@ -71,11 +71,6 @@ public class TransportNodesUsageAction
         return usageService.getUsageStats(clusterService.localNode(), request.restActions());
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return false;
-    }
-
     public static class NodeUsageRequest extends BaseNodeRequest {
 
         NodesUsageRequest request;

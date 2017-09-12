@@ -46,6 +46,13 @@ import java.lang.reflect.Method;
  * The <i>StatefulFactoryType</i> is an optional class which allows a stateful factory from the
  * stateless factory type required by the {@link ScriptService}. If defined, the <i>StatefulFactoryType</i>
  * must have a method named {@code newInstance} which returns an instance of <i>InstanceType</i>.
+ * <p>
+ * Both the <i>FactoryType</i> and <i>StatefulFactoryType</i> may have abstract methods to indicate
+ * whether a variable is used in a script. These method should return a {@code boolean} and their name
+ * should start with {@code needs}, followed by the variable name, with the first letter uppercased.
+ * For example, to check if a variable {@code doc} is used, a method {@code boolean needsDoc()} should be added.
+ * If the variable name starts with an underscore, for example, {@code _score}, the needs method would
+ * be {@code boolean needs_score()}.
  */
 public final class ScriptContext<FactoryType> {
 

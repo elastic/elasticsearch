@@ -19,12 +19,18 @@
 
 package org.elasticsearch.smoketest;
 
+import org.apache.http.HttpHost;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
+import org.elasticsearch.Version;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
+import java.io.IOException;
 import java.util.List;
 
 public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
@@ -51,6 +57,12 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @Override
     protected boolean randomizeContentType() {
         return false;
+    }
+
+    @Override
+    protected ClientYamlTestClient initClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient,
+                                                            List<HttpHost> hosts, Version esVersion) throws IOException {
+        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion);
     }
 }
 

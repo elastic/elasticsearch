@@ -29,11 +29,12 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -55,6 +56,11 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         return nodeSettings;
+    }
+
+    @Override
+    public Path nodeConfigPath(int nodeOrdinal) {
+        return null;
     }
 
     @Override
@@ -116,8 +122,8 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
                 throw new ElasticsearchException("nodeOrdinal [" + nodeOrdinal + "] is greater than the number unicast ports [" + unicastHostPorts.length + "]");
             } else {
                 // we need to pin the node port & host so we'd know where to point things
-                builder.put(TransportSettings.PORT.getKey(), unicastHostPorts[nodeOrdinal]);
-                builder.put(TransportSettings.HOST.getKey(), IP_ADDR); // only bind on one IF we use v4 here by default
+                builder.put(TcpTransport.PORT.getKey(), unicastHostPorts[nodeOrdinal]);
+                builder.put(TcpTransport.HOST.getKey(), IP_ADDR); // only bind on one IF we use v4 here by default
                 builder.put(NetworkModule.HTTP_ENABLED.getKey(), false);
                 for (int i = 0; i < unicastHostOrdinals.length; i++) {
                     unicastHosts[i] = IP_ADDR + ":" + (unicastHostPorts[unicastHostOrdinals[i]]);

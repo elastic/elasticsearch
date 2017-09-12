@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.PingContextProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenPing;
@@ -36,11 +35,11 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Stack;
 import java.util.concurrent.CompletableFuture;
@@ -125,13 +124,18 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                         .builder()
                         .put("discovery.type", "single-node")
                         .put("http.enabled", false)
-                        .put("transport.type", "mock-socket-network")
+                        .put("transport.type", getTestTransportType())
                         /*
                          * We align the port ranges of the two as then with zen discovery these two
                          * nodes would find each other.
                          */
                         .put("transport.tcp.port", port + "-" + (port + 5 - 1))
                         .build();
+            }
+
+            @Override
+            public Path nodeConfigPath(int nodeOrdinal) {
+                return null;
             }
         };
         try (InternalTestCluster other =
@@ -147,7 +151,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                         0,
                         false,
                         "other",
-                        Collections.singletonList(MockTcpTransportPlugin.class),
+                        Collections.singletonList(getTestTransportPlugin()),
                         Function.identity())) {
             other.beforeTest(random(), 0);
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();

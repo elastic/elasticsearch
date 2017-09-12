@@ -119,7 +119,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 @Override
                 public void onResponse(IndicesStatsResponse statsResponse) {
                     final Set<Condition.Result> conditionResults = evaluateConditions(rolloverRequest.getConditions(),
-                        statsResponse.getTotal().getDocs(), metaData.index(sourceIndexName));
+                        metaData.index(sourceIndexName), statsResponse);
 
                     if (rolloverRequest.isDryRun()) {
                         listener.onResponse(
@@ -199,6 +199,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         return conditions.stream()
             .map(condition -> condition.evaluate(stats))
             .collect(Collectors.toSet());
+    }
+
+    static Set<Condition.Result> evaluateConditions(final Set<Condition> conditions, final IndexMetaData metaData,
+                                                    final IndicesStatsResponse statsResponse) {
+        return evaluateConditions(conditions, statsResponse.getPrimaries().getDocs(), metaData);
     }
 
     static void validate(MetaData metaData, RolloverRequest request) {

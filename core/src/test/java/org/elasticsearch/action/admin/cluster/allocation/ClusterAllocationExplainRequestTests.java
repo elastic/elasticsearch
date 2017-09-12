@@ -33,8 +33,7 @@ public class ClusterAllocationExplainRequestTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         request.writeTo(output);
 
-        ClusterAllocationExplainRequest actual = new ClusterAllocationExplainRequest();
-        actual.readFrom(output.bytes().streamInput());
+        ClusterAllocationExplainRequest actual = new ClusterAllocationExplainRequest(output.bytes().streamInput());
         assertEquals(request.getIndex(), actual.getIndex());
         assertEquals(request.getShard(), actual.getShard());
         assertEquals(request.isPrimary(), actual.isPrimary());

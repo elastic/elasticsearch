@@ -184,6 +184,47 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         context.close();
     }
 
+    public void testExecutionEWMACalculation() throws Exception {
+        ThreadContext context = new ThreadContext(Settings.EMPTY);
+        ResizableBlockingQueue<Runnable> queue =
+                new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(),
+                        100);
+
+        QueueResizingEsThreadPoolExecutor executor =
+                new QueueResizingEsThreadPoolExecutor(
+                        "test-threadpool", 1, 1, 1000,
+                        TimeUnit.MILLISECONDS, queue, 10, 200, fastWrapper(), 10, TimeValue.timeValueMillis(1),
+                        EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+        executor.prestartAllCoreThreads();
+        logger.info("--> executor: {}", executor);
+
+        assertThat((long)executor.getTaskExecutionEWMA(), equalTo(0L));
+        executeTask(executor,  1);
+        assertBusy(() -> {
+            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(30L));
+        });
+        executeTask(executor,  1);
+        assertBusy(() -> {
+            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(51L));
+        });
+        executeTask(executor,  1);
+        assertBusy(() -> {
+            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(65L));
+        });
+        executeTask(executor,  1);
+        assertBusy(() -> {
+            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(75L));
+        });
+        executeTask(executor,  1);
+        assertBusy(() -> {
+            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(83L));
+        });
+
+        executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.SECONDS);
+        context.close();
+    }
+
     private Function<Runnable, Runnable> randomBetweenLimitsWrapper(final int minNs, final int maxNs) {
         return (runnable) -> {
             return new SettableTimedRunnable(randomIntBetween(minNs, maxNs));
@@ -220,6 +261,11 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
 
         @Override
         public long getTotalNanos() {
+            return timeTaken;
+        }
+
+        @Override
+        public long getTotalExecutionNanos() {
             return timeTaken;
         }
     }

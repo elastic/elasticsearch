@@ -32,6 +32,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+
 public class IndexMetaDataTests extends ESTestCase {
 
     public void testIndexMetaDataSerialization() throws IOException {
@@ -120,5 +123,37 @@ public class IndexMetaDataTests extends ESTestCase {
 
         assertEquals("the number of target shards (8) must be greater than the shard id: 8",
             expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectShrinkShards(8, metaData, 8)).getMessage());
+    }
+
+    public void testIndexFormat() {
+        Settings defaultSettings = Settings.builder()
+                .put("index.version.created", 1)
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1)
+                .build();
+
+        // matching version
+        {
+            IndexMetaData metaData = IndexMetaData.builder("foo")
+                    .settings(Settings.builder()
+                            .put(defaultSettings)
+                            // intentionally not using the constant, so upgrading requires you to look at this test
+                            // where you have to update this part and the next one
+                            .put("index.format", 6)
+                            .build())
+                    .build();
+
+            assertThat(metaData.getSettings().getAsInt(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 0), is(6));
+        }
+
+        // no setting configured
+        {
+            IndexMetaData metaData = IndexMetaData.builder("foo")
+                    .settings(Settings.builder()
+                            .put(defaultSettings)
+                            .build())
+                    .build();
+            assertThat(metaData.getSettings().getAsInt(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 0), is(0));
+        }
     }
 }

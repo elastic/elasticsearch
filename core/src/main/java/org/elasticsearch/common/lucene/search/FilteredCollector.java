@@ -22,7 +22,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.Lucene;
@@ -41,9 +41,9 @@ public class FilteredCollector implements Collector {
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-        final Scorer filterScorer = filter.scorer(context);
+        final ScorerSupplier filterScorerSupplier = filter.scorerSupplier(context);
         final LeafCollector in = collector.getLeafCollector(context);
-        final Bits bits = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
+        final Bits bits = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorerSupplier);
 
         return new FilterLeafCollector(in) {
             @Override

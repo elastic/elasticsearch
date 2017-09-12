@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SearchScript;
 
@@ -84,8 +85,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         builder.endObject();
     }
 
-    public static ScriptQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static ScriptQueryBuilder fromXContent(XContentParser parser) throws IOException {
         // also, when caching, since its isCacheable is false, will result in loading all bit set...
         Script script = null;
 
@@ -97,8 +97,6 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
                     script = Script.parse(parser);
@@ -129,23 +127,25 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.getSearchScript(script, SearchScript.CONTEXT));
+        FilterScript.Factory factory = context.getScriptService().compile(script, FilterScript.CONTEXT);
+        FilterScript.LeafFactory filterScript = factory.newFactory(script.getParams(), context.lookup());
+        return new ScriptQuery(script, filterScript);
     }
 
     static class ScriptQuery extends Query {
 
         final Script script;
-        final SearchScript.LeafFactory searchScript;
+        final FilterScript.LeafFactory filterScript;
 
-        ScriptQuery(Script script, SearchScript.LeafFactory searchScript) {
+        ScriptQuery(Script script, FilterScript.LeafFactory filterScript) {
             this.script = script;
-            this.searchScript = searchScript;
+            this.filterScript = filterScript;
         }
 
         @Override
         public String toString(String field) {
             StringBuilder buffer = new StringBuilder();
-            buffer.append("ScriptFilter(");
+            buffer.append("ScriptQuery(");
             buffer.append(script);
             buffer.append(")");
             return buffer.toString();
@@ -179,23 +179,13 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
                     DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
-                    final SearchScript leafScript = searchScript.newInstance(context);
+                    final FilterScript leafScript = filterScript.newInstance(context);
                     TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
 
                         @Override
                         public boolean matches() throws IOException {
                             leafScript.setDocument(approximation.docID());
-                            Object val = leafScript.run();
-                            if (val == null) {
-                                return false;
-                            }
-                            if (val instanceof Boolean) {
-                                return (Boolean) val;
-                            }
-                            if (val instanceof Number) {
-                                return ((Number) val).longValue() != 0;
-                            }
-                            throw new IllegalArgumentException("Can't handle type [" + val + "] in script filter");
+                            return leafScript.execute();
                         }
 
                         @Override

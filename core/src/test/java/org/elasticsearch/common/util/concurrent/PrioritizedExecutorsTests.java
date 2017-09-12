@@ -264,12 +264,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
 
         // the timeout handler is added post execution (and quickly cancelled). We have allow for this
         // and use assert busy
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(timer.getQueue().size(), equalTo(0));
-            }
-        }, 5, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(timer.getQueue().size(), equalTo(0)), 5, TimeUnit.SECONDS);
         assertThat(timeoutCalled.get(), equalTo(false));
         assertTrue(terminate(executor));
         assertTrue(terminate(threadPool));

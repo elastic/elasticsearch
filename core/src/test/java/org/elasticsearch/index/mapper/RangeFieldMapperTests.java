@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
@@ -33,10 +34,10 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
 
-import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
-import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
+import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
+import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 
@@ -54,6 +55,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     @Override
     protected void setTypeList() {
         TYPES = new HashSet<>(Arrays.asList("date_range", "ip_range", "float_range", "double_range", "integer_range", "long_range"));
+        WHOLE_TYPES = new HashSet<>(Arrays.asList("integer_range", "long_range"));
     }
 
     private Object getFrom(String type) {
@@ -117,8 +119,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField pointField = fields[0];
+        assertEquals(2, fields.length);
+        IndexableField dvField = fields[0];
+        assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
+
+        IndexableField pointField = fields[1];
         assertEquals(2, pointField.fieldType().pointDimensionCount());
         assertFalse(pointField.fieldType().stored());
     }
@@ -145,7 +150,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        assertEquals(1, fields.length);
     }
 
     @Override
@@ -195,10 +200,12 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
+        assertEquals(3, fields.length);
+        IndexableField dvField = fields[0];
+        assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
+        IndexableField pointField = fields[1];
         assertEquals(2, pointField.fieldType().pointDimensionCount());
-        IndexableField storedField = fields[1];
+        IndexableField storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
         String strVal = "5";
         if (type.equals("date_range")) {
@@ -232,28 +239,64 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField pointField = fields[0];
+        assertEquals(2, fields.length);
+        IndexableField dvField = fields[0];
+        assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
+        IndexableField pointField = fields[1];
         assertEquals(2, pointField.fieldType().pointDimensionCount());
 
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", type).field("coerce", false).endObject().endObject()
-            .endObject().endObject();
-        DocumentMapper mapper2 = parser.parse("type", new CompressedXContent(mapping.string()));
+        // date_range ignores the coerce parameter and epoch_millis date format truncates floats (see issue: #14641)
+        if (type.equals("date_range") == false) {
 
-        assertEquals(mapping.string(), mapper2.mappingSource().toString());
+            mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties").startObject("field")
+                    .field("type", type).field("coerce", false).endObject().endObject().endObject().endObject();
+            DocumentMapper mapper2 = parser.parse("type", new CompressedXContent(mapping.string()));
 
-        ThrowingRunnable runnable = () -> mapper2.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+            assertEquals(mapping.string(), mapper2.mappingSource().toString());
+
+            ThrowingRunnable runnable = () -> mapper2
+                    .parse(SourceToParse.source(
+                            "test", "type", "1", XContentFactory.jsonBuilder().startObject().startObject("field")
+                                    .field(getFromField(), "5.2").field(getToField(), "10").endObject().endObject().bytes(),
+                            XContentType.JSON));
+            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            assertThat(e.getCause().getMessage(), anyOf(containsString("passed as String"), containsString("failed to parse date"),
+                    containsString("is not an IP string literal")));
+        }
+    }
+
+    @Override
+    protected void doTestDecimalCoerce(String type) throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", type);
+
+        mapping = mapping.endObject().endObject().endObject().endObject();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.string()));
+
+        assertEquals(mapping.string(), mapper.mappingSource().toString());
+
+        ParsedDocument doc1 = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
-            .field(getFromField(), "5.2")
-            .field(getToField(), "10")
+            .field(GT_FIELD.getPreferredName(), "2.34")
+            .field(LT_FIELD.getPreferredName(), "5.67")
             .endObject()
             .endObject().bytes(),
             XContentType.JSON));
-        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-        assertThat(e.getCause().getMessage(), anyOf(containsString("passed as String"),
-            containsString("failed to parse date"), containsString("is not an IP string literal")));
+
+        ParsedDocument doc2 = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .field(GT_FIELD.getPreferredName(), "2")
+            .field(LT_FIELD.getPreferredName(), "5")
+            .endObject()
+            .endObject().bytes(),
+            XContentType.JSON));
+
+        IndexableField[] fields1 = doc1.rootDoc().getFields("field");
+        IndexableField[] fields2 = doc2.rootDoc().getFields("field");
+
+        assertEquals(fields1[1].binaryValue(), fields2[1].binaryValue());
     }
 
     @Override
@@ -277,9 +320,9 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             .endObject()
             .endObject().bytes(),
             XContentType.JSON));
-        assertEquals(2, doc.rootDoc().getFields("field").length);
+        assertEquals(3, doc.rootDoc().getFields("field").length);
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        IndexableField storedField = fields[1];
+        IndexableField storedField = fields[2];
         String expected = type.equals("ip_range") ? InetAddresses.toAddrString((InetAddress)getMax(type)) : getMax(type) +"";
         assertThat(storedField.stringValue(), containsString(expected));
 
@@ -294,11 +337,13 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             XContentType.JSON));
 
         fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
+        assertEquals(3, fields.length);
+        IndexableField dvField = fields[0];
+        assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
+        IndexableField pointField = fields[1];
         assertEquals(2, pointField.fieldType().pointDimensionCount());
         assertFalse(pointField.fieldType().stored());
-        storedField = fields[1];
+        storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
         String strVal = "5";
         if (type.equals("date_range")) {
@@ -336,11 +381,13 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
+        assertEquals(3, fields.length);
+        IndexableField dvField = fields[0];
+        assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
+        IndexableField pointField = fields[1];
         assertEquals(2, pointField.fieldType().pointDimensionCount());
         assertFalse(pointField.fieldType().stored());
-        IndexableField storedField = fields[1];
+        IndexableField storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
         String expected = type.equals("ip_range") ? InetAddresses.toAddrString((InetAddress)getMax(type)) : getMax(type) +"";
         assertThat(storedField.stringValue(), containsString(expected));
@@ -374,4 +421,5 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             assertTrue(got, got.contains("\"locale\":" + "\"" + Locale.ROOT + "\"") == type.equals("date_range"));
         }
     }
+
 }

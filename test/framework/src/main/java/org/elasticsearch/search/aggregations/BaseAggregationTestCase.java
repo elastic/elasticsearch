@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -47,7 +47,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -85,7 +84,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
-        PluginsService pluginsService = new PluginsService(settings, null, null, getPlugins());
+        PluginsService pluginsService = new PluginsService(settings, null, null, null, getPlugins());
         SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(indicesModule.getNamedWriteables());
@@ -126,10 +125,23 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         assertEquals(testAgg.hashCode(), newAgg.hashCode());
     }
 
+    /**
+     * Generic test that checks that the toString method renders the XContent
+     * correctly.
+     */
+    public void testToString() throws IOException {
+        AB testAgg = createTestAggregatorBuilder();
+        String toString = randomBoolean() ? Strings.toString(testAgg) : testAgg.toString();
+        XContentParser parser = createParser(XContentType.JSON.xContent(), toString);
+        AggregationBuilder newAgg = parse(parser);
+        assertNotSame(newAgg, testAgg);
+        assertEquals(testAgg, newAgg);
+        assertEquals(testAgg.hashCode(), newAgg.hashCode());
+    }
+
     protected AggregationBuilder parse(XContentParser parser) throws IOException {
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parseContext);
+        AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parser);
         assertThat(parsed.getAggregatorFactories(), hasSize(1));
         assertThat(parsed.getPipelineAggregatorFactories(), hasSize(0));
         AggregationBuilder newAgg = parsed.getAggregatorFactories().get(0);

@@ -26,6 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cloud.azure.AbstractAzureWithThirdPartyIntegTestCase;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
+import org.elasticsearch.cloud.azure.storage.AzureStorageSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -59,7 +60,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
         transportClientRatio = 0.0)
 public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThirdPartyIntegTestCase {
 
-    private final AzureStorageService azureStorageService = new AzureStorageServiceImpl(readSettingsFromFile());
+    private final AzureStorageService azureStorageService = new AzureStorageServiceImpl(readSettingsFromFile(),
+        AzureStorageSettings.load(readSettingsFromFile()));
     private final String containerName = getContainerName();
 
     public AzureSnapshotRestoreListSnapshotsTests() {

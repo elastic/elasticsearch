@@ -97,7 +97,7 @@ public class XContentMapValues {
         }
     }
 
-    public static Object extractValue(String path, Map<String, Object> map) {
+    public static Object extractValue(String path, Map<?, ?> map) {
         String[] pathElements = path.split("\\.");
         if (pathElements.length == 0) {
             return null;

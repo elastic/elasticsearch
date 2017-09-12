@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -48,7 +49,7 @@ import java.util.Map;
 
 // The RecordingPerReaderBucketCollector assumes per segment recording which isn't the case for this
 // aggregation, for this reason that collector can't be used
-public class ParentToChildrenAggregator extends SingleBucketAggregator {
+public class ParentToChildrenAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     static final ParseField TYPE_FIELD = new ParseField("type");
 
@@ -104,8 +105,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(ctx);
-        Scorer parentScorer = parentFilter.scorer(ctx);
-        final Bits parentDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), parentScorer);
+        final Bits parentDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), parentFilter.scorerSupplier(ctx));
         return new LeafBucketCollector() {
 
             @Override

@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.10.69'
+  'aws': '1.11.187'
 ]
 
 dependencies {
@@ -55,9 +55,33 @@ test {
 
 thirdPartyAudit.excludes = [
   // classes are missing
+  'com.amazonaws.jmespath.JmesPathEvaluationVisitor',
+  'com.amazonaws.jmespath.JmesPathExpression',
+  'com.amazonaws.jmespath.JmesPathField',
+  'com.amazonaws.jmespath.JmesPathFlatten',
+  'com.amazonaws.jmespath.JmesPathIdentity',
+  'com.amazonaws.jmespath.JmesPathLengthFunction',
+  'com.amazonaws.jmespath.JmesPathLiteral',
+  'com.amazonaws.jmespath.JmesPathProjection',
+  'com.amazonaws.jmespath.JmesPathSubExpression',
+  'com.amazonaws.jmespath.ObjectMapperSingleton',
+  'com.amazonaws.jmespath.OpGreaterThan',
+  'software.amazon.ion.IonReader',
+  'software.amazon.ion.IonSystem',
+  'software.amazon.ion.IonType',
+  'software.amazon.ion.IonWriter',
+  'software.amazon.ion.Timestamp',
+  'software.amazon.ion.system.IonBinaryWriterBuilder',
+  'software.amazon.ion.system.IonSystemBuilder',
+  'software.amazon.ion.system.IonTextWriterBuilder',
+  'software.amazon.ion.system.IonWriterBuilder',
   'javax.servlet.ServletContextEvent', 
   'javax.servlet.ServletContextListener', 
   'org.apache.avalon.framework.logger.Logger', 
   'org.apache.log.Hierarchy', 
   'org.apache.log.Logger',
 ]
+
+if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
+}

@@ -22,10 +22,13 @@ package org.elasticsearch.cli;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.KeyValuePair;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.InternalSettingsPreparer;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -59,7 +62,6 @@ public abstract class EnvironmentAwareCommand extends Command {
             settings.put(kvp.key, kvp.value);
         }
 
-        putSystemPropertyIfSettingIsMissing(settings, "path.conf", "es.path.conf");
         putSystemPropertyIfSettingIsMissing(settings, "path.data", "es.path.data");
         putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");
         putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
@@ -68,12 +70,21 @@ public abstract class EnvironmentAwareCommand extends Command {
     }
 
     /** Create an {@link Environment} for the command to use. Overrideable for tests. */
-    protected Environment createEnv(Terminal terminal, Map<String, String> settings) {
-        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+    protected Environment createEnv(final Terminal terminal, final Map<String, String> settings) throws UserException {
+        final String esPathConf = System.getProperty("es.path.conf");
+        if (esPathConf == null) {
+            throw new UserException(ExitCodes.CONFIG, "the system property [es.path.conf] must be set");
+        }
+        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings, getConfigPath(esPathConf));
+    }
+
+    @SuppressForbidden(reason = "need path to construct environment")
+    private static Path getConfigPath(final String pathConf) {
+        return Paths.get(pathConf);
     }
 
     /** Ensure the given setting exists, reading it from system properties if not already set. */
-    protected static void putSystemPropertyIfSettingIsMissing(final Map<String, String> settings, final String setting, final String key) {
+    private static void putSystemPropertyIfSettingIsMissing(final Map<String, String> settings, final String setting, final String key) {
         final String value = System.getProperty(key);
         if (value != null) {
             if (settings.containsKey(setting)) {

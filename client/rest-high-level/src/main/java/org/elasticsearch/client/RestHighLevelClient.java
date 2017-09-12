@@ -36,28 +36,30 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
-import org.elasticsearch.join.aggregations.ParsedChildren;
+import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilter;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.filters.ParsedFilters;
+import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
@@ -72,12 +74,14 @@ import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.nested.ParsedNested;
 import org.elasticsearch.search.aggregations.bucket.nested.ParsedReverseNested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.ParsedBinaryRange;
+import org.elasticsearch.search.aggregations.bucket.range.ParsedDateRange;
+import org.elasticsearch.search.aggregations.bucket.range.ParsedGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.date.ParsedDateRange;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.ParsedGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
 import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantLongTerms;
@@ -90,8 +94,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
-import org.elasticsearch.search.aggregations.matrix.stats.ParsedMatrixStats;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.ParsedAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
@@ -120,6 +122,8 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStat
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ParsedExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.ParsedSum;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.tophits.ParsedTopHits;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ParsedValueCount;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
@@ -139,12 +143,15 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -156,30 +163,61 @@ import static java.util.stream.Collectors.toList;
 
 /**
  * High level REST client that wraps an instance of the low level {@link RestClient} and allows to build requests and read responses.
- * The provided {@link RestClient} is externally built and closed.
- * Can be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through plugins, or to
- * add support for custom response sections, again added to Elasticsearch through plugins.
+ * The {@link RestClient} instance is internally built based on the provided {@link RestClientBuilder} and it gets closed automatically
+ * when closing the {@link RestHighLevelClient} instance that wraps it.
+ * In case an already existing instance of a low-level REST client needs to be provided, this class can be subclassed and the
+ * {@link #RestHighLevelClient(RestClient, CheckedConsumer, List)}  constructor can be used.
+ * This class can also be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through
+ * plugins, or to add support for custom response sections, again added to Elasticsearch through plugins.
  */
-public class RestHighLevelClient {
+public class RestHighLevelClient implements Closeable {
 
     private final RestClient client;
     private final NamedXContentRegistry registry;
+    private final CheckedConsumer<RestClient, IOException> doClose;
 
     /**
-     * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests.
+     * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
+     * {@link RestClient} to be used to perform requests.
      */
-    public RestHighLevelClient(RestClient restClient) {
-        this(restClient, Collections.emptyList());
+    public RestHighLevelClient(RestClientBuilder restClientBuilder) {
+        this(restClientBuilder, Collections.emptyList());
+    }
+
+    /**
+     * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
+     * {@link RestClient} to be used to perform requests and parsers for custom response sections added to Elasticsearch through plugins.
+     */
+    protected RestHighLevelClient(RestClientBuilder restClientBuilder, List<NamedXContentRegistry.Entry> namedXContentEntries) {
+        this(restClientBuilder.build(), RestClient::close, namedXContentEntries);
     }
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests and
      * a list of entries that allow to parse custom response sections added to Elasticsearch through plugins.
+     * This constructor can be called by subclasses in case an externally created low-level REST client needs to be provided.
+     * The consumer argument allows to control what needs to be done when the {@link #close()} method is called.
+     * Also subclasses can provide parsers for custom response sections added to Elasticsearch through plugins.
      */
-    protected RestHighLevelClient(RestClient restClient, List<NamedXContentRegistry.Entry> namedXContentEntries) {
-        this.client = Objects.requireNonNull(restClient);
-        this.registry = new NamedXContentRegistry(Stream.of(getDefaultNamedXContents().stream(), namedXContentEntries.stream())
-                .flatMap(Function.identity()).collect(toList()));
+    protected RestHighLevelClient(RestClient restClient, CheckedConsumer<RestClient, IOException> doClose,
+                                  List<NamedXContentRegistry.Entry> namedXContentEntries) {
+        this.client = Objects.requireNonNull(restClient, "restClient must not be null");
+        this.doClose = Objects.requireNonNull(doClose, "doClose consumer must not be null");
+        this.registry = new NamedXContentRegistry(
+                Stream.of(getDefaultNamedXContents().stream(), getProvidedNamedXContents().stream(), namedXContentEntries.stream())
+                    .flatMap(Function.identity()).collect(toList()));
+    }
+
+    /**
+     * Returns the low-level client that the current high-level client instance is using to perform requests
+     */
+    public RestClient getLowLevelClient() {
+        return client;
+    }
+
+    @Override
+    public final void close() throws IOException {
+        doClose.accept(client);
     }
 
     /**
@@ -347,14 +385,36 @@ public class RestHighLevelClient {
                 listener, emptySet(), headers);
     }
 
-    private <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
+    /**
+     * Clears one or more scroll ids using the Clear Scroll api
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
+     * Clear Scroll API on elastic.co</a>
+     */
+    public ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(clearScrollRequest, Request::clearScroll, ClearScrollResponse::fromXContent,
+                emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously clears one or more scroll ids using the Clear Scroll api
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
+     * Clear Scroll API on elastic.co</a>
+     */
+    public void clearScrollAsync(ClearScrollRequest clearScrollRequest, ActionListener<ClearScrollResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(clearScrollRequest, Request::clearScroll, ClearScrollResponse::fromXContent,
+                listener, emptySet(), headers);
+    }
+
+    protected <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
                                                                             CheckedFunction<XContentParser, Resp, IOException> entityParser,
                                                                             Set<Integer> ignores, Header... headers) throws IOException {
         return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
     }
 
-    <Req extends ActionRequest, Resp> Resp performRequest(Req request,
+    protected <Req extends ActionRequest, Resp> Resp performRequest(Req request,
                                                           CheckedFunction<Req, Request, IOException> requestConverter,
                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
                                                           Set<Integer> ignores, Header... headers) throws IOException {
@@ -371,6 +431,10 @@ public class RestHighLevelClient {
                 try {
                     return responseConverter.apply(e.getResponse());
                 } catch (Exception innerException) {
+                    //the exception is ignored as we now try to parse the response as an error.
+                    //this covers cases like get where 404 can either be a valid document not found response,
+                    //or an error for which parsing is completely different. We try to consider the 404 response as a valid one
+                    //first. If parsing of the response breaks, we fall back to parsing it as an error.
                     throw parseResponseException(e);
                 }
             }
@@ -384,7 +448,7 @@ public class RestHighLevelClient {
         }
     }
 
-    private <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
+    protected <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser,
                                                                  ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
@@ -392,7 +456,7 @@ public class RestHighLevelClient {
                 listener, ignores, headers);
     }
 
-    <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
+    protected <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
                                                                CheckedFunction<Req, Request, IOException> requestConverter,
                                                                CheckedFunction<Response, Resp, IOException> responseConverter,
                                                                ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
@@ -542,8 +606,8 @@ public class RestHighLevelClient {
         map.put(SignificantLongTerms.NAME, (p, c) -> ParsedSignificantLongTerms.fromXContent(p, (String) c));
         map.put(SignificantStringTerms.NAME, (p, c) -> ParsedSignificantStringTerms.fromXContent(p, (String) c));
         map.put(ScriptedMetricAggregationBuilder.NAME, (p, c) -> ParsedScriptedMetric.fromXContent(p, (String) c));
-        map.put(ChildrenAggregationBuilder.NAME, (p, c) -> ParsedChildren.fromXContent(p, (String) c));
-        map.put(MatrixStatsAggregationBuilder.NAME, (p, c) -> ParsedMatrixStats.fromXContent(p, (String) c));
+        map.put(IpRangeAggregationBuilder.NAME, (p, c) -> ParsedBinaryRange.fromXContent(p, (String) c));
+        map.put(TopHitsAggregationBuilder.NAME, (p, c) -> ParsedTopHits.fromXContent(p, (String) c));
         List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());
@@ -553,6 +617,17 @@ public class RestHighLevelClient {
                 (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
         entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(CompletionSuggestion.NAME),
                 (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
+        return entries;
+    }
+
+    /**
+     * Loads and returns the {@link NamedXContentRegistry.Entry} parsers provided by plugins.
+     */
+    static List<NamedXContentRegistry.Entry> getProvidedNamedXContents() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
+        for (NamedXContentProvider service : ServiceLoader.load(NamedXContentProvider.class)) {
+            entries.addAll(service.getNamedXContentParsers());
+        }
         return entries;
     }
 }

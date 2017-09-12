@@ -20,54 +20,54 @@
 package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.RetryPolicy;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.AffixSetting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class AzureStorageSettings {
-    private static final Setting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "timeout",
-        (key) -> Setting.timeSetting(key, Storage.TIMEOUT_SETTING, Setting.Property.NodeScope));
-    private static final Setting<String> ACCOUNT_SETTING =
-        Setting.affixKeySetting(Storage.PREFIX, "account", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
-    private static final Setting<String> KEY_SETTING =
-        Setting.affixKeySetting(Storage.PREFIX, "key", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
-    private static final Setting<Boolean> DEFAULT_SETTING =
-        Setting.affixKeySetting(Storage.PREFIX, "default", (key) -> Setting.boolSetting(key, false, Setting.Property.NodeScope));
+    // prefix for azure client settings
+    private static final String PREFIX = "azure.client.";
 
+    /**
+        * Azureaccountname
+    */
+        public static final AffixSetting<SecureString> ACCOUNT_SETTING =
+        Setting.affixKeySetting(PREFIX, "account",key -> SecureSetting.secureString(key, null));
     /**
      * max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT).
      */
     private static final Setting<Integer> MAX_RETRIES_SETTING =
-        Setting.affixKeySetting(Storage.PREFIX, "max_retries",
+        Setting.affixKeySetting(PREFIX, "max_retries",
             (key) -> Setting.intSetting(key, RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT, Setting.Property.NodeScope));
 
-    private final String name;
+    /**
+     * Azure key
+     */
+    public static final AffixSetting<SecureString> KEY_SETTING = Setting.affixKeySetting(PREFIX, "key",
+        key -> SecureSetting.secureString(key, null));
+
+    public static final AffixSetting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "timeout",
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(-1), Property.NodeScope));
+
     private final String account;
     private final String key;
     private final TimeValue timeout;
-    private final boolean activeByDefault;
     private final int maxRetries;
 
-    public AzureStorageSettings(String name, String account, String key, TimeValue timeout, boolean activeByDefault, int maxRetries) {
-        this.name = name;
+    public AzureStorageSettings(String account, String key, TimeValue timeout, int maxRetries) {
         this.account = account;
         this.key = key;
         this.timeout = timeout;
-        this.activeByDefault = activeByDefault;
         this.maxRetries = maxRetries;
-    }
-
-    public String getName() {
-        return name;
     }
 
     public String getKey() {
@@ -82,10 +82,6 @@ public final class AzureStorageSettings {
         return timeout;
     }
 
-    public boolean isActiveByDefault() {
-        return activeByDefault;
-    }
-
     public int getMaxRetries() {
         return maxRetries;
     }
@@ -93,10 +89,8 @@ public final class AzureStorageSettings {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("AzureStorageSettings{");
-        sb.append("name='").append(name).append('\'');
         sb.append(", account='").append(account).append('\'');
         sb.append(", key='").append(key).append('\'');
-        sb.append(", activeByDefault='").append(activeByDefault).append('\'');
         sb.append(", timeout=").append(timeout);
         sb.append(", maxRetries=").append(maxRetries);
         sb.append('}');
@@ -104,78 +98,47 @@ public final class AzureStorageSettings {
     }
 
     /**
-     * Parses settings and read all settings available under cloud.azure.storage.*
+     * Parses settings and read all settings available under azure.client.*
      * @param settings settings to parse
-     * @return A tuple with v1 = primary storage and v2 = secondary storage
+     * @return All the named configurations
      */
-    public static Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> parse(Settings settings) {
-        List<AzureStorageSettings> storageSettings = createStorageSettings(settings);
-        return Tuple.tuple(getPrimary(storageSettings), getSecondaries(storageSettings));
-    }
-
-    private static List<AzureStorageSettings> createStorageSettings(Settings settings) {
-        // ignore global timeout and proxy settings which have the same prefix but do not belong to any group
-        Settings groups = Storage.STORAGE_ACCOUNTS.get(settings.filter((k) ->
-            k.equals(Storage.TIMEOUT_SETTING.getKey()) == false &&
-            k.equals(Storage.PROXY_HOST_SETTING.getKey()) == false &&
-            k.equals(Storage.PROXY_TYPE_SETTING.getKey()) == false &&
-            k.equals(Storage.PROXY_PORT_SETTING.getKey()) == false));
-        List<AzureStorageSettings> storageSettings = new ArrayList<>();
-        for (String groupName : groups.getAsGroups().keySet()) {
-            AzureStorageSettings azureStorageSettings = new AzureStorageSettings(
-                groupName,
-                getValue(settings, groupName, ACCOUNT_SETTING),
-                getValue(settings, groupName, KEY_SETTING),
-                getValue(settings, groupName, TIMEOUT_SETTING),
-                getValue(settings, groupName, DEFAULT_SETTING),
-                getValue(settings, groupName, MAX_RETRIES_SETTING));
-            storageSettings.add(azureStorageSettings);
+    public static Map<String, AzureStorageSettings> load(Settings settings) {
+        // Get the list of existing named configurations
+        Set<String> clientNames = settings.getGroups(PREFIX).keySet();
+        Map<String, AzureStorageSettings> storageSettings = new HashMap<>();
+        for (String clientName : clientNames) {
+            storageSettings.put(clientName, getClientSettings(settings, clientName));
         }
-        return storageSettings;
+
+        if (storageSettings.containsKey("default") == false && storageSettings.isEmpty() == false) {
+            // in case no setting named "default" has been set, let's define our "default"
+            // as the first named config we get
+            AzureStorageSettings defaultSettings = storageSettings.values().iterator().next();
+            storageSettings.put("default", defaultSettings);
+        }
+        return Collections.unmodifiableMap(storageSettings);
     }
 
-    private static <T> T getValue(Settings settings, String groupName, Setting<T> setting) {
+    // pkg private for tests
+    /** Parse settings for a single client. */
+    static AzureStorageSettings getClientSettings(Settings settings, String clientName) {
+        try (SecureString account = getConfigValue(settings, clientName, ACCOUNT_SETTING);
+             SecureString key = getConfigValue(settings, clientName, KEY_SETTING)) {
+            return new AzureStorageSettings(account.toString(), key.toString(),
+                getValue(settings, clientName, TIMEOUT_SETTING),
+                getValue(settings, clientName, MAX_RETRIES_SETTING));
+        }
+    }
+
+    private static <T> T getConfigValue(Settings settings, String clientName,
+                                        Setting.AffixSetting<T> clientSetting) {
+        Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
+        return concreteSetting.get(settings);
+    }
+
+    public static <T> T getValue(Settings settings, String groupName, Setting<T> setting) {
         Setting.AffixKey k = (Setting.AffixKey) setting.getRawKey();
         String fullKey = k.toConcreteKey(groupName).toString();
         return setting.getConcreteSetting(fullKey).get(settings);
-    }
-
-    private static AzureStorageSettings getPrimary(List<AzureStorageSettings> settings) {
-        if (settings.isEmpty()) {
-            return null;
-        } else if (settings.size() == 1) {
-            // the only storage settings belong (implicitly) to the default primary storage
-            AzureStorageSettings storage = settings.get(0);
-            return new AzureStorageSettings(storage.getName(), storage.getAccount(), storage.getKey(), storage.getTimeout(), true,
-                storage.getMaxRetries());
-        } else {
-            AzureStorageSettings primary = null;
-            for (AzureStorageSettings setting : settings) {
-                if (setting.isActiveByDefault()) {
-                    if (primary == null) {
-                        primary = setting;
-                    } else {
-                        throw new SettingsException("Multiple default Azure data stores configured: [" + primary.getName() + "] and [" + setting.getName() + "]");
-                    }
-                }
-            }
-            if (primary == null) {
-                throw new SettingsException("No default Azure data store configured");
-            }
-            return primary;
-        }
-    }
-
-    private static Map<String, AzureStorageSettings> getSecondaries(List<AzureStorageSettings> settings) {
-        Map<String, AzureStorageSettings> secondaries = new HashMap<>();
-        // when only one setting is defined, we don't have secondaries
-        if (settings.size() > 1) {
-            for (AzureStorageSettings setting : settings) {
-                if (setting.isActiveByDefault() == false) {
-                    secondaries.put(setting.getName(), setting);
-                }
-            }
-        }
-        return Collections.unmodifiableMap(secondaries);
     }
 }

@@ -177,6 +177,31 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(bulkRequest.numberOfActions(), equalTo(9));
     }
 
+    public void testBulkEmptyObject() throws Exception {
+        String bulkIndexAction = "{ \"index\":{\"_index\":\"test\",\"_type\":\"type1\",\"_id\":\"1\"} }\r\n";
+        String bulkIndexSource = "{ \"field1\" : \"value1\" }\r\n";
+        String emptyObject = "{}\r\n";
+        StringBuilder bulk = new StringBuilder();
+        int emptyLine;
+        if (randomBoolean()) {
+            bulk.append(emptyObject);
+            emptyLine = 1;
+        } else {
+            int actions = randomIntBetween(1, 10);
+            int emptyAction = randomIntBetween(1, actions);
+            emptyLine = emptyAction * 2 - 1;
+            for (int i = 1; i <= actions; i++) {
+                bulk.append(i == emptyAction ? emptyObject : bulkIndexAction);
+                bulk.append(randomBoolean() ? emptyObject : bulkIndexSource);
+            }
+        }
+        String bulkAction = bulk.toString();
+        BulkRequest bulkRequest = new BulkRequest();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
+        assertThat(exc.getMessage(), containsString("Malformed action/metadata line [" + emptyLine + "], expected FIELD_NAME but found [END_OBJECT]"));
+    }
+
     // issue 7361
     public void testBulkRequestWithRefresh() throws Exception {
         BulkRequest bulkRequest = new BulkRequest();
@@ -291,4 +316,16 @@ public class BulkRequestTests extends ESTestCase {
             "can't provide version in upsert request"));
     }
 
+    public void testBulkTerminatedByNewline() throws Exception {
+        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk11.json");
+        IllegalArgumentException expectThrows = expectThrows(IllegalArgumentException.class, () -> new BulkRequest()
+                .add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
+        assertEquals("The bulk request must be terminated by a newline [\n]", expectThrows.getMessage());
+
+        String bulkActionWithNewLine = bulkAction + "\n";
+        BulkRequest bulkRequestWithNewLine = new BulkRequest();
+        bulkRequestWithNewLine.add(bulkActionWithNewLine.getBytes(StandardCharsets.UTF_8), 0, bulkActionWithNewLine.length(), null, null,
+                XContentType.JSON);
+        assertEquals(3, bulkRequestWithNewLine.numberOfActions());
+    }
 }

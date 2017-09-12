@@ -33,6 +33,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -41,11 +43,9 @@ import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
@@ -115,8 +115,8 @@ public class TopHitsAggregator extends MetricsAggregator {
                     SortAndFormats sort = subSearchContext.sort();
                     int topN = subSearchContext.from() + subSearchContext.size();
                     if (sort == null) {
-                        for (RescoreSearchContext rescoreContext : context.rescore()) {
-                            topN = Math.max(rescoreContext.window(), topN);
+                        for (RescoreContext rescoreContext : context.rescore()) {
+                            topN = Math.max(rescoreContext.getWindowSize(), topN);
                         }
                     }
                     // In the QueryPhase we don't need this protection, because it is build into the IndexSearcher,
@@ -148,9 +148,9 @@ public class TopHitsAggregator extends MetricsAggregator {
         } else {
             TopDocs topDocs = topDocsCollector.topLevelCollector.topDocs();
             if (subSearchContext.sort() == null) {
-                for (RescoreSearchContext ctx : context().rescore()) {
+                for (RescoreContext ctx : context().rescore()) {
                     try {
-                        topDocs = ctx.rescorer().rescore(topDocs, context, ctx);
+                        topDocs = ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
                     } catch (IOException e) {
                         throw new ElasticsearchException("Rescore TopHits Failed", e);
                     }
@@ -165,7 +165,7 @@ public class TopHitsAggregator extends MetricsAggregator {
             subSearchContext.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
             fetchPhase.execute(subSearchContext);
             FetchSearchResult fetchResult = subSearchContext.fetchResult();
-            SearchHit[] internalHits = fetchResult.fetchResult().hits().internalHits();
+            SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
             for (int i = 0; i < internalHits.length; i++) {
                 ScoreDoc scoreDoc = topDocs.scoreDocs[i];
                 SearchHit searchHitFields = internalHits[i];

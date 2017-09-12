@@ -241,7 +241,7 @@ POST _search
         } ],
         "collate": {
           "query": { <1>
-            "inline" : {
+            "source" : {
               "match": {
                 "{{field_name}}" : "{{suggestion}}" <2>
               }

@@ -19,7 +19,7 @@
               script:
                 script:
                   lang: painless
-                  inline: throw new IllegalArgumentException("Cats!")
+                  source: throw new IllegalArgumentException("Cats!")
           dest:
             index:   dest
   - match: {created: 0}

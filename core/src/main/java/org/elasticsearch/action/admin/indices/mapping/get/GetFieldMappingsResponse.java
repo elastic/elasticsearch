@@ -24,7 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -38,7 +38,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
 /** Response object for {@link GetFieldMappingsRequest} API */
-public class GetFieldMappingsResponse extends ActionResponse implements ToXContent {
+public class GetFieldMappingsResponse extends ActionResponse implements ToXContentFragment {
 
     private Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = emptyMap();
 
@@ -92,7 +92,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         return builder;
     }
 
-    public static class FieldMappingMetaData implements ToXContent {
+    public static class FieldMappingMetaData implements ToXContentFragment {
         public static final FieldMappingMetaData NULL = new FieldMappingMetaData("", BytesArray.EMPTY);
 
         private String fullName;

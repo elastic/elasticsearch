@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
@@ -74,7 +73,7 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
 
     public void testParseWithCarriageReturn() throws Exception {
         final String content = "{\"index\":[\"test0\", \"test1\"], \"request_cache\": true}\r\n" +
-            "{\"inline\": {\"query\" : {\"match_{{template}}\" :{}}}, \"params\": {\"template\": \"all\" } }\r\n";
+            "{\"source\": {\"query\" : {\"match_{{template}}\" :{}}}, \"params\": {\"template\": \"all\" } }\r\n";
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(content), XContentType.JSON).build();
 

@@ -94,11 +94,10 @@ The following parameters are accepted by `keyword` fields:
 <<similarity,`similarity`>>::
 
     Which scoring algorithm or _similarity_ should be used. Defaults
-    to `classic`, which uses TF/IDF.
+    to `BM25`.
 
 <<normalizer,`normalizer`>>::
 
-    experimental[]
     How to pre-process the keyword prior to indexing. Defaults to `null`,
     meaning the keyword is kept as-is.
 

@@ -100,11 +100,6 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
         }
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return true;
-    }
-
     public static class Request extends BaseNodesRequest<Request> {
 
         public Request() {

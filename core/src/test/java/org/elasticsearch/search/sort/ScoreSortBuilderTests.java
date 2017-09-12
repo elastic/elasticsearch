@@ -23,7 +23,6 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -67,8 +66,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(parser);
-        ScoreSortBuilder scoreSort = ScoreSortBuilder.fromXContent(context, "_score");
+        ScoreSortBuilder scoreSort = ScoreSortBuilder.fromXContent(parser, "_score");
         assertEquals(order, scoreSort.order());
     }
 
@@ -80,10 +78,8 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(parser);
-
         try {
-          ScoreSortBuilder.fromXContent(context, "_score");
+          ScoreSortBuilder.fromXContent(parser, "_score");
           fail("adding reverse sorting option should fail with an exception");
         } catch (IllegalArgumentException e) {
             // all good
@@ -97,7 +93,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
     }
 
     @Override
-    protected ScoreSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
-        return ScoreSortBuilder.fromXContent(context, fieldName);
+    protected ScoreSortBuilder fromXContent(XContentParser parser, String fieldName) throws IOException {
+        return ScoreSortBuilder.fromXContent(parser, fieldName);
     }
 }

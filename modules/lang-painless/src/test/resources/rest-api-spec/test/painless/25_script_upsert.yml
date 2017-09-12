@@ -8,7 +8,7 @@
           id:       1
           body:
             script:
-              inline: "ctx._source.foo = params.bar"
+              source: "ctx._source.foo = params.bar"
               lang: "painless"
               params: { bar: 'xxx' }
             upsert: { foo: baz }
@@ -29,7 +29,7 @@
           id:       1
           body:
             script:
-              inline: "ctx._source.foo = params.bar"
+              source: "ctx._source.foo = params.bar"
               lang: "painless"
               params: { bar: 'xxx' }
             upsert: { foo: baz }
@@ -49,7 +49,7 @@
           id:       2
           body:
             script:
-              inline: "ctx._source.foo = params.bar"
+              source: "ctx._source.foo = params.bar"
               lang: "painless"
               params: { bar: 'xxx' }
             upsert: { foo: baz }
@@ -70,7 +70,7 @@
           id:       3
           body:
             script:
-              inline: "ctx._source.has_now = ctx._now > 0"
+              source: "ctx._source.has_now = ctx._now > 0"
               lang: "painless"
             upsert: { has_now: false }
             scripted_upsert: true

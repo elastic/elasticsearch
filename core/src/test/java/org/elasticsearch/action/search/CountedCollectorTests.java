@@ -61,13 +61,13 @@ public class CountedCollectorTests extends ESTestCase {
                         DfsSearchResult dfsSearchResult = new DfsSearchResult(shardID, null);
                         dfsSearchResult.setShardIndex(shardID);
                         dfsSearchResult.setSearchShardTarget(new SearchShardTarget("foo",
-                            new Index("bar", "baz"), shardID));
+                            new Index("bar", "baz"), shardID, null));
                         collector.onResult(dfsSearchResult);});
                     break;
                 case 2:
                     state.add(2);
                     executor.execute(() -> collector.onFailure(shardID, new SearchShardTarget("foo", new Index("bar", "baz"),
-                        shardID), new RuntimeException("boom")));
+                        shardID, null), new RuntimeException("boom")));
                     break;
                 default:
                     fail("unknown state");

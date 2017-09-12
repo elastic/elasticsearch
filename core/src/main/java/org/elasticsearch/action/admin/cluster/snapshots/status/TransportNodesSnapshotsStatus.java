@@ -122,11 +122,6 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
         }
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return true;
-    }
-
     public static class Request extends BaseNodesRequest<Request> {
 
         private Snapshot[] snapshots;

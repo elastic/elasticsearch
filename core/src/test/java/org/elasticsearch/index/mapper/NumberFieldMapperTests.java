@@ -21,11 +21,17 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.math.BigInteger;
+import java.util.List;
 import java.util.Arrays;
 import java.util.HashSet;
 
@@ -36,6 +42,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     @Override
     protected void setTypeList() {
         TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long", "float", "double"));
+        WHOLE_TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long"));
     }
 
     @Override
@@ -185,6 +192,28 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("passed as String"));
     }
 
+    @Override
+    protected void doTestDecimalCoerce(String type) throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", type).endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "7.89")
+                .endObject()
+                .bytes(),
+                XContentType.JSON));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        IndexableField pointField = fields[0];
+        assertEquals(7, pointField.numericValue().doubleValue(), 0d);
+    }
+
     public void testIgnoreMalformed() throws Exception {
         for (String type : TYPES) {
             doTestIgnoreMalformed(type);
@@ -207,6 +236,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                 .bytes(),
                 XContentType.JSON));
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+
         assertThat(e.getCause().getMessage(), containsString("For input string: \"a\""));
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -301,6 +331,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertFalse(dvField.fieldType().stored());
     }
 
+    @Override
     public void testEmptyName() throws IOException {
         // after version 5
         for (String type : TYPES) {
@@ -312,6 +343,91 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                 () -> parser.parse("type", new CompressedXContent(mapping))
             );
             assertThat(e.getMessage(), containsString("name cannot be empty string"));
+        }
+    }
+
+    public void testOutOfRangeValues() throws IOException {
+        final List<OutOfRangeSpec<Object>> inputs = Arrays.asList(
+            OutOfRangeSpec.of(NumberType.BYTE, "128", "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, "32768", "is out of range for a short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "is out of range for an integer"),
+            OutOfRangeSpec.of(NumberType.LONG, "9223372036854775808", "out of range for a long"),
+
+            OutOfRangeSpec.of(NumberType.BYTE, "-129", "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, "-32769", "is out of range for a short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, "-2147483649", "is out of range for an integer"),
+            OutOfRangeSpec.of(NumberType.LONG, "-9223372036854775809", "out of range for a long"),
+
+            OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, " out of range of int"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of long"),
+
+            OutOfRangeSpec.of(NumberType.BYTE, -129, "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of Java short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, " out of range of int"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of long"),
+
+            OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65520", "[half_float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.DOUBLE, "1.7976931348623157E309", "[double] supports only finite values"),
+
+            OutOfRangeSpec.of(NumberType.HALF_FLOAT, "-65520", "[half_float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.FLOAT, "-3.4028235E39", "[float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.DOUBLE, "-1.7976931348623157E309", "[double] supports only finite values"),
+
+            OutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.NaN, "[half_float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.FLOAT, Float.NaN, "[float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.DOUBLE, Double.NaN, "[double] supports only finite values"),
+
+            OutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.FLOAT, Float.POSITIVE_INFINITY, "[float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.DOUBLE, Double.POSITIVE_INFINITY, "[double] supports only finite values"),
+
+            OutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.NEGATIVE_INFINITY, "[half_float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.FLOAT, Float.NEGATIVE_INFINITY, "[float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.DOUBLE, Double.NEGATIVE_INFINITY, "[double] supports only finite values")
+        );
+
+        for(OutOfRangeSpec<Object> item: inputs) {
+            try {
+                parseRequest(item.type, createIndexRequest(item.value));
+                fail("Mapper parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
+            } catch (MapperParsingException e) {
+                assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
+                    e.getCause().getMessage(), containsString(item.message));
+            }
+        }
+    }
+
+    private void parseRequest(NumberType type, BytesReference content) throws IOException {
+        createDocumentMapper(type).parse(SourceToParse.source("test", "type", "1", content, XContentType.JSON));
+    }
+
+    private DocumentMapper createDocumentMapper(NumberType type) throws IOException {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", type.typeName())
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+            .string();
+
+        return parser.parse("type", new CompressedXContent(mapping));
+    }
+
+    private BytesReference createIndexRequest(Object value) throws IOException {
+        if (value instanceof BigInteger) {
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                    .rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), XContentType.JSON)
+                .endObject().bytes();
+        } else {
+            return XContentFactory.jsonBuilder().startObject().field("field", value).endObject().bytes();
         }
     }
 }

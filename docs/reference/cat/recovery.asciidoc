@@ -15,13 +15,13 @@ are no shards in transit from one node to another:
 [source,js]
 ----------------------------------------------------------------------------
 GET _cat/recovery?v
----------------------------------------------------------------------------
+----------------------------------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
 
 The response of this request will be something like:
 
-[source,js]
+[source,txt]
 ---------------------------------------------------------------------------
 index   shard time type  stage source_host source_node target_host target_node repository snapshot files files_recovered files_percent files_total bytes bytes_recovered bytes_percent bytes_total translog_ops translog_ops_recovered translog_ops_percent
 twitter 0     13ms store done  n/a         n/a         127.0.0.1   node-0      n/a        n/a      0     0               100%          13          0     0               100%          9928        0            0                      100.0%
@@ -42,14 +42,14 @@ what a live shard recovery looks like.
 [source,js]
 ----------------------------------------------------------------------------
 GET _cat/recovery?v&h=i,s,t,ty,st,shost,thost,f,fp,b,bp
----------------------------------------------------------------------------
+----------------------------------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
 
 This will return a line like:
 
-[source,js]
----------------------------------------------------------------------------
+[source,txt]
+----------------------------------------------------------------------------
 i       s t      ty   st    shost       thost       f     fp      b bp
 twitter 0 1252ms peer done  192.168.1.1 192.168.1.2 0     100.0%  0 100.0%
 ----------------------------------------------------------------------------
@@ -70,14 +70,14 @@ API.
 [source,js]
 --------------------------------------------------------------------------------
 GET _cat/recovery?v&h=i,s,t,ty,st,rep,snap,f,fp,b,bp
----------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 // CONSOLE
 // TEST[skip:no need to execute snapshot/restore here]
 
 This will show a recovery of type snapshot in the response
 
-[source,js]
----------------------------------------------------------------------------
+[source,txt]
+--------------------------------------------------------------------------------
 i       s t      ty       st    rep     snap   f  fp   b     bp
 twitter 0 1978ms snapshot done  twitter snap_1 79 8.0% 12086 9.0%
 --------------------------------------------------------------------------------

@@ -82,7 +82,7 @@ public class GeoUtils {
 
     /** Returns true if longitude is actually a valid longitude value. */
     public static boolean isValidLongitude(double longitude) {
-        if (Double.isNaN(longitude) || Double.isNaN(longitude) || longitude < GeoUtils.MIN_LON || longitude > GeoUtils.MAX_LON) {
+        if (Double.isNaN(longitude) || Double.isInfinite(longitude) || longitude < GeoUtils.MIN_LON || longitude > GeoUtils.MAX_LON) {
             return false;
         }
         return true;

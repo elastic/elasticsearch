@@ -52,9 +52,6 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
 
     @Override
     protected DeleteByQueryRequest buildRequest(RestRequest request) throws IOException {
-        if (false == request.hasContent()) {
-            throw new ElasticsearchException("_delete_by_query requires a request body");
-        }
         /*
          * Passing the search request through DeleteByQueryRequest first allows
          * it to set its own defaults which differ from SearchRequest's

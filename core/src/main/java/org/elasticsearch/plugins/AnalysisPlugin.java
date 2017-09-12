@@ -28,8 +28,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
+import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
+import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -89,6 +90,13 @@ public interface AnalysisPlugin {
      */
     default Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         return emptyMap();
+    }
+
+    /**
+     * Override to add additional pre-configured {@link CharFilter}s.
+     */
+    default List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
+        return emptyList();
     }
 
     /**

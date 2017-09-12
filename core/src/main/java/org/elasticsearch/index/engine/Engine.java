@@ -65,6 +65,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -82,6 +83,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -99,6 +101,7 @@ public abstract class Engine implements Closeable {
     protected final EngineConfig engineConfig;
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
+    private final CountDownLatch closedLatch = new CountDownLatch(1);
     protected final EventListener eventListener;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
@@ -394,7 +397,7 @@ public abstract class Engine implements Closeable {
          * (e.g while preparing operation or updating mappings)
          * */
         public IndexResult(Exception failure, long version) {
-            this(failure, version, SequenceNumbersService.UNASSIGNED_SEQ_NO);
+            this(failure, version, SequenceNumbers.UNASSIGNED_SEQ_NO);
         }
 
         public IndexResult(Exception failure, long version, long seqNo) {
@@ -483,10 +486,6 @@ public abstract class Engine implements Closeable {
             Releasables.close(searcher);
             return GetResult.NOT_EXISTS;
         }
-    }
-
-    public final GetResult get(Get get) throws EngineException {
-        return get(get, this::acquireSearcher);
     }
 
     public abstract GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException;
@@ -705,6 +704,7 @@ public abstract class Engine implements Closeable {
                 if (verbose) {
                     segment.ramTree = Accountables.namedAccountable("root", segmentReader);
                 }
+                segment.attributes = info.info.getAttributes();
                 // TODO: add more fine grained mem stats values to per segment info here
                 segments.put(info.info.name, segment);
             }
@@ -807,6 +807,18 @@ public abstract class Engine implements Closeable {
      */
     public abstract CommitId flush() throws EngineException;
 
+
+    /**
+     * checks and removes translog files that no longer need to be retained. See
+     * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
+     */
+    public abstract void trimTranslog() throws EngineException;
+
+    /**
+     * Rolls the translog generation and cleans unneeded.
+     */
+    public abstract void rollTranslogGeneration() throws EngineException;
+
     /**
      * Force merges to 1 segment
      */
@@ -844,7 +856,7 @@ public abstract class Engine implements Closeable {
                 failedEngine.set((failure != null) ? failure : new IllegalStateException(reason));
                 try {
                     // we just go and close this engine - no way to recover
-                    closeNoLock("engine failed on: [" + reason + "]");
+                    closeNoLock("engine failed on: [" + reason + "]", closedLatch);
                 } finally {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed engine [{}]", reason), failure);
                     // we must set a failure exception, generate one if not supplied
@@ -1012,7 +1024,7 @@ public abstract class Engine implements Closeable {
 
         abstract String id();
 
-        abstract TYPE operationType();
+        public abstract TYPE operationType();
     }
 
     public static class Index extends Operation {
@@ -1035,7 +1047,7 @@ public abstract class Engine implements Closeable {
 
         Index(Term uid, ParsedDocument doc, long version) {
             // use a primary term of 2 to allow tests to reduce it to a valid >0 term
-            this(uid, doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, 2, version, VersionType.INTERNAL,
+            this(uid, doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 2, version, VersionType.INTERNAL,
                     Origin.PRIMARY, System.nanoTime(), -1, false);
         } // TEST ONLY
 
@@ -1054,7 +1066,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        TYPE operationType() {
+        public TYPE operationType() {
             return TYPE.INDEX;
         }
 
@@ -1106,12 +1118,12 @@ public abstract class Engine implements Closeable {
         public Delete(String type, String id, Term uid, long seqNo, long primaryTerm, long version, VersionType versionType,
                       Origin origin, long startTime) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
-            this.type = type;
-            this.id = id;
+            this.type = Objects.requireNonNull(type);
+            this.id = Objects.requireNonNull(id);
         }
 
         public Delete(String type, String id, Term uid) {
-            this(type, id, uid, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
+            this(type, id, uid, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
         }
 
         public Delete(Delete template, VersionType versionType) {
@@ -1130,7 +1142,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        TYPE operationType() {
+        public TYPE operationType() {
             return TYPE.DELETE;
         }
 
@@ -1180,7 +1192,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        TYPE operationType() {
+        public TYPE operationType() {
             return TYPE.NO_OP;
         }
 
@@ -1292,8 +1304,10 @@ public abstract class Engine implements Closeable {
 
     /**
      * Method to close the engine while the write lock is held.
+     * Must decrement the supplied when closing work is done and resources are
+     * freed.
      */
-    protected abstract void closeNoLock(String reason);
+    protected abstract void closeNoLock(String reason, CountDownLatch closedLatch);
 
     /**
      * Flush the engine (committing segments to disk and truncating the
@@ -1316,6 +1330,7 @@ public abstract class Engine implements Closeable {
                 }
             }
         }
+        awaitPendingClose();
     }
 
     @Override
@@ -1324,8 +1339,17 @@ public abstract class Engine implements Closeable {
             logger.debug("close now acquiring writeLock");
             try (ReleasableLock lock = writeLock.acquire()) {
                 logger.debug("close acquired writeLock");
-                closeNoLock("api");
+                closeNoLock("api", closedLatch);
             }
+        }
+        awaitPendingClose();
+    }
+
+    private void awaitPendingClose() {
+        try {
+            closedLatch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -1442,6 +1466,14 @@ public abstract class Engine implements Closeable {
      * Reverses a previous {@link #activateThrottling} call.
      */
     public abstract void deactivateThrottling();
+
+    /**
+     * Marks operations in the translog as completed. This is used to restore the state of the local checkpoint tracker on primary
+     * promotion.
+     *
+     * @throws IOException if an I/O exception occurred reading the translog
+     */
+    public abstract void restoreLocalCheckpointFromTranslog() throws IOException;
 
     /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint

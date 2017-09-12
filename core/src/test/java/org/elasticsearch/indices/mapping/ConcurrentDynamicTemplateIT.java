@@ -36,7 +36,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.emptyIterable;
 
-@ESIntegTestCase.ClusterScope(randomDynamicTemplates = false) // this test takes a long time to delete the idx if all fields are eager loading
 public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
     private final String mappingType = "test-mapping";
 

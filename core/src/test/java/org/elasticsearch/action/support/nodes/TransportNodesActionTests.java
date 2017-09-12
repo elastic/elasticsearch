@@ -57,7 +57,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.mockito.Mockito.mock;
 
 public class TransportNodesActionTests extends ESTestCase {
 
@@ -275,10 +274,6 @@ public class TransportNodesActionTests extends ESTestCase {
             return new TestNodeResponse();
         }
 
-        @Override
-        protected boolean accumulateExceptions() {
-            return false;
-        }
     }
 
     private static class DataNodesOnlyTransportNodesAction

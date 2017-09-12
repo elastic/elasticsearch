@@ -120,7 +120,8 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         if (script == null) {
             return null;
         } else {
-            return context.getSearchScript(script, SearchScript.AGGS_CONTEXT);
+            SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.AGGS_CONTEXT);
+            return factory.newFactory(script.getParams(), context.lookup());
         }
     }
 

@@ -275,12 +275,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         transport.handleLocalError(requestId, new ConnectTransportException(node, "test exception"));
 
         // wait until the timeout was triggered and we actually tried to send for the second time
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(transport.capturedRequests().length, equalTo(1));
-            }
-        });
+        assertBusy(() -> assertThat(transport.capturedRequests().length, equalTo(1)));
 
         // let it fail the second time too
         requestId = transport.capturedRequests()[0].requestId;

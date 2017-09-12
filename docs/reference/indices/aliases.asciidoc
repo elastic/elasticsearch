@@ -3,10 +3,10 @@
 
 APIs in Elasticsearch accept an index name when working against a
 specific index, and several indices when applicable. The index aliases
-API allow to alias an index with a name, with all APIs automatically
+API allows aliasing an index with a name, with all APIs automatically
 converting the alias name to the actual index name. An alias can also be
 mapped to more than one index, and when specifying it, the alias will
-automatically expand to the aliases indices. An alias can also be
+automatically expand to the aliased indices. An alias can also be
 associated with a filter that will automatically be applied when
 searching, and routing values. An alias cannot have the same name as an index.
 
@@ -55,7 +55,7 @@ POST /_aliases
 // CONSOLE
 // TEST[continued]
 
-Associating an alias with more than one index are simply several `add`
+Associating an alias with more than one index is simply several `add`
 actions:
 
 [source,js]
@@ -244,8 +244,6 @@ GET /alias2/_search?q=user:kimchy&routing=2,3
 // CONSOLE
 // TEST[continued]
 
-If an index operation that uses index routing alias also has a parent routing, the
-parent routing is ignored.
 
 [float]
 [[alias-adding]]

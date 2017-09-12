@@ -69,7 +69,7 @@ public class RestHighLevelClientExtTests extends ESTestCase {
     private static class RestHighLevelClientExt extends RestHighLevelClient {
 
         private RestHighLevelClientExt(RestClient restClient) {
-            super(restClient, getNamedXContentsExt());
+            super(restClient, RestClient::close, getNamedXContentsExt());
         }
 
         private static List<NamedXContentRegistry.Entry> getNamedXContentsExt() {

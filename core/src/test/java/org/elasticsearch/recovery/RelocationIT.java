@@ -45,7 +45,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -119,7 +119,7 @@ public class RelocationIT extends ESIntegTestCase {
                     ShardStats primary = maybePrimary.get();
                     final SeqNoStats primarySeqNoStats = primary.getSeqNoStats();
                     assertThat(primary.getShardRouting() + " should have set the global checkpoint",
-                        primarySeqNoStats.getGlobalCheckpoint(), not(equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO)));
+                        primarySeqNoStats.getGlobalCheckpoint(), not(equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO)));
                     for (ShardStats shardStats : indexShardStats) {
                         final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
                         assertThat(shardStats.getShardRouting() + " local checkpoint mismatch",
@@ -514,14 +514,6 @@ public class RelocationIT extends ESIntegTestCase {
 
         // refresh is a replication action so this forces a global checkpoint sync which is needed as these are asserted on in tear down
         client().admin().indices().prepareRefresh("test").get();
-        /*
-         * We have to execute a second refresh as in the face of relocations, the relocation target is not aware of the in-sync set and so
-         * the first refresh would bring back the local checkpoint for any shards added to the in-sync set that the relocation target was
-         * not tracking.
-         */
-        // TODO: remove this after a primary context is transferred during relocation handoff
-        client().admin().indices().prepareRefresh("test").get();
-
     }
 
     class RecoveryCorruption extends MockTransportService.DelegateTransport {

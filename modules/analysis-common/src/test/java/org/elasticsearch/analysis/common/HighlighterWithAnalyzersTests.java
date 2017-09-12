@@ -136,7 +136,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
         refresh();
         SearchResponse search = client().prepareSearch()
                 .setQuery(matchPhraseQuery("body", "Test: http://www.facebook.com "))
-                .highlighter(new HighlightBuilder().field("body")).get();
+                .highlighter(new HighlightBuilder().field("body").highlighterType("fvh")).get();
         assertHighlight(search, 0, "body", 0, startsWith("<em>Test: http://www.facebook.com</em>"));
         search = client()
                 .prepareSearch()
@@ -146,7 +146,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                         + "feature Test: http://www.facebook.com http://elasticsearch.org "
                         + "http://xing.com http://cnn.com http://quora.com http://twitter.com this "
                         + "is a test for highlighting feature"))
-                .highlighter(new HighlightBuilder().field("body")).execute().actionGet();
+                .highlighter(new HighlightBuilder().field("body").highlighterType("fvh")).execute().actionGet();
         assertHighlight(search, 0, "body", 0, equalTo("<em>Test</em>: "
                 + "<em>http://www.facebook.com</em> <em>http://elasticsearch.org</em> "
                 + "<em>http://xing.com</em> <em>http://cnn.com</em> http://quora.com"));

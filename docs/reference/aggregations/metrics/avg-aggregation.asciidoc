@@ -47,7 +47,7 @@ POST /exams/_search?size=0
         "avg_grade" : {
             "avg" : {
                 "script" : {
-                    "inline" : "doc.grade.value"
+                    "source" : "doc.grade.value"
                 }
             }
         }
@@ -67,7 +67,7 @@ POST /exams/_search?size=0
         "avg_grade" : {
             "avg" : {
                 "script" : {
-                    "stored": "my_script",
+                    "id": "my_script",
                     "params": {
                         "field": "grade"
                     }
@@ -94,7 +94,7 @@ POST /exams/_search?size=0
                 "field" : "grade",
                 "script" : {
                     "lang": "painless",
-                    "inline": "_value * params.correction",
+                    "source": "_value * params.correction",
                     "params" : {
                         "correction" : 1.2
                     }

@@ -77,6 +77,14 @@ class ClusterConfiguration {
         " " + System.getProperty('tests.jvm.argline', '')
 
     /**
+     * Should the shared environment be cleaned on cluster startup? Defaults
+     * to {@code true} so we run with a clean cluster but some tests wish to
+     * preserve snapshots between clusters so they set this to true.
+     */
+    @Input
+    boolean cleanShared = true
+
+    /**
      * A closure to call which returns the unicast host to connect to for cluster formation.
      *
      * This allows multi node clusters, or a new cluster to connect to an existing cluster.

@@ -16,7 +16,7 @@
         body:
           script:
             lang: painless
-            inline: ctx._source.user = "not" + ctx._source.user
+            source: ctx._source.user = "not" + ctx._source.user
   - match: {updated: 1}
   - match: {noops: 0}
 
@@ -53,7 +53,7 @@
         body:
           script:
             lang: painless
-            inline: if (ctx._source.user == "kimchy") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
+            source: if (ctx._source.user == "kimchy") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
   - match: {updated: 1}
   - match: {noops: 1}
 
@@ -99,7 +99,7 @@
         body:
           script:
             lang: painless
-            inline: ctx.op = "noop"
+            source: ctx.op = "noop"
   - match: {updated: 0}
   - match: {noops: 2}
   - match: {batches: 1}
@@ -122,7 +122,7 @@
         body:
           script:
             lang: painless
-            inline: ctx.junk = "stuff"
+            source: ctx.junk = "stuff"
 
 ---
 "Can't change _id":
@@ -142,7 +142,7 @@
         body:
           script:
             lang: painless
-            inline: ctx._id = "stuff"
+            source: ctx._id = "stuff"
 
 ---
 "Update all docs with one doc deletion":
@@ -180,7 +180,7 @@
         body:
           script:
             lang: painless
-            inline: if (ctx._source.level != 11) {ctx._source.last_updated = "2016-01-02T00:00:00Z"} else {ctx.op = "delete"}
+            source: if (ctx._source.level != 11) {ctx._source.last_updated = "2016-01-02T00:00:00Z"} else {ctx.op = "delete"}
   - match: {updated: 3}
   - match: {deleted: 1}
   - match: {noops: 0}
@@ -244,7 +244,7 @@
         body:
           script:
             lang: painless
-            inline: |
+            source: |
               int choice = ctx._source.level % 3;
               if (choice == 0) {
                 ctx._source.last_updated = "2016-01-02T00:00:00Z";
@@ -309,6 +309,6 @@
         body:
           script:
             lang: painless
-            inline: if (ctx._source.user == "kimchy") {ctx.op = "update"} else {ctx.op = "junk"}
+            source: if (ctx._source.user == "kimchy") {ctx.op = "update"} else {ctx.op = "junk"}
 
   - match: { error.reason: 'Operation type [junk] not allowed, only [noop, index, delete] are allowed' }

@@ -32,6 +32,8 @@ import static org.elasticsearch.common.util.BigArrays.INT_PAGE_SIZE;
  */
 final class BigFloatArray extends AbstractBigArray implements FloatArray {
 
+    private static final BigFloatArray ESTIMATOR = new BigFloatArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
+
     private int[][] pages;
 
     /** Constructor. */
@@ -108,6 +110,11 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
             }
             Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, intBits);
         }
+    }
+
+    /** Estimates the number of bytes that would be consumed by an array of the given size. */
+    public static long estimateRamBytes(final long size) {
+        return ESTIMATOR.ramBytesEstimated(size);
     }
 
 }

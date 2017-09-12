@@ -22,7 +22,6 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.test.ESTestCase;
@@ -157,9 +156,9 @@ public class AppendProcessorTests extends ESTestCase {
     }
 
     private static Processor createAppendProcessor(String fieldName, Object fieldValue) {
-        TemplateService templateService = TestTemplateService.instance();
-        return new AppendProcessor(randomAlphaOfLength(10), templateService.compile(fieldName), ValueSource.wrap(fieldValue,
-                templateService));
+        return new AppendProcessor(randomAlphaOfLength(10),
+            new TestTemplateService.MockTemplateScript.Factory(fieldName),
+            ValueSource.wrap(fieldValue, TestTemplateService.instance()));
     }
 
     private enum Scalar {

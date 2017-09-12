@@ -46,6 +46,10 @@ include::cluster/nodes-stats.asciidoc[]
 
 include::cluster/nodes-info.asciidoc[]
 
+include::cluster/nodes-usage.asciidoc[]
+
+include::cluster/remote-info.asciidoc[]
+
 include::cluster/tasks.asciidoc[]
 
 include::cluster/nodes-hot-threads.asciidoc[]

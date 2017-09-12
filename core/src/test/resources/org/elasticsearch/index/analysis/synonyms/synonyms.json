@@ -3,11 +3,11 @@
         "analysis":{
             "analyzer":{
                 "synonymAnalyzer":{
-                    "tokenizer":"standard",
+                    "tokenizer":"whitespace",
                     "filter":[ "synonym" ]
                 },
                 "synonymAnalyzer_file":{
-                    "tokenizer":"standard",
+                    "tokenizer":"whitespace",
                     "filter":[ "synonym_file" ]
                 },
                 "synonymAnalyzerWordnet":{
@@ -21,6 +21,26 @@
                 "synonymAnalyzerWithsettings":{
                     "tokenizer":"trigram",
                     "filter":["synonymWithTokenizerSettings"]
+                },
+                "synonymAnalyzerWithStopBeforeSynonym": {
+                    "tokenizer":"whitespace",
+                    "filter":["stop","synonym"]
+                },
+                "synonymAnalyzerWithStopAfterSynonym":{
+                    "tokenizer":"whitespace",
+                    "filter":["synonym","stop"]
+                },
+                "synonymAnalyzerWithStopSynonymAfterSynonym":{
+                    "tokenizer":"whitespace",
+                    "filter":["synonym","stop_within_synonym"]
+                },
+                "synonymAnalyzerExpand":{
+                    "tokenizer": "whitespace",
+                    "filter":["synonym_expand"]
+                },
+                "synonymAnalyzerExpandWithStopAfterSynonym":{
+                    "tokenizer": "whitespace",
+                    "filter":["synonym_expand", "stop_within_synonym"]
                 }
             },
             "tokenizer":{
@@ -61,10 +81,23 @@
                     "type":"synonym",
                     "synonyms":[
                         "kimchy => shay"
-                    ],
-                    "tokenizer" : "trigram",
-                    "min_gram" : 3,
-                    "max_gram" : 3
+                    ]
+                },
+                "stop":{
+                    "type": "stop",
+                    "stopwords":["stop","synonym"]
+                },
+                "stop_within_synonym":{
+                    "type": "stop",
+                    "stopwords":["kimchy", "elasticsearch"]
+                },
+                "synonym_expand":{
+                    "type":"synonym",
+                    "synonyms":[
+                        "kimchy , shay",
+                        "dude , elasticsearch",
+                        "abides , man!"
+                    ]
                 }
             }
         }

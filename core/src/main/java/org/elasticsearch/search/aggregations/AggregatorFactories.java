@@ -18,14 +18,17 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
@@ -50,24 +53,18 @@ public class AggregatorFactories {
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
     /**
-     * Parses the aggregation request recursively generating aggregator factories in turn.
-     *
-     * @param parseContext   The parse context.
-     *
-     * @return          The parsed aggregator factories.
-     *
-     * @throws IOException When parsing fails for unknown reasons.
+     * Parses the aggregation request recursively generating aggregator
+     * factories in turn.
      */
-    public static AggregatorFactories.Builder parseAggregators(QueryParseContext parseContext) throws IOException {
-        return parseAggregators(parseContext, 0);
+    public static AggregatorFactories.Builder parseAggregators(XContentParser parser) throws IOException {
+        return parseAggregators(parser, 0);
     }
 
-    private static AggregatorFactories.Builder parseAggregators(QueryParseContext parseContext, int level) throws IOException {
+    private static AggregatorFactories.Builder parseAggregators(XContentParser parser, int level) throws IOException {
         Matcher validAggMatcher = VALID_AGG_NAME.matcher("");
         AggregatorFactories.Builder factories = new AggregatorFactories.Builder();
 
         XContentParser.Token token = null;
-        XContentParser parser = parseContext.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token != XContentParser.Token.FIELD_NAME) {
                 throw new ParsingException(parser.getTokenLocation(),
@@ -111,7 +108,7 @@ public class AggregatorFactories {
                             throw new ParsingException(parser.getTokenLocation(),
                                     "Found two sub aggregation definitions under [" + aggregationName + "]");
                         }
-                        subFactories = parseAggregators(parseContext, level + 1);
+                        subFactories = parseAggregators(parser, level + 1);
                         break;
                     default:
                         if (aggBuilder != null) {
@@ -120,7 +117,7 @@ public class AggregatorFactories {
                         }
 
                         aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName,
-                                new AggParseContext(aggregationName, parseContext));
+                                new AggParseContext(aggregationName));
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT + "] under ["
@@ -156,11 +153,9 @@ public class AggregatorFactories {
      */
     public static final class AggParseContext {
         public final String name;
-        public final QueryParseContext queryParseContext;
 
-        public AggParseContext(String name, QueryParseContext queryParseContext) {
+        public AggParseContext(String name) {
             this.name = name;
-            this.queryParseContext = queryParseContext;
         }
     }
 
@@ -243,16 +238,7 @@ public class AggregatorFactories {
         return pipelineAggregatorFactories.size();
     }
 
-    public void validate() {
-        for (AggregatorFactory<?> factory : factories) {
-            factory.validate();
-        }
-        for (PipelineAggregationBuilder factory : pipelineAggregatorFactories) {
-            factory.validate(parent, factories, pipelineAggregatorFactories);
-        }
-    }
-
-    public static class Builder extends ToXContentToBytes implements Writeable {
+    public static class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
         private final List<AggregationBuilder> aggregationBuilders = new ArrayList<>();
         private final List<PipelineAggregationBuilder> pipelineAggregatorBuilders = new ArrayList<>();
@@ -290,9 +276,21 @@ public class AggregatorFactories {
             }
         }
 
-        public Builder addAggregators(AggregatorFactories factories) {
-            throw new UnsupportedOperationException("This needs to be removed");
+        public boolean mustVisitAllDocs() {
+            for (AggregationBuilder builder : aggregationBuilders) {
+                if (builder instanceof GlobalAggregationBuilder) {
+                    return true;
+                } else if (builder instanceof TermsAggregationBuilder) {
+                    if (((TermsAggregationBuilder) builder).minDocCount() == 0) {
+                        return true;
+                    }
+                }
+
+            }
+            return false;
         }
+
+
 
         public Builder addAggregator(AggregationBuilder factory) {
             if (!names.add(factory.name)) {
@@ -323,7 +321,8 @@ public class AggregatorFactories {
             if (skipResolveOrder) {
                 orderedpipelineAggregators = new ArrayList<>(pipelineAggregatorBuilders);
             } else {
-                orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorBuilders, this.aggregationBuilders);
+                orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorBuilders, this.aggregationBuilders,
+                        parent);
             }
             AggregatorFactory<?>[] aggFactories = new AggregatorFactory<?>[aggregationBuilders.size()];
             for (int i = 0; i < aggregationBuilders.size(); i++) {
@@ -333,7 +332,8 @@ public class AggregatorFactories {
         }
 
         private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(
-                List<PipelineAggregationBuilder> pipelineAggregatorBuilders, List<AggregationBuilder> aggBuilders) {
+                List<PipelineAggregationBuilder> pipelineAggregatorBuilders, List<AggregationBuilder> aggBuilders,
+                AggregatorFactory<?> parent) {
             Map<String, PipelineAggregationBuilder> pipelineAggregatorBuildersMap = new HashMap<>();
             for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
                 pipelineAggregatorBuildersMap.put(builder.getName(), builder);
@@ -343,10 +343,11 @@ public class AggregatorFactories {
                 aggBuildersMap.put(aggBuilder.name, aggBuilder);
             }
             List<PipelineAggregationBuilder> orderedPipelineAggregatorrs = new LinkedList<>();
-            List<PipelineAggregationBuilder> unmarkedBuilders = new ArrayList<PipelineAggregationBuilder>(pipelineAggregatorBuilders);
-            Set<PipelineAggregationBuilder> temporarilyMarked = new HashSet<PipelineAggregationBuilder>();
+            List<PipelineAggregationBuilder> unmarkedBuilders = new ArrayList<>(pipelineAggregatorBuilders);
+            Set<PipelineAggregationBuilder> temporarilyMarked = new HashSet<>();
             while (!unmarkedBuilders.isEmpty()) {
                 PipelineAggregationBuilder builder = unmarkedBuilders.get(0);
+                builder.validate(parent, aggBuilders, pipelineAggregatorBuilders);
                 resolvePipelineAggregatorOrder(aggBuildersMap, pipelineAggregatorBuildersMap, orderedPipelineAggregatorrs, unmarkedBuilders,
                         temporarilyMarked, builder);
             }
@@ -449,6 +450,11 @@ public class AggregatorFactories {
         }
 
         @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
+        }
+
+        @Override
         public int hashCode() {
             return Objects.hash(aggregationBuilders, pipelineAggregatorBuilders);
         }
@@ -465,6 +471,33 @@ public class AggregatorFactories {
             if (!Objects.equals(pipelineAggregatorBuilders, other.pipelineAggregatorBuilders))
                 return false;
             return true;
+        }
+
+        /**
+         * Rewrites the underlying aggregation builders into their primitive
+         * form. If the builder did not change the identity reference must be
+         * returned otherwise the builder will be rewritten infinitely.
+         */
+        public Builder rewrite(QueryRewriteContext context) throws IOException {
+            boolean changed = false;
+            Builder newBuilder = new Builder();
+
+            for (AggregationBuilder builder : aggregationBuilders) {
+                AggregationBuilder result = AggregationBuilder.rewriteAggregation(builder, context);
+                if (result != builder) {
+                    changed = true;
+                }
+                newBuilder.addAggregator(result);
+            }
+
+            if (changed) {
+                for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
+                    newBuilder.addPipelineAggregator(builder);
+                }
+                return newBuilder;
+            } else {
+                return this;
+            }
         }
     }
 }

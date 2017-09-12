@@ -25,6 +25,7 @@ import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicy;
 import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.blob.BlobListingDetails;
 import com.microsoft.azure.storage.blob.BlobProperties;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
@@ -33,11 +34,9 @@ import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cloud.azure.blobstore.util.SocketAccess;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -51,38 +50,33 @@ import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
 public class AzureStorageServiceImpl extends AbstractComponent implements AzureStorageService {
 
-    final AzureStorageSettings primaryStorageSettings;
-    final Map<String, AzureStorageSettings> secondariesStorageSettings;
+    final Map<String, AzureStorageSettings> storageSettings;
 
-    final Map<String, CloudBlobClient> clients;
+    final Map<String, CloudBlobClient> clients = new HashMap<>();
 
-    public AzureStorageServiceImpl(Settings settings) {
+    public AzureStorageServiceImpl(Settings settings, Map<String, AzureStorageSettings> storageSettings) {
         super(settings);
 
-        Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> storageSettings = AzureStorageSettings.parse(settings);
-        this.primaryStorageSettings = storageSettings.v1();
-        this.secondariesStorageSettings = storageSettings.v2();
+        this.storageSettings = storageSettings;
 
-        this.clients = new HashMap<>();
+        if (storageSettings.isEmpty()) {
+            // If someone did not register any settings, they basically can't use the plugin
+            throw new IllegalArgumentException("If you want to use an azure repository, you need to define a client configuration.");
+        }
 
         logger.debug("starting azure storage client instance");
 
         registerProxy();
 
-        // We register the primary client if any
-        if (primaryStorageSettings != null) {
-            logger.debug("registering primary client for account [{}]", primaryStorageSettings.getAccount());
-            createClient(primaryStorageSettings);
-        }
-
-        // We register all secondary clients
-        for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : secondariesStorageSettings.entrySet()) {
-            logger.debug("registering secondary client for account [{}]", azureStorageSettingsEntry.getKey());
+        // We register all regular azure clients
+        for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : this.storageSettings.entrySet()) {
+            logger.debug("registering regular client for account [{}]", azureStorageSettingsEntry.getKey());
             createClient(azureStorageSettingsEntry.getValue());
         }
     }
@@ -136,38 +130,21 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         }
     }
 
-    CloudBlobClient getSelectedClient(String account, LocationMode mode) {
-        logger.trace("selecting a client for account [{}], mode [{}]", account, mode.name());
-        AzureStorageSettings azureStorageSettings = null;
-
-        if (this.primaryStorageSettings == null) {
-            throw new IllegalArgumentException("No primary azure storage can be found. Check your elasticsearch.yml.");
-        }
-
-        if (Strings.hasLength(account)) {
-            azureStorageSettings = this.secondariesStorageSettings.get(account);
-        }
-
-        // if account is not secondary, it's the primary
+    CloudBlobClient getSelectedClient(String clientName, LocationMode mode) {
+        logger.trace("selecting a client named [{}], mode [{}]", clientName, mode.name());
+        AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
         if (azureStorageSettings == null) {
-            if (Strings.hasLength(account) == false || primaryStorageSettings.getName() == null || account.equals(primaryStorageSettings.getName())) {
-                azureStorageSettings = primaryStorageSettings;
-            }
-        }
-
-        if (azureStorageSettings == null) {
-            // We did not get an account. That's bad.
-            throw new IllegalArgumentException("Can not find azure account [" + account + "]. Check your elasticsearch.yml.");
+            throw new IllegalArgumentException("Can not find named azure client [" + clientName + "]. Check your settings.");
         }
 
         CloudBlobClient client = this.clients.get(azureStorageSettings.getAccount());
 
         if (client == null) {
-            throw new IllegalArgumentException("Can not find an azure client for account [" + account + "]");
+            throw new IllegalArgumentException("Can not find an azure client named [" + azureStorageSettings.getAccount() + "]");
         }
 
         // NOTE: for now, just set the location mode in case it is different;
-        // only one mode per storage account can be active at a time
+        // only one mode per storage clientName can be active at a time
         client.getDefaultRequestOptions().setLocationMode(mode);
 
         // Set timeout option if the user sets cloud.azure.storage.timeout or cloud.azure.storage.xxx.timeout (it's negative by default)
@@ -265,7 +242,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (blobContainer.exists()) {
+        if (SocketAccess.doPrivilegedException(blobContainer::exists)) {
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
             return SocketAccess.doPrivilegedException(azureBlob::exists);
         }
@@ -280,7 +257,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (blobContainer.exists()) {
+        if (SocketAccess.doPrivilegedException(blobContainer::exists)) {
             logger.trace("container [{}]: blob [{}] found. removing.", container, blob);
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
             SocketAccess.doPrivilegedVoidException(azureBlob::delete);
@@ -311,33 +288,26 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
         logger.debug("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix);
         MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
+        EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-
         SocketAccess.doPrivilegedVoidException(() -> {
             if (blobContainer.exists()) {
-                for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix == null ? "" : prefix))) {
+                for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix == null ? "" : prefix), false,
+                    enumBlobListingDetails, null, null)) {
                     URI uri = blobItem.getUri();
                     logger.trace("blob url [{}]", uri);
 
                     // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
                     // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
                     String blobPath = uri.getPath().substring(1 + container.length() + 1);
-
-                    CloudBlockBlob blob = blobContainer.getBlockBlobReference(blobPath);
-
-                    // fetch the blob attributes from Azure (getBlockBlobReference does not do this)
-                    // this is needed to retrieve the blob length (among other metadata) from Azure Storage
-                    blob.downloadAttributes();
-
-                    BlobProperties properties = blob.getProperties();
+                    BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
                     String name = blobPath.substring(keyPath.length());
                     logger.trace("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength());
                     blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
                 }
             }
         });
-
         return blobsBuilder.immutableMap();
     }
 
@@ -348,7 +318,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
         CloudBlockBlob blobSource = blobContainer.getBlockBlobReference(sourceBlob);
-        if (blobSource.exists()) {
+        if (SocketAccess.doPrivilegedException(blobSource::exists)) {
             CloudBlockBlob blobTarget = blobContainer.getBlockBlobReference(targetBlob);
             SocketAccess.doPrivilegedVoidException(() -> {
                 blobTarget.startCopy(blobSource);

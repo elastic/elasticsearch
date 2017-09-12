@@ -298,7 +298,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Returns top N hot-threads samples per node. The hot-threads are only
      * sampled for the node ids specified in the request.
-     * 
+     *
      */
     ActionFuture<NodesHotThreadsResponse> nodesHotThreads(NodesHotThreadsRequest request);
 
@@ -682,7 +682,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Delete a script from the cluster state
      */
-    DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String scriptLang, String id);
+    DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id);
 
     /**
      * Store a script in the cluster state
@@ -702,7 +702,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Get a script from the cluster state
      */
-    GetStoredScriptRequestBuilder prepareGetStoredScript(@Nullable String scriptLang, String id);
+    GetStoredScriptRequestBuilder prepareGetStoredScript(String id);
 
     /**
      * Get a script from the cluster state

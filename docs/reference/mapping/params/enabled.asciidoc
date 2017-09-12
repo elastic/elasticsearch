@@ -92,7 +92,6 @@ GET my_index/_mapping <3>
 <2> The document can be retrieved.
 <3> Checking the mapping reveals that no fields have been added.
 
-TIP: The `enabled` setting is allowed to have different settings for fields of
-the same name in the same index.  Its value can be updated on existing fields
+TIP: The `enabled` setting can be updated on existing fields
 using the <<indices-put-mapping,PUT mapping API>>.
 

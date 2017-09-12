@@ -22,19 +22,22 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.join.BitSetProducer;
-import org.elasticsearch.action.support.ToXContentToBytes;
+import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.search.join.ToChildBlockJoinQuery;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -46,8 +49,9 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentToBytes implements NamedWriteable {
+public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWriteable, ToXContentObject, Rewriteable<SortBuilder<?>> {
 
     protected SortOrder order = SortOrder.ASC;
 
@@ -89,14 +93,13 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
         return this.order;
     }
 
-    public static List<SortBuilder<?>> fromXContent(QueryParseContext context) throws IOException {
+    public static List<SortBuilder<?>> fromXContent(XContentParser parser) throws IOException {
         List<SortBuilder<?>> sortFields = new ArrayList<>(2);
-        XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 if (token == XContentParser.Token.START_OBJECT) {
-                    parseCompoundSortField(context, sortFields);
+                    parseCompoundSortField(parser, sortFields);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     String fieldName = parser.text();
                     sortFields.add(fieldOrScoreSort(fieldName));
@@ -109,7 +112,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
             String fieldName = parser.text();
             sortFields.add(fieldOrScoreSort(fieldName));
         } else if (token == XContentParser.Token.START_OBJECT) {
-            parseCompoundSortField(context, sortFields);
+            parseCompoundSortField(parser, sortFields);
         } else {
             throw new IllegalArgumentException("malformed sort format, either start with array, object, or an actual string");
         }
@@ -124,10 +127,9 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
         }
     }
 
-    private static void parseCompoundSortField(QueryParseContext context, List<SortBuilder<?>> sortFields)
+    private static void parseCompoundSortField(XContentParser parser, List<SortBuilder<?>> sortFields)
             throws IOException {
         XContentParser.Token token;
-        XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String fieldName = parser.currentName();
@@ -137,9 +139,9 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
                     sortFields.add(fieldOrScoreSort(fieldName).order(order));
                 } else {
                     if (PARSERS.containsKey(fieldName)) {
-                        sortFields.add(PARSERS.get(fieldName).fromXContent(context, fieldName));
+                        sortFields.add(PARSERS.get(fieldName).fromXContent(parser, fieldName));
                     } else {
-                        sortFields.add(FieldSortBuilder.fromXContent(context, fieldName));
+                        sortFields.add(FieldSortBuilder.fromXContent(parser, fieldName));
                     }
                 }
             }
@@ -178,32 +180,90 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
     }
 
     protected static Nested resolveNested(QueryShardContext context, String nestedPath, QueryBuilder nestedFilter) throws IOException {
-        Nested nested = null;
-        if (nestedPath != null) {
-            BitSetProducer rootDocumentsFilter = context.bitsetFilter(Queries.newNonNestedFilter());
-            ObjectMapper nestedObjectMapper = context.getObjectMapper(nestedPath);
-            if (nestedObjectMapper == null) {
-                throw new QueryShardException(context, "[nested] failed to find nested object under path [" + nestedPath + "]");
-            }
-            if (!nestedObjectMapper.nested().isNested()) {
-                throw new QueryShardException(context, "[nested] nested object under path [" + nestedPath + "] is not of nested type");
-            }
-            Query innerDocumentsQuery;
-            if (nestedFilter != null) {
-                context.nestedScope().nextLevel(nestedObjectMapper);
-                innerDocumentsQuery = QueryBuilder.rewriteQuery(nestedFilter, context).toFilter(context);
-                context.nestedScope().previousLevel();
-            } else {
-                innerDocumentsQuery = nestedObjectMapper.nestedTypeFilter();
-            }
-            nested = new Nested(rootDocumentsFilter,  innerDocumentsQuery);
-        }
-        return nested;
+        NestedSortBuilder nestedSortBuilder = new NestedSortBuilder(nestedPath);
+        nestedSortBuilder.setFilter(nestedFilter);
+        return resolveNested(context, nestedSortBuilder);
     }
 
-    protected static QueryBuilder parseNestedFilter(XContentParser parser, QueryParseContext context) {
+    protected static Nested resolveNested(QueryShardContext context, NestedSortBuilder nestedSort) throws IOException {
+        return resolveNested(context, nestedSort, null);
+    }
+
+    private static Nested resolveNested(QueryShardContext context, NestedSortBuilder nestedSort, Nested nested) throws IOException {
+        if (nestedSort == null || nestedSort.getPath() == null) {
+            return null;
+        }
+
+        String nestedPath = nestedSort.getPath();
+        QueryBuilder nestedFilter = nestedSort.getFilter();
+        NestedSortBuilder nestedNestedSort = nestedSort.getNestedSort();
+
+        // verify our nested path
+        ObjectMapper nestedObjectMapper = context.getObjectMapper(nestedPath);
+
+        if (nestedObjectMapper == null) {
+            throw new QueryShardException(context, "[nested] failed to find nested object under path [" + nestedPath + "]");
+        }
+        if (!nestedObjectMapper.nested().isNested()) {
+            throw new QueryShardException(context, "[nested] nested object under path [" + nestedPath + "] is not of nested type");
+        }
+
+        // get our parent query which will determines our parent documents
+        Query parentQuery;
+        ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
+        if (objectMapper == null) {
+            parentQuery = Queries.newNonNestedFilter();
+        } else {
+            parentQuery = objectMapper.nestedTypeFilter();
+        }
+
+        // get our child query, potentially applying a users filter
+        Query childQuery;
         try {
-            return context.parseInnerQueryBuilder();
+            context.nestedScope().nextLevel(nestedObjectMapper);
+            if (nestedFilter != null) {
+                assert nestedFilter == Rewriteable.rewrite(nestedFilter, context) : "nested filter is not rewritten";
+                if (nested == null) {
+                    // this is for back-compat, original single level nested sorting never applied a nested type filter
+                    childQuery = nestedFilter.toFilter(context);
+                } else {
+                    childQuery = Queries.filtered(nestedObjectMapper.nestedTypeFilter(), nestedFilter.toFilter(context));
+                }
+            } else {
+                childQuery = nestedObjectMapper.nestedTypeFilter();
+            }
+        } finally {
+            context.nestedScope().previousLevel();
+        }
+
+        // apply filters from the previous nested level
+        if (nested != null) {
+            parentQuery = Queries.filtered(parentQuery,
+                new ToParentBlockJoinQuery(nested.getInnerQuery(), nested.getRootFilter(), ScoreMode.None));
+
+            if (objectMapper != null) {
+                childQuery = Queries.filtered(childQuery,
+                    new ToChildBlockJoinQuery(nested.getInnerQuery(), context.bitsetFilter(objectMapper.nestedTypeFilter())));
+            }
+        }
+
+        // wrap up our parent and child and either process the next level of nesting or return
+        final Nested innerNested = new Nested(context.bitsetFilter(parentQuery), childQuery);
+        if (nestedNestedSort != null) {
+            try {
+                context.nestedScope().nextLevel(nestedObjectMapper);
+                return resolveNested(context, nestedNestedSort, innerNested);
+            } finally {
+                context.nestedScope().previousLevel();
+            }
+        } else {
+            return innerNested;
+        }
+    }
+
+    protected static QueryBuilder parseNestedFilter(XContentParser parser) {
+        try {
+            return parseInnerQueryBuilder(parser);
         } catch (Exception e) {
             throw new ParsingException(parser.getTokenLocation(), "Expected " + NESTED_FILTER_FIELD.getPreferredName() + " element.", e);
         }
@@ -211,6 +271,11 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
 
     @FunctionalInterface
     private interface Parser<T extends SortBuilder<?>> {
-        T fromXContent(QueryParseContext context, String elementName) throws IOException;
+        T fromXContent(XContentParser parser, String elementName) throws IOException;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

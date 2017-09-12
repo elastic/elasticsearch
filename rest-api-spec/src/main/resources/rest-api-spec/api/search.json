@@ -46,10 +46,6 @@
           "type" : "list",
           "description" : "A comma-separated list of fields to return as the docvalue representation of a field for each hit"
         },
-        "fielddata_fields": {
-          "type" : "list",
-          "description" : "A comma-separated list of fields to return as the docvalue representation of a field for each hit"
-        },
         "from": {
           "type" : "number",
           "description" : "Starting offset (default: 0)"
@@ -147,6 +143,10 @@
           "type" : "boolean",
           "description": "Whether to calculate and return scores even if they are not used for sorting"
         },
+        "track_total_hits": {
+          "type" : "boolean",
+          "description": "Indicate if the number of documents that match the query should be tracked"
+        },
         "typed_keys": {
           "type" : "boolean",
           "description" : "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
@@ -163,6 +163,16 @@
           "type" : "number",
           "description" : "The number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.",
           "default" : 512
+        },
+        "max_concurrent_shard_requests" : {
+          "type" : "number",
+          "description" : "The number of concurrent shard requests this search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
+          "default" : "The default grows with the number of nodes in the cluster but is at most 256."
+        },
+        "pre_filter_shard_size" : {
+          "type" : "number",
+          "description" : "A threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint.",
+          "default" : 128
         }
       }
     },

@@ -36,6 +36,7 @@ public final class FakeRestChannel extends AbstractRestChannel {
     private final CountDownLatch latch;
     private final AtomicInteger responses = new AtomicInteger();
     private final AtomicInteger errors = new AtomicInteger();
+    private RestResponse capturedRestResponse;
 
     public FakeRestChannel(RestRequest request, boolean detailedErrorsEnabled, int responseCount) {
         super(request, detailedErrorsEnabled);
@@ -69,12 +70,17 @@ public final class FakeRestChannel extends AbstractRestChannel {
 
     @Override
     public void sendResponse(RestResponse response) {
+        this.capturedRestResponse = response;
         if (response.status() == RestStatus.OK) {
             responses.incrementAndGet();
         } else {
             errors.incrementAndGet();
         }
         latch.countDown();
+    }
+    
+    public RestResponse capturedResponse() {
+        return capturedRestResponse;
     }
 
     public boolean await() throws InterruptedException {

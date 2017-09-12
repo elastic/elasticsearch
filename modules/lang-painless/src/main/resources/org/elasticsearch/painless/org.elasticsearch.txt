@@ -156,10 +156,32 @@ class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.Featu
   boolean overloadedStatic(boolean)
   Object twoFunctionsOfX(Function,Function)
   void listInput(List)
+  int org.elasticsearch.painless.FeatureTestAugmentation.getTotal()
+  int org.elasticsearch.painless.FeatureTestAugmentation.addToTotal(int)
 }
 
 class org.elasticsearch.search.lookup.FieldLookup -> org.elasticsearch.search.lookup.FieldLookup extends Object {
   def getValue()
   List getValues()
   boolean isEmpty()
+}
+
+class org.elasticsearch.index.similarity.ScriptedSimilarity.Query -> org.elasticsearch.index.similarity.ScriptedSimilarity$Query extends Object {
+  float getBoost()
+}
+
+class org.elasticsearch.index.similarity.ScriptedSimilarity.Field -> org.elasticsearch.index.similarity.ScriptedSimilarity$Field extends Object {
+  long getDocCount()
+  long getSumDocFreq()
+  long getSumTotalTermFreq()
+}
+
+class org.elasticsearch.index.similarity.ScriptedSimilarity.Term -> org.elasticsearch.index.similarity.ScriptedSimilarity$Term extends Object {
+  long getDocFreq()
+  long getTotalTermFreq()
+}
+
+class org.elasticsearch.index.similarity.ScriptedSimilarity.Doc -> org.elasticsearch.index.similarity.ScriptedSimilarity$Doc extends Object {
+  int getLength()
+  float getFreq()
 }

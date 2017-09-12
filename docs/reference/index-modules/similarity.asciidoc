@@ -20,29 +20,39 @@ settings.
 
 [source,js]
 --------------------------------------------------
-"similarity" : {
-  "my_similarity" : {
-    "type" : "DFR",
-    "basic_model" : "g",
-    "after_effect" : "l",
-    "normalization" : "h2",
-    "normalization.h2.c" : "3.0"
-  }
+PUT /index
+{
+    "settings" : {
+        "index" : {
+            "similarity" : {
+              "my_similarity" : {
+                "type" : "DFR",
+                "basic_model" : "g",
+                "after_effect" : "l",
+                "normalization" : "h2",
+                "normalization.h2.c" : "3.0"
+              }
+            }
+        }
+    }
 }
 --------------------------------------------------
+// CONSOLE
 
 Here we configure the DFRSimilarity so it can be referenced as
 `my_similarity` in mappings as is illustrate in the below example:
 
 [source,js]
 --------------------------------------------------
+PUT /index/_mapping/book
 {
-  "book" : {
-    "properties" : {
-      "title" : { "type" : "text", "similarity" : "my_similarity" }
-    }
+  "properties" : {
+    "title" : { "type" : "text", "similarity" : "my_similarity" }
+  }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 === Available similarities
@@ -164,6 +174,325 @@ for title queries and `0.7` for long queries. Default to `0.1`. When value appro
 Type name: `LMJelinekMercer`
 
 [float]
+[[scripted_similarity]]
+==== Scripted similarity
+
+A similarity that allows you to use a script in order to specify how scores
+should be computed. For instance, the below example shows how to reimplement
+TF-IDF:
+
+[source,js]
+--------------------------------------------------
+PUT /index
+{
+  "settings": {
+    "number_of_shards": 1, 
+    "similarity": {
+      "scripted_tfidf": {
+        "type": "scripted",
+        "script": {
+          "source": "double tf = Math.sqrt(doc.freq); double idf = Math.log((field.docCount+1.0)/(term.docFreq+1.0)) + 1.0; double norm = 1/Math.sqrt(doc.length); return query.boost * tf * idf * norm;"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "doc": {
+      "properties": {
+        "field": {
+          "type": "text",
+          "similarity": "scripted_tfidf"
+        }
+      }
+    }
+  }
+}
+
+PUT /index/doc/1
+{
+  "field": "foo bar foo"
+}
+
+PUT /index/doc/2
+{
+  "field": "bar baz"
+}
+
+POST /index/_refresh
+
+GET /index/_search?explain=true
+{
+  "query": {
+    "query_string": {
+      "query": "foo^1.7",
+      "default_field": "field"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+Which yields:
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 12,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 1.9508477,
+    "hits": [
+      {
+        "_shard": "[index][0]",
+        "_node": "OzrdjxNtQGaqs4DmioFw9A",
+        "_index": "index",
+        "_type": "doc",
+        "_id": "1",
+        "_score": 1.9508477,
+        "_source": {
+          "field": "foo bar foo"
+        },
+        "_explanation": {
+          "value": 1.9508477,
+          "description": "weight(field:foo in 0) [PerFieldSimilarity], result of:",
+          "details": [
+            {
+              "value": 1.9508477,
+              "description": "score from ScriptedSimilarity(weightScript=[null], script=[Script{type=inline, lang='painless', idOrCode='double tf = Math.sqrt(doc.freq); double idf = Math.log((field.docCount+1.0)/(term.docFreq+1.0)) + 1.0; double norm = 1/Math.sqrt(doc.length); return query.boost * tf * idf * norm;', options={}, params={}}]) computed from:",
+              "details": [
+                {
+                  "value": 1.0,
+                  "description": "weight",
+                  "details": []
+                },
+                {
+                  "value": 1.7,
+                  "description": "query.boost",
+                  "details": []
+                },
+                {
+                  "value": 2.0,
+                  "description": "field.docCount",
+                  "details": []
+                },
+                {
+                  "value": 4.0,
+                  "description": "field.sumDocFreq",
+                  "details": []
+                },
+                {
+                  "value": 5.0,
+                  "description": "field.sumTotalTermFreq",
+                  "details": []
+                },
+                {
+                  "value": 1.0,
+                  "description": "term.docFreq",
+                  "details": []
+                },
+                {
+                  "value": 2.0,
+                  "description": "term.totalTermFreq",
+                  "details": []
+                },
+                {
+                  "value": 2.0,
+                  "description": "doc.freq",
+                  "details": []
+                },
+                {
+                  "value": 3.0,
+                  "description": "doc.length",
+                  "details": []
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 12/"took" : $body.took/]
+// TESTRESPONSE[s/OzrdjxNtQGaqs4DmioFw9A/$body.hits.hits.0._node/]
+
+You might have noticed that a significant part of the script depends on
+statistics that are the same for every document. It is possible to make the
+above slightly more efficient by providing an `weight_script` which will
+compute the document-independent part of the score and will be available
+under the `weight` variable. When no `weight_script` is provided, `weight`
+is equal to `1`. The `weight_script` has access to the same variables as
+the `script` except `doc` since it is supposed to compute a
+document-independent contribution to the score.
+
+The below configuration will give the same tf-idf scores but is slightly
+more efficient:
+
+[source,js]
+--------------------------------------------------
+PUT /index
+{
+  "settings": {
+    "number_of_shards": 1, 
+    "similarity": {
+      "scripted_tfidf": {
+        "type": "scripted",
+        "weight_script": {
+          "source": "double idf = Math.log((field.docCount+1.0)/(term.docFreq+1.0)) + 1.0; return query.boost * idf;"
+        },
+        "script": {
+          "source": "double tf = Math.sqrt(doc.freq); double norm = 1/Math.sqrt(doc.length); return weight * tf * norm;"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "doc": {
+      "properties": {
+        "field": {
+          "type": "text",
+          "similarity": "scripted_tfidf"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /index/doc/1
+{
+  "field": "foo bar foo"
+}
+
+PUT /index/doc/2
+{
+  "field": "bar baz"
+}
+
+POST /index/_refresh
+
+GET /index/_search?explain=true
+{
+  "query": {
+    "query_string": {
+      "query": "foo^1.7",
+      "default_field": "field"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 1,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 1.9508477,
+    "hits": [
+      {
+        "_shard": "[index][0]",
+        "_node": "OzrdjxNtQGaqs4DmioFw9A",
+        "_index": "index",
+        "_type": "doc",
+        "_id": "1",
+        "_score": 1.9508477,
+        "_source": {
+          "field": "foo bar foo"
+        },
+        "_explanation": {
+          "value": 1.9508477,
+          "description": "weight(field:foo in 0) [PerFieldSimilarity], result of:",
+          "details": [
+            {
+              "value": 1.9508477,
+              "description": "score from ScriptedSimilarity(weightScript=[Script{type=inline, lang='painless', idOrCode='double idf = Math.log((field.docCount+1.0)/(term.docFreq+1.0)) + 1.0; return query.boost * idf;', options={}, params={}}], script=[Script{type=inline, lang='painless', idOrCode='double tf = Math.sqrt(doc.freq); double norm = 1/Math.sqrt(doc.length); return weight * tf * norm;', options={}, params={}}]) computed from:",
+              "details": [
+                {
+                  "value": 2.3892908,
+                  "description": "weight",
+                  "details": []
+                },
+                {
+                  "value": 1.7,
+                  "description": "query.boost",
+                  "details": []
+                },
+                {
+                  "value": 2.0,
+                  "description": "field.docCount",
+                  "details": []
+                },
+                {
+                  "value": 4.0,
+                  "description": "field.sumDocFreq",
+                  "details": []
+                },
+                {
+                  "value": 5.0,
+                  "description": "field.sumTotalTermFreq",
+                  "details": []
+                },
+                {
+                  "value": 1.0,
+                  "description": "term.docFreq",
+                  "details": []
+                },
+                {
+                  "value": 2.0,
+                  "description": "term.totalTermFreq",
+                  "details": []
+                },
+                {
+                  "value": 2.0,
+                  "description": "doc.freq",
+                  "details": []
+                },
+                {
+                  "value": 3.0,
+                  "description": "doc.length",
+                  "details": []
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 1/"took" : $body.took/]
+// TESTRESPONSE[s/OzrdjxNtQGaqs4DmioFw9A/$body.hits.hits.0._node/]
+
+////////////////////
+
+
+Type name: `scripted`
+
+[float]
 [[default-base]]
 ==== Default Similarity
 
@@ -175,36 +504,41 @@ it is <<indices-create-index,created>>:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index
+PUT /index
 {
   "settings": {
     "index": {
       "similarity": {
         "default": {
-          "type": "boolean"
+          "type": "classic"
         }
       }
     }
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 If you want to change the default similarity after creating the index
-you must <<indices-open-close,close>> your index, send the follwing
+you must <<indices-open-close,close>> your index, send the following
 request and <<indices-open-close,open>> it again afterwards:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index/_settings
+POST /index/_close
+
+PUT /index/_settings
 {
-  "settings": {
-    "index": {
-      "similarity": {
-        "default": {
-          "type": "boolean"
-        }
+  "index": {
+    "similarity": {
+      "default": {
+        "type": "classic"
       }
     }
   }
 }
+
+POST /index/_open
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]

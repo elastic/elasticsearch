@@ -48,21 +48,6 @@ Bad:
 * User actions make documents with structure defined by users.
 
 [float]
-[[modules-scripting-security-do-no-weaken]]
-=== Do not weaken script security settings
-By default Elasticsearch will run inline, stored, and filesystem scripts for
-the builtin languages, namely the scripting language Painless, the template
-language Mustache, and the expression language Expressions. These *ought* to be
-safe to expose to trusted users and to your application servers because they
-have strong security sandboxes. The Elasticsearch committers do not support any
-non-sandboxed scripting languages and using any would be a poor choice because:
-1. This drops a layer of security, leaving only Elasticsearch's builtin
-<<modules-scripting-other-layers, security layers>>.
-2. Non-sandboxed scripts have unchecked access to Elasticsearch's internals and
-can cause all kinds of trouble if misused.
-
-
-[float]
 [[modules-scripting-other-layers]]
 === Other security layers
 In addition to user privileges and script sandboxing Elasticsearch uses the
@@ -93,7 +78,7 @@ security of the Elasticsearch deployment.
 
 By default all script types are allowed to be executed.  This can be modified using the
 setting `script.allowed_types`.  Only the types specified as part of the setting will be
-allowed to be executed.  To specify no types are allowed, set `scripts.allowed_types` to
+allowed to be executed.  To specify no types are allowed, set `script.allowed_types` to
 be `none`.
 
 [source,yaml]
@@ -109,7 +94,7 @@ script.allowed_types: inline <1>
 
 By default all script contexts are allowed to be executed.  This can be modified using the
 setting `script.allowed_contexts`.  Only the contexts specified as part of the setting will
-be allowed to be executed.  To specify no contexts are allowed, set `scripts.allowed_contexts`
+be allowed to be executed.  To specify no contexts are allowed, set `script.allowed_contexts`
 to be `none`.
 
 [source,yaml]

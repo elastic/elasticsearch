@@ -51,8 +51,9 @@ public class RestGetSettingsAction extends BaseRestHandler {
             final SettingsFilter settingsFilter) {
         super(settings);
         this.indexScopedSettings = indexScopedSettings;
-        controller.registerHandler(GET, "/{index}/_settings/{name}", this);
         controller.registerHandler(GET, "/_settings/{name}", this);
+        controller.registerHandler(GET, "/{index}/_settings", this);
+        controller.registerHandler(GET, "/{index}/_settings/{name}", this);
         controller.registerHandler(GET, "/{index}/_setting/{name}", this);
         this.settingsFilter = settingsFilter;
     }
@@ -66,6 +67,8 @@ public class RestGetSettingsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
+        // This is required so the "flat_settings" parameter counts as consumed
+        request.paramAsBoolean("flat_settings", false);
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
                 .indices(Strings.splitStringByCommaToArray(request.param("index")))
                 .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strictExpandOpen()))

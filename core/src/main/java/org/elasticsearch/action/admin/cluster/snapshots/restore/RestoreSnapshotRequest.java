@@ -75,6 +75,41 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         this.repository = repository;
     }
 
+    public RestoreSnapshotRequest(StreamInput in) throws IOException {
+        super(in);
+        snapshot = in.readString();
+        repository = in.readString();
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        renamePattern = in.readOptionalString();
+        renameReplacement = in.readOptionalString();
+        waitForCompletion = in.readBoolean();
+        includeGlobalState = in.readBoolean();
+        partial = in.readBoolean();
+        includeAliases = in.readBoolean();
+        settings = readSettingsFromStream(in);
+        indexSettings = readSettingsFromStream(in);
+        ignoreIndexSettings = in.readStringArray();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(snapshot);
+        out.writeString(repository);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeOptionalString(renamePattern);
+        out.writeOptionalString(renameReplacement);
+        out.writeBoolean(waitForCompletion);
+        out.writeBoolean(includeGlobalState);
+        out.writeBoolean(partial);
+        out.writeBoolean(includeAliases);
+        writeSettingsToStream(settings, out);
+        writeSettingsToStream(indexSettings, out);
+        out.writeStringArray(ignoreIndexSettings);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -529,38 +564,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        snapshot = in.readString();
-        repository = in.readString();
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        renamePattern = in.readOptionalString();
-        renameReplacement = in.readOptionalString();
-        waitForCompletion = in.readBoolean();
-        includeGlobalState = in.readBoolean();
-        partial = in.readBoolean();
-        includeAliases = in.readBoolean();
-        settings = readSettingsFromStream(in);
-        indexSettings = readSettingsFromStream(in);
-        ignoreIndexSettings = in.readStringArray();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(snapshot);
-        out.writeString(repository);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeOptionalString(renamePattern);
-        out.writeOptionalString(renameReplacement);
-        out.writeBoolean(waitForCompletion);
-        out.writeBoolean(includeGlobalState);
-        out.writeBoolean(partial);
-        out.writeBoolean(includeAliases);
-        writeSettingsToStream(settings, out);
-        writeSettingsToStream(indexSettings, out);
-        out.writeStringArray(ignoreIndexSettings);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

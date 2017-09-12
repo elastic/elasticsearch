@@ -5,7 +5,7 @@
         index: queries_index
         body:
           mappings:
-            type:
+            doc:
               properties:
                 query:
                   type: percolator
@@ -15,7 +15,7 @@
   - do:
       index:
         index: queries_index
-        type: type
+        type: doc
         id:   test_percolator
         body:
           query:
@@ -29,7 +29,6 @@
         body:
           - query:
               percolate:
-                document_type: type
                 field: query
                 document:
                   foo: bar
@@ -41,7 +40,6 @@
           - index: queries_index
           - query:
               percolate:
-                document_type: type
                 field: query
                 document:
                   foo: bar

@@ -55,7 +55,7 @@ POST /exams/_search?size=0
              "stats" : {
                  "script" : {
                      "lang": "painless",
-                     "inline": "doc['grade'].value"
+                     "source": "doc['grade'].value"
                  }
              }
          }
@@ -75,7 +75,7 @@ POST /exams/_search?size=0
         "grades_stats" : {
             "stats" : { 
                 "script" : {
-                    "stored": "my_script",
+                    "id": "my_script",
                     "params" : {
                         "field" : "grade"
                     }
@@ -102,7 +102,7 @@ POST /exams/_search?size=0
                 "field" : "grade",
                 "script" : {
                     "lang": "painless",
-                    "inline": "_value * params.correction",
+                    "source": "_value * params.correction",
                     "params" : {
                         "correction" : 1.2
                     }

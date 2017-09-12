@@ -53,41 +53,18 @@ setup:
   - is_true: test_index.mappings
 
 ---
-"Get index infos for mappings only":
-
-  - do:
-      indices.get:
-        index: test_index
-        feature: _mapping
-
-  - is_true: test_index.mappings
-  - is_false: test_index.aliases
-  - is_false: test_index.settings
-
----
-"Get index infos should work on aliases":
-
-  - do:
-      indices.get:
-        index: test_blias
-        feature: _mapping
-
-  - is_true: test_index.mappings
-  - is_false: test_index.aliases
-  - is_false: test_index.settings
-
----
 "Get index infos should work for wildcards":
 
   - do:
       indices.get:
         index: test_*
-        feature: _mapping,_settings
 
   - is_true: test_index.mappings
+  - is_true: test_index.aliases
   - is_true: test_index.settings
   - is_true: test_index_2.settings
-  - is_false: test_index.aliases
+  - is_true: test_index_2.mappings
+  - is_true: test_index_2.aliases
 
 ---
 "Get index infos with human settings should return index creation date and version in readable format":
@@ -95,7 +72,6 @@ setup:
   - do:
       indices.get:
         index: test_index
-        feature: _settings
         human: true
 
   - is_true: test_index.settings.index.creation_date_string
@@ -107,7 +83,6 @@ setup:
   - do:
       indices.get:
         index: test_index
-        feature: _settings
 
   - is_false: test_index.settings.index.creation_date_string
   - is_false: test_index.settings.index.version.created_string
@@ -169,7 +144,6 @@ setup:
   - do:
       indices.get:
         index: test_index_*
-        feature: _settings
         expand_wildcards: closed
 
   - is_false: test_index_2.settings
@@ -181,7 +155,6 @@ setup:
   - do:
       indices.get:
         index: test_index_*
-        feature: _settings
         expand_wildcards: open,closed
 
   - is_true: test_index_2.settings

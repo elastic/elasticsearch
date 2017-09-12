@@ -48,7 +48,7 @@ POST /sales/_search?size=0
         "type_count" : {
             "value_count" : {
                 "script" : {
-                    "inline" : "doc['type'].value"
+                    "source" : "doc['type'].value"
                 }
             }
         }
@@ -68,7 +68,7 @@ POST /sales/_search?size=0
         "types_count" : {
             "value_count" : {
                 "script" : {
-                    "stored": "my_script",
+                    "id": "my_script",
                     "params" : {
                         "field" : "type"
                     }

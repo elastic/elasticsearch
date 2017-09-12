@@ -1,0 +1,46 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+            mappings:
+              doc:
+                properties:
+                  join_field:
+                    type: join
+                    relations:
+                      parent: child
+
+---
+"Parent/child inner hits":
+    - skip:
+        version: " - 5.5.99"
+        reason:  parent-join was added in 5.6.
+
+    - do:
+        index:
+          index: test
+          type:  doc
+          id:    1
+          body:  {"foo": "bar", "join_field": {"name" : "parent"} }
+
+    - do:
+        index:
+          index: test
+          type:  doc
+          id:    2
+          routing: 1
+          body:  {"bar": "baz", "join_field": { "name" : "child", "parent": "1"} }
+
+    - do:
+        indices.refresh: {}
+
+    - do:
+        search:
+          body: { "query" : { "has_child" : { "type" : "child", "query" : { "match_all" : {} }, "inner_hits" : {} } } }
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._index: "test" }
+    - match: { hits.hits.0._id: "1" }
+    - is_false: hits.hits.0.inner_hits.child.hits.hits.0._index
+    - match: { hits.hits.0.inner_hits.child.hits.hits.0._id: "2" }
+    - is_false: hits.hits.0.inner_hits.child.hits.hits.0._nested

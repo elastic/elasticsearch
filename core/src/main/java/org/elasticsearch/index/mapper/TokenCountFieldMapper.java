@@ -134,6 +134,10 @@ public class TokenCountFieldMapper extends FieldMapper {
             value = context.parser().textOrNull();
         }
 
+        if (value == null && fieldType().nullValue() == null) {
+            return;
+        }
+
         final int tokenCount;
         if (value == null) {
             tokenCount = (Integer) fieldType().nullValue();

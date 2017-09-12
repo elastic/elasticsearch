@@ -116,7 +116,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
                         throw new IllegalStateException("pre-2.0 translog found [" + path + "]");
                     case TranslogWriter.VERSION_CHECKPOINTS:
                         assert path.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX) : "new file ends with old suffix: " + path;
-                        assert checkpoint.numOps >= 0 : "expected at least 0 operatin but got: " + checkpoint.numOps;
+                        assert checkpoint.numOps >= 0 : "expected at least 0 operation but got: " + checkpoint.numOps;
                         assert checkpoint.offset <= channel.size() : "checkpoint is inconsistent with channel length: " + channel.size() + " " + checkpoint;
                         int len = headerStream.readInt();
                         if (len > channel.size()) {
@@ -130,8 +130,8 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
                             throw new TranslogCorruptedException("expected shard UUID " + uuidBytes + " but got: " + ref +
                                             " this translog file belongs to a different translog. path:" + path);
                         }
-                        final long firstOperationOffset =
-                                ref.length + CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC) + Integer.BYTES;
+                        final long firstOperationOffset;
+                        firstOperationOffset = ref.length + CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC) + Integer.BYTES;
                         return new TranslogReader(checkpoint, channel, path, firstOperationOffset);
 
                     default:

@@ -8,7 +8,7 @@ before they are executed and fill existing templates with template parameters.
 ------------------------------------------
 GET _search/template
 {
-    "inline" : {
+    "source" : {
       "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },
       "size" : "{{my_size}}"
     },
@@ -41,7 +41,7 @@ disable scripts per type and context as described in the
 ------------------------------------------
 GET _search/template
 {
-    "inline": {
+    "source": {
         "query": {
             "term": {
                 "message": "{{query_string}}"
@@ -66,7 +66,7 @@ like maps and array to their JSON representation:
 ------------------------------------------
 GET _search/template
 {
-  "inline": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
+  "source": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
   "params": {
     "statuses" : {
         "status": [ "pending", "published" ]
@@ -99,7 +99,7 @@ A more complex example substitutes an array of JSON objects:
 ------------------------------------------
 GET _search/template
 {
-    "inline": "{\"query\":{\"bool\":{\"must\": {{#toJson}}clauses{{/toJson}} }}}",
+    "source": "{\"query\":{\"bool\":{\"must\": {{#toJson}}clauses{{/toJson}} }}}",
     "params": {
         "clauses": [
             { "term": { "user" : "foo" } },
@@ -145,7 +145,7 @@ values of an array as a comma delimited string:
 ------------------------------------------
 GET _search/template
 {
-  "inline": {
+  "source": {
     "query": {
       "match": {
         "emails": "{{#join}}emails{{/join}}"
@@ -179,7 +179,7 @@ The function also accepts a custom delimiter:
 ------------------------------------------
 GET _search/template
 {
-  "inline": {
+  "source": {
     "query": {
       "range": {
         "born": {
@@ -228,7 +228,7 @@ A default value is written as `{{var}}{{^var}}default{{/var}}` for instance:
 [source,js]
 ------------------------------------------
 {
-  "inline": {
+  "source": {
     "query": {
       "range": {
         "line_no": {
@@ -348,7 +348,7 @@ via the REST API, should be written as a string:
 
 [source,js]
 --------------------
-"inline": "{\"query\":{\"bool\":{\"must\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
+"source": "{\"query\":{\"bool\":{\"must\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
 --------------------
 // NOTCONSOLE
 ==================================
@@ -366,7 +366,7 @@ As an example, it is useful to encode a URL:
 ------------------------------------------
 GET _render/template
 {
-    "inline" : {
+    "source" : {
         "query" : {
             "term": {
                 "http_access_log": "{{#url}}{{host}}/{{page}}{{/url}}"
@@ -402,17 +402,19 @@ The previous query will be rendered as:
 [[pre-registered-templates]]
 ===== Pre-registered template
 
-You can register search templates by storing them in the cluster state.
-There are REST APIs to manage these stored templates.
+You can register search templates by using the stored scripts api.
 
 [source,js]
 ------------------------------------------
-POST _search/template/<templatename>
+POST _scripts/<templatename>
 {
-    "template": {
-        "query": {
-            "match": {
-                "title": "{{query_string}}"
+    "script": {
+        "lang": "mustache",
+        "source": {
+            "query": {
+                "match": {
+                    "title": "{{query_string}}"
+                }
             }
         }
     }
@@ -440,7 +442,7 @@ This template can be retrieved by
 
 [source,js]
 ------------------------------------------
-GET _search/template/<templatename>
+GET _scripts/<templatename>
 ------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -450,10 +452,15 @@ which is rendered as:
 [source,js]
 ------------------------------------------
 {
-    "_id" : "<templatename>",
-    "lang" : "mustache",
-    "found" : true,
-    "template" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}"
+    "script" : {
+        "lang" : "mustache",
+        "source" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}",
+        "options": {
+          "content_type" : "application/json; charset=UTF-8"
+        }
+    },
+    "_id": "<templatename>",
+    "found": true
 }
 ------------------------------------------
 // TESTRESPONSE
@@ -462,7 +469,7 @@ This template can be deleted by
 
 [source,js]
 ------------------------------------------
-DELETE _search/template/<templatename>
+DELETE _scripts/<templatename>
 ------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -507,7 +514,7 @@ A template can be rendered in a response with given parameters using
 ------------------------------------------
 GET _render/template
 {
-  "inline": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
+  "source": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
   "params": {
     "statuses" : {
         "status": [ "pending", "published" ]
@@ -616,9 +623,9 @@ stored and file templates. Here is an example:
 --------------------------------------------------
 $ cat requests
 {"index": "test"}
-{"inline": {"query": {"match":  {"user" : "{{username}}" }}}, "params": {"username": "john"}} <1>
+{"source": {"query": {"match":  {"user" : "{{username}}" }}}, "params": {"username": "john"}} <1>
 {"index": "_all", "types": "accounts"}
-{"inline": {"query": {"{{query_type}}": {"name": "{{name}}" }}}, "params": {"query_type": "match_phrase_prefix", "name": "Smith"}}
+{"source": {"query": {"{{query_type}}": {"name": "{{name}}" }}}, "params": {"query_type": "match_phrase_prefix", "name": "Smith"}}
 {"index": "_all"}
 {"id": "template_1", "params": {"query_string": "search for these words" }} <2>
 

@@ -34,12 +34,12 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -235,9 +235,9 @@ public class TermVectorsService  {
         return selectedFields;
     }
 
-    private static Fields generateTermVectors(IndexShard indexShard, Map<String, Object> source, Collection<GetField> getFields, boolean withOffsets, @Nullable Map<String, String> perFieldAnalyzer, Set<String> fields) throws IOException {
+    private static Fields generateTermVectors(IndexShard indexShard, Map<String, Object> source, Collection<DocumentField> getFields, boolean withOffsets, @Nullable Map<String, String> perFieldAnalyzer, Set<String> fields) throws IOException {
         Map<String, Collection<Object>> values = new HashMap<>();
-        for (GetField getField : getFields) {
+        for (DocumentField getField : getFields) {
             String field = getField.getName();
             if (fields.contains(field)) { // some fields are returned even when not asked for, eg. _timestamp
                 values.put(field, getField.getValues());
@@ -279,7 +279,7 @@ public class TermVectorsService  {
         // select the right fields and generate term vectors
         ParseContext.Document doc = parsedDocument.rootDoc();
         Set<String> seenFields = new HashSet<>();
-        Collection<GetField> getFields = new HashSet<>();
+        Collection<DocumentField> documentFields = new HashSet<>();
         for (IndexableField field : doc.getFields()) {
             MappedFieldType fieldType = indexShard.mapperService().fullName(field.name());
             if (!isValidField(fieldType)) {
@@ -295,10 +295,10 @@ public class TermVectorsService  {
                 seenFields.add(field.name());
             }
             String[] values = doc.getValues(field.name());
-            getFields.add(new GetField(field.name(), Arrays.asList((Object[]) values)));
+            documentFields.add(new DocumentField(field.name(), Arrays.asList((Object[]) values)));
         }
         return generateTermVectors(indexShard, XContentHelper.convertToMap(parsedDocument.source(), true, request.xContentType()).v2(),
-            getFields, request.offsets(), request.perFieldAnalyzer(), seenFields);
+            documentFields, request.offsets(), request.perFieldAnalyzer(), seenFields);
     }
 
     private static ParsedDocument parseDocument(IndexShard indexShard, String index, String type, BytesReference doc,

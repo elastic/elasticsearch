@@ -37,7 +37,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
@@ -115,7 +115,7 @@ public class RandomSearchRequestGenerator {
     public static SearchSourceBuilder randomSearchSourceBuilder(
             Supplier<HighlightBuilder> randomHighlightBuilder,
             Supplier<SuggestBuilder> randomSuggestBuilder,
-            Supplier<RescoreBuilder<?>> randomRescoreBuilder,
+            Supplier<RescorerBuilder<?>> randomRescoreBuilder,
             Supplier<List<SearchExtBuilder>> randomExtBuilders,
             Supplier<CollapseBuilder> randomCollapseBuilder) {
         SearchSourceBuilder builder = new SearchSourceBuilder();
@@ -142,6 +142,9 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.terminateAfter(randomIntBetween(1, 100000));
+        }
+        if (randomBoolean()) {
+            builder.trackTotalHits(randomBoolean());
         }
 
         switch(randomInt(2)) {

@@ -104,9 +104,7 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
         builder.endObject();
     }
 
-    public static SpanWithinQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static SpanWithinQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         SpanQueryBuilder big = null;
@@ -119,13 +117,13 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (BIG_FIELD.match(currentFieldName)) {
-                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "span_within [big] must be of type span query");
                     }
                     big = (SpanQueryBuilder) query;
                 } else if (LITTLE_FIELD.match(currentFieldName)) {
-                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "span_within [little] must be of type span query");
                     }

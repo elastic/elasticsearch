@@ -33,7 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -43,8 +43,6 @@ import java.net.URLEncoder;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * A base class for the response of a write operation that involves a single doc
@@ -178,7 +176,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /**
-     * Returns the sequence number assigned for this change. Returns {@link SequenceNumbersService#UNASSIGNED_SEQ_NO} if the operation
+     * Returns the sequence number assigned for this change. Returns {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if the operation
      * wasn't performed (i.e., an update operation that resulted in a NOOP).
      */
     public long getSeqNo() {
@@ -265,7 +263,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             seqNo = in.readZLong();
             primaryTerm = in.readVLong();
         } else {
-            seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
             primaryTerm = 0;
         }
         forcedRefresh = in.readBoolean();
@@ -351,17 +349,15 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
                 context.setSeqNo(parser.longValue());
             } else if (_PRIMARY_TERM.equals(currentFieldName)) {
                 context.setPrimaryTerm(parser.longValue());
-            } else {
-                throwUnknownField(currentFieldName, parser.getTokenLocation());
             }
         } else if (token == XContentParser.Token.START_OBJECT) {
             if (_SHARDS.equals(currentFieldName)) {
                 context.setShardInfo(ShardInfo.fromXContent(parser));
             } else {
-                throwUnknownField(currentFieldName, parser.getTokenLocation());
+                parser.skipChildren(); // skip potential inner objects for forward compatibility
             }
-        } else {
-            throwUnknownToken(token, parser.getTokenLocation());
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            parser.skipChildren(); // skip potential inner arrays for forward compatibility
         }
     }
 
@@ -379,7 +375,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         protected Result result = null;
         protected boolean forcedRefresh;
         protected ShardInfo shardInfo = null;
-        protected Long seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        protected Long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         protected Long primaryTerm = 0L;
 
         public ShardId getShardId() {

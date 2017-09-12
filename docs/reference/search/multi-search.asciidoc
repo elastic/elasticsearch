@@ -103,9 +103,9 @@ also provides support for templates. Submit them like follows:
 -----------------------------------------------
 GET _msearch/template
 {"index" : "twitter"}
-{ "inline" : "{ \"query\": { \"match\": { \"message\" : \"{{keywords}}\" } } } }", "params": { "query_type": "match", "keywords": "some message" } }
+{ "source" : "{ \"query\": { \"match\": { \"message\" : \"{{keywords}}\" } } } }", "params": { "query_type": "match", "keywords": "some message" } }
 {"index" : "twitter"}
-{ "inline" : "{ \"query\": { \"match_{{template}}\": {} } }", "params": { "template": "all" } }
+{ "source" : "{ \"query\": { \"match_{{template}}\": {} } }", "params": { "template": "all" } }
 -----------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -116,12 +116,15 @@ You can also create search templates:
 
 [source,js]
 ------------------------------------------
-POST /_search/template/my_template_1
+POST /_scripts/my_template_1
 {
-    "template": {
-        "query": {
-            "match": {
-                "message": "{{query_string}}"
+    "script": {
+        "lang": "mustache",
+        "source": {
+            "query": {
+                "match": {
+                    "message": "{{query_string}}"
+                }
             }
         }
     }
@@ -132,12 +135,15 @@ POST /_search/template/my_template_1
 
 [source,js]
 ------------------------------------------
-POST /_search/template/my_template_2
+POST /_scripts/my_template_2
 {
-    "template": {
-        "query": {
-            "term": {
-                "{{field}}": "{{value}}"
+    "script": {
+        "lang": "mustache",
+        "source": {
+            "query": {
+                "term": {
+                    "{{field}}": "{{value}}"
+                }
             }
         }
     }
@@ -155,6 +161,6 @@ GET _msearch/template
 { "id": "my_template_1", "params": { "query_string": "some message" } }
 {"index" : "main"}
 { "id": "my_template_2", "params": { "field": "user", "value": "test" } }
-----------------------------------------------
+-----------------------------------------------
 // CONSOLE
 // TEST[continued]

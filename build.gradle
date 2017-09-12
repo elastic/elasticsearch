@@ -23,6 +23,7 @@ import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.Version
 
@@ -60,14 +61,18 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
       }
     }
   }
+  plugins.withType(BuildPlugin).whenPluginAdded {
+    project.licenseFile = project.rootProject.file('LICENSE.txt')
+    project.noticeFile = project.rootProject.file('NOTICE.txt')
+  }
 }
 
 /* Introspect all versions of ES that may be tested agains for backwards
  * compatibility. It is *super* important that this logic is the same as the
- * logic in VersionUtils.java, modulo alphas, betas, and rcs which are ignored
- * in gradle because they don't have any backwards compatibility guarantees
- * but are not ignored in VersionUtils.java because the tests expect them not
- * to be. */
+ * logic in VersionUtils.java, throwing out alphas because they don't have any
+ * backwards compatibility guarantees and only keeping the latest beta or rc
+ * in a branch if there are only betas and rcs in the branch so we have
+ * *something* to test against. */
 Version currentVersion = Version.fromString(VersionProperties.elasticsearch.minus('-SNAPSHOT'))
 int prevMajor = currentVersion.major - 1
 File versionFile = file('core/src/main/java/org/elasticsearch/Version.java')
@@ -79,18 +84,29 @@ int lastPrevMinor = -1 // the minor version number from the prev major we most r
 for (String line : versionLines) {
   /* Note that this skips alphas and betas which is fine because they aren't
    * compatible with anything. */
-  Matcher match = line =~ /\W+public static final Version V_(\d+)_(\d+)_(\d+) .*/
+  Matcher match = line =~ /\W+public static final Version V_(\d+)_(\d+)_(\d+)(_beta\d+|_rc\d+)? .*/
   if (match.matches()) {
     int major = Integer.parseInt(match.group(1))
     int minor = Integer.parseInt(match.group(2))
     int bugfix = Integer.parseInt(match.group(3))
-    Version foundVersion = new Version(major, minor, bugfix, false)
-    if (currentVersion != foundVersion) {
-      versions.add(foundVersion)
-    }
-    if (major == prevMajor && minor > lastPrevMinor) {
-      prevMinorIndex = versions.size() - 1
-      lastPrevMinor = minor
+    String suffix = (match.group(4) ?: '').replace('_', '-')
+    Version foundVersion = new Version(major, minor, bugfix, suffix, false)
+    if (currentVersion != foundVersion
+        && (major == prevMajor || major == currentVersion.major)) {
+      if (versions.isEmpty() || versions.last() != foundVersion) {
+        versions.add(foundVersion)
+      } else {
+        // Replace the earlier betas with later ones
+        Version last = versions.set(versions.size() - 1, foundVersion)
+        if (last.suffix == '') {
+          throw new InvalidUserDataException("Found two equal versions but"
+              + " the first one [$last] wasn't a beta.")
+        }
+      }
+      if (major == prevMajor && minor > lastPrevMinor) {
+        prevMinorIndex = versions.size() - 1
+        lastPrevMinor = minor
+      }
     }
   }
 }
@@ -104,11 +120,21 @@ if (currentVersion.bugfix == 0) {
   // unreleased version of closest branch. So for those cases, the version includes -SNAPSHOT,
   // and the bwc distribution will checkout and build that version.
   Version last = versions[-1]
-  versions[-1] = new Version(last.major, last.minor, last.bugfix, true)
+  versions[-1] = new Version(last.major, last.minor, last.bugfix, last.suffix, true)
   if (last.bugfix == 0) {
     versions[-2] = new Version(
-        versions[-2].major, versions[-2].minor, versions[-2].bugfix, true)
+        versions[-2].major, versions[-2].minor, versions[-2].bugfix, versions[-2].suffix, true)
   }
+}
+
+// build metadata from previous build, contains eg hashes for bwc builds
+String buildMetadataValue = System.getenv('BUILD_METADATA')
+if (buildMetadataValue == null) {
+  buildMetadataValue = ''
+}
+Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectEntries {
+  def (String key, String value) = it.split('=')
+  return [key, value]
 }
 
 // injecting groovy property variables into all projects
@@ -120,6 +146,7 @@ allprojects {
     // for backcompat testing
     indexCompatVersions = versions
     wireCompatVersions = versions.subList(prevMinorIndex, versions.size())
+    buildMetadata = buildMetadataMap
   }
 }
 
@@ -152,40 +179,40 @@ task verifyVersions {
   }
 }
 
+/*
+ * When adding backcompat behavior that spans major versions, temporarily
+ * disabling the backcompat tests is necessary. This flag controls
+ * the enabled state of every bwc task. It should be set back to true
+ * after the backport of the backcompat code is complete.
+ */
+allprojects {
+  ext.bwc_tests_enabled = true
+}
+
+task verifyBwcTestsEnabled {
+  doLast {
+    if (project.bwc_tests_enabled == false) {
+      throw new GradleException('Bwc tests are disabled. They must be re-enabled after completing backcompat behavior backporting.')
+    }
+  }
+}
+
 task branchConsistency {
   description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
   group 'Verification'
-  dependsOn verifyVersions
+  dependsOn verifyVersions, verifyBwcTestsEnabled
 }
 
 subprojects {
-  project.afterEvaluate {
-    // include license and notice in jars
-    tasks.withType(Jar) {
-      into('META-INF') {
-        from project.rootProject.rootDir
-        include 'LICENSE.txt'
-        include 'NOTICE.txt'
-      }
-    }
-    // ignore missing javadocs
-    tasks.withType(Javadoc) { Javadoc javadoc ->
-      // the -quiet here is because of a bug in gradle, in that adding a string option
-      // by itself is not added to the options. By adding quiet, both this option and
-      // the "value" -quiet is added, separated by a space. This is ok since the javadoc
-      // command already adds -quiet, so we are just duplicating it
-      // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
-      javadoc.options.encoding='UTF8'
-      javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
-      /*
-      TODO: building javadocs with java 9 b118 is currently broken with weird errors, so
-      for now this is commented out...try again with the next ea build...
-      javadoc.executable = new File(project.javaHome, 'bin/javadoc')
-      if (project.javaVersion == JavaVersion.VERSION_1_9) {
-        // TODO: remove this hack! gradle should be passing this...
-        javadoc.options.addStringOption('source', '8')
-      }*/
-    }
+  // ignore missing javadocs
+  tasks.withType(Javadoc) { Javadoc javadoc ->
+    // the -quiet here is because of a bug in gradle, in that adding a string option
+    // by itself is not added to the options. By adding quiet, both this option and
+    // the "value" -quiet is added, separated by a space. This is ok since the javadoc
+    // command already adds -quiet, so we are just duplicating it
+    // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
+    javadoc.options.encoding='UTF8'
+    javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
   }
 
   /* Sets up the dependencies that we build as part of this project but
@@ -196,8 +223,9 @@ subprojects {
     "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':core',
-    "org.elasticsearch.client:rest:${version}": ':client:rest',
-    "org.elasticsearch.client:sniffer:${version}": ':client:sniffer',
+    "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
+    "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',
+    "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
     "org.elasticsearch.client:test:${version}": ':client:test',
     "org.elasticsearch.client:transport:${version}": ':client:transport',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
@@ -223,9 +251,11 @@ subprojects {
       ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
       ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
       ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+      if (indexCompatVersions.size() > 1) {
+        ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+        ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+        ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+      }
     } else {
       ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
       ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
@@ -239,6 +269,27 @@ subprojects {
           subs.substitute(subs.module(k)).with(subs.project(v))
         }
       }
+    }
+
+    // Handle javadoc dependencies across projects. Order matters: the linksOffline for
+    // org.elasticsearch:elasticsearch must be the last one or all the links for the
+    // other packages (e.g org.elasticsearch.client) will point to core rather than
+    // their own artifacts.
+    if (project.plugins.hasPlugin(BuildPlugin)) {
+      String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
+      Closure sortClosure = { a, b -> b.group <=> a.group }
+      Closure depJavadocClosure = { dep ->
+        if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
+          String substitution = project.ext.projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
+          if (substitution != null) {
+            project.javadoc.dependsOn substitution + ':javadoc'
+            String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
+            project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${project.project(substitution).buildDir}/docs/javadoc/"
+          }
+        }
+      }
+      project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+      project.configurations.provided.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
     }
   }
 }
@@ -401,4 +452,18 @@ task run(type: Run) {
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
   impliesSubProjects = true
+}
+
+/* Remove assemble on all qa projects because we don't need to publish
+ * artifacts for them. */
+gradle.projectsEvaluated {
+  subprojects {
+    if (project.path.startsWith(':qa')) {
+      Task assemble = project.tasks.findByName('assemble')
+      if (assemble) {
+        project.tasks.remove(assemble)
+        project.build.dependsOn.remove('assemble')
+      }
+    }
+  }
 }

@@ -89,7 +89,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     public void testEmptyValue() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
-        WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(getRandomType(), "");
+        WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder("doc", "");
         assertEquals(wildcardQueryBuilder.toQuery(context).getClass(), WildcardQuery.class);
     }
 
@@ -129,7 +129,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
     public void testWithMetaDataField() throws IOException {
         QueryShardContext context = createShardContext();
-        for (String field : new String[]{"_type", "_all"}) {
+        for (String field : new String[]{"field1", "field2"}) {
             WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(field, "toto");
             Query query = wildcardQueryBuilder.toQuery(context);
             Query expected = new WildcardQuery(new Term(field, "toto"));

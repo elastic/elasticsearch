@@ -18,14 +18,15 @@
  */
 package org.elasticsearch.search.suggest;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -44,7 +45,7 @@ import java.util.Objects;
  * Suggesting works by suggesting terms/phrases that appear in the suggest text that are similar compared
  * to the terms in provided text. These suggestions are based on several options described in this class.
  */
-public class SuggestBuilder extends ToXContentToBytes implements Writeable {
+public class SuggestBuilder implements Writeable, ToXContentObject {
     protected static final ParseField GLOBAL_TEXT_FIELD = new ParseField("text");
 
     private String globalText;
@@ -199,5 +200,10 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(globalText, suggestions);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

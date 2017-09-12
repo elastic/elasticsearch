@@ -62,7 +62,12 @@ public class AzureRepository extends BlobStoreRepository {
     public static final String TYPE = "azure";
 
     public static final class Repository {
-        public static final Setting<String> ACCOUNT_SETTING = Setting.simpleString("account", Property.NodeScope);
+
+        @Deprecated // Replaced by client
+        public static final Setting<String> ACCOUNT_SETTING = new Setting<>("account", "default", Function.identity(),
+            Property.NodeScope, Property.Deprecated);
+        public static final Setting<String> CLIENT_NAME = new Setting<>("client", ACCOUNT_SETTING, Function.identity());
+
         public static final Setting<String> CONTAINER_SETTING =
             new Setting<>("container", "elasticsearch-snapshots", Function.identity(), Property.NodeScope);
         public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", Property.NodeScope);

@@ -32,7 +32,7 @@ setup:
       search:
         index: test_1
         scroll: 5m
-        from: 10000
+        size: 10010
 
 ---
 "Rescore window limits":

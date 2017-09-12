@@ -61,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -270,7 +269,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     });
                 }, actionListener);
 
-                assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
+                latch.await();
 
                 //there can be only either one failure that causes the request to fail straightaway or success
                 assertThat(preSendFailures.get() + iteration.transport.failures() + iteration.transport.successes(), lessThanOrEqualTo(1));

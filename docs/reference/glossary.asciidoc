@@ -45,7 +45,7 @@
 [[glossary-id]] id ::
 
   The ID of a <<glossary-document,document>> identifies a document. The
-  `index/type/id` of a document must be unique. If no ID is provided,
+  `index/id` of a document must be unique. If no ID is provided,
   then it will be auto-generated. (also see <<glossary-routing,routing>>)
 
 [[glossary-field]] field ::
@@ -64,8 +64,8 @@
 [[glossary-index]] index ::
 
   An index is like a _table_ in a relational database. It has a
-  <<glossary-mapping,mapping>> which defines the <<glossary-field,fields>> in the index,
-  which are grouped by multiple <<glossary-type,type>>.
+  <<glossary-mapping,mapping>> which contains a <<glossary-type,type>>,
+  which contains the <<glossary-field,fields>> in the index.
   +
   An index is a logical namespace which maps to one or more
   <<glossary-primary-shard,primary shards>> and can have zero or more
@@ -74,8 +74,8 @@
 [[glossary-mapping]] mapping ::
 
   A mapping is like a _schema definition_ in a relational database. Each
-  <<glossary-index,index>> has a mapping, which defines each <<glossary-type,type>>
-  within the index, plus a number of index-wide settings.
+  <<glossary-index,index>> has a mapping, which defines a <<glossary-type,type>>,
+  plus a number of index-wide settings.
   +
   A mapping can either be defined explicitly, or it will be generated
   automatically when a document is indexed.
@@ -179,11 +179,6 @@
 
 [[glossary-type]] type ::
 
-  A type represents the _type_ of document, e.g. an `email`, a `user`, or a `tweet`.
-  The search API can filter documents by type.
-  An <<glossary-index,index>> can contain multiple types, and each type has a
-  list of <<glossary-field,fields>> that can be specified for
-  <<glossary-document,documents>> of that type.  Fields with the same
-  name in different types in the same index must have the same <<glossary-mapping,mapping>>
-  (which defines how each field in the document is indexed and made searchable).
+  A type used to represent the _type_ of document, e.g. an `email`, a `user`, or a `tweet`.
+  Types are deprecated and are in the process of being removed.  See <<removal-of-types>>.
 

@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.metrics.max.ParsedMax;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -60,5 +61,37 @@ public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
             // cannot differentiate between them. Also we cannot recreate the exact String representation
             assertEquals(parsed.getValue(), Double.NEGATIVE_INFINITY, 0);
         }
+    }
+
+    @Override
+    protected InternalMax mutateInstance(InternalMax instance) {
+        String name = instance.getName();
+        double value = instance.getValue();
+        DocValueFormat formatter = instance.format;
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 2)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            if (Double.isFinite(value)) {
+                value += between(1, 100);
+            } else {
+                value = between(1, 100);
+            }
+            break;
+        case 2:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalMax(name, value, formatter, pipelineAggregators, metaData);
     }
 }

@@ -212,6 +212,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
         validateIndexName("..", "must not be '.' or '..'");
 
+        validateIndexName("foo:bar", "must not contain ':'");
     }
 
     private void validateIndexName(String indexName, String errorMessage) {

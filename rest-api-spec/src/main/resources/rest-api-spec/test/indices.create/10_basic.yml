@@ -12,7 +12,7 @@
       indices.get_mapping:
         index: test_index
 
-  - match: { test_index.mappings.type_1: {}}
+  - is_true: test_index.mappings.type_1
 
 ---
 "Create index with settings":
@@ -29,6 +29,19 @@
         index: test_index
 
   - match: { test_index.settings.index.number_of_replicas: "0"}
+
+---
+"Create index":
+  - skip:
+      version: " - 5.5.99"
+      reason: create index response contains index name since 5.6.0
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - match: { acknowledged: true }
+  - match: { index: "test_index"}
 
 ---
 "Create index with wait_for_active_shards set to all":

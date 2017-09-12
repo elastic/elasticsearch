@@ -39,7 +39,7 @@ setup:
                 script_fields:
                     bar:
                         script:
-                            inline: "doc['foo'].value + params.x;"
+                            source: "doc['foo'].value + params.x;"
                             params:
                                 x: "bbb"
 
@@ -53,7 +53,7 @@ setup:
                 script_fields:
                     bar:
                         script:
-                            inline: "boolean compare(Supplier s, def v) {return s.get() == v;}
+                            source: "boolean compare(Supplier s, def v) {return s.get() == v;}
                                      compare(() -> { return doc['foo'].value }, params.x);"
                             params:
                                 x: "aaa"
@@ -65,7 +65,7 @@ setup:
                 script_fields:
                     bar:
                         script:
-                            inline: "boolean compare(Supplier s, def v) {return s.get() == v;}
+                            source: "boolean compare(Supplier s, def v) {return s.get() == v;}
                                      compare(() -> { return doc['foo'].value }, params.x);"
                             params:
                                 x: "bbb"
@@ -80,7 +80,7 @@ setup:
                 script_fields:
                     bar:
                         script:
-                            inline: "(doc['foo'].value?.length() ?: 0) + params.x;"
+                            source: "(doc['foo'].value?.length() ?: 0) + params.x;"
                             params:
                                 x: 5
 
@@ -95,7 +95,7 @@ setup:
                 script_fields:
                     bar:
                         script:
-                            inline: "(doc['missing'].value?.length() ?: 0) + params.x;"
+                            source: "(doc['missing'].value?.length() ?: 0) + params.x;"
                             params:
                                 x: 5
 
@@ -109,7 +109,7 @@ setup:
                 script_fields:
                     bar:
                         script:
-                            inline: "doc.date.value.dayOfWeek"
+                            source: "doc.date.value.dayOfWeek"
 
     - match: { hits.hits.0.fields.bar.0: 7}
 
@@ -121,7 +121,7 @@ setup:
                 script_fields:
                     bar:
                         script:
-                            inline: >
+                            source: >
                               StringBuilder b = new StringBuilder();
                               for (def date : doc.dates) {
                                 b.append(" ").append(date.getDayOfWeek());
@@ -139,7 +139,7 @@ setup:
             script_fields:
               bar:
                 script:
-                  inline: "while (true) {}"
+                  source: "while (true) {}"
 
     - match: { error.root_cause.0.type: "script_exception" }
     - match: { error.root_cause.0.reason: "compile error" }

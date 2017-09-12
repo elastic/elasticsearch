@@ -33,6 +33,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder;
 import org.elasticsearch.search.suggest.phrase.Laplace;
 import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
@@ -444,8 +445,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
     public void testPrefixLength() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
-                .put("index.analysis.analyzer.reverse.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse")
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.body.filter", "lowercase")
                 .put("index.analysis.analyzer.bigram.tokenizer", "standard")
@@ -457,7 +456,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                 .startObject("body").field("type", "text").field("analyzer", "body").endObject()
-                .startObject("body_reverse").field("type", "text").field("analyzer", "reverse").endObject()
                 .startObject("bigram").field("type", "text").field("analyzer", "bigram").endObject()
                 .endObject()
                 .endObject().endObject();
@@ -485,8 +483,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
     public void testBasicPhraseSuggest() throws IOException, URISyntaxException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
-                .put("index.analysis.analyzer.reverse.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse")
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.body.filter", "lowercase")
                 .put("index.analysis.analyzer.bigram.tokenizer", "standard")
@@ -502,10 +498,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
                             field("type", "text").
                             field("analyzer", "body")
                         .endObject()
-                        .startObject("body_reverse").
-                            field("type", "text").
-                            field("analyzer", "reverse")
-                         .endObject()
                          .startObject("bigram").
                              field("type", "text").
                              field("analyzer", "bigram")
@@ -535,7 +527,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
             "Police sergeant who stops the film",
         };
         for (String line : strings) {
-            index("test", "type1", line, "body", line, "body_reverse", line, "bigram", line);
+            index("test", "type1", line, "body", line, "bigram", line);
         }
         refresh();
 
@@ -573,14 +565,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
         // pass in a correct phrase - set confidence to 0.99
         phraseSuggest.confidence(0.99f);
         searchSuggest = searchSuggest( "Arthur, King of the Britons", "simple_phrase", phraseSuggest);
-        assertSuggestion(searchSuggest, 0, "simple_phrase", "arthur king of the britons");
-
-        //test reverse suggestions with pre & post filter
-        phraseSuggest
-            .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"))
-            .addCandidateGenerator(candidateGenerator("body_reverse").minWordLength(1).suggestMode("always").preFilter("reverse")
-                .postFilter("reverse"));
-        searchSuggest = searchSuggest( "Artur, Ging of the Britons",  "simple_phrase", phraseSuggest);
         assertSuggestion(searchSuggest, 0, "simple_phrase", "arthur king of the britons");
 
         // set all mass to trigrams (not indexed)
@@ -632,8 +616,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
     public void testSizeParam() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
-                .put("index.analysis.analyzer.reverse.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse")
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.body.filter", "lowercase")
                 .put("index.analysis.analyzer.bigram.tokenizer", "standard")
@@ -651,10 +633,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
                                 .field("type", "text")
                                 .field("analyzer", "body")
                             .endObject()
-                         .startObject("body_reverse")
-                             .field("type", "text")
-                             .field("analyzer", "reverse")
-                         .endObject()
                          .startObject("bigram")
                              .field("type", "text")
                              .field("analyzer", "bigram")
@@ -666,9 +644,9 @@ public class SuggestSearchIT extends ESIntegTestCase {
         ensureGreen();
 
         String line = "xorr the god jewel";
-        index("test", "type1", "1", "body", line, "body_reverse", line, "bigram", line);
+        index("test", "type1", "1", "body", line, "bigram", line);
         line = "I got it this time";
-        index("test", "type1", "2", "body", line, "body_reverse", line, "bigram", line);
+        index("test", "type1", "2", "body", line, "bigram", line);
         refresh();
 
         PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("bigram")
@@ -1025,23 +1003,18 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         @Override
         public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
-            if (context.instanceClazz != ExecutableScript.class) {
+            if (context.instanceClazz != TemplateScript.class) {
                 throw new UnsupportedOperationException();
             }
-            ExecutableScript.Factory factory = p -> {
+            TemplateScript.Factory factory = p -> {
                 String script = scriptSource;
                 for (Entry<String, Object> entry : p.entrySet()) {
                     script = script.replace("{{" + entry.getKey() + "}}", String.valueOf(entry.getValue()));
                 }
                 String result = script;
-                return new ExecutableScript() {
+                return new TemplateScript(null) {
                     @Override
-                    public void setNextVar(String name, Object value) {
-                        throw new UnsupportedOperationException("setNextVar not supported");
-                    }
-
-                    @Override
-                    public Object run() {
+                    public String execute() {
                         return result;
                     }
                 };

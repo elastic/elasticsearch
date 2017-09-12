@@ -106,9 +106,10 @@
       cat.shards:
         index: sync_id_test
         h: index,state,sync_id
+# 20 chars for sync ids with 5.x which uses time-based uuids and 22 with 6.x which uses random uuids
   - match:
       $body: |
-               /^(sync_id_test\s+STARTED\s+[A-Za-z0-9_\-]{20}\n){5}$/
+               /^(sync_id_test\s+STARTED\s+[A-Za-z0-9_\-]{20,22}\n){5}$/
 
   - do:
       indices.delete:

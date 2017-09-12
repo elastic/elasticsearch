@@ -39,23 +39,22 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.join.mapper.MetaJoinFieldMapper;
+import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -139,42 +138,41 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
     }
 
     private static List<Field> createParentDocument(String id) {
-        return Arrays.asList(new StringField(TypeFieldMapper.NAME, PARENT_TYPE, Field.Store.NO),
+        return Arrays.asList(
                 new StringField(UidFieldMapper.NAME, Uid.createUid(PARENT_TYPE, id), Field.Store.NO),
-                createJoinField(PARENT_TYPE, id));
+                new StringField("join_field", PARENT_TYPE, Field.Store.NO),
+                createJoinField(PARENT_TYPE, id)
+        );
     }
 
     private static List<Field> createChildDocument(String childId, String parentId, int value) {
-        return Arrays.asList(new StringField(TypeFieldMapper.NAME, CHILD_TYPE, Field.Store.NO),
+        return Arrays.asList(
                 new StringField(UidFieldMapper.NAME, Uid.createUid(CHILD_TYPE, childId), Field.Store.NO),
-                new SortedNumericDocValuesField("number", value),
-                createJoinField(PARENT_TYPE, parentId));
+                new StringField("join_field", CHILD_TYPE, Field.Store.NO),
+                createJoinField(PARENT_TYPE, parentId),
+                new SortedNumericDocValuesField("number", value)
+        );
     }
 
     private static SortedDocValuesField createJoinField(String parentType, String id) {
-        return new SortedDocValuesField(ParentFieldMapper.joinField(parentType), new BytesRef(id));
+        return new SortedDocValuesField("join_field#" + parentType, new BytesRef(id));
     }
 
     @Override
     protected MapperService mapperServiceMock() {
+        ParentJoinFieldMapper joinFieldMapper = createJoinFieldMapper();
         MapperService mapperService = mock(MapperService.class);
-        DocumentMapper childDocMapper = mock(DocumentMapper.class);
-        DocumentMapper parentDocMapper = mock(DocumentMapper.class);
-        ParentFieldMapper parentFieldMapper = createParentFieldMapper();
-        when(childDocMapper.parentFieldMapper()).thenReturn(parentFieldMapper);
-        when(parentDocMapper.parentFieldMapper()).thenReturn(parentFieldMapper);
-        when(mapperService.documentMapper(CHILD_TYPE)).thenReturn(childDocMapper);
-        when(mapperService.documentMapper(PARENT_TYPE)).thenReturn(parentDocMapper);
-        when(mapperService.docMappers(false)).thenReturn(Arrays.asList(new DocumentMapper[] { childDocMapper, parentDocMapper }));
-        when(parentDocMapper.typeFilter(Mockito.any())).thenReturn(new TypeFieldMapper.TypesQuery(new BytesRef(PARENT_TYPE)));
-        when(childDocMapper.typeFilter(Mockito.any())).thenReturn(new TypeFieldMapper.TypesQuery(new BytesRef(CHILD_TYPE)));
+        MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
+        when(metaJoinFieldType.getMapper()).thenReturn(joinFieldMapper);
+        when(mapperService.fullName("_parent_join")).thenReturn(metaJoinFieldType);
         return mapperService;
     }
 
-    private static ParentFieldMapper createParentFieldMapper() {
+    private static ParentJoinFieldMapper createJoinFieldMapper() {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        return new ParentFieldMapper.Builder("parent_type")
-            .type(PARENT_TYPE).build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+        return new ParentJoinFieldMapper.Builder("join_field")
+                .addParent(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
+                .build(new Mapper.BuilderContext(settings, new ContentPath(0)));
     }
 
     private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalChildren> verify)

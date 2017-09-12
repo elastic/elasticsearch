@@ -66,9 +66,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setMaxBufferedDocs(100);
-        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a
-                                                   // single segment with
-                                                   // predictable docIds
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             for (int i = 0; i < 10; i++) {
                 Document doc = new Document();
@@ -123,4 +121,38 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             }
         }
     }
+    
+    /**
+     * Test documents with arrays of text
+     */
+    public void testSignificanceOnTextArrays() throws IOException {
+        TextFieldType textFieldType = new TextFieldType();
+        textFieldType.setName("text");
+        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
+
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            for (int i = 0; i < 10; i++) {
+                Document doc = new Document();
+                doc.add(new Field("text", "foo", textFieldType));
+                String json ="{ \"text\" : [\"foo\",\"foo\"], \"title\" : [\"foo\", \"foo\"]}";
+                doc.add(new StoredField("_source", new BytesRef(json)));
+                w.addDocument(doc);
+            }
+
+            SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text");
+            sigAgg.sourceFieldNames(Arrays.asList(new String [] {"title", "text"}));
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals("test expects a single segment", 1, reader.leaves().size());
+                IndexSearcher searcher = new IndexSearcher(reader);                                
+                searchAndReduce(searcher, new TermQuery(new Term("text", "foo")), sigAgg, textFieldType);
+                // No significant results to be found in this test - only checking we don't end up
+                // with the internal exception discovered in issue https://github.com/elastic/elasticsearch/issues/25029
+            }
+        }
+    }
+    
+    
 }

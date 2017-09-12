@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -35,9 +36,18 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
     private List<String> keys;
 
     @Override
+    protected int maxNumberOfBuckets() {
+        return 10;
+    }
+
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         keys = new ArrayList<>();
+        // InternalAdjacencyMatrix represents the upper triangular matrix:
+        // 2 filters (matrix of 2x2) generates 3 buckets
+        // 3 filters generates 6 buckets
+        // 4 filters generates 10 buckets
         int numFilters = randomIntBetween(2, 4);
         String[] filters = new String[numFilters];
         for (int i = 0; i < numFilters; i++) {
@@ -92,5 +102,34 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
     @Override
     protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
         return ParsedAdjacencyMatrix.class;
+    }
+
+    @Override
+    protected InternalAdjacencyMatrix mutateInstance(InternalAdjacencyMatrix instance) {
+        String name = instance.getName();
+        List<InternalAdjacencyMatrix.InternalBucket> buckets = instance.getBuckets();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 2)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            buckets = new ArrayList<>(buckets);
+            buckets.add(new InternalAdjacencyMatrix.InternalBucket(randomAlphaOfLength(10), randomNonNegativeLong(),
+                    InternalAggregations.EMPTY));
+            break;
+        case 2:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators, metaData);
     }
 }

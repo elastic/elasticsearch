@@ -1,8 +1,6 @@
 [[painless-getting-started]]
 == Getting Started with Painless
 
-experimental[The Painless scripting language is new and is still marked as experimental. The syntax or API may be changed in the future in non-backwards compatible ways if required.]
-
 include::painless-description.asciidoc[]
 
 [[painless-examples]]
@@ -55,7 +53,7 @@ GET hockey/_search
       "script_score": {
         "script": {
           "lang": "painless",
-          "inline": "int total = 0; for (int i = 0; i < doc['goals'].length; ++i) { total += doc['goals'][i]; } return total;"
+          "source": "int total = 0; for (int i = 0; i < doc['goals'].length; ++i) { total += doc['goals'][i]; } return total;"
         }
       }
     }
@@ -77,7 +75,7 @@ GET hockey/_search
     "total_goals": {
       "script": {
         "lang": "painless",
-        "inline": "int total = 0; for (int i = 0; i < doc['goals'].length; ++i) { total += doc['goals'][i]; } return total;"
+        "source": "int total = 0; for (int i = 0; i < doc['goals'].length; ++i) { total += doc['goals'][i]; } return total;"
       }
     }
   }
@@ -101,7 +99,7 @@ GET hockey/_search
       "order": "asc",
       "script": {
         "lang": "painless",
-        "inline": "doc['first.keyword'].value + ' ' + doc['last.keyword'].value"
+        "source": "doc['first.keyword'].value + ' ' + doc['last.keyword'].value"
       }
     }
   }
@@ -141,7 +139,7 @@ POST hockey/player/1/_update
 {
   "script": {
     "lang": "painless",
-    "inline": "ctx._source.last = params.last",
+    "source": "ctx._source.last = params.last",
     "params": {
       "last": "hockey"
     }
@@ -159,7 +157,7 @@ POST hockey/player/1/_update
 {
   "script": {
     "lang": "painless",
-    "inline": "ctx._source.last = params.last; ctx._source.nick = params.nick",
+    "source": "ctx._source.last = params.last; ctx._source.nick = params.nick",
     "params": {
       "last": "gaudreau",
       "nick": "hockey"
@@ -189,7 +187,7 @@ GET hockey/_search
   "script_fields": {
     "birth_year": {
       "script": {
-        "inline": "doc.born.value.year"
+        "source": "doc.born.value.year"
       }
     }
   }
@@ -230,7 +228,7 @@ POST hockey/player/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "inline": "if (ctx._source.last =~ /b/) {ctx._source.last += \"matched\"} else {ctx.op = 'noop'}"
+    "source": "if (ctx._source.last =~ /b/) {ctx._source.last += \"matched\"} else {ctx.op = 'noop'}"
   }
 }
 ----------------------------------------------------------------
@@ -245,7 +243,7 @@ POST hockey/player/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "inline": "if (ctx._source.last ==~ /[^aeiou].*[aeiou]/) {ctx._source.last += \"matched\"} else {ctx.op = 'noop'}"
+    "source": "if (ctx._source.last ==~ /[^aeiou].*[aeiou]/) {ctx._source.last += \"matched\"} else {ctx.op = 'noop'}"
   }
 }
 ----------------------------------------------------------------
@@ -260,7 +258,7 @@ POST hockey/player/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "inline": "ctx._source.last = /[aeiou]/.matcher(ctx._source.last).replaceAll('')"
+    "source": "ctx._source.last = /[aeiou]/.matcher(ctx._source.last).replaceAll('')"
   }
 }
 ----------------------------------------------------------------
@@ -276,7 +274,7 @@ POST hockey/player/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "inline": "ctx._source.last = /n([aeiou])/.matcher(ctx._source.last).replaceAll('$1')"
+    "source": "ctx._source.last = /n([aeiou])/.matcher(ctx._source.last).replaceAll('$1')"
   }
 }
 ----------------------------------------------------------------
@@ -298,7 +296,7 @@ POST hockey/player/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "inline": "ctx._source.last = ctx._source.last.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"
+    "source": "ctx._source.last = ctx._source.last.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"
   }
 }
 ----------------------------------------------------------------
@@ -313,7 +311,7 @@ POST hockey/player/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "inline": "ctx._source.last = ctx._source.last.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"
+    "source": "ctx._source.last = ctx._source.last.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"
   }
 }
 ----------------------------------------------------------------

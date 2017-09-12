@@ -26,22 +26,53 @@ import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.spi.ExtendedLogger;
 import org.apache.logging.log4j.spi.ExtendedLoggerWrapper;
 
-import java.lang.ref.WeakReference;
 import java.util.WeakHashMap;
 
+/**
+ * A logger that prefixes all messages with a fixed prefix specified during construction. The prefix mechanism uses the marker construct, so
+ * for the prefixes to appear, the logging layout pattern must include the marker in its pattern.
+ */
 class PrefixLogger extends ExtendedLoggerWrapper {
 
-    // we can not use the built-in Marker tracking (MarkerManager) because the MarkerManager holds
-    // a permanent reference to the marker; however, we have transient markers from index-level and
-    // shard-level components so this would effectively be a memory leak
-    private static final WeakHashMap<String, WeakReference<Marker>> markers = new WeakHashMap<>();
+    /*
+     * We can not use the built-in Marker tracking (MarkerManager) because the MarkerManager holds a permanent reference to the marker;
+     * however, we have transient markers from index-level and shard-level components so this would effectively be a memory leak. Since we
+     * can not tie into the lifecycle of these components, we have to use a mechanism that enables garbage collection of such markers when
+     * they are no longer in use.
+     */
+    private static final WeakHashMap<String, Marker> markers = new WeakHashMap<>();
 
+    /**
+     * Return the size of the cached markers. This size can vary as markers are cached but collected during GC activity when a given prefix
+     * is no longer in use.
+     *
+     * @return the size of the cached markers
+     */
+    static int markersSize() {
+        return markers.size();
+    }
+
+    /**
+     * The marker for this prefix logger.
+     */
     private final Marker marker;
 
+    /**
+     * Obtain the prefix for this prefix logger. This can be used to create a logger with the same prefix as this one.
+     *
+     * @return the prefix
+     */
     public String prefix() {
         return marker.getName();
     }
 
+    /**
+     * Construct a prefix logger with the specified name and prefix.
+     *
+     * @param logger the extended logger to wrap
+     * @param name   the name of this prefix logger
+     * @param prefix the prefix for this prefix logger
+     */
     PrefixLogger(final ExtendedLogger logger, final String name, final String prefix) {
         super(logger, name, null);
 
@@ -49,11 +80,15 @@ class PrefixLogger extends ExtendedLoggerWrapper {
         final Marker actualMarker;
         // markers is not thread-safe, so we synchronize access
         synchronized (markers) {
-            final WeakReference<Marker> marker = markers.get(actualPrefix);
-            final Marker maybeMarker = marker == null ? null : marker.get();
+            final Marker maybeMarker = markers.get(actualPrefix);
             if (maybeMarker == null) {
                 actualMarker = new MarkerManager.Log4jMarker(actualPrefix);
-                markers.put(actualPrefix, new WeakReference<>(actualMarker));
+                /*
+                 * We must create a new instance here as otherwise the marker will hold a reference to the key in the weak hash map; as
+                 * those references are held strongly, this would give a strong reference back to the key preventing them from ever being
+                 * collected. This also guarantees that no other strong reference can be held to the prefix anywhere.
+                 */
+                markers.put(new String(actualPrefix), actualMarker);
             } else {
                 actualMarker = maybeMarker;
             }

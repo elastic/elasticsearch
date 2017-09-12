@@ -24,8 +24,8 @@ import java.util.Locale;
 public class UppercaseProcessorTests extends AbstractStringProcessorTestCase {
 
     @Override
-    protected AbstractStringProcessor newProcessor(String field, boolean ignoreMissing) {
-        return new UppercaseProcessor(randomAlphaOfLength(10), field, ignoreMissing);
+    protected AbstractStringProcessor newProcessor(String field, boolean ignoreMissing, String targetField) {
+        return new UppercaseProcessor(randomAlphaOfLength(10), field, ignoreMissing, targetField);
     }
 
     @Override

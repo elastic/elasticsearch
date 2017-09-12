@@ -29,13 +29,16 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -49,6 +52,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singletonList(InternalSettingsPlugin.class);
+    }
 
     public void testTypeNameStartsWithIllegalDot() {
         String index = "test-index";
@@ -179,10 +187,21 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     private void assertUnmappedFieldType(Version version) {
         MapperService mapperService =
             createIndex("index", Settings.builder().put("index.version.created", version).build()).mapperService();
-        assertThat(mapperService.unmappedFieldType("keyword"), instanceOf(KeywordFieldType.class));
-        assertThat(mapperService.unmappedFieldType("long"), instanceOf(NumberFieldType.class));
-        // back compat
-        assertThat(mapperService.unmappedFieldType("string"), instanceOf(KeywordFieldType.class));
+        if (version.after(Version.V_2_4_6)) {
+            assertThat(mapperService.unmappedFieldType("keyword"), instanceOf(KeywordFieldType.class));
+        } else {
+            assertThat(mapperService.unmappedFieldType("keyword"), instanceOf(StringFieldType.class));
+        }
+        if (version.after(Version.V_2_4_6)) {
+            assertThat(mapperService.unmappedFieldType("long"), instanceOf(NumberFieldType.class));
+        } else {
+            assertThat(mapperService.unmappedFieldType("long"), instanceOf(LegacyLongFieldMapper.LongFieldType.class));
+        }
+        if (version.after(Version.V_2_4_6)) {
+            assertThat(mapperService.unmappedFieldType("string"), instanceOf(KeywordFieldType.class));
+        } else {
+            assertThat(mapperService.unmappedFieldType("string"), instanceOf(StringFieldType.class));
+        }
         assertWarnings("[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
     }
 

@@ -44,6 +44,9 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -100,6 +103,8 @@ public class JobProvider {
     );
 
     private static final int RECORDS_SIZE_PARAM = 10000;
+    private static final int BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE = 20;
+    private static final double ESTABLISHED_MEMORY_CV_THRESHOLD = 0.1;
 
     private final Client client;
     private final Settings settings;
@@ -941,6 +946,96 @@ public class JobProvider {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_VALUE))
                 .addSort(SortBuilders.fieldSort(ModelSizeStats.LOG_TIME_FIELD.getPreferredName()).order(SortOrder.DESC));
+    }
+
+    /**
+     * Get the "established" memory usage of a job, if it has one.
+     * In order for a job to be considered to have established memory usage it must:
+     * - Have generated at least <code>BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE</code> buckets of results
+     * - Have generated at least one model size stats document
+     * - Have low variability of model bytes in model size stats documents in the time period covered by the last
+     *   <code>BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE</code> buckets, which is defined as having a coefficient of variation
+     *   of no more than <code>ESTABLISHED_MEMORY_CV_THRESHOLD</code>
+     * @param jobId the id of the job for which established memory usage is required
+     * @param handler if the method succeeds, this will be passed the established memory usage (in bytes) of the
+     *                specified job, or <code>null</code> if memory usage is not yet established
+     * @param errorHandler if a problem occurs, the exception will be passed to this handler
+     */
+    public void getEstablishedMemoryUsage(String jobId, Consumer<Long> handler, Consumer<Exception> errorHandler) {
+
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+
+        // Step 2. Find the count, mean and standard deviation of memory usage over the time span of the last N bucket results,
+        //         where N is the number of buckets required to consider memory usage "established"
+        Consumer<QueryPage<Bucket>> bucketHandler = buckets -> {
+            if (buckets.results().size() == 1) {
+                String searchFromTimeMs = Long.toString(buckets.results().get(0).getTimestamp().getTime());
+                SearchRequestBuilder search = client.prepareSearch(indexName)
+                        .setSize(0)
+                        .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                        .setQuery(new BoolQueryBuilder()
+                                .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(searchFromTimeMs))
+                                .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_VALUE)))
+                        .addAggregation(AggregationBuilders.extendedStats("es").field(ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName()));
+                search.execute(ActionListener.wrap(
+                        response -> {
+                            List<Aggregation> aggregations = response.getAggregations().asList();
+                            if (aggregations.size() == 1) {
+                                ExtendedStats extendedStats = (ExtendedStats) aggregations.get(0);
+                                long count = extendedStats.getCount();
+                                if (count <= 0) {
+                                    // model size stats haven't changed in the last N buckets, so the latest (older) ones are established
+                                    modelSizeStats(jobId, modelSizeStats -> handleModelBytesOrNull(handler, modelSizeStats), errorHandler);
+                                } else if (count == 1) {
+                                    // no need to do an extra search in the case of exactly one document being aggregated
+                                    handler.accept((long) extendedStats.getAvg());
+                                } else {
+                                    double coefficientOfVaration = extendedStats.getStdDeviation() / extendedStats.getAvg();
+                                    LOGGER.trace("[{}] Coefficient of variation [{}] when calculating established memory use", jobId,
+                                            coefficientOfVaration);
+                                    // is there sufficient stability in the latest model size stats readings?
+                                    if (coefficientOfVaration <= ESTABLISHED_MEMORY_CV_THRESHOLD) {
+                                        // yes, so return the latest model size as established
+                                        modelSizeStats(jobId, modelSizeStats -> handleModelBytesOrNull(handler, modelSizeStats),
+                                                errorHandler);
+                                    } else {
+                                        // no - we don't have an established model size
+                                        handler.accept(null);
+                                    }
+                                }
+                            } else {
+                                handler.accept(null);
+                            }
+                        }, errorHandler
+                ));
+            } else {
+                handler.accept(null);
+            }
+        };
+
+        // Step 1. Find the time span of the most recent N bucket results, where N is the number of buckets
+        //         required to consider memory usage "established"
+        BucketsQueryBuilder.BucketsQuery bucketQuery = new BucketsQueryBuilder()
+                .sortField(Result.TIMESTAMP.getPreferredName())
+                .sortDescending(true).from(BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE - 1).size(1)
+                .includeInterim(false)
+                .build();
+        bucketsViaInternalClient(jobId, bucketQuery, bucketHandler, e -> {
+            if (e instanceof ResourceNotFoundException) {
+                handler.accept(null);
+            } else {
+                errorHandler.accept(e);
+            }
+        });
+    }
+
+    /**
+     * A model size of 0 implies a completely uninitialised model.  This method converts 0 to <code>null</code>
+     * before calling a handler.
+     */
+    private static void handleModelBytesOrNull(Consumer<Long> handler, ModelSizeStats modelSizeStats) {
+        long modelBytes = modelSizeStats.getModelBytes();
+        handler.accept(modelBytes > 0 ? modelBytes : null);
     }
 
     /**

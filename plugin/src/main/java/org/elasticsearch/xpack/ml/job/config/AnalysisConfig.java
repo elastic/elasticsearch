@@ -426,7 +426,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
     public static class Builder {
 
-        static final TimeValue DEFAULT_BUCKET_SPAN = TimeValue.timeValueMinutes(5);
+        public static final TimeValue DEFAULT_BUCKET_SPAN = TimeValue.timeValueMinutes(5);
 
         private List<Detector> detectors;
         private TimeValue bucketSpan = DEFAULT_BUCKET_SPAN;

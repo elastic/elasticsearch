@@ -103,13 +103,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public static final String TRANSLOG_GENERATION_KEY = "translog_generation";
     public static final String TRANSLOG_UUID_KEY = "translog_uuid";
-    public static final String TRANSLOG_UUID_NA = "_________na__________"; // same length as a normal uuid
+    public static final String TRANSLOG_UUID_NA = "_________na___________"; // same length as a normal uuid
     public static final String TRANSLOG_FILE_PREFIX = "translog-";
     public static final String TRANSLOG_FILE_SUFFIX = ".tlog";
     public static final String CHECKPOINT_SUFFIX = ".ckp";
     public static final String CHECKPOINT_FILE_NAME = "translog" + CHECKPOINT_SUFFIX;
     public static final String HISTORY_UUID_KEY = "history_uuid";
-    public static final String HISTORY_UUID_NA = "_________na__________"; // same length as a normal uuid;
+    public static final String HISTORY_UUID_NA = "_________na___________"; // same length as a normal uuid;
 
     static final Pattern PARSE_STRICT_ID_PATTERN = Pattern.compile("^" + TRANSLOG_FILE_PREFIX + "(\\d+)(\\.tlog)$");
 

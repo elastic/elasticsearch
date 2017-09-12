@@ -59,13 +59,13 @@ final class Checkpoint {
     // size of 6.0.0 checkpoint
     static final int FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
         + Integer.BYTES  // ops
-        + Long.BYTES // offset
-        + Long.BYTES // generation
-        + Long.BYTES // minimum sequence number, introduced in 6.0.0
-        + Long.BYTES // maximum sequence number, introduced in 6.0.0
-        + Long.BYTES // global checkpoint, introduced in 6.0.0
-        + Long.BYTES // minimum translog generation in the translog - introduced in 6.0.0
-        + (22 + 1) * 2     // uuids (22 chars + one byte length)
+        + Long.BYTES   // offset
+        + Long.BYTES   // generation
+        + Long.BYTES   // minimum sequence number, introduced in 6.0.0
+        + Long.BYTES   // maximum sequence number, introduced in 6.0.0
+        + Long.BYTES   // global checkpoint, introduced in 6.0.0
+        + Long.BYTES   // minimum translog generation in the translog - introduced in 6.0.0
+        + (22 + 1) * 2 // uuids (22 chars + one byte length)
         + CodecUtil.footerLength();
 
     // size of 5.0.0 checkpoint
@@ -188,7 +188,7 @@ final class Checkpoint {
             CodecUtil.writeFooter(indexOutput);
 
             assert indexOutput.getFilePointer() == FILE_SIZE :
-                "get you numbers straight; bytes written: " + indexOutput.getFilePointer() + ", buffer size: " + FILE_SIZE
+                "get your numbers straight; bytes written: " + indexOutput.getFilePointer() + ", buffer size: " + FILE_SIZE
                     + ", ckp: " + checkpoint;
             assert indexOutput.getFilePointer() < 512 :
                 "checkpoint files have to be smaller than 512 bytes for atomic writes; size: " + indexOutput.getFilePointer();

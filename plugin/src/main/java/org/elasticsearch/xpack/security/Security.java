@@ -243,7 +243,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
             final List<BootstrapCheck> checks = new ArrayList<>();
             checks.addAll(Arrays.asList(
                     new SSLBootstrapCheck(sslService, settings, env),
-                    new TokenPassphraseBootstrapCheck(settings),
                     new TokenSSLBootstrapCheck(settings),
                     new PkiRealmBootstrapCheck(settings, sslService)));
             checks.addAll(InternalRealms.getBootstrapChecks(settings));
@@ -491,7 +490,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         settingsList.add(CompositeRolesStore.CACHE_SIZE_SETTING);
         settingsList.add(FieldPermissionsCache.CACHE_SIZE_SETTING);
         settingsList.add(TokenService.TOKEN_EXPIRATION);
-        settingsList.add(TokenService.TOKEN_PASSPHRASE);
         settingsList.add(TokenService.DELETE_INTERVAL);
         settingsList.add(TokenService.DELETE_TIMEOUT);
         settingsList.add(SecurityServerTransportInterceptor.TRANSPORT_TYPE_PROFILE_SETTING);

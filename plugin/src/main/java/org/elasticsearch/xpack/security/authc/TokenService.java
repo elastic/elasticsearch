@@ -116,7 +116,6 @@ public final class TokenService extends AbstractComponent {
     private static final String TYPE = "doc";
 
     public static final String THREAD_POOL_NAME = XPackPlugin.SECURITY + "-token-key";
-    public static final Setting<SecureString> TOKEN_PASSPHRASE = SecureSetting.secureString("xpack.security.authc.token.passphrase", null);
     public static final Setting<TimeValue> TOKEN_EXPIRATION = Setting.timeSetting("xpack.security.authc.token.timeout",
             TimeValue.timeValueMinutes(20L), TimeValue.timeValueSeconds(1L), Property.NodeScope);
     public static final Setting<TimeValue> DELETE_INTERVAL = Setting.timeSetting("xpack.security.authc.token.delete.interval",
@@ -155,14 +154,7 @@ public final class TokenService extends AbstractComponent {
         byte[] saltArr = new byte[SALT_BYTES];
         secureRandom.nextBytes(saltArr);
 
-        final SecureString tokenPassphraseValue = TOKEN_PASSPHRASE.get(settings);
-        final SecureString tokenPassphrase;
-        if (tokenPassphraseValue.length() == 0) {
-            tokenPassphrase = generateTokenKey();
-        } else {
-            tokenPassphrase = tokenPassphraseValue;
-        }
-
+        final SecureString tokenPassphrase = generateTokenKey();
         this.clock = clock.withZone(ZoneOffset.UTC);
         this.expirationDelay = TOKEN_EXPIRATION.get(settings);
         this.internalClient = internalClient;
@@ -236,41 +228,32 @@ public final class TokenService extends AbstractComponent {
         } else {
             // the token exists and the value is at least as long as we'd expect
             final Version version = Version.readVersion(in);
-            if (version.before(Version.V_5_5_0)) {
-                listener.onResponse(null);
-            } else {
-                final BytesKey decodedSalt = new BytesKey(in.readByteArray());
-                final BytesKey passphraseHash;
-                if (version.onOrAfter(Version.V_6_0_0_beta2)) {
-                    passphraseHash = new BytesKey(in.readByteArray());
-                } else {
-                    passphraseHash = keyCache.currentTokenKeyHash;
-                }
-                KeyAndCache keyAndCache = keyCache.get(passphraseHash);
-                if (keyAndCache != null) {
-                    final SecretKey decodeKey = keyAndCache.getKey(decodedSalt);
-                    final byte[] iv = in.readByteArray();
-                    if (decodeKey != null) {
-                        try {
-                            decryptToken(in, getDecryptionCipher(iv, decodeKey, version, decodedSalt), version, listener);
-                        } catch (GeneralSecurityException e) {
-                            // could happen with a token that is not ours
-                            logger.warn("invalid token", e);
-                            listener.onResponse(null);
-                        }
-                    } else {
-                        /* As a measure of protected against DOS, we can pass requests requiring a key
-                         * computation off to a single thread executor. For normal usage, the initial
-                         * request(s) that require a key computation will be delayed and there will be
-                         * some additional latency.
-                         */
-                        internalClient.threadPool().executor(THREAD_POOL_NAME)
-                                .submit(new KeyComputingRunnable(in, iv, version, decodedSalt, listener, keyAndCache));
+            final BytesKey decodedSalt = new BytesKey(in.readByteArray());
+            final BytesKey passphraseHash = new BytesKey(in.readByteArray());
+            KeyAndCache keyAndCache = keyCache.get(passphraseHash);
+            if (keyAndCache != null) {
+                final SecretKey decodeKey = keyAndCache.getKey(decodedSalt);
+                final byte[] iv = in.readByteArray();
+                if (decodeKey != null) {
+                    try {
+                        decryptToken(in, getDecryptionCipher(iv, decodeKey, version, decodedSalt), version, listener);
+                    } catch (GeneralSecurityException e) {
+                        // could happen with a token that is not ours
+                        logger.warn("invalid token", e);
+                        listener.onResponse(null);
                     }
                 } else {
-                    logger.debug("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet());
-                    listener.onResponse(null);
+                    /* As a measure of protected against DOS, we can pass requests requiring a key
+                     * computation off to a single thread executor. For normal usage, the initial
+                     * request(s) that require a key computation will be delayed and there will be
+                     * some additional latency.
+                     */
+                    internalClient.threadPool().executor(THREAD_POOL_NAME)
+                            .submit(new KeyComputingRunnable(in, iv, version, decodedSalt, listener, keyAndCache));
                 }
+            } else {
+                logger.debug("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet());
+                listener.onResponse(null);
             }
         }
     }

@@ -2244,6 +2244,7 @@ public class TranslogTests extends ESTestCase {
                 } catch (RuntimeException ex) {
                     assertEquals(ex.getMessage(), "simulated");
                 } finally {
+                    generationUUID = failableTLog.getTranslogUUID();
                     Checkpoint checkpoint = Translog.readCheckpoint(config.getTranslogPath().resolve(Translog.CHECKPOINT_FILE_NAME),
                         generationUUID, historyUUID);
                     if (checkpoint.numOps == unsynced.size() + syncedDocs.size()) {
@@ -2255,7 +2256,6 @@ public class TranslogTests extends ESTestCase {
                         syncedDocs.clear();
                         assertThat(unsynced, empty());
                     }
-                    generationUUID = failableTLog.getTranslogUUID();
                     minGenForRecovery = failableTLog.getDeletionPolicy().getMinTranslogGenerationForRecovery();
                     IOUtils.closeWhileHandlingException(failableTLog);
                 }

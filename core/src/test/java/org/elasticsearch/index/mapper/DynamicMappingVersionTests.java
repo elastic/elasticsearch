@@ -19,12 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -67,14 +64,4 @@ public class DynamicMappingVersionTests extends ESSingleNodeTestCase {
         assertEquals(e.getMessage(), "Setting index.mapper.dynamic was removed after version 6.0.0");
     }
 
-    public void testDynamicMappingDisablePreEs6() {
-        Settings settingsPreEs6 = Settings.builder()
-            .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0)
-            .build();
-        MapperService preEs6MapperService = createIndex("pre-es6-index", settingsPreEs6).mapperService();
-        Exception e = expectThrows(TypeMissingException.class,
-            () -> preEs6MapperService.documentMapperWithAutoCreate("pre-es6-type"));
-        assertEquals(e.getMessage(), "type[pre-es6-type] missing");
-    }
 }

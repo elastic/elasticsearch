@@ -114,7 +114,7 @@ public interface DiscoveryPlugin {
     /**
      * Returns a consumer that validate the initial join cluster state. The validator, unless <code>null</code> is called exactly once per
      * join attempt but might be called multiple times during the lifetime of a node. Validators are expected to throw a
-     * {@link IllegalStateException} if the incoming cluster states is invalid.
+     * {@link IllegalStateException} if the node and the cluster-state are incompatible.
      */
     default BiConsumer<DiscoveryNode,ClusterState> getJoinValidator() { return null; }
 }

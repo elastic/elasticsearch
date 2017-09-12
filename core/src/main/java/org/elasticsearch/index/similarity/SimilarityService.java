@@ -57,6 +57,8 @@ public final class SimilarityService extends AbstractIndexComponent {
                 (name, settings, indexSettings, scriptService) -> new ClassicSimilarityProvider(name, settings, indexSettings));
         buildIn.put("BM25",
                 (name, settings, indexSettings, scriptService) -> new BM25SimilarityProvider(name, settings, indexSettings));
+        buildIn.put("boolean",
+                (name, settings, indexSettings, scriptService) -> new BooleanSimilarityProvider(name, settings, indexSettings));
         buildIn.put("DFR",
                 (name, settings, indexSettings, scriptService) -> new DFRSimilarityProvider(name, settings, indexSettings));
         buildIn.put("IB",

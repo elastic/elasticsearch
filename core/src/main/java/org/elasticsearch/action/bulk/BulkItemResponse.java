@@ -224,7 +224,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         private static Version V_6_0_0_BETA_2 = Version.fromString("6.0.0-beta2");
         private static boolean supportsAbortedFlag(Version version) {
             // The "aborted" flag was added for 5.5.3 and 5.6.0, but was not in 6.0.0-beta2
-            return version.after(V_6_0_0_BETA_2) || (version.major == 5 && version.onOrAfter(Version.V_5_5_3_UNRELEASED));
+            return version.after(V_6_0_0_BETA_2) || (version.major == 5 && version.onOrAfter(Version.V_5_5_3));
         }
 
         /**

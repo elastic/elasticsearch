@@ -188,7 +188,8 @@ final class Checkpoint {
             CodecUtil.writeFooter(indexOutput);
 
             assert indexOutput.getFilePointer() == FILE_SIZE :
-                "get you numbers straight; bytes written: " + indexOutput.getFilePointer() + ", buffer size: " + FILE_SIZE;
+                "get you numbers straight; bytes written: " + indexOutput.getFilePointer() + ", buffer size: " + FILE_SIZE
+                    + ", ckp: " + checkpoint;
             assert indexOutput.getFilePointer() < 512 :
                 "checkpoint files have to be smaller than 512 bytes for atomic writes; size: " + indexOutput.getFilePointer();
 

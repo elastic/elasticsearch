@@ -19,18 +19,18 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.entity.ContentType;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.http.Header;
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.HttpHost;
-import org.elasticsearch.client.http.client.methods.HttpGet;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.message.BasicHeader;
-import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;

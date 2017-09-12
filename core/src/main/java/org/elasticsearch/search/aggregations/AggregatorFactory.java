@@ -188,15 +188,6 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
         return name;
     }
 
-    /**
-     * Validates the state of this factory (makes sure the factory is properly
-     * configured)
-     */
-    public final void validate() {
-        doValidate();
-        factories.validate();
-    }
-
     public void doValidate() {
     }
 

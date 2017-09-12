@@ -33,7 +33,9 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
@@ -498,6 +500,220 @@ public class SimpleNestedIT extends ESIntegTestCase {
         client().prepareClearScroll().addScrollId("_all").get();
     }
 
+    public void testNestedSortWithMultiLevelFiltering() throws Exception {
+        assertAcked(prepareCreate("test")
+            .addMapping("type1", "{\n"
+                + "  \"type1\": {\n"
+                + "    \"properties\": {\n"
+                + "      \"acl\": {\n"
+                + "        \"type\": \"nested\",\n"
+                + "        \"properties\": {\n"
+                + "          \"access_id\": {\"type\": \"keyword\"},\n"
+                + "          \"operation\": {\n"
+                + "            \"type\": \"nested\",\n"
+                + "            \"properties\": {\n"
+                + "              \"name\": {\"type\": \"keyword\"},\n"
+                + "              \"user\": {\n"
+                + "                \"type\": \"nested\",\n"
+                + "                \"properties\": {\n"
+                + "                  \"username\": {\"type\": \"keyword\"},\n"
+                + "                  \"id\": {\"type\": \"integer\"}\n"
+                + "                }\n"
+                + "              }\n"
+                + "            }\n"
+                + "          }\n"
+                + "        }\n"
+                + "      }\n"
+                + "    }\n"
+                + "  }\n"
+                + "}", XContentType.JSON));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1").setSource("{\n"
+            + "  \"acl\": [\n"
+            + "    {\n"
+            + "      \"access_id\": 1,\n"
+            + "      \"operation\": [\n"
+            + "        {\n"
+            + "          \"name\": \"read\",\n"
+            + "          \"user\": [\n"
+            + "            {\"username\": \"matt\", \"id\": 1},\n"
+            + "            {\"username\": \"shay\", \"id\": 2},\n"
+            + "            {\"username\": \"adrien\", \"id\": 3}\n"
+            + "          ]\n"
+            + "        },\n"
+            + "        {\n"
+            + "          \"name\": \"write\",\n"
+            + "          \"user\": [\n"
+            + "            {\"username\": \"shay\", \"id\": 2},\n"
+            + "            {\"username\": \"adrien\", \"id\": 3}\n"
+            + "          ]\n"
+            + "        }\n"
+            + "      ]\n"
+            + "    },\n"
+            + "    {\n"
+            + "      \"access_id\": 2,\n"
+            + "      \"operation\": [\n"
+            + "        {\n"
+            + "          \"name\": \"read\",\n"
+            + "          \"user\": [\n"
+            + "            {\"username\": \"jim\", \"id\": 4},\n"
+            + "            {\"username\": \"shay\", \"id\": 2}\n"
+            + "          ]\n"
+            + "        },\n"
+            + "        {\n"
+            + "          \"name\": \"write\",\n"
+            + "          \"user\": [\n"
+            + "            {\"username\": \"shay\", \"id\": 2}\n"
+            + "          ]\n"
+            + "        },\n"
+            + "        {\n"
+            + "          \"name\": \"execute\",\n"
+            + "          \"user\": [\n"
+            + "            {\"username\": \"shay\", \"id\": 2}\n"
+            + "          ]\n"
+            + "        }\n"
+            + "      ]\n"
+            + "    }\n"
+            + "  ]\n"
+            + "}", XContentType.JSON).execute().actionGet();
+
+        client().prepareIndex("test", "type1", "2").setSource("{\n"
+            + "  \"acl\": [\n"
+            + "    {\n"
+            + "      \"access_id\": 1,\n"
+            + "      \"operation\": [\n"
+            + "        {\n"
+            + "          \"name\": \"read\",\n"
+            + "          \"user\": [\n"
+            + "            {\"username\": \"matt\", \"id\": 1},\n"
+            + "            {\"username\": \"luca\", \"id\": 5}\n"
+            + "          ]\n"
+            + "        },\n"
+            + "        {\n"
+            + "          \"name\": \"execute\",\n"
+            + "          \"user\": [\n"
+            + "            {\"username\": \"luca\", \"id\": 5}\n"
+            + "          ]\n"
+            + "        }\n"
+            + "      ]\n"
+            + "    },\n"
+            + "    {\n"
+            + "      \"access_id\": 3,\n"
+            + "      \"operation\": [\n"
+            + "        {\n"
+            + "          \"name\": \"read\",\n"
+            + "          \"user\": [\n"
+            + "            {\"username\": \"matt\", \"id\": 1}\n"
+            + "          ]\n"
+            + "        },\n"
+            + "        {\n"
+            + "          \"name\": \"write\",\n"
+            + "          \"user\": [\n"
+            + "            {\"username\": \"matt\", \"id\": 1}\n"
+            + "          ]\n"
+            + "        },\n"
+            + "        {\n"
+            + "          \"name\": \"execute\",\n"
+            + "          \"user\": [\n"
+            + "            {\"username\": \"matt\", \"id\": 1}\n"
+            + "          ]\n"
+            + "        }\n"
+            + "      ]\n"
+            + "    }\n"
+            + "  ]\n"
+            + "}", XContentType.JSON).execute().actionGet();
+        refresh();
+
+        // access id = 1, read, max value, asc, should use matt and shay
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(
+                SortBuilders.fieldSort("acl.operation.user.username")
+                    .setNestedSort(new NestedSortBuilder("acl")
+                        .setFilter(QueryBuilders.termQuery("acl.access_id", "1"))
+                        .setNestedSort(new NestedSortBuilder("acl.operation")
+                            .setFilter(QueryBuilders.termQuery("acl.operation.name", "read"))
+                            .setNestedSort(new NestedSortBuilder("acl.operation.user"))))
+                    .sortMode(SortMode.MAX)
+                    .order(SortOrder.ASC)
+            )
+            .execute().actionGet();
+
+        assertHitCount(searchResponse, 2);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("matt"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("shay"));
+
+
+        // access id = 1, read, min value, asc, should now use adrien and luca
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(
+                SortBuilders.fieldSort("acl.operation.user.username")
+                    .setNestedSort(new NestedSortBuilder("acl")
+                        .setFilter(QueryBuilders.termQuery("acl.access_id", "1"))
+                        .setNestedSort(new NestedSortBuilder("acl.operation")
+                            .setFilter(QueryBuilders.termQuery("acl.operation.name", "read"))
+                            .setNestedSort(new NestedSortBuilder("acl.operation.user"))))
+                    .sortMode(SortMode.MIN)
+                    .order(SortOrder.ASC)
+            )
+            .execute().actionGet();
+
+        assertHitCount(searchResponse, 2);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("adrien"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("luca"));
+
+        // execute, by matt or luca, by user id, sort missing first
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(
+                SortBuilders.fieldSort("acl.operation.user.id")
+                    .setNestedSort(new NestedSortBuilder("acl")
+                        .setNestedSort(new NestedSortBuilder("acl.operation")
+                            .setFilter(QueryBuilders.termQuery("acl.operation.name", "execute"))
+                            .setNestedSort(new NestedSortBuilder("acl.operation.user")
+                                .setFilter(QueryBuilders.termsQuery("acl.operation.user.username", "matt", "luca")))))
+                    .missing("_first")
+                    .sortMode(SortMode.MIN)
+                    .order(SortOrder.DESC)
+            )
+            .execute().actionGet();
+
+        assertHitCount(searchResponse, 2);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1")); // missing first
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("1"));
+
+        // execute, by matt or luca, by username, sort missing last (default)
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(
+                SortBuilders.fieldSort("acl.operation.user.username")
+                    .setNestedSort(new NestedSortBuilder("acl")
+                        .setNestedSort(new NestedSortBuilder("acl.operation")
+                            .setFilter(QueryBuilders.termQuery("acl.operation.name", "execute"))
+                            .setNestedSort(new NestedSortBuilder("acl.operation.user")
+                                .setFilter(QueryBuilders.termsQuery("acl.operation.user.username", "matt", "luca")))))
+                    .sortMode(SortMode.MIN)
+                    .order(SortOrder.DESC)
+            )
+            .execute().actionGet();
+
+        assertHitCount(searchResponse, 2);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("luca"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("1")); // missing last
+    }
+
     public void testSortNestedWithNestedFilter() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder()
@@ -529,7 +745,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         ensureGreen();
 
         // sum: 11
-        client().prepareIndex("test", "type1", Integer.toString(1)).setSource(jsonBuilder()
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
             .startObject()
                 .field("grand_parent_values", 1L)
                 .startArray("parent")
@@ -568,7 +784,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
             .endObject()).execute().actionGet();
 
         // sum: 7
-        client().prepareIndex("test", "type1", Integer.toString(2)).setSource(jsonBuilder()
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder()
             .startObject()
                 .field("grand_parent_values", 2L)
                     .startArray("parent")
@@ -607,7 +823,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()).execute().actionGet();
 
         // sum: 2
-        client().prepareIndex("test", "type1", Integer.toString(3)).setSource(jsonBuilder()
+        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder()
             .startObject()
                 .field("grand_parent_values", 3L)
                 .startArray("parent")
@@ -722,25 +938,27 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("3"));
 
+
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(
                         SortBuilders.fieldSort("parent.child.child_values")
-                                .setNestedPath("parent.child")
-                                .setNestedFilter(QueryBuilders.termQuery("parent.filter", false))
+                                .setNestedSort(new NestedSortBuilder("parent")
+                                    .setFilter(QueryBuilders.termQuery("parent.filter", false))
+                                    .setNestedSort(new NestedSortBuilder("parent.child")))
+                                .sortMode(SortMode.MAX)
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
-        // TODO: If we expose ToChildBlockJoinQuery we can filter sort values based on a higher level nested objects
-//        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
-//        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("-3"));
-//        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
-//        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("-2"));
-//        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
-//        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("-1"));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("4"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("6"));
 
         // Check if closest nested type is resolved
         searchResponse = client().prepareSearch()

@@ -45,7 +45,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.lucene.search.XMoreLikeThis;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -59,7 +59,6 @@ import org.elasticsearch.index.mapper.UidFieldMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -142,7 +141,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     /**
      * A single item to be used for a {@link MoreLikeThisQueryBuilder}.
      */
-    public static final class Item implements ToXContent, Writeable {
+    public static final class Item implements ToXContentObject, Writeable {
         public static final Item[] EMPTY_ARRAY = new Item[0];
 
         public interface Field {
@@ -489,7 +488,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     /**
-     * Constructs a new more like this query which uses the "_all" field.
+     * Constructs a new more like this query which uses the default search field.
      * @param likeTexts the text to use when generating the 'More Like This' query.
      * @param likeItems the documents to use when generating the 'More Like This' query.
      */
@@ -1033,7 +1032,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         boolean useDefaultField = (fields == null);
         List<String> moreLikeFields = new ArrayList<>();
         if (useDefaultField) {
-            moreLikeFields = Collections.singletonList(context.defaultField());
+            moreLikeFields = context.defaultFields();
         } else {
             for (String field : fields) {
                 MappedFieldType fieldType = context.fieldMapper(field);

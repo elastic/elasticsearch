@@ -24,6 +24,7 @@ import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicy;
 import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.blob.BlobListingDetails;
 import com.microsoft.azure.storage.blob.BlobProperties;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
@@ -43,6 +44,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -253,33 +255,26 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
         logger.debug("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix);
         MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
+        EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-
         SocketAccess.doPrivilegedVoidException(() -> {
             if (blobContainer.exists()) {
-                for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix == null ? "" : prefix))) {
+                for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix == null ? "" : prefix), false,
+                    enumBlobListingDetails, null, null)) {
                     URI uri = blobItem.getUri();
                     logger.trace("blob url [{}]", uri);
 
                     // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
                     // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
                     String blobPath = uri.getPath().substring(1 + container.length() + 1);
-
-                    CloudBlockBlob blob = blobContainer.getBlockBlobReference(blobPath);
-
-                    // fetch the blob attributes from Azure (getBlockBlobReference does not do this)
-                    // this is needed to retrieve the blob length (among other metadata) from Azure Storage
-                    blob.downloadAttributes();
-
-                    BlobProperties properties = blob.getProperties();
+                    BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
                     String name = blobPath.substring(keyPath.length());
                     logger.trace("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength());
                     blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
                 }
             }
         });
-
         return blobsBuilder.immutableMap();
     }
 

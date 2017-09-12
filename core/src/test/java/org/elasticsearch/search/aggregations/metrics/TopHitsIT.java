@@ -28,7 +28,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -50,7 +50,7 @@ import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -67,6 +67,7 @@ import java.util.function.Function;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
@@ -728,7 +729,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(searchHits.getTotalHits(), equalTo(1L));
         assertThat(searchHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
-        assertThat((Integer) searchHits.getAt(0).getSourceAsMap().get("date"), equalTo(1));
+        assertThat(extractValue("comments.date", searchHits.getAt(0).getSourceAsMap()), equalTo(1));
 
         bucket = terms.getBucketByKey("b");
         assertThat(bucket.getDocCount(), equalTo(2L));
@@ -737,10 +738,10 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(searchHits.getTotalHits(), equalTo(2L));
         assertThat(searchHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
-        assertThat((Integer) searchHits.getAt(0).getSourceAsMap().get("date"), equalTo(2));
+        assertThat(extractValue("comments.date", searchHits.getAt(0).getSourceAsMap()), equalTo(2));
         assertThat(searchHits.getAt(1).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(1).getNestedIdentity().getOffset(), equalTo(0));
-        assertThat((Integer) searchHits.getAt(1).getSourceAsMap().get("date"), equalTo(3));
+        assertThat(extractValue("comments.date", searchHits.getAt(1).getSourceAsMap()), equalTo(3));
 
         bucket = terms.getBucketByKey("c");
         assertThat(bucket.getDocCount(), equalTo(1L));
@@ -749,7 +750,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(searchHits.getTotalHits(), equalTo(1L));
         assertThat(searchHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
-        assertThat((Integer) searchHits.getAt(0).getSourceAsMap().get("date"), equalTo(4));
+        assertThat(extractValue("comments.date", searchHits.getAt(0).getSourceAsMap()), equalTo(4));
     }
 
     public void testTopHitsInSecondLayerNested() throws Exception {
@@ -802,49 +803,49 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(topReviewers.getHits().getHits().length, equalTo(7));
 
         assertThat(topReviewers.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(0).getSourceAsMap().get("name"), equalTo("user a"));
+        assertThat(extractValue("comments.reviewers.name", topReviewers.getHits().getAt(0).getSourceAsMap()), equalTo("user a"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
 
         assertThat(topReviewers.getHits().getAt(1).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(1).getSourceAsMap().get("name"), equalTo("user b"));
+        assertThat(extractValue("comments.reviewers.name", topReviewers.getHits().getAt(1).getSourceAsMap()), equalTo("user b"));
         assertThat(topReviewers.getHits().getAt(1).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(1).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(topReviewers.getHits().getAt(1).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(1).getNestedIdentity().getChild().getOffset(), equalTo(1));
 
         assertThat(topReviewers.getHits().getAt(2).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(2).getSourceAsMap().get("name"), equalTo("user c"));
+        assertThat(extractValue("comments.reviewers.name", topReviewers.getHits().getAt(2).getSourceAsMap()), equalTo("user c"));
         assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getChild().getOffset(), equalTo(2));
 
         assertThat(topReviewers.getHits().getAt(3).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(3).getSourceAsMap().get("name"), equalTo("user c"));
+        assertThat(extractValue("comments.reviewers.name", topReviewers.getHits().getAt(3).getSourceAsMap()), equalTo("user c"));
         assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getOffset(), equalTo(1));
         assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getChild().getOffset(), equalTo(0));
 
         assertThat(topReviewers.getHits().getAt(4).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(4).getSourceAsMap().get("name"), equalTo("user d"));
+        assertThat(extractValue("comments.reviewers.name", topReviewers.getHits().getAt(4).getSourceAsMap()), equalTo("user d"));
         assertThat(topReviewers.getHits().getAt(4).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(4).getNestedIdentity().getOffset(), equalTo(1));
         assertThat(topReviewers.getHits().getAt(4).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(4).getNestedIdentity().getChild().getOffset(), equalTo(1));
 
         assertThat(topReviewers.getHits().getAt(5).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(5).getSourceAsMap().get("name"), equalTo("user e"));
+        assertThat(extractValue("comments.reviewers.name", topReviewers.getHits().getAt(5).getSourceAsMap()), equalTo("user e"));
         assertThat(topReviewers.getHits().getAt(5).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(5).getNestedIdentity().getOffset(), equalTo(1));
         assertThat(topReviewers.getHits().getAt(5).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(5).getNestedIdentity().getChild().getOffset(), equalTo(2));
 
         assertThat(topReviewers.getHits().getAt(6).getId(), equalTo("2"));
-        assertThat((String) topReviewers.getHits().getAt(6).getSourceAsMap().get("name"), equalTo("user f"));
+        assertThat(extractValue("comments.reviewers.name", topReviewers.getHits().getAt(6).getSourceAsMap()), equalTo("user f"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
@@ -900,7 +901,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(field.getValue().toString(), equalTo("5"));
 
         assertThat(searchHit.getSourceAsMap().size(), equalTo(1));
-        assertThat(XContentMapValues.extractValue("comments.message", searchHit.getSourceAsMap()), equalTo("some comment"));
+        assertThat(extractValue("comments.message", searchHit.getSourceAsMap()), equalTo("some comment"));
     }
 
     public void testTopHitsInNested() throws Exception {
@@ -933,7 +934,7 @@ public class TopHitsIT extends ESIntegTestCase {
             for (int j = 0; j < 3; j++) {
                 assertThat(searchHits.getAt(j).getNestedIdentity().getField().string(), equalTo("comments"));
                 assertThat(searchHits.getAt(j).getNestedIdentity().getOffset(), equalTo(0));
-                assertThat((Integer) searchHits.getAt(j).getSourceAsMap().get("id"), equalTo(0));
+                assertThat(extractValue("comments.id", searchHits.getAt(j).getSourceAsMap()), equalTo(0));
 
                 HighlightField highlightField = searchHits.getAt(j).getHighlightFields().get("comments.message");
                 assertThat(highlightField.getFragments().length, equalTo(1));
@@ -942,7 +943,10 @@ public class TopHitsIT extends ESIntegTestCase {
         }
     }
 
-    public void testDontExplode() throws Exception {
+    public void testUseMaxDocInsteadOfSize() throws Exception {
+        client().admin().indices().prepareUpdateSettings("idx")
+            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH))
+            .get();
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(terms("terms")
@@ -954,6 +958,67 @@ public class TopHitsIT extends ESIntegTestCase {
                 )
                 .get();
         assertNoFailures(response);
+        client().admin().indices().prepareUpdateSettings("idx")
+            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), null))
+            .get();
+    }
+
+    public void testTooHighResultWindow() throws Exception {
+        SearchResponse response = client()
+            .prepareSearch("idx")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .field(TERMS_AGGS_FIELD)
+                .subAggregation(
+                    topHits("hits").from(50).size(10).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                )
+            )
+            .get();
+        assertNoFailures(response);
+
+        Exception e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("idx")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .field(TERMS_AGGS_FIELD)
+                .subAggregation(
+                    topHits("hits").from(100).size(10).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                )
+            ).get());
+        assertThat(e.getCause().getMessage(),
+            containsString("the top hits aggregator [hits]'s from + size must be less than or equal to: [100] but was [110]"));
+        e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("idx")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .field(TERMS_AGGS_FIELD)
+                .subAggregation(
+                    topHits("hits").from(10).size(100).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                )
+            ).get());
+        assertThat(e.getCause().getMessage(),
+            containsString("the top hits aggregator [hits]'s from + size must be less than or equal to: [100] but was [110]"));
+
+        client().admin().indices().prepareUpdateSettings("idx")
+            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110))
+            .get();
+        response = client().prepareSearch("idx")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .field(TERMS_AGGS_FIELD)
+                .subAggregation(
+                    topHits("hits").from(100).size(10).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                )).get();
+        assertNoFailures(response);
+        response = client().prepareSearch("idx")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .field(TERMS_AGGS_FIELD)
+                .subAggregation(
+                    topHits("hits").from(10).size(100).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                )).get();
+        assertNoFailures(response);
+        client().admin().indices().prepareUpdateSettings("idx")
+            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), null))
+            .get();
     }
 
     public void testNoStoredFields() throws Exception {
@@ -1054,7 +1119,7 @@ public class TopHitsIT extends ESIntegTestCase {
             SearchResponse response = client()
                 .prepareSearch("idx")
                 .addRescorer(
-                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
+                        new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f))
                 )
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)
@@ -1076,7 +1141,7 @@ public class TopHitsIT extends ESIntegTestCase {
             SearchResponse response = client()
                 .prepareSearch("idx")
                 .addRescorer(
-                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
+                        new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f))
                 )
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)
@@ -1099,7 +1164,7 @@ public class TopHitsIT extends ESIntegTestCase {
             SearchResponse response = client()
                 .prepareSearch("idx")
                 .addRescorer(
-                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
+                    new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f))
                 )
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)
@@ -1121,7 +1186,7 @@ public class TopHitsIT extends ESIntegTestCase {
             SearchResponse response = client()
                 .prepareSearch("idx")
                 .addRescorer(
-                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
+                        new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f))
                 )
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)

@@ -40,13 +40,14 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Iterator;
 
+import static org.hamcrest.core.IsEqual.equalTo;
+
 public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
 
     public void testEmpty() throws IOException {
-        PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg")
+        PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[]{0.5})
                 .field("field")
-                .method(PercentilesMethod.TDIGEST)
-                .values(0.5);
+                .method(PercentilesMethod.TDIGEST);
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
         fieldType.setName("field");
         try (IndexReader reader = new MultiReader()) {
@@ -67,10 +68,9 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg")
+            PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[]{0.1, 0.5, 12})
                     .field("field")
-                    .method(PercentilesMethod.TDIGEST)
-                    .values(0.1, 0.5, 12);
+                    .method(PercentilesMethod.TDIGEST);
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
             fieldType.setName("field");
             try (IndexReader reader = w.getReader()) {
@@ -94,5 +94,18 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
                 assertFalse(rankIterator.hasNext());
             }
         }
+    }
+
+    public void testNullValues() throws IOException {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new PercentileRanksAggregationBuilder("my_agg", null).field("field").method(PercentilesMethod.TDIGEST));
+        assertThat(e.getMessage(), Matchers.equalTo("[values] must not be null: [my_agg]"));
+    }
+
+    public void testEmptyValues() throws IOException {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new PercentileRanksAggregationBuilder("my_agg", new double[0]).field("field").method(PercentilesMethod.TDIGEST));
+
+        assertThat(e.getMessage(), Matchers.equalTo("[values] must not be an empty array: [my_agg]"));
     }
 }

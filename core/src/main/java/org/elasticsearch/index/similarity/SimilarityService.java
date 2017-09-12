@@ -79,8 +79,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         Map<String, Settings> similaritySettings = this.indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);
         for (Map.Entry<String, Settings> entry : similaritySettings.entrySet()) {
             String name = entry.getKey();
-            // Starting with v5.0 indices, it should no longer be possible to redefine built-in similarities
-            if(BUILT_IN.containsKey(name) && indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_0_0_alpha1)) {
+            if (BUILT_IN.containsKey(name)) {
                 throw new IllegalArgumentException("Cannot redefine built-in Similarity [" + name + "]");
             }
             Settings providerSettings = entry.getValue();
@@ -97,10 +96,6 @@ public final class SimilarityService extends AbstractIndexComponent {
         Map<String, SimilarityProvider> providerMapping = addSimilarities(similaritySettings, indexSettings.getSettings(), scriptService,
                 DEFAULTS);
         for (Map.Entry<String, SimilarityProvider> entry : providerMapping.entrySet()) {
-            // Avoid overwriting custom providers for indices older that v5.0
-            if (providers.containsKey(entry.getKey()) && indexSettings.getIndexVersionCreated().before(Version.V_5_0_0_alpha1)) {
-                continue;
-            }
             providers.put(entry.getKey(), entry.getValue());
         }
         this.similarities = providers;

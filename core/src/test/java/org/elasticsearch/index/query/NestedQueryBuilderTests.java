@@ -26,6 +26,8 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
@@ -41,6 +43,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.elasticsearch.index.query.InnerHitBuilderTests.randomInnerHits;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -157,6 +160,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 "              \"fuzzy_transpositions\" : true,\n" +
                 "              \"lenient\" : false,\n" +
                 "              \"zero_terms_query\" : \"NONE\",\n" +
+                "              \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "              \"boost\" : 1.0\n" +
                 "            }\n" +
                 "          }\n" +
@@ -323,6 +327,11 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         when(queryShardContext.getObjectMapper("path")).thenReturn(null);
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
+
+        MapperService mapperService = mock(MapperService.class);
+        IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
+        when(mapperService.getIndexSettings()).thenReturn(settings);
+        when(searchContext.mapperService()).thenReturn(mapperService);
 
         InnerHitBuilder leafInnerHits = randomInnerHits();
         NestedQueryBuilder query1 = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);

@@ -206,7 +206,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             break;
         case 1:
             Object newValue = randomValue(valueTypes, 0);
-            while ((newValue == null && value == null) || newValue.equals(value)) {
+            while ((newValue == null && value == null) || (newValue != null && newValue.equals(value))) {
                 int levels = randomIntBetween(1, 3);
                 Supplier[] valueTypes = new Supplier[levels];
                 for (int i = 0; i < levels; i++) {

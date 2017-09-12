@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Locals;
@@ -157,7 +158,7 @@ public abstract class AExpression extends ANode {
 
                 return ecast;
             } else {
-                if (expected.sort.constant) {
+                if (Definition.isConstantType(expected)) {
                     // For the case where a cast is required, a constant is set,
                     // and the constant can be immediately cast to the expected type.
                     // An EConstant replaces this node with the constant cast appropriately

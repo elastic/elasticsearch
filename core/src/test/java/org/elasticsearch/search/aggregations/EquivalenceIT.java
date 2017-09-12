@@ -266,10 +266,6 @@ public class EquivalenceIT extends ESIntegTestCase {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .execute().get());
 
-        TermsAggregatorFactory.ExecutionMode[] globalOrdinalModes = new TermsAggregatorFactory.ExecutionMode[] {
-                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS_HASH, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS
-        };
-
         SearchResponse resp = client().prepareSearch("idx")
                     .addAggregation(
                             terms("long")
@@ -294,14 +290,14 @@ public class EquivalenceIT extends ESIntegTestCase {
                             terms("string_global_ordinals")
                                     .field("string_values")
                                     .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                    .executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString())
+                                    .executionHint(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString())
                                     .size(maxNumTerms)
                                     .subAggregation(extendedStats("stats").field("num")))
                     .addAggregation(
                             terms("string_global_ordinals_doc_values")
                                     .field("string_values.doc_values")
                                     .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                    .executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString())
+                                    .executionHint(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString())
                                     .size(maxNumTerms)
                                     .subAggregation(extendedStats("stats").field("num")))
                 .execute().actionGet();

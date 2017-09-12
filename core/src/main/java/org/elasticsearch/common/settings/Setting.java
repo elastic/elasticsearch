@@ -19,21 +19,18 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -81,7 +78,7 @@ import java.util.stream.Stream;
  * }
  * </pre>
  */
-public class Setting<T> extends ToXContentToBytes {
+public class Setting<T> implements ToXContentObject {
 
     public enum Property {
         /**
@@ -394,23 +391,13 @@ public class Setting<T> extends ToXContentToBytes {
         return settings.get(getKey(), defaultValue.apply(settings));
     }
 
-    private static SetOnce<DeprecationLogger> deprecationLogger = new SetOnce<>();
-
-    // we have to initialize lazily otherwise a logger would be constructed before logging is initialized
-    private static synchronized DeprecationLogger getDeprecationLogger() {
-        if (deprecationLogger.get() == null) {
-            deprecationLogger.set(new DeprecationLogger(Loggers.getLogger(Settings.class)));
-        }
-        return deprecationLogger.get();
-    }
-
     /** Logs a deprecation warning if the setting is deprecated and used. */
     void checkDeprecation(Settings settings) {
         // They're using the setting, so we need to tell them to stop
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            getDeprecationLogger().deprecatedAndMaybeLog(
+            Settings.DeprecationLoggerHolder.deprecationLogger.deprecatedAndMaybeLog(
                     key,
                     "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
                             + "See the breaking changes documentation for the next major version.",
@@ -436,6 +423,11 @@ public class Setting<T> extends ToXContentToBytes {
         builder.field("default", defaultValue.apply(Settings.EMPTY));
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 
     /**
@@ -487,7 +479,7 @@ public class Setting<T> extends ToXContentToBytes {
      * See {@link AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, BiConsumer)} and its usage for details.
      */
     static <A, B> AbstractScopedSettings.SettingUpdater<Tuple<A, B>> compoundUpdater(final BiConsumer<A, B> consumer,
-            final Setting<A> aSetting, final Setting<B> bSetting, Logger logger) {
+            final BiConsumer<A, B> validator, final Setting<A> aSetting, final Setting<B> bSetting, Logger logger) {
         final AbstractScopedSettings.SettingUpdater<A> aSettingUpdater = aSetting.newUpdater(null, logger);
         final AbstractScopedSettings.SettingUpdater<B> bSettingUpdater = bSetting.newUpdater(null, logger);
         return new AbstractScopedSettings.SettingUpdater<Tuple<A, B>>() {
@@ -498,7 +490,10 @@ public class Setting<T> extends ToXContentToBytes {
 
             @Override
             public Tuple<A, B> getValue(Settings current, Settings previous) {
-                return new Tuple<>(aSettingUpdater.getValue(current, previous), bSettingUpdater.getValue(current, previous));
+                A valueA = aSettingUpdater.getValue(current, previous);
+                B valueB = bSettingUpdater.getValue(current, previous);
+                validator.accept(valueA, valueB);
+                return new Tuple<>(valueA, valueB);
             }
 
             @Override
@@ -651,6 +646,148 @@ public class Setting<T> extends ToXContentToBytes {
             return Collections.emptyIterator();
         }
 
+    }
+
+    private static class GroupSetting extends Setting<Settings> {
+        private final String key;
+        private final Consumer<Settings> validator;
+
+        private GroupSetting(String key, Consumer<Settings> validator, Property... properties) {
+            super(new GroupKey(key), (s) -> "", (s) -> null, properties);
+            this.key = key;
+            this.validator = validator;
+        }
+
+        @Override
+        public boolean isGroupSetting() {
+            return true;
+        }
+
+        @Override
+        public String getRaw(Settings settings) {
+            Settings subSettings = get(settings);
+            try {
+                XContentBuilder builder = XContentFactory.jsonBuilder();
+                builder.startObject();
+                subSettings.toXContent(builder, EMPTY_PARAMS);
+                builder.endObject();
+                return builder.string();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public Settings get(Settings settings) {
+            Settings byPrefix = settings.getByPrefix(getKey());
+            validator.accept(byPrefix);
+            return byPrefix;
+        }
+
+        @Override
+        public boolean exists(Settings settings) {
+            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+                if (entry.getKey().startsWith(key)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+            Map<String, String> leftGroup = get(source).getAsMap();
+            Settings defaultGroup = get(defaultSettings);
+            for (Map.Entry<String, String> entry : defaultGroup.getAsMap().entrySet()) {
+                if (leftGroup.containsKey(entry.getKey()) == false) {
+                    builder.put(getKey() + entry.getKey(), entry.getValue());
+                }
+            }
+        }
+
+        @Override
+        public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, Logger logger,
+                                                                          Consumer<Settings> validator) {
+            if (isDynamic() == false) {
+                throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
+            }
+            final Setting<?> setting = this;
+            return new AbstractScopedSettings.SettingUpdater<Settings>() {
+
+                @Override
+                public boolean hasChanged(Settings current, Settings previous) {
+                    Settings currentSettings = get(current);
+                    Settings previousSettings = get(previous);
+                    return currentSettings.equals(previousSettings) == false;
+                }
+
+                @Override
+                public Settings getValue(Settings current, Settings previous) {
+                    Settings currentSettings = get(current);
+                    Settings previousSettings = get(previous);
+                    try {
+                        validator.accept(currentSettings);
+                    } catch (Exception | AssertionError e) {
+                        throw new IllegalArgumentException("illegal value can't update [" + key + "] from ["
+                                + previousSettings.getAsMap() + "] to [" + currentSettings.getAsMap() + "]", e);
+                    }
+                    return currentSettings;
+                }
+
+                @Override
+                public void apply(Settings value, Settings current, Settings previous) {
+                    if (logger.isInfoEnabled()) { // getRaw can create quite some objects
+                        logger.info("updating [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
+                    }
+                    consumer.accept(value);
+                }
+
+                @Override
+                public String toString() {
+                    return "Updater for: " + setting.toString();
+                }
+            };
+        }
+    }
+
+    private static class ListSetting<T> extends Setting<List<T>> {
+        private final Function<Settings, List<String>> defaultStringValue;
+
+        private ListSetting(String key, Function<Settings, List<String>> defaultStringValue, Function<String, List<T>> parser,
+                            Property... properties) {
+            super(new ListKey(key), (s) -> Setting.arrayToParsableString(defaultStringValue.apply(s).toArray(Strings.EMPTY_ARRAY)), parser,
+                properties);
+            this.defaultStringValue = defaultStringValue;
+        }
+
+        @Override
+        public String getRaw(Settings settings) {
+            String[] array = settings.getAsArray(getKey(), null);
+            return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
+        }
+
+        @Override
+        boolean hasComplexMatcher() {
+            return true;
+        }
+
+        @Override
+        public boolean exists(Settings settings) {
+            boolean exists = super.exists(settings);
+            return exists || settings.get(getKey() + ".0") != null;
+        }
+
+        @Override
+        public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+            if (exists(source) == false) {
+                String[] asArray = defaultSettings.getAsArray(getKey(), null);
+                if (asArray == null) {
+                    builder.putArray(getKey(), defaultStringValue.apply(defaultSettings));
+                } else {
+                    builder.putArray(getKey(), asArray);
+                }
+            }
+        }
     }
 
     private final class Updater implements AbstractScopedSettings.SettingUpdater<T> {
@@ -880,37 +1017,7 @@ public class Setting<T> extends ToXContentToBytes {
         Function<String, List<T>> parser = (s) ->
                 parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
 
-        return new Setting<List<T>>(new ListKey(key),
-            (s) -> arrayToParsableString(defaultStringValue.apply(s).toArray(Strings.EMPTY_ARRAY)), parser, properties) {
-            @Override
-            public String getRaw(Settings settings) {
-                String[] array = settings.getAsArray(getKey(), null);
-                return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
-            }
-
-            @Override
-            boolean hasComplexMatcher() {
-                return true;
-            }
-
-            @Override
-            public boolean exists(Settings settings) {
-                boolean exists = super.exists(settings);
-                return exists || settings.get(getKey() + ".0") != null;
-            }
-
-            @Override
-            public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
-                if (exists(source) == false) {
-                    String[] asArray = defaultSettings.getAsArray(getKey(), null);
-                    if (asArray == null) {
-                        builder.putArray(getKey(), defaultStringValue.apply(defaultSettings));
-                    } else {
-                        builder.putArray(getKey(), asArray);
-                    }
-                }
-            }
-        };
+        return new ListSetting<>(key, defaultStringValue, parser, properties);
     }
 
     private static List<String> parseableStringToList(String parsableString) {
@@ -952,98 +1059,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<Settings> groupSetting(String key, Consumer<Settings> validator, Property... properties) {
-        return new Setting<Settings>(new GroupKey(key), (s) -> "", (s) -> null, properties) {
-            @Override
-            public boolean isGroupSetting() {
-                return true;
-            }
-
-            @Override
-            public String getRaw(Settings settings) {
-                Settings subSettings = get(settings);
-                try {
-                    XContentBuilder builder = XContentFactory.jsonBuilder();
-                    builder.startObject();
-                    subSettings.toXContent(builder, EMPTY_PARAMS);
-                    builder.endObject();
-                    return builder.string();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            @Override
-            public Settings get(Settings settings) {
-                Settings byPrefix = settings.getByPrefix(getKey());
-                validator.accept(byPrefix);
-                return byPrefix;
-            }
-
-            @Override
-            public boolean exists(Settings settings) {
-                for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                    if (entry.getKey().startsWith(key)) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            @Override
-            public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
-                Map<String, String> leftGroup = get(source).getAsMap();
-                Settings defaultGroup = get(defaultSettings);
-                for (Map.Entry<String, String> entry : defaultGroup.getAsMap().entrySet()) {
-                    if (leftGroup.containsKey(entry.getKey()) == false) {
-                        builder.put(getKey() + entry.getKey(), entry.getValue());
-                    }
-                }
-            }
-
-            @Override
-            public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, Logger logger,
-                    Consumer<Settings> validator) {
-                if (isDynamic() == false) {
-                    throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
-                }
-                final Setting<?> setting = this;
-                return new AbstractScopedSettings.SettingUpdater<Settings>() {
-
-                    @Override
-                    public boolean hasChanged(Settings current, Settings previous) {
-                        Settings currentSettings = get(current);
-                        Settings previousSettings = get(previous);
-                        return currentSettings.equals(previousSettings) == false;
-                    }
-
-                    @Override
-                    public Settings getValue(Settings current, Settings previous) {
-                        Settings currentSettings = get(current);
-                        Settings previousSettings = get(previous);
-                        try {
-                            validator.accept(currentSettings);
-                        } catch (Exception | AssertionError e) {
-                            throw new IllegalArgumentException("illegal value can't update [" + key + "] from ["
-                                    + previousSettings.getAsMap() + "] to [" + currentSettings.getAsMap() + "]", e);
-                        }
-                        return currentSettings;
-                    }
-
-                    @Override
-                    public void apply(Settings value, Settings current, Settings previous) {
-                        if (logger.isInfoEnabled()) { // getRaw can create quite some objects
-                            logger.info("updating [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
-                        }
-                        consumer.accept(value);
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "Updater for: " + setting.toString();
-                    }
-                };
-            }
-        };
+        return new GroupSetting(key, validator, properties);
     }
 
     public static Setting<TimeValue> timeSetting(String key, Function<Settings, TimeValue> defaultValue, TimeValue minValue,

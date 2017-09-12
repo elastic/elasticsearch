@@ -34,6 +34,9 @@ public class ClusterName implements Writeable {
         if (s.isEmpty()) {
             throw new IllegalArgumentException("[cluster.name] must not be empty");
         }
+        if (s.contains(":")) {
+            throw new IllegalArgumentException("[cluster.name] must not contain ':'");
+        }
         return new ClusterName(s);
     }, Setting.Property.NodeScope);
 

@@ -30,6 +30,7 @@ import java.io.InputStream;
 import java.nio.CharBuffer;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -39,6 +40,7 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Enumeration;
@@ -57,6 +59,10 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.bootstrap.BootstrapSettings;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.Randomness;
 
 /**
  * A wrapper around a Java KeyStore which provides supplements the keystore with extra metadata.
@@ -68,6 +74,12 @@ import org.apache.lucene.util.SetOnce;
  * multiple threads.
  */
 public class KeyStoreWrapper implements SecureSettings {
+
+    public static final Setting<SecureString> SEED_SETTING = SecureSetting.secureString("keystore.seed", null);
+
+    /** Characters that may be used in the bootstrap seed setting added to all keystores. */
+    private static final char[] SEED_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
+        "~!@#$%^&*-_=+?").toCharArray();
 
     /** An identifier for the type of data that may be stored in a keystore entry. */
     private enum KeyType {
@@ -142,19 +154,33 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Returns a path representing the ES keystore in the given config dir. */
-    static Path keystorePath(Path configDir) {
+    public static Path keystorePath(Path configDir) {
         return configDir.resolve(KEYSTORE_FILENAME);
     }
 
     /** Constructs a new keystore with the given password. */
-    static KeyStoreWrapper create(char[] password) throws Exception {
+    public static KeyStoreWrapper create(char[] password) throws Exception {
         KeyStoreWrapper wrapper = new KeyStoreWrapper(FORMAT_VERSION, password.length != 0, NEW_KEYSTORE_TYPE,
             NEW_KEYSTORE_STRING_KEY_ALGO, NEW_KEYSTORE_FILE_KEY_ALGO, new HashMap<>(), null);
         KeyStore keyStore = KeyStore.getInstance(NEW_KEYSTORE_TYPE);
         keyStore.load(null, null);
         wrapper.keystore.set(keyStore);
         wrapper.keystorePassword.set(new KeyStore.PasswordProtection(password));
+        addBootstrapSeed(wrapper);
         return wrapper;
+    }
+
+    /** Add the bootstrap seed setting, which may be used as a unique, secure, random value by the node */
+    public static void addBootstrapSeed(KeyStoreWrapper wrapper) throws GeneralSecurityException {
+        assert wrapper.getSettingNames().contains(SEED_SETTING.getKey()) == false;
+        SecureRandom random = Randomness.createSecure();
+        int passwordLength = 20; // Generate 20 character passwords
+        char[] characters = new char[passwordLength];
+        for (int i = 0; i < passwordLength; ++i) {
+            characters[i] = SEED_CHARS[random.nextInt(SEED_CHARS.length)];
+        }
+        wrapper.setString(SEED_SETTING.getKey(), characters);
+        Arrays.fill(characters, (char)0);
     }
 
     /**
@@ -202,6 +228,16 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
+    /** Upgrades the format of the keystore, if necessary. */
+    public static void upgrade(KeyStoreWrapper wrapper, Path configDir) throws Exception {
+        // ensure keystore.seed exists
+        if (wrapper.getSettingNames().contains(SEED_SETTING.getKey())) {
+            return;
+        }
+        addBootstrapSeed(wrapper);
+        wrapper.save(configDir);
+    }
+
     @Override
     public boolean isLoaded() {
         return keystore.get() != null;
@@ -227,10 +263,8 @@ public class KeyStoreWrapper implements SecureSettings {
         } finally {
             Arrays.fill(keystoreBytes, (byte)0);
         }
-
         keystorePassword.set(new KeyStore.PasswordProtection(password));
         Arrays.fill(password, '\0');
-
 
         Enumeration<String> aliases = keystore.get().aliases();
         if (formatVersion == 1) {
@@ -253,7 +287,8 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Write the keystore to the given config directory. */
-    void save(Path configDir) throws Exception {
+    public void save(Path configDir) throws Exception {
+        assert isLoaded();
         char[] password = this.keystorePassword.get().getPassword();
 
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
@@ -282,6 +317,12 @@ public class KeyStoreWrapper implements SecureSettings {
             output.writeInt(keystoreBytes.length);
             output.writeBytes(keystoreBytes, keystoreBytes.length);
             CodecUtil.writeFooter(output);
+        } catch (final AccessDeniedException e) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "unable to create temporary keystore at [%s], please check filesystem permissions",
+                    configDir.resolve(tmpFile));
+            throw new UserException(ExitCodes.CONFIG, message, e);
         }
 
         Path keystoreFile = keystorePath(configDir);
@@ -289,7 +330,7 @@ public class KeyStoreWrapper implements SecureSettings {
         PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreFile, PosixFileAttributeView.class);
         if (attrs != null) {
             // don't rely on umask: ensure the keystore has minimal permissions
-            attrs.setPermissions(PosixFilePermissions.fromString("rw-------"));
+            attrs.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
         }
     }
 
@@ -301,6 +342,7 @@ public class KeyStoreWrapper implements SecureSettings {
     // TODO: make settings accessible only to code that registered the setting
     @Override
     public SecureString getString(String setting) throws GeneralSecurityException {
+        assert isLoaded();
         KeyStore.Entry entry = keystore.get().getEntry(setting, keystorePassword.get());
         if (settingTypes.get(setting) != KeyType.STRING ||
             entry instanceof KeyStore.SecretKeyEntry == false) {
@@ -316,6 +358,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     @Override
     public InputStream getFile(String setting) throws GeneralSecurityException {
+        assert isLoaded();
         KeyStore.Entry entry = keystore.get().getEntry(setting, keystorePassword.get());
         if (settingTypes.get(setting) != KeyType.FILE ||
             entry instanceof KeyStore.SecretKeyEntry == false) {
@@ -346,6 +389,7 @@ public class KeyStoreWrapper implements SecureSettings {
      * @throws IllegalArgumentException if the value is not ASCII
      */
     void setString(String setting, char[] value) throws GeneralSecurityException {
+        assert isLoaded();
         if (ASCII_ENCODER.canEncode(CharBuffer.wrap(value)) == false) {
             throw new IllegalArgumentException("Value must be ascii");
         }
@@ -356,6 +400,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** Set a file setting. */
     void setFile(String setting, byte[] bytes) throws GeneralSecurityException {
+        assert isLoaded();
         bytes = Base64.getEncoder().encode(bytes);
         char[] chars = new char[bytes.length];
         for (int i = 0; i < chars.length; ++i) {
@@ -368,6 +413,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** Remove the given setting from the keystore. */
     void remove(String setting) throws KeyStoreException {
+        assert isLoaded();
         keystore.get().deleteEntry(setting);
         settingTypes.remove(setting);
     }

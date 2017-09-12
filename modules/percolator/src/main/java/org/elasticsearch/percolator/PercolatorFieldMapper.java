@@ -43,8 +43,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -83,14 +85,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.isObject;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 public class PercolatorFieldMapper extends FieldMapper {
 
     static final XContentType QUERY_BUILDER_CONTENT_TYPE = XContentType.SMILE;
-    static final Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING =
-            Setting.boolSetting("index.percolator.map_unmapped_fields_as_string", false, Setting.Property.IndexScope);
+    @Deprecated
+    static final Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING = Setting.boolSetting(
+        "index.percolator.map_unmapped_fields_as_string", false, Setting.Property.IndexScope, Setting.Property.Deprecated);
+    static final Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING = Setting.boolSetting(
+        "index.percolator.map_unmapped_fields_as_text", false, Setting.Property.IndexScope);
     static final String CONTENT_TYPE = "percolator";
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(PercolatorFieldMapper.class));
     private static final FieldType FIELD_TYPE = new FieldType();
 
     static final byte FIELD_VALUE_SEPARATOR = 0;  // nul code point
@@ -106,6 +115,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     static class Builder extends FieldMapper.Builder<Builder, PercolatorFieldMapper> {
 
         private final Supplier<QueryShardContext> queryShardContext;
+        private final Map<String, Float> boostFields = new HashMap<>();
 
         Builder(String fieldName, Supplier<QueryShardContext> queryShardContext) {
             super(fieldName, FIELD_TYPE, FIELD_TYPE);
@@ -130,7 +140,11 @@ public class PercolatorFieldMapper extends FieldMapper {
             setupFieldType(context);
             return new PercolatorFieldMapper(name(), fieldType, defaultFieldType, context.indexSettings(),
                     multiFieldsBuilder.build(this, context), copyTo, queryShardContext, extractedTermsField,
-                    extractionResultField, queryBuilderField, rangeFieldMapper);
+                    extractionResultField, queryBuilderField, rangeFieldMapper, Collections.unmodifiableMap(boostFields));
+        }
+
+        void addBoostField(String field, float boost) {
+            this.boostFields.put(field, boost);
         }
 
         static KeywordFieldMapper createExtractQueryFieldBuilder(String name, BuilderContext context) {
@@ -163,7 +177,24 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         @Override
         public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            return new Builder(name, parserContext.queryShardContextSupplier());
+            Builder builder = new Builder(name, parserContext.queryShardContextSupplier());
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
+                String propName = entry.getKey();
+                Object propNode = entry.getValue();
+                if (propName.equals("boost_fields")) {
+                    if (isObject(propNode)) {
+                        for (Map.Entry<?, ?> innerEntry : ((Map<?, ?>) propNode).entrySet()) {
+                            String fieldName = nodeStringValue(innerEntry.getKey(), null);
+                            builder.addBoostField(fieldName, nodeFloatValue(innerEntry.getValue()));
+                        }
+                    } else {
+                        throw new IllegalArgumentException("boost_fields [" + propNode + "] is not an object");
+                    }
+                    iterator.remove();
+                }
+            }
+            return builder;
         }
     }
 
@@ -204,7 +235,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             throw new QueryShardException(context, "Percolator fields are not searchable directly, use a percolate query instead");
         }
 
-        Query percolateQuery(PercolateQuery.QueryStore queryStore, BytesReference documentSource,
+        Query percolateQuery(String name, PercolateQuery.QueryStore queryStore, List<BytesReference> documents,
                              IndexSearcher searcher) throws IOException {
             IndexReader indexReader = searcher.getIndexReader();
             Query candidateMatchesQuery = createCandidateQuery(indexReader);
@@ -216,9 +247,9 @@ public class PercolatorFieldMapper extends FieldMapper {
             if (indexReader.maxDoc() == 1) {
                 verifiedMatchesQuery = new TermQuery(new Term(extractionResultField.name(), EXTRACTION_COMPLETE));
             } else {
-                verifiedMatchesQuery = new MatchNoDocsQuery("nested docs, so no verified matches");
+                verifiedMatchesQuery = new MatchNoDocsQuery("multiple/nested docs, so no verified matches");
             }
-            return new PercolateQuery(queryStore, documentSource, candidateMatchesQuery, searcher, verifiedMatchesQuery);
+            return new PercolateQuery(name, queryStore, documents, candidateMatchesQuery, searcher, verifiedMatchesQuery);
         }
 
         Query createCandidateQuery(IndexReader indexReader) throws IOException {
@@ -270,26 +301,46 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     }
 
-    private final boolean mapUnmappedFieldAsString;
+    private final boolean mapUnmappedFieldAsText;
     private final Supplier<QueryShardContext> queryShardContext;
     private KeywordFieldMapper queryTermsField;
     private KeywordFieldMapper extractionResultField;
     private BinaryFieldMapper queryBuilderField;
 
     private RangeFieldMapper rangeFieldMapper;
+    private Map<String, Float> boostFields;
 
     PercolatorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                  Settings indexSettings, MultiFields multiFields, CopyTo copyTo,
                                  Supplier<QueryShardContext> queryShardContext,
                                  KeywordFieldMapper queryTermsField, KeywordFieldMapper extractionResultField,
-                                 BinaryFieldMapper queryBuilderField, RangeFieldMapper rangeFieldMapper) {
+                                 BinaryFieldMapper queryBuilderField, RangeFieldMapper rangeFieldMapper,
+                                 Map<String, Float> boostFields) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.queryShardContext = queryShardContext;
         this.queryTermsField = queryTermsField;
         this.extractionResultField = extractionResultField;
         this.queryBuilderField = queryBuilderField;
-        this.mapUnmappedFieldAsString = INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING.get(indexSettings);
+        this.mapUnmappedFieldAsText = getMapUnmappedFieldAsText(indexSettings);
         this.rangeFieldMapper = rangeFieldMapper;
+        this.boostFields = boostFields;
+    }
+
+    private static boolean getMapUnmappedFieldAsText(Settings indexSettings) {
+        if (INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING.exists(indexSettings) &&
+                INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING.exists(indexSettings)) {
+            throw new IllegalArgumentException("Either specify [" + INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING.getKey() +
+                    "] or [" + INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING.getKey() + "] setting, not both");
+        }
+
+        if (INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING.exists(indexSettings)) {
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog(INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING.getKey(),
+                    "The [" + INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING.getKey() +
+                    "] setting is deprecated in favour for the [" + INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING.getKey() + "] setting");
+            return INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING.get(indexSettings);
+        } else {
+            return INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING.get(indexSettings);
+        }
     }
 
     @Override
@@ -336,14 +387,14 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
         createQueryBuilderField(indexVersion, queryBuilderField, queryBuilder, context);
-        Query query = toQuery(queryShardContext, mapUnmappedFieldAsString, queryBuilder);
+        Query query = toQuery(queryShardContext, mapUnmappedFieldAsText, queryBuilder);
         processQuery(query, context);
         return null;
     }
 
     static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,
                                         QueryBuilder queryBuilder, ParseContext context) throws IOException {
-        if (indexVersion.onOrAfter(Version.V_6_1_0)) {
+        if (indexVersion.onOrAfter(Version.V_6_0_0_beta2)) {
             try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
                 try (OutputStreamStreamOutput out  = new OutputStreamStreamOutput(stream)) {
                     out.setVersion(indexVersion);
@@ -367,7 +418,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         FieldType pft = (FieldType) this.fieldType();
         QueryAnalyzer.Result result;
         try {
-            result = QueryAnalyzer.analyze(query);
+            result = QueryAnalyzer.analyze(query, boostFields);
         } catch (QueryAnalyzer.UnsupportedQueryException e) {
             doc.add(new Field(pft.extractionResultField.name(), EXTRACTION_FAILED, extractionResultField.fieldType()));
             return;
@@ -435,6 +486,32 @@ public class PercolatorFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
+        PercolatorFieldMapper percolatorMergeWith = (PercolatorFieldMapper) mergeWith;
+
+        // Updating the boost_fields can be allowed, because it doesn't break previously indexed percolator queries
+        // However the updated boost_fields to completely take effect, percolator queries prior to the mapping update need to be reindexed
+        boostFields = percolatorMergeWith.boostFields;
+    }
+
+    @Override
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        super.doXContentBody(builder, includeDefaults, params);
+        if (boostFields.isEmpty() == false) {
+            builder.startObject("boost_fields");
+            for (Map.Entry<String, Float> entry : boostFields.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
+        }
+    }
+
+    boolean isMapUnmappedFieldAsText() {
+        return mapUnmappedFieldAsText;
     }
 
     /**

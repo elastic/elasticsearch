@@ -177,8 +177,8 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
 
         assertFailures(client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(Type.PHRASE).slop(0)),
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    containsString("field \"field1\" was indexed without position data; cannot run PhraseQuery"));
+                    RestStatus.BAD_REQUEST,
+                    containsString("field:[field1] was indexed without position data; cannot run PhraseQuery"));
     }
 
     // see #3521
@@ -1699,11 +1699,15 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource("field", "type=date,format=epoch_millis").get());
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("field", -1000000000001L),
                 client().prepareIndex("test", "type", "2").setSource("field", -1000000000000L),
-                client().prepareIndex("test", "type", "3").setSource("field", -999999999999L));
+                client().prepareIndex("test", "type", "3").setSource("field", -999999999999L),
+                client().prepareIndex("test", "type", "4").setSource("field", -1000000000001.0123456789),
+                client().prepareIndex("test", "type", "5").setSource("field", -1000000000000.0123456789),
+                client().prepareIndex("test", "type", "6").setSource("field", -999999999999.0123456789));
 
 
-        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 2);
-        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-999999999999L)).get(), 3);
+        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 4);
+        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-999999999999L)).get(), 6);
+
     }
 
     public void testRangeQueryWithTimeZone() throws Exception {
@@ -1784,12 +1788,6 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getId(), is("4"));
-
-        // A Range Filter on a numeric field with a TimeZone should raise an exception
-        e = expectThrows(SearchPhaseExecutionException.class, () ->
-            client().prepareSearch("test")
-                    .setQuery(QueryBuilders.rangeQuery("num").from("0").to("4").timeZone("-01:00"))
-                    .get());
     }
 
     public void testSearchEmptyDoc() {

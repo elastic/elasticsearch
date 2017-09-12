@@ -10,9 +10,8 @@ Elasticsearch is a distributed RESTful search engine built for the cloud. Featur
 ** Each index is fully sharded with a configurable number of shards.
 ** Each shard can have one or more replicas.
 ** Read / Search operations performed on any of the replica shards.
-* Multi Tenant with Multi Types.
+* Multi Tenant.
 ** Support for more than one index.
-** Support for more than one type per index.
 ** Index level configuration (number of shards, index storage, ...).
 * Various set of APIs
 ** HTTP RESTful API
@@ -20,7 +19,7 @@ Elasticsearch is a distributed RESTful search engine built for the cloud. Featur
 ** All APIs perform automatic node operation rerouting.
 * Document oriented
 ** No need for upfront schema definition.
-** Schema can be defined per type for customization of the indexing process.
+** Schema can be defined for customization of the indexing process.
 * Reliable, Asynchronous Write Behind for long term persistency.
 * (Near) Real Time Search.
 * Built on top of Lucene
@@ -47,32 +46,37 @@ h3. Installation
 
 h3. Indexing
 
-Let's try and index some twitter like information. First, let's create a twitter user, and add some tweets (the @twitter@ index will be created automatically):
+Let's try and index some twitter like information. First, let's index some tweets (the @twitter@ index will be created automatically):
 
 <pre>
-curl -XPUT 'http://localhost:9200/twitter/user/kimchy?pretty' -H 'Content-Type: application/json' -d '{ "name" : "Shay Banon" }'
-
-curl -XPUT 'http://localhost:9200/twitter/tweet/1?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/twitter/doc/1?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T13:12:00",
     "message": "Trying out Elasticsearch, so far so good?"
 }'
 
-curl -XPUT 'http://localhost:9200/twitter/tweet/2?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/twitter/doc/2?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T14:12:12",
     "message": "Another tweet, will it be indexed?"
+}'
+
+curl -XPUT 'http://localhost:9200/twitter/doc/3?pretty' -H 'Content-Type: application/json' -d '
+{
+    "user": "elastic",
+    "post_date": "2010-01-15T01:46:38",
+    "message": "Building the site, should be kewl"
 }'
 </pre>
 
 Now, let's see if the information was added by GETting it:
 
 <pre>
-curl -XGET 'http://localhost:9200/twitter/user/kimchy?pretty=true'
-curl -XGET 'http://localhost:9200/twitter/tweet/1?pretty=true'
-curl -XGET 'http://localhost:9200/twitter/tweet/2?pretty=true'
+curl -XGET 'http://localhost:9200/twitter/doc/1?pretty=true'
+curl -XGET 'http://localhost:9200/twitter/doc/2?pretty=true'
+curl -XGET 'http://localhost:9200/twitter/doc/3?pretty=true'
 </pre>
 
 h3. Searching
@@ -81,13 +85,13 @@ Mmm search..., shouldn't it be elastic?
 Let's find all the tweets that @kimchy@ posted:
 
 <pre>
-curl -XGET 'http://localhost:9200/twitter/tweet/_search?q=user:kimchy&pretty=true'
+curl -XGET 'http://localhost:9200/twitter/_search?q=user:kimchy&pretty=true'
 </pre>
 
 We can also use the JSON query language Elasticsearch provides instead of a query string:
 
 <pre>
-curl -XGET 'http://localhost:9200/twitter/tweet/_search?pretty=true' -H 'Content-Type: application/json' -d '
+curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
     "query" : {
         "match" : { "user": "kimchy" }
@@ -95,7 +99,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_search?pretty=true' -H 'Content
 }'
 </pre>
 
-Just for kicks, let's get all the documents stored (we should see the user as well):
+Just for kicks, let's get all the documents stored (we should see the tweet from @elastic@ as well):
 
 <pre>
 curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type: application/json' -d '
@@ -106,7 +110,7 @@ curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type:
 }'
 </pre>
 
-We can also do range search (the @postDate@ was automatically identified as date)
+We can also do range search (the @post_date@ was automatically identified as date)
 
 <pre>
 curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type: application/json' -d '
@@ -125,21 +129,19 @@ h3. Multi Tenant - Indices and Types
 
 Man, that twitter index might get big (in this case, index size == valuation). Let's see if we can structure our twitter system a bit differently in order to support such large amounts of data.
 
-Elasticsearch supports multiple indices, as well as multiple types per index. In the previous example we used an index called @twitter@, with two types, @user@ and @tweet@.
+Elasticsearch supports multiple indices. In the previous example we used an index called @twitter@ that stored tweets for every user.
 
 Another way to define our simple twitter system is to have a different index per user (note, though that each index has an overhead). Here is the indexing curl's in this case:
 
 <pre>
-curl -XPUT 'http://localhost:9200/kimchy/info/1?pretty' -H 'Content-Type: application/json' -d '{ "name" : "Shay Banon" }'
-
-curl -XPUT 'http://localhost:9200/kimchy/tweet/1?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/kimchy/doc/1?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T13:12:00",
     "message": "Trying out Elasticsearch, so far so good?"
 }'
 
-curl -XPUT 'http://localhost:9200/kimchy/tweet/2?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/kimchy/doc/2?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T14:12:12",
@@ -147,7 +149,7 @@ curl -XPUT 'http://localhost:9200/kimchy/tweet/2?pretty' -H 'Content-Type: appli
 }'
 </pre>
 
-The above will index information into the @kimchy@ index, with two types, @info@ and @tweet@. Each user will get their own special index.
+The above will index information into the @kimchy@ index. Each user will get their own special index.
 
 Complete control on the index level is allowed. As an example, in the above case, we would want to change from the default 5 shards with 1 replica per index, to only 1 shard with 1 replica per index (== per twitter user). Here is how this can be done (the configuration can be in yaml as well):
 

@@ -24,7 +24,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -35,7 +36,7 @@ import java.util.Objects;
 /**
  * Encapsulates the parameters needed to fetch terms.
  */
-public class TermsLookup implements Writeable, ToXContent {
+public class TermsLookup implements Writeable, ToXContentFragment {
     private final String index;
     private final String type;
     private final String id;

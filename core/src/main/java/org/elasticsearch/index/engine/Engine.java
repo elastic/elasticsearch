@@ -65,6 +65,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -396,7 +397,7 @@ public abstract class Engine implements Closeable {
          * (e.g while preparing operation or updating mappings)
          * */
         public IndexResult(Exception failure, long version) {
-            this(failure, version, SequenceNumbersService.UNASSIGNED_SEQ_NO);
+            this(failure, version, SequenceNumbers.UNASSIGNED_SEQ_NO);
         }
 
         public IndexResult(Exception failure, long version, long seqNo) {
@@ -703,6 +704,7 @@ public abstract class Engine implements Closeable {
                 if (verbose) {
                     segment.ramTree = Accountables.namedAccountable("root", segmentReader);
                 }
+                segment.attributes = info.info.getAttributes();
                 // TODO: add more fine grained mem stats values to per segment info here
                 segments.put(info.info.name, segment);
             }
@@ -1045,7 +1047,7 @@ public abstract class Engine implements Closeable {
 
         Index(Term uid, ParsedDocument doc, long version) {
             // use a primary term of 2 to allow tests to reduce it to a valid >0 term
-            this(uid, doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, 2, version, VersionType.INTERNAL,
+            this(uid, doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 2, version, VersionType.INTERNAL,
                     Origin.PRIMARY, System.nanoTime(), -1, false);
         } // TEST ONLY
 
@@ -1121,7 +1123,7 @@ public abstract class Engine implements Closeable {
         }
 
         public Delete(String type, String id, Term uid) {
-            this(type, id, uid, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
+            this(type, id, uid, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
         }
 
         public Delete(Delete template, VersionType versionType) {

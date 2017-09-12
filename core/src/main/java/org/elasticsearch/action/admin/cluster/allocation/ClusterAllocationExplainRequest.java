@@ -67,6 +67,17 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
         this.currentNode = null;
     }
 
+    public ClusterAllocationExplainRequest(StreamInput in) throws IOException {
+        super(in);
+        checkVersion(in.getVersion());
+        this.index = in.readOptionalString();
+        this.shard = in.readOptionalVInt();
+        this.primary = in.readOptionalBoolean();
+        this.currentNode = in.readOptionalString();
+        this.includeYesDecisions = in.readBoolean();
+        this.includeDiskInfo = in.readBoolean();
+    }
+
     /**
      * Create a new allocation explain request. If {@code primary} is false, the first unassigned replica
      * will be picked for explanation. If no replicas are unassigned, the first assigned replica will
@@ -79,6 +90,18 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
         this.shard = shard;
         this.primary = primary;
         this.currentNode = currentNode;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        checkVersion(out.getVersion());
+        super.writeTo(out);
+        out.writeOptionalString(index);
+        out.writeOptionalVInt(shard);
+        out.writeOptionalBoolean(primary);
+        out.writeOptionalString(currentNode);
+        out.writeBoolean(includeYesDecisions);
+        out.writeBoolean(includeDiskInfo);
     }
 
     @Override
@@ -226,26 +249,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        checkVersion(in.getVersion());
-        super.readFrom(in);
-        this.index = in.readOptionalString();
-        this.shard = in.readOptionalVInt();
-        this.primary = in.readOptionalBoolean();
-        this.currentNode = in.readOptionalString();
-        this.includeYesDecisions = in.readBoolean();
-        this.includeDiskInfo = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        checkVersion(out.getVersion());
-        super.writeTo(out);
-        out.writeOptionalString(index);
-        out.writeOptionalVInt(shard);
-        out.writeOptionalBoolean(primary);
-        out.writeOptionalString(currentNode);
-        out.writeBoolean(includeYesDecisions);
-        out.writeBoolean(includeDiskInfo);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     private void checkVersion(Version version) {

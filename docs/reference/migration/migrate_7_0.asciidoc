@@ -24,7 +24,16 @@ way to reindex old indices is to use the `reindex` API.
 [float]
 === Also see:
 
+* <<breaking_70_aggregations_changes>>
+* <<breaking_70_cluster_changes>>
+* <<breaking_70_indices_changes>>
+* <<breaking_70_mappings_changes>>
+* <<breaking_70_search_changes>>
 * <<breaking_70_plugins_changes>>
 
-
+include::migrate_7_0/aggregations.asciidoc[]
+include::migrate_7_0/cluster.asciidoc[]
+include::migrate_7_0/indices.asciidoc[]
+include::migrate_7_0/mappings.asciidoc[]
+include::migrate_7_0/search.asciidoc[]
 include::migrate_7_0/plugins.asciidoc[]

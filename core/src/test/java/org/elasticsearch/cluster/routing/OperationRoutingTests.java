@@ -28,8 +28,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -488,6 +490,92 @@ public class OperationRoutingTests extends ESTestCase{
             IOUtils.close(clusterService);
             terminate(threadPool);
         }
+    }
+
+    public void testAdaptiveReplicaSelection() throws Exception {
+        final int numIndices = 1;
+        final int numShards = 1;
+        final int numReplicas = 2;
+        final String[] indexNames = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indexNames[i] = "test" + i;
+        }
+        ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indexNames, numShards, numReplicas);
+        final int numRepeatedSearches = 4;
+        OperationRouting opRouting = new OperationRouting(Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        opRouting.setUseAdaptiveReplicaSelection(true);
+        List<ShardRouting> searchedShards = new ArrayList<>(numShards);
+        Set<String> selectedNodes = new HashSet<>(numShards);
+        TestThreadPool threadPool = new TestThreadPool("testThatOnlyNodesSupportNodeIds");
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        ResponseCollectorService collector = new ResponseCollectorService(Settings.EMPTY, clusterService);
+        Map<String, Long> outstandingRequests = new HashMap<>();
+        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state,
+                indexNames, null, null, collector, outstandingRequests);
+
+        assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
+
+        // Test that the shards use a round-robin pattern when there are no stats
+        assertThat(groupIterator.get(0).size(), equalTo(numReplicas + 1));
+        ShardRouting firstChoice = groupIterator.get(0).nextOrNull();
+        assertNotNull(firstChoice);
+        searchedShards.add(firstChoice);
+        selectedNodes.add(firstChoice.currentNodeId());
+
+        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
+
+        assertThat(groupIterator.size(), equalTo(numIndices * numShards));
+        ShardRouting secondChoice = groupIterator.get(0).nextOrNull();
+        assertNotNull(secondChoice);
+        searchedShards.add(secondChoice);
+        selectedNodes.add(secondChoice.currentNodeId());
+
+        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
+
+        assertThat(groupIterator.size(), equalTo(numIndices * numShards));
+        ShardRouting thirdChoice = groupIterator.get(0).nextOrNull();
+        assertNotNull(thirdChoice);
+        searchedShards.add(thirdChoice);
+        selectedNodes.add(thirdChoice.currentNodeId());
+
+        // All three shards should have been separate, because there are no stats yet so they're all ranked equally.
+        assertThat(searchedShards.size(), equalTo(3));
+
+        // Now let's start adding node metrics, since that will affect which node is chosen
+        collector.addNodeStatistics("node_0", 2, TimeValue.timeValueMillis(200).nanos(), TimeValue.timeValueMillis(150).nanos());
+        collector.addNodeStatistics("node_1", 1, TimeValue.timeValueMillis(100).nanos(), TimeValue.timeValueMillis(50).nanos());
+        collector.addNodeStatistics("node_2", 1, TimeValue.timeValueMillis(200).nanos(), TimeValue.timeValueMillis(200).nanos());
+        outstandingRequests.put("node_0", 1L);
+        outstandingRequests.put("node_1", 1L);
+        outstandingRequests.put("node_2", 1L);
+
+        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
+        ShardRouting shardChoice = groupIterator.get(0).nextOrNull();
+        // node 1 should be the lowest ranked node to start
+        assertThat(shardChoice.currentNodeId(), equalTo("node_1"));
+
+        // node 1 starts getting more loaded...
+        collector.addNodeStatistics("node_1", 2, TimeValue.timeValueMillis(200).nanos(), TimeValue.timeValueMillis(150).nanos());
+        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
+        shardChoice = groupIterator.get(0).nextOrNull();
+        assertThat(shardChoice.currentNodeId(), equalTo("node_1"));
+
+        // and more loaded...
+        collector.addNodeStatistics("node_1", 3, TimeValue.timeValueMillis(250).nanos(), TimeValue.timeValueMillis(200).nanos());
+        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
+        shardChoice = groupIterator.get(0).nextOrNull();
+        assertThat(shardChoice.currentNodeId(), equalTo("node_1"));
+
+        // and even more
+        collector.addNodeStatistics("node_1", 4, TimeValue.timeValueMillis(300).nanos(), TimeValue.timeValueMillis(250).nanos());
+        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
+        shardChoice = groupIterator.get(0).nextOrNull();
+        // finally, node 2 is choosen instead
+        assertThat(shardChoice.currentNodeId(), equalTo("node_2"));
+
+        IOUtils.close(clusterService);
+        terminate(threadPool);
     }
 
 }

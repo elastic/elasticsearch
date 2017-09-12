@@ -412,7 +412,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     // Parse the valid query and inserts a new object level called "newField"
                     XContentParser.Token token;
                     while ((token = parser.nextToken()) != null) {
-                        if (token == XContentParser.Token.START_OBJECT) {
+                        if (token == XContentParser.Token.START_ARRAY) {
+                            levels.addLast(parser.currentName());
+                        } else if (token == XContentParser.Token.START_OBJECT) {
                             objectIndex++;
                             levels.addLast(parser.currentName());
 
@@ -437,7 +439,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                                 // Jump to next token
                                 continue;
                             }
-                        } else if (token == XContentParser.Token.END_OBJECT) {
+                        } else if (token == XContentParser.Token.END_OBJECT || token == XContentParser.Token.END_ARRAY) {
                             levels.removeLast();
                         }
 
@@ -737,6 +739,21 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             // TODO we only change name and boost, we should extend by any sub-test supplying a "mutate" method that randomly changes one
             // aspect of the object under test
             checkEqualsAndHashCode(createTestQueryBuilder(), this::copyQuery, this::changeNameOrBoost);
+        }
+    }
+
+    /**
+     * Generic test that checks that the <code>Strings.toString()</code> method
+     * renders the XContent correctly.
+     */
+    public void testValidOutput() throws IOException {
+        for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
+            QB testQuery = createTestQueryBuilder();
+            XContentType xContentType = XContentType.JSON;
+            String toString = Strings.toString(testQuery);
+            assertParsedQuery(createParser(xContentType.xContent(), toString), testQuery);
+            BytesReference bytes = XContentHelper.toXContent(testQuery, xContentType, false);
+            assertParsedQuery(createParser(xContentType.xContent(), bytes), testQuery);
         }
     }
 

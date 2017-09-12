@@ -183,7 +183,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     public void testSingleContextFiltering() throws Exception {
         CategoryContextMapping contextMapping = ContextBuilder.category("cat").field("cat").build();
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<String, ContextMapping>(Collections.singletonMap("cat", contextMapping));
+        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
         int numDocs = 10;
@@ -209,7 +209,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     public void testSingleContextBoosting() throws Exception {
         CategoryContextMapping contextMapping = ContextBuilder.category("cat").field("cat").build();
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<String, ContextMapping>(Collections.singletonMap("cat", contextMapping));
+        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
         int numDocs = 10;
@@ -237,7 +237,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     public void testSingleContextMultipleContexts() throws Exception {
         CategoryContextMapping contextMapping = ContextBuilder.category("cat").field("cat").build();
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<String, ContextMapping>(Collections.singletonMap("cat", contextMapping));
+        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
         int numDocs = 10;
@@ -502,12 +502,12 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
 
-        GeoQueryContext context1 = GeoQueryContext.builder().setGeoPoint(geoPoints[0]).setBoost(2).build();
+        GeoQueryContext context1 = GeoQueryContext.builder().setGeoPoint(geoPoints[0]).setBoost(11).build();
         GeoQueryContext context2 = GeoQueryContext.builder().setGeoPoint(geoPoints[1]).build();
         CompletionSuggestionBuilder geoBoostingPrefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
                 .contexts(Collections.singletonMap("geo", Arrays.asList(context1, context2)));
 
-        assertSuggestions("foo", geoBoostingPrefix, "suggestion8", "suggestion6", "suggestion4", "suggestion9", "suggestion7");
+        assertSuggestions("foo", geoBoostingPrefix, "suggestion8", "suggestion6", "suggestion4", "suggestion2", "suggestion0");
     }
 
     public void testGeoPointContext() throws Exception {
@@ -637,6 +637,50 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         assertEquals(searchResponse.getSuggest().size(), 1);
         assertEquals("Hotel Amsterdam in Berlin", searchResponse.getSuggest().getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string());
+    }
+
+    public void testSkipDuplicatesWithContexts() throws Exception {
+        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        map.put("type", ContextBuilder.category("type").field("type").build());
+        map.put("cat", ContextBuilder.category("cat").field("cat").build());
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
+        createIndexAndMapping(mapping);
+        int numDocs = randomIntBetween(10, 100);
+        int numUnique = randomIntBetween(1, numDocs);
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            int id = i % numUnique;
+            XContentBuilder source = jsonBuilder()
+                .startObject()
+                    .startObject(FIELD)
+                        .field("input", "suggestion" + id)
+                        .field("weight", id)
+                    .endObject()
+                    .field("cat", "cat" + id % 2)
+                    .field("type", "type" + id)
+                .endObject();
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                .setSource(source));
+        }
+        String[] expected = new String[numUnique];
+        for (int i = 0; i < numUnique; i++) {
+            expected[i] = "suggestion" + (numUnique-1-i);
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder completionSuggestionBuilder =
+            SuggestBuilders.completionSuggestion(FIELD).prefix("sugg").skipDuplicates(true).size(numUnique);
+
+        assertSuggestions("suggestions", completionSuggestionBuilder, expected);
+
+        Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
+        contextMap.put("cat", Arrays.asList(CategoryQueryContext.builder().setCategory("cat0").build()));
+        completionSuggestionBuilder =
+            SuggestBuilders.completionSuggestion(FIELD).prefix("sugg").contexts(contextMap).skipDuplicates(true).size(numUnique);
+
+        String[] expectedModulo = Arrays.stream(expected)
+            .filter((s) -> Integer.parseInt(s.substring("suggestion".length())) % 2 == 0)
+            .toArray(String[]::new);
+        assertSuggestions("suggestions", completionSuggestionBuilder, expectedModulo);
     }
 
     public void assertSuggestions(String suggestionName, SuggestionBuilder suggestBuilder, String... suggestions) {

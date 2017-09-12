@@ -71,7 +71,7 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
         if (settings.get(ENABLE_POS_INC_KEY) != null) {
             throw new IllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain");
         }
-        this.keepWords = Analysis.getWordSet(env, indexSettings.getIndexVersionCreated(), settings, KEEP_WORDS_KEY);
+        this.keepWords = Analysis.getWordSet(env, settings, KEEP_WORDS_KEY);
     }
 
     @Override

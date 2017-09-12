@@ -23,15 +23,20 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.MapperService;
@@ -52,7 +57,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuilder> {
-
     @Override
     protected RangeQueryBuilder doCreateTestQueryBuilder() {
         RangeQueryBuilder query;
@@ -122,7 +126,16 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
     @Override
     protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        if (getCurrentTypes().length == 0 ||
+        if (queryBuilder.from() == null && queryBuilder.to() == null) {
+            final Query expectedQuery;
+            if (getCurrentTypes().length > 0) {
+                expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, queryBuilder.fieldName())));
+            } else {
+                expectedQuery = new MatchNoDocsQuery("no mappings yet");
+            }
+            assertThat(query, equalTo(expectedQuery));
+
+        } else if (getCurrentTypes().length == 0 ||
             (queryBuilder.fieldName().equals(DATE_FIELD_NAME) == false
                 && queryBuilder.fieldName().equals(INT_FIELD_NAME) == false
                 && queryBuilder.fieldName().equals(DATE_RANGE_FIELD_NAME) == false
@@ -219,16 +232,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.timeZone("badID"));
         expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.format(null));
         expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.format("badFormat"));
-    }
-
-    /**
-     * Specifying a timezone together with a numeric range query should throw an exception.
-     */
-    public void testToQueryNonDateWithTimezone() throws QueryShardException {
-        RangeQueryBuilder query = new RangeQueryBuilder(INT_FIELD_NAME);
-        query.from(1).to(10).timeZone("UTC");
-        QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(createShardContext()));
-        assertThat(e.getMessage(), containsString("[range] time_zone can not be applied"));
     }
 
     /**
@@ -351,7 +354,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}";
         QueryBuilder queryBuilder = parseQuery(query);
-        expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
+        queryBuilder.toQuery(createShardContext()); // no exception
     }
 
     public void testFromJson() throws IOException {
@@ -425,6 +428,16 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
         assertThat(rewrittenRange.from(), equalTo(null));
         assertThat(rewrittenRange.to(), equalTo(null));
+
+        // Range query with open bounds rewrite to an exists query
+        final Query luceneQuery = rewrittenRange.toQuery(queryShardContext);
+        final Query expectedQuery;
+        if (getCurrentTypes().length > 0) {
+            expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, query.fieldName())));
+        } else {
+            expectedQuery = new MatchNoDocsQuery("no mappings yet");
+        }
+        assertThat(luceneQuery, equalTo(expectedQuery));
     }
 
     public void testRewriteDateToMatchAllWithTimezoneAndFormat() throws IOException {

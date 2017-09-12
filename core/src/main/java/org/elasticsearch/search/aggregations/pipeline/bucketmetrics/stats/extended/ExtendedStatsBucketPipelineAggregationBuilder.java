@@ -22,10 +22,10 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.exten
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregationBuilder;
 
 import java.io.IOException;
@@ -82,12 +82,9 @@ public class ExtendedStatsBucketPipelineAggregationBuilder
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
+    public void doValidate(AggregatorFactory<?> parent, List<AggregationBuilder> aggBuilders,
             List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
-        if (bucketsPaths.length != 1) {
-            throw new IllegalStateException(Parser.BUCKETS_PATH.getPreferredName()
-                    + " must contain a single entry for aggregation [" + name + "]");
-        }
+        super.doValidate(parent, aggBuilders, pipelineAggregatorFactories);
 
         if (sigma < 0.0 ) {
             throw new IllegalStateException(ExtendedStatsBucketParser.SIGMA.getPreferredName()

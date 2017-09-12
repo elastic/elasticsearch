@@ -69,6 +69,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -78,6 +80,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -146,15 +149,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     private final NodeJoinController nodeJoinController;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
-
     private final ClusterApplier clusterApplier;
     private final AtomicReference<ClusterState> committedState; // last committed cluster state
     private final Object stateMutex = new Object();
+    private final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators;
 
     public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
                         NamedWriteableRegistry namedWriteableRegistry, MasterService masterService, ClusterApplier clusterApplier,
-                        ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider, AllocationService allocationService) {
+                        ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider, AllocationService allocationService,
+                        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators) {
         super(settings);
+        this.onJoinValidators = addBuiltInJoinValidators(onJoinValidators);
         this.masterService = masterService;
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
@@ -183,9 +188,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 int masterNodes = clusterState.nodes().getMasterNodes().size();
                 // the purpose of this validation is to make sure that the master doesn't step down
                 // due to a change in master nodes, which also means that there is no way to revert
-                // an accidental change. Since we validate using the current cluster state (and
+                // an accidental change. Since we validateOnJoin using the current cluster state (and
                 // not the one from which the settings come from) we have to be careful and only
-                // validate if the local node is already a master. Doing so all the time causes
+                // validateOnJoin if the local node is already a master. Doing so all the time causes
                 // subtle issues. For example, a node that joins a cluster has no nodes in its
                 // current cluster state. When it receives a cluster state from the master with
                 // a dynamic minimum master nodes setting int it, we must make sure we don't reject
@@ -211,7 +216,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         namedWriteableRegistry,
                         this,
                         discoverySettings);
-        this.membership = new MembershipAction(settings, transportService, new MembershipListener());
+        this.membership = new MembershipAction(settings, transportService, new MembershipListener(), onJoinValidators);
         this.joinThreadControl = new JoinThreadControl();
 
         this.nodeJoinController = new NodeJoinController(masterService, allocationService, electMaster, settings);
@@ -221,6 +226,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         transportService.registerRequestHandler(
             DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
+    }
+
+    static Collection<BiConsumer<DiscoveryNode,ClusterState>> addBuiltInJoinValidators(
+        Collection<BiConsumer<DiscoveryNode,ClusterState>> onJoinValidators) {
+        Collection<BiConsumer<DiscoveryNode, ClusterState>> validators = new ArrayList<>();
+        validators.add((node, state) -> {
+            MembershipAction.ensureNodesCompatibility(node.getVersion(), state.getNodes());
+            MembershipAction.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
+        });
+        validators.addAll(onJoinValidators);
+        return Collections.unmodifiableCollection(validators);
     }
 
     // protected to allow overriding in tests
@@ -885,20 +901,19 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         } else {
             // we do this in a couple of places including the cluster update thread. This one here is really just best effort
             // to ensure we fail as fast as possible.
-            MembershipAction.ensureNodesCompatibility(node.getVersion(), state.getNodes());
-            MembershipAction.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
+            onJoinValidators.stream().forEach(a -> a.accept(node, state));
             if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
                 MembershipAction.ensureMajorVersionBarrier(node.getVersion(), state.getNodes().getMinNodeVersion());
             }
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
 
-            // validate the join request, will throw a failure if it fails, which will get back to the
+            // validateOnJoin the join request, will throw a failure if it fails, which will get back to the
             // node calling the join request
             try {
                 membership.sendValidateJoinRequestBlocking(node, state, joinTimeout);
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", node), e);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to validateOnJoin incoming join request from node [{}]", node), e);
                 callback.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
                 return;
             }
@@ -1313,4 +1328,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
 
     }
+
+    public final Collection<BiConsumer<DiscoveryNode, ClusterState>> getOnJoinValidators() {
+        return onJoinValidators;
+    }
+
 }

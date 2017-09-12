@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -942,7 +943,10 @@ public class TopHitsIT extends ESIntegTestCase {
         }
     }
 
-    public void testDontExplode() throws Exception {
+    public void testUseMaxDocInsteadOfSize() throws Exception {
+        client().admin().indices().prepareUpdateSettings("idx")
+            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH))
+            .get();
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(terms("terms")
@@ -954,6 +958,67 @@ public class TopHitsIT extends ESIntegTestCase {
                 )
                 .get();
         assertNoFailures(response);
+        client().admin().indices().prepareUpdateSettings("idx")
+            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), null))
+            .get();
+    }
+
+    public void testTooHighResultWindow() throws Exception {
+        SearchResponse response = client()
+            .prepareSearch("idx")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .field(TERMS_AGGS_FIELD)
+                .subAggregation(
+                    topHits("hits").from(50).size(10).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                )
+            )
+            .get();
+        assertNoFailures(response);
+
+        Exception e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("idx")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .field(TERMS_AGGS_FIELD)
+                .subAggregation(
+                    topHits("hits").from(100).size(10).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                )
+            ).get());
+        assertThat(e.getCause().getMessage(),
+            containsString("the top hits aggregator [hits]'s from + size must be less than or equal to: [100] but was [110]"));
+        e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("idx")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .field(TERMS_AGGS_FIELD)
+                .subAggregation(
+                    topHits("hits").from(10).size(100).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                )
+            ).get());
+        assertThat(e.getCause().getMessage(),
+            containsString("the top hits aggregator [hits]'s from + size must be less than or equal to: [100] but was [110]"));
+
+        client().admin().indices().prepareUpdateSettings("idx")
+            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110))
+            .get();
+        response = client().prepareSearch("idx")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .field(TERMS_AGGS_FIELD)
+                .subAggregation(
+                    topHits("hits").from(100).size(10).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                )).get();
+        assertNoFailures(response);
+        response = client().prepareSearch("idx")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .field(TERMS_AGGS_FIELD)
+                .subAggregation(
+                    topHits("hits").from(10).size(100).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                )).get();
+        assertNoFailures(response);
+        client().admin().indices().prepareUpdateSettings("idx")
+            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), null))
+            .get();
     }
 
     public void testNoStoredFields() throws Exception {

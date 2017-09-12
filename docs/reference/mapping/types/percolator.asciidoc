@@ -277,6 +277,9 @@ now returns matches from the new index:
               "body": "quick brown fox"
             }
           }
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0]
         }
       }
     ]
@@ -472,6 +475,9 @@ This results in a response like this:
               }
             }
           }
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0]
         }
       }
     ]
@@ -495,9 +501,9 @@ Otherwise percolate queries can be parsed incorrectly.
 In certain cases it is unknown what kind of percolator queries do get registered, and if no field mapping exists for fields
 that are referred by percolator queries then adding a percolator query fails. This means the mapping needs to be updated
 to have the field with the appropriate settings, and then the percolator query can be added. But sometimes it is sufficient
-if all unmapped fields are handled as if these were default string fields. In those cases one can configure the
-`index.percolator.map_unmapped_fields_as_string` setting to `true` (default to `false`) and then if a field referred in
-a percolator query does not exist, it will be handled as a default string field so that adding the percolator query doesn't
+if all unmapped fields are handled as if these were default text fields. In those cases one can configure the
+`index.percolator.map_unmapped_fields_as_text` setting to `true` (default to `false`) and then if a field referred in
+a percolator query does not exist, it will be handled as a default text field so that adding the percolator query doesn't
 fail.
 
 [float]

@@ -235,16 +235,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     /**
-     * Specifying a timezone together with a numeric range query should throw an exception.
-     */
-    public void testToQueryNonDateWithTimezone() throws QueryShardException {
-        RangeQueryBuilder query = new RangeQueryBuilder(INT_FIELD_NAME);
-        query.from(1).to(10).timeZone("UTC");
-        QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(createShardContext()));
-        assertThat(e.getMessage(), containsString("[range] time_zone can not be applied"));
-    }
-
-    /**
      * Specifying a timezone together with an unmapped field should throw an exception.
      */
     public void testToQueryUnmappedWithTimezone() throws QueryShardException {
@@ -364,7 +354,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}";
         QueryBuilder queryBuilder = parseQuery(query);
-        expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
+        queryBuilder.toQuery(createShardContext()); // no exception
     }
 
     public void testFromJson() throws IOException {

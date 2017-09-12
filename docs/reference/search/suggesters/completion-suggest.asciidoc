@@ -277,6 +277,7 @@ The basic completion suggester query supports the following parameters:
 
 `field`:: The name of the field on which to run the query (required).
 `size`::  The number of suggestions to return (defaults to `5`).
+`skip_duplicates`:: Whether duplicate suggestions should be filtered out (defaults to `false`).
 
 NOTE: The completion suggester considers all documents in the index.
 See <<suggester-context>> for an explanation of how to query a subset of
@@ -290,6 +291,33 @@ multiple shards. To get best performance for completions, it is recommended to
 index completions into a single shard index. In case of high heap usage due to
 shard size, it is still recommended to break index into multiple shards instead
 of optimizing for completion performance.
+
+[[skip_duplicates]]
+==== Skip duplicate suggestions
+
+Queries can return duplicate suggestions coming from different documents.
+It is possible to modify this behavior by setting `skip_duplicates` to true.
+When set, this option filters out documents with duplicate suggestions from the result.
+
+[source,js]
+--------------------------------------------------
+POST music/_search?pretty
+{
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nor",
+            "completion" : {
+                "field" : "suggest",
+                "skip_duplicates": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+WARNING: when set to true this option can slow down search because more suggestions
+need to be visited to find the top N.
 
 [[fuzzy]]
 ==== Fuzzy queries

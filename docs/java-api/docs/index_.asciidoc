@@ -140,7 +140,7 @@ String json = "{" +
     "}";
 
 IndexResponse response = client.prepareIndex("twitter", "tweet")
-        .setSource(json)
+        .setSource(json, XContentType.JSON)
         .get();
 --------------------------------------------------
 

@@ -22,7 +22,7 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -63,7 +63,7 @@ public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             globalCheckpoint = in.readZLong();
         } else {
-            globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
     }
 

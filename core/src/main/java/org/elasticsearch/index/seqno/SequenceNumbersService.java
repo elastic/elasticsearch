@@ -33,16 +33,6 @@ import java.util.Set;
 public class SequenceNumbersService extends AbstractIndexShardComponent {
 
     /**
-     * Represents an unassigned sequence number (e.g., can be used on primary operations before they are executed).
-     */
-    public static final long UNASSIGNED_SEQ_NO = -2L;
-
-    /**
-     * Represents no operations have been performed on the shard.
-     */
-    public static final long NO_OPS_PERFORMED = -1L;
-
-    /**
      * Represents a local checkpoint coming from a pre-6.0 node
      */
     public static final long PRE_60_NODE_LOCAL_CHECKPOINT = -3L;
@@ -52,15 +42,15 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
 
     /**
      * Initialize the sequence number service. The {@code maxSeqNo} should be set to the last sequence number assigned by this shard, or
-     * {@link SequenceNumbersService#NO_OPS_PERFORMED}, {@code localCheckpoint} should be set to the last known local checkpoint for this
-     * shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}, and {@code globalCheckpoint} should be set to the last known global
-     * checkpoint for this shard, or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
+     * {@link SequenceNumbers#NO_OPS_PERFORMED}, {@code localCheckpoint} should be set to the last known local checkpoint for this
+     * shard, or {@link SequenceNumbers#NO_OPS_PERFORMED}, and {@code globalCheckpoint} should be set to the last known global
+     * checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}.
      *
      * @param shardId          the shard this service is providing tracking local checkpoints for
      * @param indexSettings    the index settings
-     * @param maxSeqNo         the last sequence number assigned by this shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}
-     * @param localCheckpoint  the last known local checkpoint for this shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}
-     * @param globalCheckpoint the last known global checkpoint for this shard, or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}
+     * @param maxSeqNo         the last sequence number assigned by this shard, or {@link SequenceNumbers#NO_OPS_PERFORMED}
+     * @param localCheckpoint  the last known local checkpoint for this shard, or {@link SequenceNumbers#NO_OPS_PERFORMED}
+     * @param globalCheckpoint the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
      */
     public SequenceNumbersService(
         final ShardId shardId,

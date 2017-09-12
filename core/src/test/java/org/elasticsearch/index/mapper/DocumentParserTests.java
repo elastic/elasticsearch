@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1374,5 +1375,27 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             assertThat(e.getMessage(),
                     containsString("object field starting or ending with a [.] makes object resolution ambiguous: [top..foo..bar]"));
         }
+    }
+
+    public void testBlankFieldNames() throws Exception {
+        final BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("", "foo")
+                .endObject().bytes();
+
+        MapperParsingException err = expectThrows(MapperParsingException.class, () ->
+                client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get());
+        assertThat(ExceptionsHelper.detailedMessage(err), containsString("field name cannot be an empty string"));
+
+        final BytesReference bytes2 = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("foo")
+                .field("", "bar")
+                .endObject()
+                .endObject().bytes();
+
+        err = expectThrows(MapperParsingException.class, () ->
+                client().prepareIndex("idx", "type").setSource(bytes2, XContentType.JSON).get());
+        assertThat(ExceptionsHelper.detailedMessage(err), containsString("field name cannot be an empty string"));
     }
 }

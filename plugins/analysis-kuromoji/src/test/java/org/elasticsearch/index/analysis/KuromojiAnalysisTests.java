@@ -93,6 +93,21 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
     }
 
+    public void testPartOfSpeechFilter() throws IOException {
+        TestAnalysis analysis = createTestAnalysis();
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("kuromoji_part_of_speech");
+
+        assertThat(tokenFilter, instanceOf(KuromojiPartOfSpeechFilterFactory.class));
+
+        String source = "寿司がおいしいね";
+        String[] expected_tokens = new String[]{"寿司", "おいしい"};
+
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens);
+    }
+
     public void testReadingFormFilterFactory() throws IOException {
         TestAnalysis analysis = createTestAnalysis();
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("kuromoji_rf");

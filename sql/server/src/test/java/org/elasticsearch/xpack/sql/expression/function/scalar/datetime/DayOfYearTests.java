@@ -25,7 +25,7 @@ public class DayOfYearTests extends ESTestCase {
     }
 
     private Object extract(Object value, DateTimeZone timeZone) {
-        return build(value, timeZone).asProcessor().apply(value);
+        return build(value, timeZone).asProcessor().asProcessor().process(value);
     }
 
     private DayOfYear build(Object value, DateTimeZone timeZone) {

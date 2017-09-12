@@ -11,11 +11,9 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.tree.Node;
 
 import java.util.ArrayList;
@@ -102,9 +100,6 @@ abstract class Verifier {
                 }
                 else if (ae instanceof Attribute && !ae.resolved()) {
                     localFailures.add(fail(e, "Cannot resolved '%s' from columns %s", Expressions.name(ae), p.intputSet()));
-                }
-                else if (ae instanceof Cast && !(p instanceof Project || p instanceof Aggregate)) {
-                    localFailures.add(fail(ae, "Cast is (currently) only supported in SELECT and GROUP BY; not in %s", p.nodeName()));
                 }
             }));
 

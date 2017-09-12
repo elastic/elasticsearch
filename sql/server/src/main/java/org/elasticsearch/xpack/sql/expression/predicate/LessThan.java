@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate;
 
+import org.elasticsearch.xpack.sql.expression.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.BinaryExpression.Negateable;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class LessThan extends BinaryComparison implements Negateable {

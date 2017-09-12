@@ -41,11 +41,6 @@ public abstract class Function extends NamedExpression {
     }
 
     @Override
-    public boolean foldable() {
-        return false;
-    }
-
-    @Override
     public boolean nullable() {
         return false;
     }

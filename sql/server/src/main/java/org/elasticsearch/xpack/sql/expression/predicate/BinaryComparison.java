@@ -5,19 +5,31 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate;
 
-import org.elasticsearch.xpack.sql.expression.BinaryExpression;
+import org.elasticsearch.xpack.sql.expression.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 
 // marker class to indicate operations that rely on values
-public abstract class BinaryComparison extends BinaryExpression {
+public abstract class BinaryComparison extends BinaryOperator {
 
     public BinaryComparison(Location location, Expression left, Expression right) {
         super(location, left, right);
     }
 
     @Override
+    protected TypeResolution resolveInputType(DataType inputType) {
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    @Override
     protected Expression canonicalize() {
         return left().hashCode() > right().hashCode() ? swapLeftAndRight() : this;
+    }
+
+    @Override
+    public DataType dataType() {
+        return DataTypes.BOOLEAN;
     }
 }

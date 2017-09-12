@@ -16,6 +16,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -36,7 +38,7 @@ public class ScrollCursor implements Cursor {
     /**
      * {@link NamedWriteableRegistry} used to resolve the {@link #extractors}.
      */
-    private static final NamedWriteableRegistry REGISTRY = new NamedWriteableRegistry(HitExtractor.getNamedWriteables());
+    private static final NamedWriteableRegistry REGISTRY = new NamedWriteableRegistry(HitExtractors.getNamedWriteables());
 
     private final String scrollId;
     private final List<HitExtractor> extractors;

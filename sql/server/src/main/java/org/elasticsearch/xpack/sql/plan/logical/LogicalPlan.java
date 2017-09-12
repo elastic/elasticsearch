@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical;
 
-import java.util.List;
-
 import org.elasticsearch.xpack.sql.capabilities.Resolvable;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.plan.QueryPlan;
 import org.elasticsearch.xpack.sql.tree.Location;
+
+import java.util.List;
 
 public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Resolvable {
 

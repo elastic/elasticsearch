@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 
-public class AggRef implements Reference {
+public class AggRef implements ColumnReference {
     private final String path;
     private final int depth;
 
-    AggRef(String path) {
+    public AggRef(String path) {
         this.path = path;
         depth = AggPath.depth(path);
     }

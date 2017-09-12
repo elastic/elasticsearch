@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 public class Avg extends NumericAggregate implements EnclosedAgg {
 
@@ -17,5 +18,10 @@ public class Avg extends NumericAggregate implements EnclosedAgg {
     @Override
     public String innerName() {
         return "avg";
+    }
+
+    @Override
+    public DataType dataType() {
+        return field().dataType();
     }
 }

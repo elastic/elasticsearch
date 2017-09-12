@@ -10,9 +10,11 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aware.TimeZoneAware;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.DateTimeProcessor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -26,12 +28,12 @@ import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
-public abstract class DateTimeFunction extends ScalarFunction implements TimeZoneAware {
+public abstract class DateTimeFunction extends UnaryScalarFunction implements TimeZoneAware {
 
     private final DateTimeZone timeZone;
 
-    public DateTimeFunction(Location location, Expression argument, DateTimeZone timeZone) {
-        super(location, argument);
+    public DateTimeFunction(Location location, Expression field, DateTimeZone timeZone) {
+        super(location, field);
         this.timeZone = timeZone;
     }
     
@@ -39,11 +41,15 @@ public abstract class DateTimeFunction extends ScalarFunction implements TimeZon
         return timeZone;
     }
 
+    public boolean foldable() {
+        return field().foldable();
+    }
+
     @Override
     protected TypeResolution resolveType() {
-        return argument().dataType().same(DataTypes.DATE) ? 
+        return field().dataType().same(DataTypes.DATE) ? 
                     TypeResolution.TYPE_RESOLVED :
-                    new TypeResolution("Function '%s' cannot be applied on a non-date expression ('%s' of type '%s')", functionName(), Expressions.name(argument()), argument().dataType().esName());
+                    new TypeResolution("Function '%s' cannot be applied on a non-date expression ('%s' of type '%s')", functionName(), Expressions.name(field()), field().dataType().esName());
     }
 
     @Override
@@ -84,9 +90,8 @@ public abstract class DateTimeFunction extends ScalarFunction implements TimeZon
         return getClass().getSimpleName();
     }
 
-    @Override
-    public final ColumnProcessor asProcessor() {
-        return new DateTimeProcessor(extractor(), timeZone);
+    protected final ProcessorDefinition makeProcessor() {
+        return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()), new DateTimeProcessor(extractor(), timeZone));
     }
 
     protected abstract DateTimeExtractor extractor();

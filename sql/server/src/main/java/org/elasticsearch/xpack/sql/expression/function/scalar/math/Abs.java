@@ -6,21 +6,22 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 public class Abs extends MathFunction {
-    public Abs(Location location, Expression argument) {
-        super(location, argument);
+    public Abs(Location location, Expression field) {
+        super(location, field);
     }
 
     @Override
-    protected MathProcessor processor() {
-        return MathProcessor.ABS;
+    protected MathOperation operation() {
+        return MathOperation.ABS;
     }
 
     @Override
     public DataType dataType() {
-        return argument().dataType();
+        return field().dataType();
     }
 }

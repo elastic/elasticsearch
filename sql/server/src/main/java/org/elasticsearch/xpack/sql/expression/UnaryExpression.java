@@ -31,11 +31,6 @@ public abstract class UnaryExpression extends Expression {
     }
 
     @Override
-    public boolean foldable() {
-        return child.foldable();
-    }
-
-    @Override
     public boolean resolved() {
         return child.resolved();
     }

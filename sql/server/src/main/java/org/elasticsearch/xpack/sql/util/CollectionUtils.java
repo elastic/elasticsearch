@@ -8,13 +8,16 @@ package org.elasticsearch.xpack.sql.util;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
 public abstract class CollectionUtils {
+
+    public static boolean isEmpty(Collection<?> col) {
+        return col == null || col.isEmpty();
+    }
+
     @SuppressWarnings("unchecked")
     public static <T> List<T> combine(List<? extends T> left, List<? extends T> right) {
         if (right.isEmpty()) {

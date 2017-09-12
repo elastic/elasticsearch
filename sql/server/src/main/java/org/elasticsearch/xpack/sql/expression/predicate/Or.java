@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate;
 
-import org.elasticsearch.xpack.sql.expression.BinaryExpression;
+import org.elasticsearch.xpack.sql.expression.BinaryLogic;
+import org.elasticsearch.xpack.sql.expression.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.BinaryExpression.Negateable;
 import org.elasticsearch.xpack.sql.tree.Location;
 
-public class Or extends BinaryExpression implements Negateable {
+public class Or extends BinaryLogic implements Negateable {
 
     public Or(Location location, Expression left, Expression right) {
         super(location, left, right);

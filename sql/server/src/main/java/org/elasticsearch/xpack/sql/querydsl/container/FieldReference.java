@@ -5,7 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-public interface FieldReference extends Reference {
+public interface FieldReference extends ColumnReference {
 
+    @Override
+    default int depth() {
+        return 0;
+    }
+
+    /**
+     * Field name.
+     * 
+     * @return field name.
+     */
     String name();
 }

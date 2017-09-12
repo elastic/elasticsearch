@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.Objects;
@@ -21,8 +22,8 @@ public class Literal extends LeafExpression {
 
     public Literal(Location location, Object value, DataType dataType) {
         super(location);
-        this.value = value;
         this.dataType = dataType;
+        this.value = DataTypeConversion.convert(value, dataType);
     }
 
     public Object value() {

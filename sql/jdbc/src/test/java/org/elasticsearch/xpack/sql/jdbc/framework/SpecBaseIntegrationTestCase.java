@@ -13,6 +13,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -123,7 +124,11 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     // returns groupName, testName, its line location, its source and the custom object (based on each test parser)
     protected static List<Object[]> readScriptSpec(String url, Parser parser) throws Exception {
-        Path source = PathUtils.get(SpecBaseIntegrationTestCase.class.getResource(url).toURI());
+        URL resource = SpecBaseIntegrationTestCase.class.getResource(url);
+        if (resource == null) {
+            throw new IllegalArgumentException("Cannot find resource " + url);
+        }
+        Path source = PathUtils.get(resource.toURI());
         String fileName = source.getFileName().toString();
         int dot = fileName.indexOf(".");
         String groupName = dot > 0 ? fileName.substring(0, dot) : fileName;

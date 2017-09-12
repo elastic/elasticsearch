@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -30,7 +31,7 @@ public class Pi extends MathFunction {
     }
 
     @Override
-    protected MathProcessor processor() {
-        return MathProcessor.PI;
+    protected MathOperation operation() {
+        return MathOperation.PI;
     }
 }

@@ -9,7 +9,9 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 
 // somewhat of a fake agg (since it gets optimized and it gets its value from the response)
 public final class TotalCountRef extends AggRef {
-    public static TotalCountRef INSTANCE = new TotalCountRef();
+    public static final TotalCountRef INSTANCE = new TotalCountRef();
+
+    public static final String PATH = "#_count_#";
 
     TotalCountRef() {
         super(StringUtils.EMPTY);

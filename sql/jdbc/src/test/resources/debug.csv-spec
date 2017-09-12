@@ -3,9 +3,11 @@
 //
 
 debug
-SELECT gender, PERCENTILE(emp_no, 97.76) p1, PERCENTILE(emp_no, 93.3) p2, PERCENTILE_RANK(emp_no, 10025) rank FROM test_emp GROUP BY gender;
+// resolution should happen on the adjiacent nodes as well
+//SELECT 1+2+3 x, x + 3 AS y, y FROM test_emp;
 
-gender               | p1                   | p2                   | rank
-M                    | 10095.6112           | 10090.846            | 23.41269841269841   
-F                    | 10099.1936           | 10096.351999999999   | 26.351351351351347  
+SELECT 2 + 3 x, 'foo', x + 1 z;
+
+x   |  'foo' |  z     
+5   |  'foo' |  6
 ;

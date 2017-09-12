@@ -21,7 +21,48 @@ public abstract class DataTypeConversion {
 
     private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateTimeNoMillis().withZoneUTC();
 
-    public static boolean nullable(DataType from, DataType to) {
+    public static DataType commonType(DataType left, DataType right) {
+        if (left.same(right)) {
+            return left;
+        }
+        if (nullable(left)) {
+            return right;
+        }
+        if (nullable(right)) {
+            return left;
+        }
+        if (left.isNumeric() && right.isNumeric()) {
+            // if one is int
+            if (left.isInteger()) {
+                // promote the highest int
+                if (right.isInteger()) {
+                    return left.size() > right.size() ? left : right;
+                }
+                // promote the rational
+                return right;
+            }
+            // try the other side
+            if (right.isInteger()) {
+                return left;
+            }
+            // promote the highest rational
+            return left.size() > right.size() ? left : right;
+        }
+        if (left instanceof StringType) {
+            if (right.isNumeric()) {
+                return right;
+            }
+        }
+        if (right instanceof StringType) {
+            if (left.isNumeric()) {
+                return left;
+            }
+        }
+        // none found
+        return null;
+    }
+
+    public static boolean nullable(DataType from) {
         return from instanceof NullType;
     }
 
@@ -222,21 +263,21 @@ public abstract class DataTypeConversion {
         throw new SqlIllegalArgumentException("cannot convert [" + from + "] to [Boolean]");
     }
 
-    private static byte safeToByte(long x) {
+    public static byte safeToByte(long x) {
         if (x > Byte.MAX_VALUE || x < Byte.MIN_VALUE) {
             throw new SqlIllegalArgumentException("Numeric %d out of byte range", Long.toString(x));
         }
         return (byte) x;
     }
 
-    private static short safeToShort(long x) {
+    public static short safeToShort(long x) {
         if (x > Short.MAX_VALUE || x < Short.MIN_VALUE) {
             throw new SqlIllegalArgumentException("Numeric %d out of short range", Long.toString(x));
         }
         return (short) x;
     }
 
-    private static int safeToInt(long x) {
+    public static int safeToInt(long x) {
         if (x > Integer.MAX_VALUE || x < Integer.MIN_VALUE) {
             // NOCOMMIT should these instead be regular IllegalArgumentExceptions so we throw a 400 error? Or something else?
             throw new SqlIllegalArgumentException("numeric %d out of int range", Long.toString(x));
@@ -244,11 +285,19 @@ public abstract class DataTypeConversion {
         return (int) x;
     }
 
-    private static long safeToLong(double x) {
+    public static long safeToLong(double x) {
         if (x > Long.MAX_VALUE || x < Long.MIN_VALUE) {
             throw new SqlIllegalArgumentException("[" + x + "] out of [Long] range");
         }
         return Math.round(x);
+    }
+
+    public static Object convert(Object value, DataType dataType) {
+        DataType detectedType = DataTypes.fromJava(value);
+        if (detectedType.equals(dataType)) {
+            return value;
+        }
+        return conversionFor(detectedType, dataType).convert(value);
     }
 
     /**
@@ -306,9 +355,9 @@ public abstract class DataTypeConversion {
                 try {
                     return converter.apply(value.toString());
                 } catch (NumberFormatException e) {
-                    throw new SqlIllegalArgumentException("cannot cast [" + value + "] to [" + to + "]", e);
+                    throw new SqlIllegalArgumentException("cannot cast [%s] to [%s]", value, to, e);
                 } catch (IllegalArgumentException e) {
-                    throw new SqlIllegalArgumentException("cannot cast [" + value + "] to [" + to + "]: " + e.getMessage(), e);
+                    throw new SqlIllegalArgumentException("cannot cast [%s] to [%s]:%s", value, to, e.getMessage(), e);
                 }
             };
         }
@@ -323,5 +372,13 @@ public abstract class DataTypeConversion {
             }
             return converter.apply(l);
         }
+    }
+
+    public static DataType asInteger(DataType dataType) {
+        if (!dataType.isNumeric()) {
+            return dataType;
+        }
+
+        return dataType.isInteger() ? dataType : DataTypes.LONG;
     }
 }

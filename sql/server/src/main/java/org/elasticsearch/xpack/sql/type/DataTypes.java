@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.joda.time.DateTime;
 
 import java.sql.JDBCType;
 import java.util.LinkedHashMap;
@@ -103,6 +104,9 @@ public abstract class DataTypes {
         }
         if (value instanceof Short) {
             return SHORT;
+        }
+        if (value instanceof DateTime) {
+            return DATE;
         }
         if (value instanceof String) {
             return KEYWORD;

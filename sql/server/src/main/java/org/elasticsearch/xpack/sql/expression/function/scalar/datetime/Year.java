@@ -6,14 +6,15 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
 
 public class Year extends DateTimeFunction {
-    public Year(Location location, Expression argument, DateTimeZone timeZone) {
-        super(location, argument, timeZone);
+    public Year(Location location, Expression field, DateTimeZone timeZone) {
+        super(location, field, timeZone);
     }
 
     @Override
@@ -28,7 +29,7 @@ public class Year extends DateTimeFunction {
 
     @Override
     public Expression orderBy() {
-        return argument();
+        return field();
     }
 
     @Override
@@ -39,5 +40,5 @@ public class Year extends DateTimeFunction {
     @Override
     protected DateTimeExtractor extractor() {
         return DateTimeExtractor.YEAR;
-    }
+}
 }

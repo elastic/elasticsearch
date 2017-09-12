@@ -6,15 +6,16 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Tan extends MathFunction {
-    public Tan(Location location, Expression argument) {
-        super(location, argument);
+    public Tan(Location location, Expression field) {
+        super(location, field);
     }
 
     @Override
-    protected MathProcessor processor() {
-        return MathProcessor.TAN;
+    protected MathOperation operation() {
+        return MathOperation.TAN;
     }
 }

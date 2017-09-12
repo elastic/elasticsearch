@@ -19,6 +19,12 @@ import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
+import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Add;
+import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Div;
+import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
+import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mul;
+import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Sub;
+import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Extract;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
 import org.elasticsearch.xpack.sql.expression.predicate.Equals;
@@ -36,6 +42,8 @@ import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQuery
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.regex.Like;
 import org.elasticsearch.xpack.sql.expression.regex.RLike;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticBinaryContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ColumnExpressionContext;
@@ -212,9 +220,50 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     //
+    // Arithmetic
+    //
+
+    @Override
+    public Object visitArithmeticUnary(ArithmeticUnaryContext ctx) {
+        Expression value = expression(ctx.valueExpression());
+        Location loc = source(ctx);
+
+        switch (ctx.operator.getType()) {
+            case SqlBaseParser.PLUS:
+                return value;
+            case SqlBaseParser.MINUS:
+                return new Neg(source(ctx.operator), value);
+            default:
+                throw new ParsingException(loc, "Unknown arithemtic %s", ctx.operator.getText());
+        }
+    }
+
+    @Override
+    public Object visitArithmeticBinary(ArithmeticBinaryContext ctx) {
+        Expression left = expression(ctx.left);
+        Expression right = expression(ctx.right);
+
+        Location loc = source(ctx.operator);
+
+        switch (ctx.operator.getType()) {
+            case SqlBaseParser.ASTERISK:
+                return new Mul(loc, left, right);
+            case SqlBaseParser.SLASH:
+                return new Div(loc, left, right);
+            case SqlBaseParser.PERCENT:
+                return new Mod(loc, left, right);
+            case SqlBaseParser.PLUS:
+                return new Add(loc, left, right);
+            case SqlBaseParser.MINUS:
+                return new Sub(loc, left, right);
+            default:
+                throw new ParsingException(loc, "Unknown arithemtic %s", ctx.operator.getText());
+        }
+    }
+
+    //
     // Full-text search predicates
     // 
-    
     @Override
     public Object visitStringQuery(StringQueryContext ctx) {
         return new StringQueryPredicate(source(ctx), text(ctx.queryString), text(ctx.options));

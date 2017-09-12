@@ -37,7 +37,9 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
                 readScriptSpec("/filter.sql-spec", parser),
                 readScriptSpec("/datetime.sql-spec", parser),
                 readScriptSpec("/math.sql-spec", parser),
-                readScriptSpec("/agg.sql-spec", parser));
+                readScriptSpec("/agg.sql-spec", parser),
+                readScriptSpec("/arithmetic.sql-spec", parser)
+                );
     }
 
     // NOCOMMIT: add tests for nested docs when interplug communication is enabled

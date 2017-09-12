@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.MathFunctionProcessor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -23,20 +25,19 @@ import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
-public abstract class MathFunction extends ScalarFunction {
+public abstract class MathFunction extends UnaryScalarFunction {
 
     protected MathFunction(Location location) {
         super(location);
     }
 
-    protected MathFunction(Location location, Expression argument) {
-        super(location, argument);
+    protected MathFunction(Location location, Expression field) {
+        super(location, field);
     }
 
     public boolean foldable() {
-        return argument().foldable();
+        return field().foldable();
     }
-
 
     @Override
     protected String chainScalarTemplate(String template) {
@@ -44,6 +45,7 @@ public abstract class MathFunction extends ScalarFunction {
     }
 
     @Override
+    // TODO: isn't chain Scalar Template enough?
     protected ScriptTemplate asScriptFrom(ScalarFunctionAttribute scalar) {
         ScriptTemplate nested = scalar.script();
         return new ScriptTemplate(createTemplate(nested.template()),
@@ -79,9 +81,9 @@ public abstract class MathFunction extends ScalarFunction {
     }
 
     @Override
-    public final ColumnProcessor asProcessor() {
-        return new MathFunctionProcessor(processor());
+    protected final ProcessorDefinition makeProcessor() {
+        return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()), new MathProcessor(operation()));
     }
 
-    protected abstract MathProcessor processor();
+    protected abstract MathOperation operation();
 }

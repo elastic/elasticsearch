@@ -6,14 +6,15 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
 
 public class DayOfMonth extends DateTimeFunction {
-    public DayOfMonth(Location location, Expression argument, DateTimeZone timeZone) {
-        super(location, argument, timeZone);
+    public DayOfMonth(Location location, Expression field, DateTimeZone timeZone) {
+        super(location, field, timeZone);
     }
 
     @Override

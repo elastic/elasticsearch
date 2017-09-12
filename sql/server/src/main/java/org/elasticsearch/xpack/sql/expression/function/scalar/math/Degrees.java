@@ -6,11 +6,12 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Degrees extends MathFunction {
-    public Degrees(Location location, Expression argument) {
-        super(location, argument);
+    public Degrees(Location location, Expression field) {
+        super(location, field);
     }
 
     @Override
@@ -19,7 +20,7 @@ public class Degrees extends MathFunction {
     }
 
     @Override
-    protected MathProcessor processor() {
-        return MathProcessor.DEGREES;
+    protected MathOperation operation() {
+        return MathOperation.DEGREES;
     }
 }

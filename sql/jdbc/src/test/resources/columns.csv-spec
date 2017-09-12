@@ -9,7 +9,7 @@
 columnDetectionOverride
 SELECT gender, FLOOR(PERCENTILE(emp_no, 97.76)) p1 FROM test_emp GROUP BY gender;
 
-gender:s             | p1:double
+gender:s             | p1:l
 M                    | 10095
 F                    | 10099
 ;

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.sql.session;
 import org.elasticsearch.common.settings.Settings;
 import org.joda.time.DateTimeZone;
 
+import java.util.TimeZone;
+
 // Typed object holding properties for a given 
 public class SqlSettings {
 
@@ -40,7 +42,8 @@ public class SqlSettings {
     }
 
     public DateTimeZone timeZone() {
-        return DateTimeZone.forID(timeZoneId());
+        // use this instead of DateTimeZone#forID because DTZ doesn't support all of j.u.TZ IDs (such as IST)
+        return DateTimeZone.forTimeZone(TimeZone.getTimeZone(TIMEZONE_ID));
     }
 
     public int pageSize() {

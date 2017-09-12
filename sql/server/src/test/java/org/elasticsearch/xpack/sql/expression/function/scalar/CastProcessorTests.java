@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -35,16 +36,21 @@ public class CastProcessorTests extends AbstractWireSerializingTestCase<CastProc
     public void testApply() {
         {
             CastProcessor proc = new CastProcessor(Conversion.STRING_TO_INT);
-            assertEquals(null, proc.apply(null));
-            assertEquals(1, proc.apply("1"));
-            Exception e = expectThrows(SqlIllegalArgumentException.class, () -> proc.apply("1.2"));
+            assertEquals(null, proc.process(null));
+            assertEquals(1, proc.process("1"));
+            Exception e = expectThrows(SqlIllegalArgumentException.class, () -> proc.process("1.2"));
             assertEquals("cannot cast [1.2] to [Int]", e.getMessage());
         }
         {
             CastProcessor proc = new CastProcessor(Conversion.BOOL_TO_INT);
-            assertEquals(null, proc.apply(null));
-            assertEquals(1, proc.apply(true));
-            assertEquals(0, proc.apply(false));
+            assertEquals(null, proc.process(null));
+            assertEquals(1, proc.process(true));
+            assertEquals(0, proc.process(false));
         }
+    }
+    
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(Processors.getNamedWriteables());
     }
 }

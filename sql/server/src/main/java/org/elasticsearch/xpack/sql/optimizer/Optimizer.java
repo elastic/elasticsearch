@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.BinaryExpression;
-import org.elasticsearch.xpack.sql.expression.BinaryExpression.Negateable;
+import org.elasticsearch.xpack.sql.expression.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionSet;
 import org.elasticsearch.xpack.sql.expression.Expressions;
@@ -45,14 +45,15 @@ import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.Limit;
+import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
-import org.elasticsearch.xpack.sql.plan.logical.Queryless;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
+import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -63,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
@@ -89,7 +91,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch resolution = new Batch("Finish Analysis", 
                 new PruneSubqueryAliases(),
-                new CleanAliases()
+                CleanAliases.INSTANCE
                 );
 
         Batch aggregate = new Batch("Aggregation", 
@@ -103,32 +105,42 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new CombineAggsToPercentileRanks()
                 );
 
-        Batch cleanup = new Batch("Operator Optimization",
+        Batch operators = new Batch("Operator Optimization",
                 // can't really do it since alias information is lost (packed inside EsQuery)
                 //new ProjectPruning(),
+
+                // folding
+                new ReplaceFoldableAttributes(),
+                new ConstantFolding(),
+                // boolean
                 new BooleanSimplification(),
                 new BinaryComparisonSimplification(),
                 new BooleanLiteralsOnTheRight(),
                 new CombineComparisonsIntoRange(),
+                // prune/elimination
                 new PruneFilters(),
                 new PruneOrderBy(),
                 new PruneOrderByNestedFields(),
                 new PruneCast(),
-                new PruneDuplicateFunctions(),
-                new SkipQueryOnLimitZero()
+                new PruneDuplicateFunctions()
+                );
+
+        Batch local = new Batch("Skip Elasticsearch",
+                new SkipQueryOnLimitZero(),
+                new SkipQueryIfFoldingProjection()
                 );
                 //new BalanceBooleanTrees());
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
                 new SetAsOptimized());
         
-        return Arrays.asList(resolution, aggregate, cleanup, label);
+        return Arrays.asList(resolution, aggregate, operators, local, label);
     }
 
 
     static class PruneSubqueryAliases extends OptimizerRule<SubQueryAlias> {
 
         PruneSubqueryAliases() {
-            super(false);
+            super(TransformDirection.UP);
         }
 
         @Override
@@ -139,8 +151,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     static class CleanAliases extends OptimizerRule<LogicalPlan> {
 
+        private static final CleanAliases INSTANCE = new CleanAliases();
+        
         CleanAliases() {
-            super(false);
+            super(TransformDirection.UP);
         }
 
         @Override
@@ -555,7 +569,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
                 // TODO: add comparison with null as well
                 if (FALSE.equals(filter.condition())) {
-                    throw new UnsupportedOperationException("Put empty relation");
+                    return new LocalRelation(filter.location(), new EmptyExecutable(filter.output()));
                 }
             }
 
@@ -736,7 +750,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         Cast c = (Cast) as.child();
 
                         if (c.from().same(c.to())) {
-                            Alias newAs = new Alias(as.location(), as.name(), as.qualifier(), c.argument(), as.id(), as.synthetic());
+                            Alias newAs = new Alias(as.location(), as.name(), as.qualifier(), c.field(), as.id(), as.synthetic());
                             replacedCast.put(as.toAttribute(), newAs.toAttribute());
                             return newAs;
                         }
@@ -747,16 +761,16 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             });
 
             // then handle stand-alone casts (mixed together the cast rule will kick in before the alias)
-            transformed = plan.transformExpressionsUp(e -> {
+            transformed = transformed.transformExpressionsUp(e -> {
                 if (e instanceof Cast) {
                     Cast c = (Cast) e;
 
                     if (c.from().same(c.to())) {
-                        Expression argument = c.argument();
-                        if (!(argument instanceof NamedExpression)) {
-                            throw new SqlIllegalArgumentException("Expected a NamedExpression but got %s", argument);
+                        Expression argument = c.field();
+                        if (argument instanceof NamedExpression) {
+                            replacedCast.put(c.toAttribute(), ((NamedExpression) argument).toAttribute());
                         }
-                        replacedCast.put(c.toAttribute(), ((NamedExpression) argument).toAttribute());
+
                         return argument;
                     }
                 }
@@ -817,19 +831,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class SkipQueryOnLimitZero extends OptimizerRule<Limit> {
-
-        @Override
-        protected LogicalPlan rule(Limit limit) {
-            if (limit.limit() instanceof Literal) {
-                if (Integer.valueOf(0).equals(Integer.parseInt(((Literal) limit.limit()).value().toString()))) {
-                    return new Queryless(limit.location(), new EmptyExecutable(limit.output()));
-                }
-            }
-            return limit;
-        }
-    }
-
     static class CombineFilters extends OptimizerRule<Filter> {
 
         @Override
@@ -842,7 +843,118 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class BooleanSimplification extends OptimizerExpressionUpRule {
+
+    // replace attributes of foldable expressions with the foldable trees
+    // SELECT 5 a, a + 3, ...
+
+    static class ReplaceFoldableAttributes extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            return rule(plan);
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            Map<Attribute, Alias> aliases = new LinkedHashMap<>();
+            List<Attribute> attrs = new ArrayList<>();
+
+            // find aliases of all projections
+            plan.forEachDown(p -> {
+                for (NamedExpression ne : p.projections()) {
+                    if (ne instanceof Alias) {
+                        if (((Alias) ne).child().foldable()) {
+                            Attribute attr = ne.toAttribute();
+                            attrs.add(attr);
+                            aliases.put(attr, (Alias) ne);
+                        }
+                    }
+                }
+            }, Project.class);
+            
+            if (attrs.isEmpty()) {
+                return plan;
+            }
+            
+            AtomicBoolean stop = new AtomicBoolean(false);
+            
+            // propagate folding up to unary nodes
+            // anything higher and the propagate stops
+            plan = plan.transformUp(p -> {
+                if (stop.get() == false && canPropagateFoldable(p)) {
+                    return p.transformExpressionsDown(e -> {
+                        if (e instanceof Attribute && attrs.contains(e)) {
+                            Alias as = aliases.get(e);
+                            if (as == null) {
+                                throw new SqlIllegalArgumentException("need to implement AttributeMap");
+                            }
+                            return as;
+                        }
+                        return e;
+                    });
+                }
+
+                if (p.children().size() > 1) {
+                    stop.set(true);
+                }
+
+                return p;
+            });
+            
+            // finally clean-up aliases
+            return CleanAliases.INSTANCE.apply(plan);
+            
+        }
+        
+        private boolean canPropagateFoldable(LogicalPlan p) {
+            return p instanceof Project || p instanceof Filter || p instanceof SubQueryAlias || p instanceof Aggregate || p instanceof Limit || p instanceof OrderBy;
+        }
+    }
+
+    static class ConstantFolding extends OptimizerExpressionRule {
+
+        ConstantFolding() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            // preserve aliases
+            if (e instanceof Alias) {
+                Alias a = (Alias) e;
+                Expression fold = fold(a.child());
+                if (fold != e) {
+                    return new Alias(a.location(), a.name(), null, fold, a.id());
+                }
+                return a;
+            }
+
+            Expression fold = fold(e);
+            if (fold != e) {
+                // preserve the name through an alias
+                if (e instanceof NamedExpression) {
+                    NamedExpression ne = (NamedExpression) e;
+                    return new Alias(e.location(), ne.name(), null, fold, ne.id());
+                }
+                return fold;
+            }
+            return e;
+        }
+        
+        private Expression fold(Expression e) {
+            // literals are always foldable, so avoid creating a duplicate
+            if (e.foldable() && !(e instanceof Literal)) {
+                return new Literal(e.location(), e.fold(), e.dataType());
+            }
+            return e;
+        }
+    }
+    
+    static class BooleanSimplification extends OptimizerExpressionRule {
+
+        BooleanSimplification() {
+            super(TransformDirection.UP);
+        }
 
         @Override
         protected Expression rule(Expression e) {
@@ -961,7 +1073,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class BinaryComparisonSimplification extends OptimizerExpressionUpRule {
+    static class BinaryComparisonSimplification extends OptimizerExpressionRule {
+
+        BinaryComparisonSimplification() {
+            super(TransformDirection.UP);
+        }
 
         @Override
         protected Expression rule(Expression e) {
@@ -990,7 +1106,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class BooleanLiteralsOnTheRight extends OptimizerExpressionUpRule {
+    static class BooleanLiteralsOnTheRight extends OptimizerExpressionRule {
+
+        BooleanLiteralsOnTheRight() {
+            super(TransformDirection.UP);
+        }
 
         @Override
         protected Expression rule(Expression e) {
@@ -1002,7 +1122,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class CombineComparisonsIntoRange extends OptimizerExpressionUpRule {
+    static class CombineComparisonsIntoRange extends OptimizerExpressionRule {
+
+        CombineComparisonsIntoRange() {
+            super(TransformDirection.UP);
+        }
 
         @Override
         protected Expression rule(Expression e) {
@@ -1040,6 +1164,56 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     }
 
 
+    static class SkipQueryOnLimitZero extends OptimizerRule<Limit> {
+        @Override
+        protected LogicalPlan rule(Limit limit) {
+            if (limit.limit() instanceof Literal) {
+                if (Integer.valueOf(0).equals((Number) (((Literal) limit.limit()).fold()))) {
+                    return new LocalRelation(limit.location(), new EmptyExecutable(limit.output()));
+                }
+            }
+            return limit;
+        }
+    }
+
+    static class SkipQueryIfFoldingProjection extends OptimizerRule<LogicalPlan> {
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            if (plan instanceof Project) {
+                Project p = (Project) plan;
+                List<Object> values = extractConstants(p.projections());
+                if (values.size() == p.projections().size()) {
+                    return new LocalRelation(p.location(), new SingletonExecutable(p.output(), values.toArray()));
+                }
+            }
+            if (plan instanceof Aggregate) {
+                Aggregate a = (Aggregate) plan;
+                List<Object> values = extractConstants(a.aggregates());
+                if (values.size() == a.aggregates().size()) {
+                    return new LocalRelation(a.location(), new SingletonExecutable(a.output(), values.toArray()));
+                }
+            }
+            return plan;
+        }
+
+        private List<Object> extractConstants(List<? extends NamedExpression> named) {
+            List<Object> values = new ArrayList<>();
+            for (NamedExpression n : named) {
+                if (n instanceof Alias) {
+                    Alias a = (Alias) n;
+                    if (a.child().foldable()) {
+                        values.add(a.child().fold());
+                    }
+                    else {
+                        return values;
+                    }
+                }
+            }
+            return values;
+        }
+    }
+
+
     static class SetAsOptimized extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override
@@ -1060,43 +1234,38 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     abstract static class OptimizerRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 
-        private final boolean transformDown;
+        private final TransformDirection direction;
 
         OptimizerRule() {
-            this(true);
+            this(TransformDirection.DOWN);
         }
 
-        OptimizerRule(boolean transformDown) {
-            this.transformDown = transformDown;
+        OptimizerRule(TransformDirection direction) {
+            this.direction = direction;
         }
 
 
         @Override
         public final LogicalPlan apply(LogicalPlan plan) {
-            return transformDown ? plan.transformDown(this::rule, typeToken()) : plan.transformUp(this::rule, typeToken());
+            return direction == TransformDirection.DOWN ? plan.transformDown(this::rule, typeToken()) : plan.transformUp(this::rule, typeToken());
         }
 
         @Override
         protected abstract LogicalPlan rule(SubPlan plan);
     }
 
-    abstract static class OptimizerExpressionUpRule extends Rule<LogicalPlan, LogicalPlan> {
+    abstract static class OptimizerExpressionRule extends Rule<LogicalPlan, LogicalPlan> {
 
-        private final boolean transformDown;
+        private final TransformDirection direction;
 
-        OptimizerExpressionUpRule() {
-            //NB: expressions are transformed up (not down like the plan)
-            this(false);
+        OptimizerExpressionRule(TransformDirection direction) {
+            this.direction = direction;
         }
-
-        OptimizerExpressionUpRule(boolean transformDown) {
-            this.transformDown = transformDown;
-        }
-
 
         @Override
         public final LogicalPlan apply(LogicalPlan plan) {
-            return transformDown ? plan.transformExpressionsDown(this::rule) : plan.transformExpressionsUp(this::rule);
+            return direction == TransformDirection.DOWN ? plan.transformExpressionsDown(this::rule) : plan
+                    .transformExpressionsUp(this::rule);
         }
 
         @Override
@@ -1106,4 +1275,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         protected abstract Expression rule(Expression e);
     }
+
+    enum TransformDirection {
+        UP, DOWN
+    };
 }

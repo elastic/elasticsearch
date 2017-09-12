@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.script;
 
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 
 import static java.lang.String.format;
 
@@ -60,7 +60,7 @@ public class ScriptTemplate {
 
     private String bindTemplate() {
         List<String> binding = params.asCodeNames();
-        return binding.isEmpty() ? template : String.format(Locale.ROOT, template, binding.toArray());
+        return binding.isEmpty() ? template : format(Locale.ROOT, template, binding.toArray());
     }
 
     @Override

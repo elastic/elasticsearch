@@ -6,22 +6,23 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
 public class Round extends MathFunction {
-    public Round(Location location, Expression argument) {
-        super(location, argument);
+    public Round(Location location, Expression field) {
+        super(location, field);
+    }
+
+    @Override
+    protected MathOperation operation() {
+        return MathOperation.ROUND;
     }
 
     @Override
     public DataType dataType() {
-        return DataTypes.LONG;
-    }
-
-    @Override
-    protected MathProcessor processor() {
-        return MathProcessor.ROUND;
+        return DataTypeConversion.asInteger(field().dataType());
     }
 }

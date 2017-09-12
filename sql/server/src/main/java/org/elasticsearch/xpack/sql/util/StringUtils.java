@@ -5,13 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.util;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
-
-import org.elasticsearch.common.Strings;
 
 import static java.util.stream.Collectors.joining;
 
@@ -157,5 +162,14 @@ public abstract class StringUtils {
 
     public static Pattern likeRegex(String likePattern) {
         return Pattern.compile(sqlToJavaPattern(likePattern, '\\', true));
+    }
+
+    public static String toString(SearchSourceBuilder source) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true)) {
+            source.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return builder.string();
+        } catch (IOException e) {
+            throw new RuntimeException("error rendering", e);
+        }
     }
 }

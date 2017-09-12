@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.sql.expression.regex;
 import org.elasticsearch.xpack.sql.expression.BinaryExpression;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 
 public class Like extends BinaryExpression {
 
@@ -20,9 +22,13 @@ public class Like extends BinaryExpression {
         return new Like(location(), right(), left());
     }
 
+    @Override
+    public DataType dataType() {
+        return DataTypes.BOOLEAN;
+    }
 
     @Override
     public String symbol() {
-        return " LIKE ";
+        return "LIKE";
     }
 }

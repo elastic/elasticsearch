@@ -1,0 +1,65 @@
+//
+// Arithmetic tests
+//
+
+unaryMinus
+SELECT - 1 AS x;
+plus
+SELECT 1 + 1 AS x;
+minus
+SELECT 1 - 1 AS x;
+divide
+SELECT 6 / 3 AS x;
+multiply
+SELECT 2 * 3 AS x;
+mod
+SELECT 5 % 2 AS x;
+operatorsPriority
+SELECT 1 + 3 * 4 / 2 - 2 AS x;
+operatorsPriorityWithParanthesis
+SELECT ((1 + 3) * 2 / (3 - 1)) * 2 AS x;
+literalAliasing
+SELECT 2 + 3 AS x, 'foo' y;
+
+// variable scalar arithmetic
+scalarVariablePlus
+SELECT emp_no + 10000 AS x FROM test_emp;
+scalarVariableMinus
+SELECT emp_no - 10000 AS x FROM test_emp;
+scalarVariableMul
+SELECT emp_no * 10000 AS x FROM test_emp;
+scalarVariableDiv
+SELECT emp_no / 10000 AS x FROM test_emp;
+scalarVariableMod
+SELECT emp_no % 10000 AS x FROM test_emp;
+scalarVariableMultipleInputs
+SELECT (emp_no % 10000) + YEAR(hire_date) AS x FROM test_emp;
+scalarVariableTwoInputs
+SELECT (emp_no % 10000) + YEAR(hire_date) AS x FROM test_emp;
+scalarVariableThreeInputs
+SELECT ((emp_no % 10000) + YEAR(hire_date)) / MONTH(birth_date) AS x FROM test_emp;
+scalarVariableArithmeticAndEntry
+SELECT emp_no, emp_no % 10000 AS x FROM test_emp;
+scalarVariableTwoInputsAndEntry
+SELECT emp_no, (emp_no % 10000) + YEAR(hire_date) AS x FROM test_emp;
+scalarVariableThreeInputsAndEntry
+SELECT emp_no, ((emp_no % 10000) + YEAR(hire_date)) / MONTH(birth_date) AS x FROM test_emp;
+
+
+// variable scalar agg
+aggVariablePlus
+SELECT COUNT(*) + 10000 AS x FROM test_emp GROUP BY gender;
+aggVariableMinus
+SELECT COUNT(*) - 10000 AS x FROM test_emp GROUP BY gender;
+aggVariableMul
+SELECT COUNT(*) * 2 AS x FROM test_emp GROUP BY gender;
+aggVariableDiv
+SELECT COUNT(*) / 5000 AS x FROM test_emp GROUP BY gender;
+aggVariableMod
+SELECT COUNT(*) % 10000 AS x FROM test_emp GROUP BY gender;
+aggVariableTwoInputs
+SELECT MAX(emp_no) - MIN(emp_no) AS x FROM test_emp GROUP BY gender;
+aggVariableThreeInputs
+SELECT (MAX(emp_no) - MIN(emp_no)) + AVG(emp_no) AS x FROM test_emp GROUP BY gender;
+
+

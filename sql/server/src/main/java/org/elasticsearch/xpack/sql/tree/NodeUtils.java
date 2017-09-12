@@ -68,7 +68,7 @@ public abstract class NodeUtils {
     //     public Literal left() { return left; }
     //     public Literal right() { return right; }
     // }
-    static <T extends Node<T>> T copyTree(Node<T> tree, List<T> newChildren) {
+    public static <T extends Node<T>> T copyTree(Node<T> tree, List<T> newChildren) {
         Assert.notNull(tree, "Non-null tree expected");
 
         // basic sanity check
@@ -164,7 +164,8 @@ public abstract class NodeUtils {
                 // validate return type
                 Class<?> expected = param.getType();
                 Class<?> found = getter.getReturnType();
-                Assert.isTrue(expected.isAssignableFrom(found), "Constructor param [%s] in class [%s] has type [%s] but found getter [%s]", paramName, clazz, expected, getter.toGenericString());
+                // found == Object if we're dealing with generics
+                Assert.isTrue(found == Object.class || expected.isAssignableFrom(found), "Constructor param [%s] in class [%s] has type [%s] but found getter [%s]", paramName, clazz, expected, getter.toGenericString());
                 
                 params.put(paramName, getter);
             }

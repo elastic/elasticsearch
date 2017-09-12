@@ -9,15 +9,18 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.sql.jdbc.framework.JdbcTestUtils;
+import org.elasticsearch.xpack.sql.jdbc.framework.LocalH2;
 
 import java.nio.file.Path;
 import java.util.List;
 
 @TestLogging(JdbcTestUtils.SQL_TRACE)
-public abstract class DebugSqlSpec extends SqlSpecIT {
+public class DebugSqlSpec extends SqlSpecIT {
+    public static LocalH2 H2 = new LocalH2();
 
-    @ParametersFactory(shuffle = false, argumentFormatting = SqlSpecIT.PARAM_FORMATTING)
+    @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
+
         Parser parser = specParser();
         return readScriptSpec("/debug.sql-spec", parser);
     }

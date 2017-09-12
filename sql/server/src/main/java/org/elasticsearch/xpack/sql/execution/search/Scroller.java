@@ -23,13 +23,24 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.ExecutionException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
+import org.elasticsearch.xpack.sql.execution.search.extractor.ComputingHitExtractor;
+import org.elasticsearch.xpack.sql.execution.search.extractor.ConstantExtractor;
+import org.elasticsearch.xpack.sql.execution.search.extractor.DocValueExtractor;
+import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.sql.execution.search.extractor.InnerHitExtractor;
+import org.elasticsearch.xpack.sql.execution.search.extractor.SourceExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AggPathInput;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AggValueInput;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.HitExtractorInput;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ReferenceInput;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 import org.elasticsearch.xpack.sql.querydsl.container.AggRef;
+import org.elasticsearch.xpack.sql.querydsl.container.ColumnReference;
+import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.sql.querydsl.container.NestedFieldRef;
-import org.elasticsearch.xpack.sql.querydsl.container.ProcessingRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
-import org.elasticsearch.xpack.sql.querydsl.container.Reference;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.TotalCountRef;
@@ -38,11 +49,12 @@ import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSettings;
 import org.elasticsearch.xpack.sql.type.Schema;
 import org.elasticsearch.xpack.sql.util.ObjectUtils;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-
+import java.util.function.Supplier;
 // TODO: add retry/back-off
 public class Scroller {
 
@@ -68,7 +80,9 @@ public class Scroller {
         // prepare the request
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query);
 
-        log.trace("About to execute query {} on {}", sourceBuilder, index);
+        if (log.isTraceEnabled()) {
+            log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);
+        }
 
         SearchRequest search = client.prepareSearch(index).setSource(sourceBuilder).request();
         search.scroll(keepAlive).source().timeout(timeout);
@@ -79,7 +93,9 @@ public class Scroller {
             search.source().size(sz);
         }
 
-        ScrollerActionListener l = query.isAggsOnly() ? new AggsScrollActionListener(listener, client, timeout, schema, query) : new HandshakeScrollActionListener(listener, client, timeout, schema, query);
+        boolean isAggsOnly = query.isAggsOnly();
+        
+        ScrollerActionListener l = isAggsOnly ? new AggsScrollActionListener(listener, client, timeout, schema, query) : new HandshakeScrollActionListener(listener, client, timeout, schema, query);
         client.search(search, l);
     }
 
@@ -91,7 +107,7 @@ public class Scroller {
 
     // dedicated scroll used for aggs-only/group-by results
     static class AggsScrollActionListener extends ScrollerActionListener {
-    
+
         private final QueryContainer query;
     
         AggsScrollActionListener(ActionListener<RowSetCursor> listener, Client client, TimeValue keepAlive, Schema schema, QueryContainer query) {
@@ -101,72 +117,90 @@ public class Scroller {
     
         @Override
         protected RowSetCursor handleResponse(SearchResponse response) {
-            Aggregations aggs = response.getAggregations();
-    
-            List<Object[]> columns = new ArrayList<>();
+
+            final List<Object[]> extractedAggs = new ArrayList<>();
+            AggValues aggValues = new AggValues(extractedAggs);
+            List<Supplier<Object>> aggColumns = new ArrayList<>(query.columns().size());
     
             // this method assumes the nested aggregation are all part of the same tree (the SQL group-by)
             int maxDepth = -1;
+
+            List<ColumnReference> cols = query.columns();
+            for (int index = 0; index < cols.size(); index++) {
+                ColumnReference col = cols.get(index);
+                Supplier<Object> supplier = null;
     
-            for (Reference ref : query.refs()) {
-                Object[] arr = null;
-    
-                ColumnProcessor processor = null;
-    
-                if (ref instanceof ProcessingRef) {
-                    ProcessingRef pRef = (ProcessingRef) ref;
-                    processor = pRef.processor();
-                    ref = pRef.ref();
+                if (col instanceof ComputedRef) {
+                    ComputedRef pRef = (ComputedRef) col;
+
+                    Processor processor = pRef.processor().transformUp(a -> {
+                        Object[] value = extractAggValue(new AggRef(a.context()), response);
+                        extractedAggs.add(value);
+                        final int aggPosition = extractedAggs.size() - 1;
+                        return new AggValueInput(a.expression(), () -> aggValues.column(aggPosition), a.innerKey());
+                    }, AggPathInput.class).asProcessor();
+                    // the input is provided through the value input above
+                    supplier = () -> processor.process(null);
+                }
+                else {
+                    extractedAggs.add(extractAggValue(col, response));
+                    final int aggPosition = extractedAggs.size() - 1;
+                    supplier = () -> aggValues.column(aggPosition);
                 }
     
-                if (ref == TotalCountRef.INSTANCE) {
-                    arr = new Object[] { processIfNeeded(processor, Long.valueOf(response.getHits().getTotalHits())) };
-                    columns.add(arr);
+                aggColumns.add(supplier);
+                if (col.depth() > maxDepth) {
+                    maxDepth = col.depth();
                 }
-                else if (ref instanceof AggRef) {
+            }
+    
+            aggValues.init(maxDepth, query.limit());
+            clearScroll(response.getScrollId());
+
+            return new AggsRowSetCursor(schema, aggValues, aggColumns);
+        }
+
+        private Object[] extractAggValue(ColumnReference col, SearchResponse response) {
+            if (col == TotalCountRef.INSTANCE) {
+                return new Object[] { Long.valueOf(response.getHits().getTotalHits()) };
+            } 
+            else if (col instanceof AggRef) {
+                Object[] arr;
+
+                String path = ((AggRef) col).path();
+                // yup, this is instance equality to make sure we only check the path used by the code 
+                if (path == TotalCountRef.PATH) {
+                    arr = new Object[] { Long.valueOf(response.getHits().getTotalHits()) };
+                }
+                else {
                     // workaround for elastic/elasticsearch/issues/23056
-                    String path = ((AggRef) ref).path();
                     boolean formattedKey = AggPath.isBucketValueFormatted(path);
                     if (formattedKey) {
                         path = AggPath.bucketValueWithoutFormat(path);
                     }
-                    Object value = getAggProperty(aggs, path);
-                    
-                    //                // FIXME: this can be tabular in nature
-                    //                if (ref instanceof MappedAggRef) {
-                    //                    Map<String, Object> map = (Map<String, Object>) value;
-                    //                    Object extractedValue = map.get(((MappedAggRef) ref).fieldName());
-                    //                }
-                    
+                    Object value = getAggProperty(response.getAggregations(), path);
+    
+                    // // FIXME: this can be tabular in nature
+                    // if (ref instanceof MappedAggRef) {
+                    // Map<String, Object> map = (Map<String, Object>) value;
+                    // Object extractedValue = map.get(((MappedAggRef)
+                    // ref).fieldName());
+                    // }
+    
                     if (formattedKey) {
                         List<? extends Bucket> buckets = ((MultiBucketsAggregation) value).getBuckets();
                         arr = new Object[buckets.size()];
                         for (int i = 0; i < buckets.size(); i++) {
                             arr[i] = buckets.get(i).getKeyAsString();
                         }
-                    }
-                    else {
+                    } else {
                         arr = value instanceof Object[] ? (Object[]) value : new Object[] { value };
                     }
-                    
-                    // process if needed
-                    for (int i = 0; i < arr.length; i++) {
-                        arr[i] = processIfNeeded(processor, arr[i]);
-                    }
-                    columns.add(arr);
                 }
-                // aggs without any grouping
-                else {
-                    throw new SqlIllegalArgumentException("Unexpected non-agg/grouped column specified; %s", ref.getClass());
-                }
-    
-                if (ref.depth() > maxDepth) {
-                    maxDepth = ref.depth();
-                }
+
+                return arr;
             }
-    
-            clearScroll(response.getScrollId());
-            return new AggsRowSetCursor(schema, columns, maxDepth, query.limit());
+            throw new SqlIllegalArgumentException("Unexpected non-agg/grouped column specified; %s", col.getClass());
         }
     
         private static Object getAggProperty(Aggregations aggs, String path) {
@@ -177,10 +211,6 @@ public class Scroller {
                 throw new ExecutionException("Cannot find an aggregation named %s", aggName);
             }
             return agg.getProperty(list.subList(1, list.size()));
-        }
-    
-        private Object processIfNeeded(ColumnProcessor processor, Object value) {
-            return processor != null ? processor.apply(value) : value;
         }
     }
     
@@ -202,17 +232,17 @@ public class Scroller {
         @Override
         protected List<HitExtractor> getExtractors() {
             // create response extractors for the first time
-            List<Reference> refs = query.refs();
+            List<ColumnReference> refs = query.columns();
     
             List<HitExtractor> exts = new ArrayList<>(refs.size());
     
-            for (Reference ref : refs) {
+            for (ColumnReference ref : refs) {
                 exts.add(createExtractor(ref));
             }
             return exts;
         }
     
-        private HitExtractor createExtractor(Reference ref) {
+        private HitExtractor createExtractor(ColumnReference ref) {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
                 return f.useDocValue() ? new DocValueExtractor(f.name()) : new SourceExtractor(f.name());
@@ -228,9 +258,10 @@ public class Scroller {
                 return new DocValueExtractor(f.name());
             }
     
-            if (ref instanceof ProcessingRef) {
-                ProcessingRef pRef = (ProcessingRef) ref;
-                return new ProcessingHitExtractor(createExtractor(pRef.ref()), pRef.processor());
+            if (ref instanceof ComputedRef) {
+                ProcessorDefinition proc = ((ComputedRef) ref).processor();
+                proc = proc.transformDown(l -> new HitExtractorInput(l.expression(), createExtractor(l.context())), ReferenceInput.class);
+                return new ComputingHitExtractor(proc.asProcessor());
             }
     
             throw new SqlIllegalArgumentException("Unexpected ValueReference %s", ref.getClass());
@@ -303,7 +334,8 @@ public class Scroller {
     
         private static boolean needsHit(List<HitExtractor> exts) {
             for (HitExtractor ext : exts) {
-                if (ext instanceof DocValueExtractor || ext instanceof ProcessingHitExtractor) {
+                // Anything non-constant requires extraction
+                if (!(ext instanceof ConstantExtractor)) {
                     return true;
                 }
             }

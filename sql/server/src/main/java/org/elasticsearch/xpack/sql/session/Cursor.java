@@ -10,8 +10,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.xpack.sql.execution.search.HitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
+import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -38,7 +38,7 @@ public interface Cursor extends NamedWriteable {
      */
     static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(HitExtractor.getNamedWriteables());
+        entries.addAll(HitExtractors.getNamedWriteables());
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, EmptyCursor.NAME, in -> EMPTY));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, ScrollCursor.NAME, ScrollCursor::new));
         return entries;

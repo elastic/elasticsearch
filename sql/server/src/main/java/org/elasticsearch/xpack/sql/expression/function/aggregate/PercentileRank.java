@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -27,9 +28,9 @@ public class PercentileRank extends AggregateFunction implements EnclosedAgg {
         TypeResolution resolution = super.resolveType();
 
         if (TypeResolution.TYPE_RESOLVED.equals(resolution)) {
-            resolution = value.dataType().isNumeric() ? TypeResolution.TYPE_RESOLVED :
-                    new TypeResolution("PercentileRank#value argument cannot be non-numeric (type is'%s')", value.dataType().esName());
+            resolution = Expressions.typeMustBeNumeric(value);
         }
+
         return resolution;
     }
 

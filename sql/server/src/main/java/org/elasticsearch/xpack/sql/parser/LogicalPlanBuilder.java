@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
-import org.elasticsearch.xpack.sql.plan.logical.FromlessSelect;
+import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
 import org.elasticsearch.xpack.sql.plan.logical.Join.JoinType;
 import org.elasticsearch.xpack.sql.plan.logical.Limit;
@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
+import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.LinkedHashMap;
@@ -87,7 +88,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitQuerySpecification(QuerySpecificationContext ctx) {
-        LogicalPlan query = (ctx.fromClause() != null)? plan(ctx.fromClause()) : new FromlessSelect(source(ctx));
+        LogicalPlan query = (ctx.fromClause() != null)? plan(ctx.fromClause()) : new LocalRelation(source(ctx), new EmptyExecutable(emptyList()));
                 
         // add WHERE
         if (ctx.where != null) {

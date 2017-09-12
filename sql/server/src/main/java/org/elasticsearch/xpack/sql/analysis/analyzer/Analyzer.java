@@ -34,11 +34,13 @@ import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
+import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.ArithmeticFunction;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.sql.plan.logical.CatalogTable;
+import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
+import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
@@ -49,7 +51,10 @@ import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Node;
+import org.elasticsearch.xpack.sql.tree.NodeUtils;
 import org.elasticsearch.xpack.sql.type.CompoundDataType;
+import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -90,7 +95,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveFunctions(),
                 new ResolveAliases(),
                 new ProjectedAggregations(), 
-                new ResolveAggsInHavingAndOrderBy()
+                new ResolveAggsInHavingAndOrderBy() 
+                //new ImplicitCasting()
                 );
         // TODO: this might be removed since the deduplication happens already in ResolveFunctions
         Batch deduplication = new Batch("Deduplication", 
@@ -226,6 +232,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
                 return ur;
             }
+            // inlined queries (SELECT 1 + 2) are already resolved
+            else if (p instanceof LocalRelation) {
+                return p;
+            }
+
             return p.transformExpressionsDown(e -> {
                 if (e instanceof SubQueryExpression) {
                     SubQueryExpression sq = (SubQueryExpression) e;
@@ -233,6 +244,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
                 return e;
             });
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
         }
     }
 
@@ -250,7 +266,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 throw new UnknownIndexException(table.index(), plan);
             }
 
-            LogicalPlan catalogTable = new CatalogTable(plan.location(), found);
+            LogicalPlan catalogTable = new EsRelation(plan.location(), found);
             SubQueryAlias sa = new SubQueryAlias(plan.location(), catalogTable, table.index());
 
             if (plan.alias() != null) {
@@ -466,7 +482,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (ordinal != null) {
                         changed = true;
                         if (ordinal > 0 && ordinal <= max) {
-                            NamedExpression reference = aggregates.get(ordinal);
+                            NamedExpression reference = aggregates.get(ordinal - 1);
                             if (containsAggregate(reference)) {
                                 throw new AnalysisException(exp, "Group ordinal %d refers to an aggregate function %s which is not compatible/allowed with GROUP BY", ordinal, reference.nodeName());
                             }
@@ -724,8 +740,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                     if (child instanceof Cast) {
                         Cast c = (Cast) child;
-                        if (c.argument() instanceof NamedExpression) {
-                            return new Alias(c.location(), ((NamedExpression) c.argument()).name(), c);
+                        if (c.field() instanceof NamedExpression) {
+                            return new Alias(c.location(), ((NamedExpression) c.field()).name(), c);
                         }
                     }
                     //TODO: maybe add something closer to SQL
@@ -963,6 +979,52 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
         private boolean functionsEquals(Function f, Function seenFunction) {
             return f.name().equals(seenFunction.name()) && f.arguments().equals(seenFunction.arguments());
+        }
+    }
+
+    private class ImplicitCasting extends AnalyzeRule<LogicalPlan> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            return plan.transformExpressionsDown(this::implicitCast);
+        }
+
+        private Expression implicitCast(Expression e) {
+            if (!e.childrenResolved()) {
+                return e;
+            }
+
+            Expression left = null, right = null;
+
+            // BinaryOperations are ignored as they are pushed down to ES
+            // and casting (and thus Aliasing when folding) gets in the way
+
+            if (e instanceof ArithmeticFunction) {
+                ArithmeticFunction f = (ArithmeticFunction) e;
+                left = f.left();
+                right = f.right();
+            }
+            
+            if (left != null) {
+                DataType l = left.dataType();
+                DataType r = right.dataType();
+                if (!l.same(r)) {
+                    DataType common = DataTypeConversion.commonType(l, r);
+                    if (common == null) {
+                        return e;
+                    }
+                    left = l.same(common) ? left : new Cast(left.location(), left, common);
+                    right = r.same(common) ? right : new Cast(right.location(), right, common);
+                    return NodeUtils.copyTree(e, Arrays.asList(left, right));
+                }
+            }
+
+            return e;
         }
     }
 

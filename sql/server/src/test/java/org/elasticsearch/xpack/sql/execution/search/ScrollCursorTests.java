@@ -10,6 +10,13 @@ import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.execution.search.extractor.ConstantExtractorTests;
+import org.elasticsearch.xpack.sql.execution.search.extractor.DocValueExtractorTests;
+import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
+import org.elasticsearch.xpack.sql.execution.search.extractor.InnerHitExtractorTests;
+import org.elasticsearch.xpack.sql.execution.search.extractor.ProcessingHitExtractorTests;
+import org.elasticsearch.xpack.sql.execution.search.extractor.SourceExtractorTests;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -41,7 +48,7 @@ public class ScrollCursorTests extends AbstractWireSerializingTestCase<ScrollCur
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(HitExtractor.getNamedWriteables());
+        return new NamedWriteableRegistry(HitExtractors.getNamedWriteables());
     }
 
     @Override

@@ -5,12 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -18,27 +14,36 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ReferenceInput;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.container.AttributeSort;
-import org.elasticsearch.xpack.sql.querydsl.container.ProcessingRef;
+import org.elasticsearch.xpack.sql.querydsl.container.ColumnReference;
+import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
-import org.elasticsearch.xpack.sql.querydsl.container.Reference;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
-import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.sort.SortOrder;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 
 import static java.util.Collections.singletonList;
-
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
 
@@ -56,29 +61,20 @@ public abstract class SourceGenerator {
         // translate fields to source-fields or script fields
         Set<String> sourceFields = new LinkedHashSet<>();
         Set<String> docFields = new LinkedHashSet<>();
-        for (Reference ref : container.refs()) {
-            if (ref instanceof ProcessingRef) {
-                ref = ((ProcessingRef) ref).ref();
-            }
+        Map<String, Script> scriptFields = new LinkedHashMap<>();
 
-            if (ref instanceof SearchHitFieldRef) {
-                SearchHitFieldRef sh = (SearchHitFieldRef) ref;
-                Set<String> collection = sh.useDocValue() ? docFields : sourceFields;
-                collection.add(ref.toString());
-            }
-            else if (ref instanceof ScriptFieldRef) {
-                ScriptFieldRef sfr = (ScriptFieldRef) ref;
-                source.scriptField(sfr.name(), sfr.script().toPainless());
-            }
+        for (ColumnReference ref : container.columns()) {
+            collectFields(ref, sourceFields, docFields, scriptFields);
         }
         
         if (!sourceFields.isEmpty()) {
             source.fetchSource(sourceFields.toArray(new String[sourceFields.size()]), null);
         }
-        if (!docFields.isEmpty()) {
-            for (String field : docFields) {
-                source.docValueField(field);
-            }
+        for (String field : docFields) {
+            source.docValueField(field);
+        }
+        for (Entry<String, Script> entry : scriptFields.entrySet()) {
+            source.scriptField(entry.getKey(), entry.getValue());
         }
 
         sorting(container, source);
@@ -97,6 +93,22 @@ public abstract class SourceGenerator {
         optimize(container, source);
 
         return source;
+    }
+
+    private static void collectFields(ColumnReference ref, Set<String> sourceFields, Set<String> docFields, Map<String, Script> scriptFields) {
+        if (ref instanceof ComputedRef) {
+            ProcessorDefinition proc = ((ComputedRef) ref).processor();
+            proc.forEachUp(l -> collectFields(l.context(), sourceFields, docFields, scriptFields), ReferenceInput.class);
+        }
+        else if (ref instanceof SearchHitFieldRef) {
+            SearchHitFieldRef sh = (SearchHitFieldRef) ref;
+            Set<String> collection = sh.useDocValue() ? docFields : sourceFields;
+            collection.add(sh.name());
+        } 
+        else if (ref instanceof ScriptFieldRef) {
+            ScriptFieldRef sfr = (ScriptFieldRef) ref;
+            scriptFields.put(sfr.name(), sfr.script().toPainless());
+        }
     }
 
     private static void sorting(QueryContainer container, SearchSourceBuilder source) {

@@ -6,15 +6,16 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Cos extends MathFunction {
-    public Cos(Location location, Expression argument) {
-        super(location, argument);
+    public Cos(Location location, Expression field) {
+        super(location, field);
     }
 
     @Override
-    protected MathProcessor processor() {
-        return MathProcessor.COS;
+    protected MathOperation operation() {
+        return MathOperation.COS;
     }
 }

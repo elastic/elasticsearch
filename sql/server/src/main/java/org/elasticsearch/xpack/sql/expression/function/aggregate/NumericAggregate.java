@@ -25,10 +25,7 @@ class NumericAggregate extends AggregateFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return field().dataType().isNumeric() ? TypeResolution.TYPE_RESOLVED : new TypeResolution(
-                "Function '%s' cannot be applied on a non-numeric expression ('%s' of type '%s')", functionName(),
-                Expressions.name(field()), field().dataType().esName());
-
+        return Expressions.typeMustBeNumeric(field());
     }
 
     @Override

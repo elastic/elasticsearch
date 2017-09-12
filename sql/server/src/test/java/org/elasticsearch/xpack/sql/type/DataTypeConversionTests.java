@@ -59,7 +59,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(1483228800000L, conversion.convert("2017-01-01T00:00:00Z"));
             assertEquals(18000000L, conversion.convert("1970-01-01T00:00:00-05:00"));
             Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
-            assertEquals("cannot cast [0xff] to [Date]: Invalid format: \"0xff\" is malformed at \"xff\"", e.getMessage());
+            assertEquals("cannot cast [0xff] to [Date]:Invalid format: \"0xff\" is malformed at \"xff\"", e.getMessage());
         }
     }
 

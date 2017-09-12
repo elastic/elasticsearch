@@ -6,15 +6,16 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Cbrt extends MathFunction {
-    public Cbrt(Location location, Expression argument) {
-        super(location, argument);
+    public Cbrt(Location location, Expression field) {
+        super(location, field);
     }
 
     @Override
-    protected MathProcessor processor() {
-        return MathProcessor.CBRT;
+    protected MathOperation operation() {
+        return MathOperation.CBRT;
     }
 }

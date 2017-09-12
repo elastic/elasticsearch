@@ -208,7 +208,7 @@ abstract class QueryTranslator {
         }
 
 
-        GroupingAgg parentGroupFor(Expression exp) {
+        GroupingAgg groupFor(Expression exp) {
             if (Functions.isAggregateFunction(exp)) {
                 AggregateFunction f = (AggregateFunction) exp;
                 // if there's at least one agg in the tree
@@ -372,7 +372,7 @@ abstract class QueryTranslator {
 
     static String nameOf(Expression e) {
         if (e instanceof DateTimeFunction) {
-            return nameOf(((DateTimeFunction) e).argument());
+            return nameOf(((DateTimeFunction) e).field());
         }
         if (e instanceof NamedExpression) {
             return ((NamedExpression) e).name();
@@ -516,7 +516,7 @@ abstract class QueryTranslator {
     
         @Override
         protected QueryTranslation asQuery(BinaryComparison bc, boolean onAggs) {
-            Assert.isTrue(bc.right() instanceof Literal, "don't know how to translate right %s in %s", bc.right().nodeString(), bc);
+            Assert.isTrue(bc.right().foldable(), "don't know how to translate right %s in %s", bc.right().nodeString(), bc);
     
             if (bc.left() instanceof NamedExpression) {
                 NamedExpression ne = (NamedExpression) bc.left();

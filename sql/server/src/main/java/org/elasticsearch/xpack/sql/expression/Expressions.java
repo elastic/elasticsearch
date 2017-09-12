@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
@@ -68,4 +70,14 @@ public abstract class Expressions {
     public static Attribute attribute(Expression e) {
         return e instanceof NamedExpression ? ((NamedExpression) e).toAttribute() : null;
     }
+    
+    public static TypeResolution typeMustBe(Expression e, Predicate<Expression> predicate, String message) {
+        return predicate.test(e) ? TypeResolution.TYPE_RESOLVED : new TypeResolution(message);
+    }
+    
+    public static TypeResolution typeMustBeNumeric(Expression e) {
+        return e.dataType().isNumeric()? TypeResolution.TYPE_RESOLVED : new TypeResolution( 
+                "Argument required to be numeric ('%s' of type '%s')", Expressions.name(e), e.dataType().esName());
+    }
+
 }

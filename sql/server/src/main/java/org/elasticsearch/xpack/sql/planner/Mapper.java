@@ -7,14 +7,14 @@ package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.sql.plan.logical.CatalogTable;
+import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
 import org.elasticsearch.xpack.sql.plan.logical.Limit;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
-import org.elasticsearch.xpack.sql.plan.logical.Queryless;
+import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.plan.physical.AggregateExec;
@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.sql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.sql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.sql.plan.physical.QuerylessExec;
+import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.UnplannedExec;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.rule.Rule;
@@ -63,8 +63,8 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                 return new CommandExec((Command) p);
             }
 
-            if (p instanceof Queryless) {
-                return new QuerylessExec(p.location(), (Queryless) p);
+            if (p instanceof LocalRelation) {
+                return new LocalExec(p.location(), (LocalRelation) p);
             }
 
             if (p instanceof Project) {
@@ -88,8 +88,8 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                 return new AggregateExec(map(a.child()), a.groupings(), a.aggregates());
             }
 
-            if (p instanceof CatalogTable) {
-                CatalogTable c = (CatalogTable) p;
+            if (p instanceof EsRelation) {
+                EsRelation c = (EsRelation) p;
                 List<Attribute> output = c.output();
                 return new EsQueryExec(c.location(), c.index().name(), output, new QueryContainer());
             }

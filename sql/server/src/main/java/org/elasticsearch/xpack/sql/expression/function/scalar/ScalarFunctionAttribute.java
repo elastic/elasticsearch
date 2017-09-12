@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.TypedAttribute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -17,17 +18,17 @@ public class ScalarFunctionAttribute extends TypedAttribute {
 
     private final ScriptTemplate script;
     private final Expression orderBy;
-    private final String functionId;
+    private final ProcessorDefinition processorDef;
 
-    ScalarFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id, ScriptTemplate script, Expression orderBy, String functionId) {
-        this(location, name, dataType, null, true, id, false, script, orderBy, functionId);
+    ScalarFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id, ScriptTemplate script, Expression orderBy, ProcessorDefinition processorDef) {
+        this(location, name, dataType, null, true, id, false, script, orderBy, processorDef);
     }
 
-    ScalarFunctionAttribute(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic, ScriptTemplate script, Expression orderBy, String functionId) {
+    ScalarFunctionAttribute(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic, ScriptTemplate script, Expression orderBy, ProcessorDefinition processorDef) {
         super(location, name, dataType, qualifier, nullable, id, synthetic);
         this.script = script;
         this.orderBy = orderBy;
-        this.functionId = functionId;
+        this.processorDef = processorDef;
     }
 
     public ScriptTemplate script() {
@@ -38,18 +39,18 @@ public class ScalarFunctionAttribute extends TypedAttribute {
         return orderBy;
     }
     
-    public String functionId() {
-        return functionId;
+    public ProcessorDefinition processorDef() {
+        return processorDef;
     }
 
     @Override
     protected Expression canonicalize() {
-        return new ScalarFunctionAttribute(location(), "<none>", dataType(), null, true, id(), false, script, orderBy, functionId);
+        return new ScalarFunctionAttribute(location(), "<none>", dataType(), null, true, id(), false, script, orderBy, processorDef);
     }
 
     @Override
     protected Attribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
-        return new ScalarFunctionAttribute(location, name, dataType, qualifier, nullable, id, synthetic, script, orderBy, functionId);
+        return new ScalarFunctionAttribute(location, name, dataType, qualifier, nullable, id, synthetic, script, orderBy, processorDef);
     }
 
     @Override

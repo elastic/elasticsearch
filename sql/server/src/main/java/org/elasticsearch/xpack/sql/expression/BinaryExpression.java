@@ -5,20 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.xpack.sql.tree.Location;
+
 import java.util.Arrays;
 import java.util.Objects;
-
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 public abstract class BinaryExpression extends Expression {
 
     private final Expression left, right;
-
-    public interface Negateable {
-        BinaryExpression negate();
-    }
 
     protected BinaryExpression(Location location, Expression left, Expression right) {
         super(location, Arrays.asList(left, right));
@@ -42,13 +36,6 @@ public abstract class BinaryExpression extends Expression {
     @Override
     public boolean nullable() {
         return left.nullable() || left.nullable();
-    }
-
-    public abstract BinaryExpression swapLeftAndRight();
-
-    @Override
-    public DataType dataType() {
-        return DataTypes.BOOLEAN;
     }
 
     @Override
@@ -79,6 +66,7 @@ public abstract class BinaryExpression extends Expression {
         return sb.toString();
     }
 
-    // simplify toString
     public abstract String symbol();
+
+    public abstract BinaryExpression swapLeftAndRight();
 }

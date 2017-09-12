@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.capabilities.Resolvable;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -62,7 +63,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     }
 
     public Object fold() {
-        return null;
+        throw new SqlIllegalArgumentException("Should not fold expression");
     }
 
     public abstract boolean nullable();

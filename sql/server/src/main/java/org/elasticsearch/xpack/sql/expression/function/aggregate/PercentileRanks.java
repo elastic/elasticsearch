@@ -9,7 +9,6 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 import java.util.List;
-import java.util.Objects;
 
 public class PercentileRanks extends CompoundNumericAggregate {
 
@@ -22,20 +21,5 @@ public class PercentileRanks extends CompoundNumericAggregate {
 
     public List<Expression> values() {
         return values;
-    }
-    
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        
-        PercentileRanks other = (PercentileRanks) obj;
-        return Objects.equals(field(), other.field())
-                && Objects.equals(values, other.values);
     }
 }

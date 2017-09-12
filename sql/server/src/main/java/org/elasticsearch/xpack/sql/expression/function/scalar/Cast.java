@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.Params;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -19,17 +22,17 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
-public class Cast extends ScalarFunction {
+public class Cast extends UnaryScalarFunction {
 
     private final DataType dataType;
 
-    public Cast(Location location, Expression argument, DataType dataType) {
-        super(location, argument);
+    public Cast(Location location, Expression field, DataType dataType) {
+        super(location, field);
         this.dataType = dataType;
     }
 
     public DataType from() {
-        return argument().dataType();
+        return field().dataType();
     }
 
     public DataType to() {
@@ -42,8 +45,18 @@ public class Cast extends ScalarFunction {
     }
 
     @Override
+    public boolean foldable() {
+        return field().foldable();
+    }
+
+    @Override
+    public Object fold() {
+        return DataTypeConversion.convert(field().fold(), dataType);
+    }
+
+    @Override
     public boolean nullable() {
-        return argument().nullable() || DataTypeConversion.nullable(from(), to());
+        return field().nullable() || DataTypeConversion.nullable(from());
     }
 
     @Override
@@ -77,8 +90,8 @@ public class Cast extends ScalarFunction {
     }
 
     @Override
-    public ColumnProcessor asProcessor() {
-        return new CastProcessor(DataTypeConversion.conversionFor(from(), to()));
+    protected ProcessorDefinition makeProcessor() {
+        return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()), new CastProcessor(DataTypeConversion.conversionFor(from(), to())));
     }
 
     @Override
@@ -88,6 +101,6 @@ public class Cast extends ScalarFunction {
 
     @Override
     public String toString() {
-        return functionName() + "(" + argument().toString() + " AS " + to().sqlName() + ")#" + id();
+        return functionName() + "(" + field().toString() + " AS " + to().sqlName() + ")#" + id();
     }
 }

@@ -7,25 +7,24 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion.Conversion;
 
 import java.io.IOException;
+import java.util.Objects;
 
-public class CastProcessor implements ColumnProcessor {
-    public static final String NAME = "c";
+public class CastProcessor implements Processor {
+
+    public static final String NAME = "ca";
+
     private final Conversion conversion;
 
-    CastProcessor(Conversion conversion) {
+    public CastProcessor(Conversion conversion) {
         this.conversion = conversion;
     }
 
-    CastProcessor(StreamInput in) throws IOException {
+    public CastProcessor(StreamInput in) throws IOException {
         conversion = in.readEnum(Conversion.class);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(conversion);
     }
 
     @Override
@@ -34,8 +33,13 @@ public class CastProcessor implements ColumnProcessor {
     }
 
     @Override
-    public Object apply(Object r) {
-        return conversion.convert(r);
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeEnum(conversion);
+    }
+
+    @Override
+    public Object process(Object input) {
+        return conversion.convert(input);
     }
 
     Conversion converter() {
@@ -44,20 +48,25 @@ public class CastProcessor implements ColumnProcessor {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
+
         CastProcessor other = (CastProcessor) obj;
-        return conversion.equals(other.conversion);
+        return Objects.equals(conversion, other.conversion);
     }
 
     @Override
     public int hashCode() {
-        return conversion.hashCode();
+        return Objects.hash(conversion);
     }
 
     @Override
     public String toString() {
-        return conversion.toString();
+        return conversion.name();
     }
 }

@@ -208,7 +208,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         int i = 0;
         while (stream.incrementToken()) {
             assertThat(expected.length, greaterThan(i));
-            assertThat( "expected different term at index " + i, expected[i++], equalTo(termAttr.toString()));
+            assertThat("expected different term at index " + i, termAttr.toString(), equalTo(expected[i++]));
         }
         assertThat("not all tokens produced", i, equalTo(expected.length));
     }

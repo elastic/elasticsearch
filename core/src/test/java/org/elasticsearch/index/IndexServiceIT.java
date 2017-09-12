@@ -54,9 +54,9 @@ public class IndexServiceIT extends ESIntegTestCase {
             final String id = Integer.toString(i);
             client().prepareIndex("test", "test", id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
         }
-        final IndicesStatsResponse stats = client().admin().indices().prepareStats().clear().get();
-        final IndexStats indexStats = stats.getIndex("test");
         assertBusy(() -> {
+            final IndicesStatsResponse stats = client().admin().indices().prepareStats().clear().get();
+            final IndexStats indexStats = stats.getIndex("test");
             for (final IndexShardStats indexShardStats : indexStats.getIndexShards().values()) {
                 Optional<ShardStats> maybePrimary =
                         Stream.of(indexShardStats.getShards())

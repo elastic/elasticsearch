@@ -188,9 +188,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 int masterNodes = clusterState.nodes().getMasterNodes().size();
                 // the purpose of this validation is to make sure that the master doesn't step down
                 // due to a change in master nodes, which also means that there is no way to revert
-                // an accidental change. Since we validateOnJoin using the current cluster state (and
+                // an accidental change. Since we validate using the current cluster state (and
                 // not the one from which the settings come from) we have to be careful and only
-                // validateOnJoin if the local node is already a master. Doing so all the time causes
+                // validate if the local node is already a master. Doing so all the time causes
                 // subtle issues. For example, a node that joins a cluster has no nodes in its
                 // current cluster state. When it receives a cluster state from the master with
                 // a dynamic minimum master nodes setting int it, we must make sure we don't reject
@@ -908,12 +908,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
 
-            // validateOnJoin the join request, will throw a failure if it fails, which will get back to the
+            // validate the join request, will throw a failure if it fails, which will get back to the
             // node calling the join request
             try {
                 membership.sendValidateJoinRequestBlocking(node, state, joinTimeout);
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to validateOnJoin incoming join request from node [{}]", node), e);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", node),
+                    e);
                 callback.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
                 return;
             }

@@ -47,7 +47,7 @@ import java.util.function.Supplier;
 public class MembershipAction extends AbstractComponent {
 
     public static final String DISCOVERY_JOIN_ACTION_NAME = "internal:discovery/zen/join";
-    public static final String DISCOVERY_JOIN_VALIDATE_ACTION_NAME = "internal:discovery/zen/join/validateOnJoin";
+    public static final String DISCOVERY_JOIN_VALIDATE_ACTION_NAME = "internal:discovery/zen/join/validate";
     public static final String DISCOVERY_LEAVE_ACTION_NAME = "internal:discovery/zen/leave";
 
     public interface JoinCallback {

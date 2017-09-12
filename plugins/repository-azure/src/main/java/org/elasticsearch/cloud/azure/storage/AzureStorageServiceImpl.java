@@ -60,8 +60,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         this.storageSettings = storageSettings;
 
         if (storageSettings.isEmpty()) {
-            // If someone did not register any settings or deprecated settings, they
-            // basically can't use the plugin
+            // If someone did not register any settings, they basically can't use the plugin
             throw new IllegalArgumentException("If you want to use an azure repository, you need to define a client configuration.");
         }
 
@@ -97,21 +96,21 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         }
     }
 
-    CloudBlobClient getSelectedClient(String account, LocationMode mode) {
-        logger.trace("selecting a client for account [{}], mode [{}]", account, mode.name());
-        AzureStorageSettings azureStorageSettings = this.storageSettings.get(account);
+    CloudBlobClient getSelectedClient(String clientName, LocationMode mode) {
+        logger.trace("selecting a client named [{}], mode [{}]", clientName, mode.name());
+        AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
         if (azureStorageSettings == null) {
-            throw new IllegalArgumentException("Can not find named azure client [" + account + "]. Check your settings.");
+            throw new IllegalArgumentException("Can not find named azure client [" + clientName + "]. Check your settings.");
         }
 
         CloudBlobClient client = this.clients.get(azureStorageSettings.getAccount());
 
         if (client == null) {
-            throw new IllegalArgumentException("Can not find an azure client for account [" + azureStorageSettings.getAccount() + "]");
+            throw new IllegalArgumentException("Can not find an azure client named [" + azureStorageSettings.getAccount() + "]");
         }
 
         // NOTE: for now, just set the location mode in case it is different;
-        // only one mode per storage account can be active at a time
+        // only one mode per storage clientName can be active at a time
         client.getDefaultRequestOptions().setLocationMode(mode);
 
         // Set timeout option if the user sets cloud.azure.storage.timeout or cloud.azure.storage.xxx.timeout (it's negative by default)

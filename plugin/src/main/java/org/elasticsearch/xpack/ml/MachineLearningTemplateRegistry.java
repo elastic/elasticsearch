@@ -25,7 +25,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
@@ -273,9 +272,6 @@ public class MachineLearningTemplateRegistry extends AbstractComponent implement
                 // failure we can lose the last 5 seconds of changes, but it's
                 // much faster
                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), ASYNC)
-                // We need to allow fields not mentioned in the mappings to
-                // pick up default mappings and be used in queries
-                .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), true)
                 // set the default all search field
                 .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), ElasticsearchMappings.ALL_FIELD_VALUES);
     }
@@ -290,10 +286,7 @@ public class MachineLearningTemplateRegistry extends AbstractComponent implement
                 // Our indexes are small and one shard puts the
                 // least possible burden on Elasticsearch
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
-                // We need to allow fields not mentioned in the mappings to
-                // pick up default mappings and be used in queries
-                .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), true);
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting);
     }
 
      /**

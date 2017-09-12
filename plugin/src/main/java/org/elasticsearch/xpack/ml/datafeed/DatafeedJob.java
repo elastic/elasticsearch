@@ -274,7 +274,7 @@ class DatafeedJob {
 
     private long nextRealtimeTimestamp() {
         long epochMs = currentTimeSupplier.get() + frequencyMs;
-        return toIntervalStartEpochMs(epochMs) + NEXT_TASK_DELAY_MS;
+        return toIntervalStartEpochMs(epochMs) + queryDelayMs + NEXT_TASK_DELAY_MS;
     }
 
     private long toIntervalStartEpochMs(long epochMs) {

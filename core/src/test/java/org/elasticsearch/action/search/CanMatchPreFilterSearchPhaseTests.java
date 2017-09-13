@@ -175,8 +175,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
      * In cases that a query coordinating node held all the shards for a query, the can match phase would recurse and end in stack overflow
      * when subjected to max concurrent search requests. This test is a test for that situation.
      */
-    public void testLotsOfShards() throws InterruptedException, IOException {
-
+    public void testLotsOfShards() throws InterruptedException {
         final TransportSearchAction.SearchTimeProvider timeProvider =
                 new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
 

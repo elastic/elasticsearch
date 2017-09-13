@@ -50,7 +50,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -367,7 +366,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             } else {
                 return SequenceNumbers.UNASSIGNED_SEQ_NO;
             }
-        } catch (final IOException|TranslogCorruptedException e) {
+        } catch (final IOException e) {
             /*
              * This can happen, for example, if a phase one of the recovery completed successfully, a network partition happens before the
              * translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk and

@@ -611,7 +611,11 @@ public class Node implements Closeable {
         try {
             // we load the global state here (the persistent part of the cluster state stored on disk) to
             // pass it to the bootstrap checks to allow plugins to enforce certain preconditions based on the recovered state.
-            onDiskMetadata = injector.getInstance(GatewayMetaState.class).loadMetaState();
+            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+                onDiskMetadata = injector.getInstance(GatewayMetaState.class).loadMetaState();
+            } else {
+                onDiskMetadata = MetaData.EMPTY_META_DATA;
+            }
             assert onDiskMetadata != null : "metadata is null but shouldn't"; // this is never null
         } catch (IOException e) {
             throw new UncheckedIOException(e);

@@ -33,18 +33,23 @@ import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.datafeed.ChunkingConfig.Mode;
+import org.elasticsearch.xpack.ml.job.config.JobTests;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.TimeZone;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedConfig> {
 
@@ -162,15 +167,36 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         }
     }
 
-    public void testFillDefaults() {
+    public void testDefaults() {
         DatafeedConfig.Builder expectedDatafeedConfig = new DatafeedConfig.Builder("datafeed1", "job1");
         expectedDatafeedConfig.setIndices(Collections.singletonList("index"));
         expectedDatafeedConfig.setQueryDelay(TimeValue.timeValueMinutes(1));
         expectedDatafeedConfig.setScrollSize(1000);
-        DatafeedConfig.Builder defaultedDatafeedConfig = new DatafeedConfig.Builder("datafeed1", "job1");
-        defaultedDatafeedConfig.setIndices(Collections.singletonList("index"));
+        DatafeedConfig.Builder defaultFeedBuilder = new DatafeedConfig.Builder("datafeed1", "job1");
+        defaultFeedBuilder.setIndices(Collections.singletonList("index"));
+        DatafeedConfig defaultFeed = defaultFeedBuilder.build();
 
-        assertEquals(expectedDatafeedConfig.build(), defaultedDatafeedConfig.build());
+
+        assertThat(defaultFeed.getScrollSize(), equalTo(1000));
+        assertThat(defaultFeed.getQueryDelay().seconds(), greaterThanOrEqualTo(60L));
+        assertThat(defaultFeed.getQueryDelay().seconds(), lessThan(120L));
+    }
+
+    public void testDefaultQueryDelay() {
+        DatafeedConfig.Builder feedBuilder1 = new DatafeedConfig.Builder("datafeed1", "job1");
+        feedBuilder1.setIndices(Arrays.asList("foo"));
+        DatafeedConfig.Builder feedBuilder2 = new DatafeedConfig.Builder("datafeed2", "job1");
+        feedBuilder2.setIndices(Arrays.asList("foo"));
+        DatafeedConfig.Builder feedBuilder3 = new DatafeedConfig.Builder("datafeed3", "job2");
+        feedBuilder3.setIndices(Arrays.asList("foo"));
+        DatafeedConfig feed1 = feedBuilder1.build();
+        DatafeedConfig feed2 = feedBuilder2.build();
+        DatafeedConfig feed3 = feedBuilder3.build();
+
+        // Two datafeeds with the same job id should have the same random query delay
+        assertThat(feed1.getQueryDelay(), equalTo(feed2.getQueryDelay()));
+        // But the query delay of a datafeed with a different job id should differ too
+        assertThat(feed1.getQueryDelay(), not(equalTo(feed3.getQueryDelay())));
     }
 
     public void testCheckValid_GivenNullIndices() throws IOException {

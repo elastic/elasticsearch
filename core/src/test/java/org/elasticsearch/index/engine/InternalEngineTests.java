@@ -72,6 +72,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -79,6 +80,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -196,6 +198,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class InternalEngineTests extends ESTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index", "_na_"), 0);
+    protected final AllocationId allocationId = AllocationId.newInitializing();
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
     protected ThreadPool threadPool;
@@ -262,11 +265,11 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public EngineConfig copy(EngineConfig config, EngineConfig.OpenMode openMode, Analyzer analyzer) {
-        return new EngineConfig(openMode, config.getShardId(), config.getThreadPool(), config.getIndexSettings(), config.getWarmer(),
-            config.getStore(), config.getMergePolicy(), analyzer, config.getSimilarity(),
-            new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
-            config.getQueryCachingPolicy(), config.getTranslogConfig(),
-            config.getFlushMergesAfter(), config.getRefreshListeners(), config.getIndexSort(), config.getTranslogRecoveryRunner());
+        return new EngineConfig(openMode, config.getShardId(), config.getAllocationId(), config.getThreadPool(), config.getIndexSettings(),
+                config.getWarmer(), config.getStore(), config.getMergePolicy(), analyzer, config.getSimilarity(),
+                new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
+                config.getTranslogConfig(), config.getFlushMergesAfter(), config.getRefreshListeners(), config.getIndexSort(),
+                config.getTranslogRecoveryRunner());
     }
 
     @Override
@@ -445,7 +448,7 @@ public class InternalEngineTests extends ESTestCase {
             indexSettings.getSettings()));
         final List<ReferenceManager.RefreshListener> refreshListenerList =
             refreshListener == null ? emptyList() : Collections.singletonList(refreshListener);
-        EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store,
+        EngineConfig config = new EngineConfig(openMode, shardId, allocationId.getId(), threadPool, indexSettings, null, store,
             mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
             IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
             TimeValue.timeValueMinutes(5), refreshListenerList, indexSort, handler);
@@ -725,6 +728,7 @@ public class InternalEngineTests extends ESTestCase {
             Store store = createStore();
             InternalEngine engine = createEngine(store, createTempDir(), (config) -> new SequenceNumbersService(
                         config.getShardId(),
+                        config.getAllocationId(),
                         config.getIndexSettings(),
                         maxSeqNo.get(),
                         localCheckpoint.get(),
@@ -898,6 +902,7 @@ public class InternalEngineTests extends ESTestCase {
             initialEngine = createEngine(store, createTempDir(), (config) ->
                 new SequenceNumbersService(
                     config.getShardId(),
+                    config.getAllocationId(),
                     config.getIndexSettings(),
                     SequenceNumbers.NO_OPS_PERFORMED,
                     SequenceNumbers.NO_OPS_PERFORMED,
@@ -2025,7 +2030,7 @@ public class InternalEngineTests extends ESTestCase {
 
         try {
             initialEngine = engine;
-            final ShardRouting primary = TestShardRouting.newShardRouting(shardId, "node1", true, ShardRoutingState.STARTED);
+            final ShardRouting primary = TestShardRouting.newShardRouting("test", shardId.id(), "node1", null, true, ShardRoutingState.STARTED, allocationId);
             final ShardRouting replica = TestShardRouting.newShardRouting(shardId, "node2", false, ShardRoutingState.STARTED);
             initialEngine.seqNoService().updateAllocationIdsFromMaster(1L, new HashSet<>(Arrays.asList(primary.allocationId().getId(),
                 replica.allocationId().getId())),
@@ -2785,12 +2790,11 @@ public class InternalEngineTests extends ESTestCase {
         TranslogConfig translogConfig = new TranslogConfig(shardId, translog.location(), config.getIndexSettings(),
             BigArrays.NON_RECYCLING_INSTANCE);
 
-        EngineConfig brokenConfig = new EngineConfig(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, shardId, threadPool,
-                config.getIndexSettings(), null, store, newMergePolicy(), config.getAnalyzer(),
-                config.getSimilarity(), new CodecService(null, logger), config.getEventListener(),
-                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), config.getRefreshListeners(), null,
-                config.getTranslogRecoveryRunner());
+        EngineConfig brokenConfig = new EngineConfig(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, shardId, allocationId.getId(),
+                threadPool, config.getIndexSettings(), null, store, newMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
+                new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5), config.getRefreshListeners(),
+                null, config.getTranslogRecoveryRunner());
 
         try {
             InternalEngine internalEngine = new InternalEngine(brokenConfig);
@@ -3625,6 +3629,7 @@ public class InternalEngineTests extends ESTestCase {
             final AtomicLong expectedLocalCheckpoint) {
         return new SequenceNumbersService(
                 shardId,
+                allocationId.getId(),
                 defaultSettings,
                 SequenceNumbers.NO_OPS_PERFORMED,
                 SequenceNumbers.NO_OPS_PERFORMED,
@@ -3836,7 +3841,7 @@ public class InternalEngineTests extends ESTestCase {
         final int globalCheckpoint = randomIntBetween(0, localCheckpoint);
         try {
             final SequenceNumbersService seqNoService =
-                new SequenceNumbersService(shardId, defaultSettings, maxSeqNo, localCheckpoint, globalCheckpoint) {
+                new SequenceNumbersService(shardId, allocationId.getId(), defaultSettings, maxSeqNo, localCheckpoint, globalCheckpoint) {
                     @Override
                     public long generateSeqNo() {
                         throw new UnsupportedOperationException();
@@ -3983,6 +3988,7 @@ public class InternalEngineTests extends ESTestCase {
             final SequenceNumbersService seqNoService =
                     new SequenceNumbersService(
                             shardId,
+                            allocationId.getId(),
                             defaultSettings,
                             SequenceNumbers.NO_OPS_PERFORMED,
                             SequenceNumbers.NO_OPS_PERFORMED,

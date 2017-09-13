@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -62,6 +63,7 @@ public class DynamicMappingVersionTests extends ESSingleNodeTestCase {
             .build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> createIndex("test-index", settings));
         assertEquals(e.getMessage(), "Setting index.mapper.dynamic was removed after version 6.0.0");
+        assertSettingDeprecationsAndWarnings(new Setting[] { MapperService.INDEX_MAPPER_DYNAMIC_SETTING });
     }
 
 }

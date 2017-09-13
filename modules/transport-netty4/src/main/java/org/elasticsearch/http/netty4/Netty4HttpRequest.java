@@ -39,7 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-final class Netty4HttpRequest extends RestRequest {
+public final class Netty4HttpRequest extends RestRequest {
 
     private final FullHttpRequest request;
     private final Channel channel;

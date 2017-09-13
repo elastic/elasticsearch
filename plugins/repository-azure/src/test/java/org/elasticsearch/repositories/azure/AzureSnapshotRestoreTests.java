@@ -54,6 +54,7 @@ import org.junit.Before;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.net.UnknownHostException;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
@@ -103,7 +104,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
     }
 
     @Before @After
-    public final void wipeAzureRepositories() throws StorageException, URISyntaxException {
+    public final void wipeAzureRepositories() throws StorageException, URISyntaxException, UnknownHostException {
         wipeRepositories();
         cleanRepositoryFiles(
             getContainerName(),
@@ -455,7 +456,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
                 try {
                     logger.info("--> remove container [{}]", container);
                     cleanRepositoryFiles(container);
-                } catch (StorageException | URISyntaxException e) {
+                } catch (StorageException | URISyntaxException | UnknownHostException ignored) {
                     // We can ignore that as we just try to clean after the test
                 }
                 assertTrue(putRepositoryResponse.isAcknowledged() == correct);
@@ -498,7 +499,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
     public void testRemoveAndCreateContainer() throws Exception {
         final String container = getContainerName().concat("-testremove");
         final AzureStorageService storageService = new AzureStorageServiceImpl(nodeSettings(0),AzureStorageSettings.load(nodeSettings(0)));
-      
+
         // It could happen that we run this test really close to a previous one
         // so we might need some time to be able to create the container
         assertBusy(() -> {
@@ -549,7 +550,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
     /**
      * Purge the test containers
      */
-    public void cleanRepositoryFiles(String... containers) throws StorageException, URISyntaxException {
+    public void cleanRepositoryFiles(String... containers) throws StorageException, URISyntaxException, UnknownHostException {
         Settings settings = readSettingsFromFile();
         AzureStorageService client = new AzureStorageServiceImpl(settings, AzureStorageSettings.load(settings));
         for (String container : containers) {

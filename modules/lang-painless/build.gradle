@@ -24,6 +24,10 @@ esplugin {
   classname 'org.elasticsearch.painless.PainlessPlugin'
 }
 
+integTestCluster {
+  module project.project(':modules:mapper-extras')
+}
+
 dependencies {
   compile 'org.antlr:antlr4-runtime:4.5.1-1'
   compile 'org.ow2.asm:asm-debug-all:5.1'

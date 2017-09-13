@@ -108,16 +108,6 @@ public class AutoCreateIndexTests extends ESTestCase {
                 buildClusterState("index1", "index2", "index3")), equalTo(false));
     }
 
-    public void testDynamicMappingDisabled() {
-        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom(true,
-                randomAlphaOfLengthBetween(1, 10)))
-            .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false).build();
-        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
-            autoCreateIndex.shouldAutoCreate(randomAlphaOfLengthBetween(1, 10), buildClusterState()));
-        assertEquals("no such index and [index.mapper.dynamic] is [false]", e.getMessage());
-    }
-
     public void testAutoCreationPatternEnabled() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("+index*", "index*"))
                 .build();

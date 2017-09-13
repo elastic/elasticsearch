@@ -23,7 +23,6 @@ import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.AllFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.node.Node;
 
@@ -104,6 +102,13 @@ public final class IndexSettings {
      */
     public static final Setting<Integer> MAX_RESULT_WINDOW_SETTING =
         Setting.intSetting("index.max_result_window", 10000, 1, Property.Dynamic, Property.IndexScope);
+    /**
+     * Index setting describing the maximum value of allowed `docvalue_fields`that can be retrieved
+     * per search request. The default maximum of 100 is defensive for the reason that retrieving
+     * doc values might incur a per-field per-document seek.
+     */
+    public static final Setting<Integer> MAX_DOCVALUE_FIELDS_SEARCH_SETTING =
+        Setting.intSetting("index.max_docvalue_fields_search", 100, 0, Property.Dynamic, Property.IndexScope);
     /**
      * Index setting describing the maximum size of the rescore window. Defaults to {@link #MAX_RESULT_WINDOW_SETTING}
      * because they both do the same thing: control the size of the heap of hits.
@@ -226,6 +231,7 @@ public final class IndexSettings {
     private volatile int maxResultWindow;
     private volatile int maxAdjacencyMatrixFilters;
     private volatile int maxRescoreWindow;
+    private volatile int maxDocvalueFields;
     private volatile boolean TTLPurgeDisabled;
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -322,6 +328,7 @@ public final class IndexSettings {
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxAdjacencyMatrixFilters = scopedSettings.get(MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
         maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
+        maxDocvalueFields = scopedSettings.get(MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
         TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
@@ -350,6 +357,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_ADJACENCY_MATRIX_FILTERS_SETTING, this::setMaxAdjacencyMatrixFilters);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESCORE_WINDOW_SETTING, this::setMaxRescoreWindow);
+        scopedSettings.addSettingsUpdateConsumer(MAX_DOCVALUE_FIELDS_SEARCH_SETTING, this::setMaxDocvalueFields);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
@@ -592,6 +600,17 @@ public final class IndexSettings {
 
     private void setMaxRescoreWindow(int maxRescoreWindow) {
         this.maxRescoreWindow = maxRescoreWindow;
+    }
+
+    /**
+     * Returns the maximum number of allowed docvalue_fields to retrieve in a search request
+     */
+    public int getMaxDocvalueFields() {
+        return this.maxDocvalueFields;
+    }
+
+    private void setMaxDocvalueFields(int maxDocvalueFields) {
+        this.maxDocvalueFields = maxDocvalueFields;
     }
 
     /**

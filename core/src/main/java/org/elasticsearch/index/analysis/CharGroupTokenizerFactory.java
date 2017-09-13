@@ -34,73 +34,76 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
     private boolean tokenizeOnSpace = false;
     private boolean tokenizeOnLetter = false;
     private boolean tokenizeOnDigit = false;
+    private boolean tokenizeOnPunctuation = false;
+    private boolean tokenizeOnSymbol = false;
 
     public CharGroupTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
 
-        char[] chars = parseCharsList(settings.get("tokenize_on_chars"));
-        if (chars != null) {
-            for (char c : chars) {
-                tokenizeOnChars.add((int) c);
+        for (final String c : settings.getAsArray(settings.get("tokenize_on_chars"))) {
+            if (c == null || c.length() == 0) {
+                throw new RuntimeException("tokenize_on_chars cannot contain empty characters");
+            }
+
+            if (c.length() == 1) {
+                tokenizeOnChars.add((int) c.charAt(0));
+            }
+            else if (c.charAt(0) == '\\') {
+                tokenizeOnChars.add((int) parseEscapedChar(c));
+            } else {
+                switch (c) {
+                    case "letter":
+                        tokenizeOnLetter = true;
+                        break;
+                    case "digit":
+                        tokenizeOnDigit = true;
+                        break;
+                    case "whitespace":
+                        tokenizeOnSpace = true;
+                        break;
+                    case "punctuation":
+                        tokenizeOnPunctuation = true;
+                        break;
+                    case "symbol":
+                        tokenizeOnSymbol = true;
+                        break;
+                    default:
+                        throw new RuntimeException("Invalid escaped char in [" + c + "]");
+                }
             }
         }
     }
 
-    private char[] parseCharsList(final String s) {
-        char[] out = new char[256];
-        int readPos = 0;
+    private char parseEscapedChar(final String s) {
         int len = s.length();
-        int writePos = 0;
-        while (readPos < len) {
-            char c = s.charAt(readPos++);
-            if (c == '\\') {
-                if (readPos >= len)
-                    throw new RuntimeException("Invalid escaped char in [" + s + "]");
-                c = s.charAt(readPos++);
-                switch (c) {
-                    case '\\':
-                        c = '\\';
-                        break;
-                    case 'n':
-                        c = '\n';
-                        break;
-                    case 't':
-                        c = '\t';
-                        break;
-                    case 'r':
-                        c = '\r';
-                        break;
-                    case 'b':
-                        c = '\b';
-                        break;
-                    case 'f':
-                        c = '\f';
-                        break;
-                    case 'u':
-                        if (readPos + 3 >= len)
-                            throw new RuntimeException("Invalid escaped char in [" + s + "]");
-                        c = (char) Integer.parseInt(s.substring(readPos, readPos + 4), 16);
-                        readPos += 4;
-                        break;
-                    case 's':
-                        tokenizeOnSpace = true;
-                        writePos++;
-                        continue;
-                    case 'd':
-                        tokenizeOnDigit = true;
-                        writePos++;
-                        continue;
-                    case 'w':
-                        tokenizeOnLetter = true;
-                        writePos++;
-                        continue;
-                    default:
-                        throw new RuntimeException("Invalid escaped char " + c + " in [" + s + "]");
-                }
+        char c = s.charAt(0);
+        if (c == '\\') {
+            if (1 >= len)
+                throw new RuntimeException("Invalid escaped char in [" + s + "]");
+            c = s.charAt(1);
+            switch (c) {
+                case '\\':
+                    return '\\';
+                case 'n':
+                    return '\n';
+                case 't':
+                    return '\t';
+                case 'r':
+                    return '\r';
+                case 'b':
+                    return '\b';
+                case 'f':
+                    return '\f';
+                case 'u':
+                    if (4 >= len)
+                        throw new RuntimeException("Invalid escaped char in [" + s + "]");
+                    return (char) Integer.parseInt(s.substring(1, 5), 16);
+                default:
+                    throw new RuntimeException("Invalid escaped char " + c + " in [" + s + "]");
             }
-            out[writePos++] = c;
+        } else {
+            throw new RuntimeException("Invalid escaped char [" + s + "]");
         }
-        return out;
     }
 
     @Override
@@ -117,7 +120,12 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
                 if (tokenizeOnDigit && Character.isDigit(c)) {
                     return false;
                 }
-                // TODO also support PUNCTUATION and SYMBOL a la CharMatcher ?
+                if (tokenizeOnPunctuation && CharMatcher.Basic.PUNCTUATION.isTokenChar(c)) {
+                    return false;
+                }
+                if (tokenizeOnSymbol && CharMatcher.Basic.PUNCTUATION.isTokenChar(c)) {
+                    return false;
+                }
                 return !tokenizeOnChars.contains(c);
             }
         };

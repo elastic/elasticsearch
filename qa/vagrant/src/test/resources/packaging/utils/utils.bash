@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This file contains some utilities to test the the .deb/.rpm
+# This file contains some utilities to test the .deb/.rpm
 # packages and the SysV/Systemd scripts.
 
 # WARNING: This testing file must be executed as root and can

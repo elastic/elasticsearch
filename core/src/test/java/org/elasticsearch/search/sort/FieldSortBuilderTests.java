@@ -372,7 +372,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     }
 
     /**
-     * Test the the nested Filter gets rewritten
+     * Test the nested Filter gets rewritten
      */
     public void testNestedRewrites() throws IOException {
         FieldSortBuilder sortBuilder = new FieldSortBuilder(MAPPED_STRING_FIELDNAME);
@@ -389,7 +389,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     }
 
     /**
-     * Test the the nested sort gets rewritten
+     * Test the nested sort gets rewritten
      */
     public void testNestedSortRewrites() throws IOException {
         FieldSortBuilder sortBuilder = new FieldSortBuilder(MAPPED_STRING_FIELDNAME);

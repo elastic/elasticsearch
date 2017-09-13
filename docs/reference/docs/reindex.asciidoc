@@ -616,7 +616,7 @@ The number of documents that were successfully created.
 
 `batches`::
 
-The number of scroll responses pulled back by the the reindex.
+The number of scroll responses pulled back by the reindex.
 
 `version_conflicts`::
 

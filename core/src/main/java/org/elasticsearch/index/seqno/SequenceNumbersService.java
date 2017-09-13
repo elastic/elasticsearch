@@ -54,13 +54,14 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public SequenceNumbersService(
         final ShardId shardId,
+        final String allocationId,
         final IndexSettings indexSettings,
         final long maxSeqNo,
         final long localCheckpoint,
         final long globalCheckpoint) {
         super(shardId, indexSettings);
         localCheckpointTracker = new LocalCheckpointTracker(indexSettings, maxSeqNo, localCheckpoint);
-        globalCheckpointTracker = new GlobalCheckpointTracker(shardId, indexSettings, globalCheckpoint);
+        globalCheckpointTracker = new GlobalCheckpointTracker(shardId, allocationId, indexSettings, globalCheckpoint);
     }
 
     /**
@@ -201,7 +202,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * Called on primary activation or promotion.
      */
     public void activatePrimaryMode(final String allocationId, final long localCheckpoint) {
-        globalCheckpointTracker.activatePrimaryMode(allocationId, localCheckpoint);
+        globalCheckpointTracker.activatePrimaryMode(localCheckpoint);
     }
 
     /**

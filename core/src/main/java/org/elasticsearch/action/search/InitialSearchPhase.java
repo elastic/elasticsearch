@@ -52,12 +52,8 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     private final AtomicInteger shardExecutionIndex = new AtomicInteger(0);
     private final int maxConcurrentShardRequests;
 
-    InitialSearchPhase(
-            String name,
-            SearchRequest request,
-            GroupShardsIterator<SearchShardIterator> shardsIts,
-            Logger logger,
-            int maxConcurrentShardRequests) {
+    InitialSearchPhase(String name, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts, Logger logger,
+                       int maxConcurrentShardRequests) {
         super(name);
         this.request = request;
         this.shardsIts = shardsIts;

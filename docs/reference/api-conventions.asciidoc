@@ -636,7 +636,7 @@ But if you set `error_trace=true`:
 POST /twitter/_search?size=surprise_me&error_trace=true
 ----------------------------------------------------------------------
 // CONSOLE
-// TEST[catch:request]
+// TEST[catch:bad_request]
 
 The response looks like:
 

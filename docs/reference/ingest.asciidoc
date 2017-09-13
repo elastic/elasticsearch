@@ -31,7 +31,7 @@ PUT my-index/my-type/my-id?pipeline=my_pipeline_id
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[catch:request]
+// TEST[catch:bad_request]
 
 See <<ingest-apis,Ingest APIs>> for more information about creating, adding, and deleting pipelines.
 

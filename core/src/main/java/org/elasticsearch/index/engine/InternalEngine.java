@@ -351,10 +351,12 @@ public class InternalEngine extends Engine {
             flush(true, true);
         } else if (translog.isCurrent(translogGeneration) == false) {
             commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
+            refreshLastCommittedSegmentInfos();
         } else if (lastCommittedSegmentInfos.getUserData().containsKey(HISTORY_UUID_KEY) == false)  {
             assert historyUUID != null;
             // put the history uuid into the index
             commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
+            refreshLastCommittedSegmentInfos();
         }
         // clean up what's not needed
         translog.trimUnreferencedReaders();
@@ -1343,30 +1345,8 @@ public class InternalEngine extends Engine {
                     } catch (Exception e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
-                    /*
-                     * we have to inc-ref the store here since if the engine is closed by a tragic event
-                     * we don't acquire the write lock and wait until we have exclusive access. This might also
-                     * dec the store reference which can essentially close the store and unless we can inc the reference
-                     * we can't use it.
-                     */
-                    store.incRef();
-                    try {
-                        // reread the last committed segment infos
-                        lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-                    } catch (Exception e) {
-                        if (isClosed.get() == false) {
-                            try {
-                                logger.warn("failed to read latest segment infos on flush", e);
-                            } catch (Exception inner) {
-                                e.addSuppressed(inner);
-                            }
-                            if (Lucene.isCorruptionException(e)) {
-                                throw new FlushFailedEngineException(shardId, e);
-                            }
-                        }
-                    } finally {
-                        store.decRef();
-                    }
+                    refreshLastCommittedSegmentInfos();
+
                 }
                 newCommitId = lastCommittedSegmentInfos.getId();
             } catch (FlushFailedEngineException ex) {
@@ -1382,6 +1362,33 @@ public class InternalEngine extends Engine {
             pruneDeletedTombstones();
         }
         return new CommitId(newCommitId);
+    }
+
+    private void refreshLastCommittedSegmentInfos() {
+    /*
+     * we have to inc-ref the store here since if the engine is closed by a tragic event
+     * we don't acquire the write lock and wait until we have exclusive access. This might also
+     * dec the store reference which can essentially close the store and unless we can inc the reference
+     * we can't use it.
+     */
+        store.incRef();
+        try {
+            // reread the last committed segment infos
+            lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+        } catch (Exception e) {
+            if (isClosed.get() == false) {
+                try {
+                    logger.warn("failed to read latest segment infos on flush", e);
+                } catch (Exception inner) {
+                    e.addSuppressed(inner);
+                }
+                if (Lucene.isCorruptionException(e)) {
+                    throw new FlushFailedEngineException(shardId, e);
+                }
+            }
+        } finally {
+            store.decRef();
+        }
     }
 
     @Override

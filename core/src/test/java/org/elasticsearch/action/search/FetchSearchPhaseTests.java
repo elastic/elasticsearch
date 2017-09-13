@@ -52,7 +52,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
         boolean hasHits = randomBoolean();
         final int numHits;
         if (hasHits) {
-            QuerySearchResult queryResult = new QuerySearchResult();
+            QuerySearchResult queryResult = new QuerySearchResult(1, new SearchShardTarget("nodeId", 
+                    new Index("index", "uid"), 1, "clusterAlias"));
             queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 1.0F), new DocValueFormat[0]);
             queryResult.size(1);
             FetchSearchResult fetchResult = new FetchSearchResult();

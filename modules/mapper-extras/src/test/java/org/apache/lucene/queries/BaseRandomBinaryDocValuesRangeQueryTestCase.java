@@ -49,7 +49,7 @@ public abstract class BaseRandomBinaryDocValuesRangeQueryTestCase extends BaseRa
 
     @Override
     protected final Field newRangeField(Range box) {
-        AbstractRange testRange = (AbstractRange) box;
+        AbstractRange<?> testRange = (AbstractRange<?>) box;
         RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType(), testRange.getMin(), testRange.getMax(), true , true);
         try {
             BytesRef encodeRange = rangeType().encodeRanges(Collections.singleton(range));
@@ -61,25 +61,25 @@ public abstract class BaseRandomBinaryDocValuesRangeQueryTestCase extends BaseRa
 
     @Override
     protected final Query newIntersectsQuery(Range box) {
-        AbstractRange testRange = (AbstractRange) box;
+        AbstractRange<?> testRange = (AbstractRange<?>) box;
         return rangeType().dvRangeQuery(fieldName(), INTERSECTS, testRange.getMin(), testRange.getMax(), true, true);
     }
 
     @Override
     protected final Query newContainsQuery(Range box) {
-        AbstractRange testRange = (AbstractRange) box;
+        AbstractRange<?> testRange = (AbstractRange<?>) box;
         return rangeType().dvRangeQuery(fieldName(), CONTAINS, testRange.getMin(), testRange.getMax(), true, true);
     }
 
     @Override
     protected final Query newWithinQuery(Range box) {
-        AbstractRange testRange = (AbstractRange) box;
+        AbstractRange<?> testRange = (AbstractRange<?>) box;
         return rangeType().dvRangeQuery(fieldName(), WITHIN, testRange.getMin(), testRange.getMax(), true, true);
     }
 
     @Override
     protected final Query newCrossesQuery(Range box) {
-        AbstractRange testRange = (AbstractRange) box;
+        AbstractRange<?> testRange = (AbstractRange<?>) box;
         return rangeType().dvRangeQuery(fieldName(), CROSSES, testRange.getMin(), testRange.getMax(), true, true);
     }
 
@@ -116,7 +116,7 @@ public abstract class BaseRandomBinaryDocValuesRangeQueryTestCase extends BaseRa
 
         @Override
         protected final boolean isEqual(Range o) {
-            AbstractRange other = (AbstractRange) o;
+            AbstractRange<?> other = (AbstractRange<?>) o;
             return Objects.equals(getMin(), other.getMin()) && Objects.equals(getMax(), other.getMax());
         }
 

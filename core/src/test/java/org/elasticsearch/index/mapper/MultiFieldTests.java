@@ -106,14 +106,6 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("name.test1").fieldType().tokenized(), equalTo(true));
         assertThat(docMapper.mappers().getMapper("name.test1").fieldType().eagerGlobalOrdinals(), equalTo(true));
 
-        assertThat(docMapper.mappers().getMapper("name.test2"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.test2"), instanceOf(TokenCountFieldMapper.class));
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name.test2").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("name.test2").fieldType().stored(), equalTo(true));
-        assertThat(docMapper.mappers().getMapper("name.test2").fieldType().tokenized(), equalTo(false));
-        assertThat(((TokenCountFieldMapper) docMapper.mappers().getMapper("name.test2")).analyzer(), equalTo("simple"));
-        assertThat(((TokenCountFieldMapper) docMapper.mappers().getMapper("name.test2")).analyzer(), equalTo("simple"));
-
         assertThat(docMapper.mappers().getMapper("object1.multi1"), notNullValue());
         assertThat(docMapper.mappers().getMapper("object1.multi1"), instanceOf(DateFieldMapper.class));
         assertThat(docMapper.mappers().getMapper("object1.multi1.string"), notNullValue());

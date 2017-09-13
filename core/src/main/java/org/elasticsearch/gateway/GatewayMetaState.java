@@ -41,6 +41,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 
+import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -114,7 +115,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         }
     }
 
-    public MetaData loadMetaState() throws Exception {
+    public MetaData loadMetaState() throws IOException {
         return metaStateService.loadFullState();
     }
 

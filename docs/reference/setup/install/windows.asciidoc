@@ -1,6 +1,8 @@
 [[windows]]
 === Install Elasticsearch with Windows MSI Installer
 
+beta[]
+
 Elasticsearch can be installed on Windows using the `.msi` package.  This can
 install Elasticsearch as a Windows service or allow it to be run manually using
 the included `elasticsearch.exe` executable.

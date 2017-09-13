@@ -60,11 +60,12 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                     System::nanoTime);
         }
 
+        final SearchRequest request = new SearchRequest();
         return new AbstractSearchAsyncAction<SearchPhaseResult>("test", null, null, null,
                 Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f), null,
-                new SearchRequest(), null, new GroupShardsIterator<>(Collections.singletonList(
+                request, null, new GroupShardsIterator<>(Collections.singletonList(
                 new SearchShardIterator(null, null, Collections.emptyList(), null))), timeProvider, 0, null,
-            new InitialSearchPhase.ArraySearchPhaseResults<>(10)) {
+                new InitialSearchPhase.ArraySearchPhaseResults<>(10), request.getMaxConcurrentShardRequests()) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
                 return null;

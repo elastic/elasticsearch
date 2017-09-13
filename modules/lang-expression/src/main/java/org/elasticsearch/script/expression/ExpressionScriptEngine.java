@@ -108,7 +108,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             ExecutableScript.Factory factory = (p) -> new ExpressionExecutableScript(expr, p);
             return context.factoryClazz.cast(factory);
         }
-        throw new IllegalArgumentException("painless does not know how to handle context [" + context.name + "]");
+        throw new IllegalArgumentException("expression engine does not know how to handle script context [" + context.name + "]");
     }
 
     private SearchScript.LeafFactory newSearchScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {

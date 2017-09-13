@@ -489,6 +489,7 @@ class ClusterFormationTasks {
         }
         Copy installModule = project.tasks.create(name, Copy.class)
         installModule.dependsOn(setup)
+        installModule.dependsOn(module.tasks.bundlePlugin)
         installModule.into(new File(node.homeDir, "modules/${module.name}"))
         installModule.from({ project.zipTree(module.tasks.bundlePlugin.outputs.files.singleFile) })
         return installModule

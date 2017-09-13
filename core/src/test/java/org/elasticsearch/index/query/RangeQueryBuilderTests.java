@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.Term;
@@ -33,7 +31,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -64,13 +61,13 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         switch (randomIntBetween(0, 2)) {
             case 0:
                 // use mapped integer field for numeric range queries
-                query = new RangeQueryBuilder(randomBoolean() ? INT_FIELD_NAME : INT_RANGE_FIELD_NAME);
+                query = new RangeQueryBuilder(INT_FIELD_NAME);
                 query.from(randomIntBetween(1, 100));
                 query.to(randomIntBetween(101, 200));
                 break;
             case 1:
                 // use mapped date field, using date string representation
-                query = new RangeQueryBuilder(randomBoolean() ? DATE_FIELD_NAME : DATE_RANGE_FIELD_NAME);
+                query = new RangeQueryBuilder(DATE_FIELD_NAME);
                 query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
                 query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
                 // Create timestamp option only then we have a date mapper,
@@ -97,9 +94,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         }
         if (randomBoolean()) {
             query.to(null);
-        }
-        if (query.fieldName().equals(INT_RANGE_FIELD_NAME) || query.fieldName().equals(DATE_RANGE_FIELD_NAME)) {
-            query.relation(RandomPicks.randomFrom(random(), ShapeRelation.values()).getRelationName());
         }
         return query;
     }
@@ -137,9 +131,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
         } else if (getCurrentTypes().length == 0 ||
             (queryBuilder.fieldName().equals(DATE_FIELD_NAME) == false
-                && queryBuilder.fieldName().equals(INT_FIELD_NAME) == false
-                && queryBuilder.fieldName().equals(DATE_RANGE_FIELD_NAME) == false
-                && queryBuilder.fieldName().equals(INT_RANGE_FIELD_NAME) == false)) {
+                && queryBuilder.fieldName().equals(INT_FIELD_NAME) == false)) {
             assertThat(query, instanceOf(TermRangeQuery.class));
             TermRangeQuery termRangeQuery = (TermRangeQuery) query;
             assertThat(termRangeQuery.getField(), equalTo(queryBuilder.fieldName()));
@@ -215,9 +207,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     maxInt--;
                 }
             }
-        } else if (queryBuilder.fieldName().equals(DATE_RANGE_FIELD_NAME)
-            || queryBuilder.fieldName().equals(INT_RANGE_FIELD_NAME)) {
-            // todo can't check RangeFieldQuery because its currently package private (this will change)
         } else {
             throw new UnsupportedOperationException();
         }
@@ -232,16 +221,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.timeZone("badID"));
         expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.format(null));
         expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.format("badFormat"));
-    }
-
-    /**
-     * Specifying a timezone together with a numeric range query should throw an exception.
-     */
-    public void testToQueryNonDateWithTimezone() throws QueryShardException {
-        RangeQueryBuilder query = new RangeQueryBuilder(INT_FIELD_NAME);
-        query.from(1).to(10).timeZone("UTC");
-        QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(createShardContext()));
-        assertThat(e.getMessage(), containsString("[range] time_zone can not be applied"));
     }
 
     /**
@@ -364,7 +343,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}";
         QueryBuilder queryBuilder = parseQuery(query);
-        expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
+        queryBuilder.toQuery(createShardContext()); // no exception
     }
 
     public void testFromJson() throws IOException {

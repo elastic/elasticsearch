@@ -289,21 +289,17 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, context);
+            Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
             return query;
         }
 
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                ShapeRelation relation, QueryShardContext context) {
-            failIfNotIndexed();
-            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, relation, null, dateMathParser, context);
-        }
-
+        @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
                                 ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser, QueryShardContext context) {
+            failIfNotIndexed();
             return rangeType.rangeQuery(name(), hasDocValues(), lowerTerm, upperTerm, includeLower, includeUpper, relation,
                 timeZone, parser, context);
         }
@@ -524,9 +520,6 @@ public class RangeFieldMapper extends FieldMapper {
                 InetAddress upper = (InetAddress)to;
                 return InetAddressRange.newIntersectsQuery(field,
                     includeLower ? lower : nextUp(lower), includeUpper ? upper : nextDown(upper));
-            }
-            public String toString(InetAddress address) {
-                return InetAddresses.toAddrString(address);
             }
         },
         DATE("date_range", NumberType.LONG) {

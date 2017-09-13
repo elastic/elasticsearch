@@ -18,62 +18,70 @@
  */
 package org.apache.lucene.queries;
 
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 
-public class DoubleRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryDocValuesRangeQueryTestCase {
+public class LongRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryDocValuesRangeQueryTestCase {
 
     @Override
     protected String fieldName() {
-        return "double_range_dv_field";
+        return "long_range_dv_field";
     }
 
     @Override
     protected RangeFieldMapper.RangeType rangeType() {
-        return RangeFieldMapper.RangeType.DOUBLE;
+        return RangeFieldMapper.RangeType.LONG;
     }
 
     @Override
     protected Range nextRange(int dimensions) throws Exception {
-        double value1 = nextDoubleInternal();
-        double value2 = nextDoubleInternal();
-        double min = Math.min(value1, value2);
-        double max = Math.max(value1, value2);
-        return new DoubleTestRange(min, max);
+        long value1 = nextLongInternal();
+        long value2 = nextLongInternal();
+        long min = Math.min(value1, value2);
+        long max = Math.max(value1, value2);
+        return new LongTestRange(min, max);
     }
 
-    private double nextDoubleInternal() {
+    private long nextLongInternal() {
         switch (random().nextInt(5)) {
             case 0:
-                return Double.NEGATIVE_INFINITY;
+                return Long.MIN_VALUE;
             case 1:
-                return Double.POSITIVE_INFINITY;
+                return Long.MAX_VALUE;
             default:
-                if (random().nextBoolean()) {
-                    return random().nextDouble();
-                } else {
-                    return (random().nextInt(15) - 7) / 3d;
+                int bpv = random().nextInt(64);
+                switch (bpv) {
+                    case 64:
+                        return random().nextLong();
+                    default:
+                        long v = TestUtil.nextLong(random(), 0, (1L << bpv) - 1);
+                        if (bpv > 0) {
+                            // negative values sometimes
+                            v -= 1L << (bpv - 1);
+                        }
+                        return v;
                 }
         }
     }
 
-    private static class DoubleTestRange extends AbstractRange {
-        double min;
-        double max;
+    private static class LongTestRange extends AbstractRange<Long> {
+        long min;
+        long max;
 
-        DoubleTestRange(double min, double max) {
+        LongTestRange(long min, long max) {
             this.min = min;
             this.max = max;
         }
 
         @Override
-        public Object getMin() {
+        public Long getMin() {
             return min;
         }
 
         @Override
         protected void setMin(int dim, Object val) {
             assert dim == 0;
-            double v = (Double) val;
+            long v = (Long)val;
             if (min < v) {
                 max = v;
             } else {
@@ -82,14 +90,14 @@ public class DoubleRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinary
         }
 
         @Override
-        public Object getMax() {
+        public Long getMax() {
             return max;
         }
 
         @Override
         protected void setMax(int dim, Object val) {
             assert dim == 0;
-            double v = (Double) val;
+            long v = (Long)val;
             if (max > v) {
                 min = v;
             } else {
@@ -99,13 +107,13 @@ public class DoubleRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinary
 
         @Override
         protected boolean isDisjoint(Range o) {
-            DoubleTestRange other = (DoubleTestRange)o;
+            LongTestRange other = (LongTestRange)o;
             return this.min > other.max || this.max < other.min;
         }
 
         @Override
         protected boolean isWithin(Range o) {
-            DoubleTestRange other = (DoubleTestRange)o;
+            LongTestRange other = (LongTestRange)o;
             if ((this.min >= other.min && this.max <= other.max) == false) {
                 // not within:
                 return false;
@@ -115,7 +123,7 @@ public class DoubleRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinary
 
         @Override
         protected boolean contains(Range o) {
-            DoubleTestRange other = (DoubleTestRange) o;
+            LongTestRange other = (LongTestRange) o;
             if ((this.min <= other.min && this.max >= other.max) == false) {
                 // not contains:
                 return false;

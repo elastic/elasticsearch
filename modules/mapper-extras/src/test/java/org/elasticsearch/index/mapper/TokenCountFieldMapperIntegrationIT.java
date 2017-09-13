@@ -220,7 +220,8 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         assertThat(hit.field("foo.token_count_without_position_increments"), not(nullValue()));
         assertThat(hit.field("foo.token_count_without_position_increments").getValues().size(), equalTo(englishTermCounts.length));
         for (int i = 0; i < englishTermCounts.length; i++) {
-            assertThat((Integer) hit.field("foo.token_count_without_position_increments").getValues().get(i), equalTo(englishTermCounts[i]));
+            assertThat((Integer) hit.field("foo.token_count_without_position_increments").getValues().get(i),
+                    equalTo(englishTermCounts[i]));
         }
 
         if (loadCountedFields && storeCountedFields) {

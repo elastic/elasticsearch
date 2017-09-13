@@ -27,10 +27,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Locale;
 
@@ -42,6 +45,12 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 
 public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class, MapperExtrasPlugin.class);
+    }
+
     private static String FROM_DATE = "2016-10-31";
     private static String TO_DATE = "2016-11-01 20:00:00";
     private static String FROM_IP = "::ffff:c0a8:107";

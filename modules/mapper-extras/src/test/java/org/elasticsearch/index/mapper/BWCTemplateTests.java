@@ -17,10 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.template;
+package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperExtrasPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+
+import java.util.Collection;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 
@@ -29,11 +33,16 @@ import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
  * prior to their 5.x releases work for newly created indices
  */
 public class BWCTemplateTests extends ESSingleNodeTestCase {
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(MapperExtrasPlugin.class);
+    }
+
     public void testBeatsTemplatesBWC() throws Exception {
-        byte[] metricBeat = copyToBytesFromClasspath("/org/elasticsearch/action/admin/indices/template/metricbeat-5.0.template.json");
-        byte[] packetBeat = copyToBytesFromClasspath("/org/elasticsearch/action/admin/indices/template/packetbeat-5.0.template.json");
-        byte[] fileBeat = copyToBytesFromClasspath("/org/elasticsearch/action/admin/indices/template/filebeat-5.0.template.json");
-        byte[] winLogBeat = copyToBytesFromClasspath("/org/elasticsearch/action/admin/indices/template/winlogbeat-5.0.template.json");
+        byte[] metricBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/metricbeat-5.0.template.json");
+        byte[] packetBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/packetbeat-5.0.template.json");
+        byte[] fileBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/filebeat-5.0.template.json");
+        byte[] winLogBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/winlogbeat-5.0.template.json");
         client().admin().indices().preparePutTemplate("metricbeat").setSource(metricBeat, XContentType.JSON).get();
         client().admin().indices().preparePutTemplate("packetbeat").setSource(packetBeat, XContentType.JSON).get();
         client().admin().indices().preparePutTemplate("filebeat").setSource(fileBeat, XContentType.JSON).get();

@@ -86,6 +86,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
@@ -139,6 +140,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -604,8 +606,17 @@ public class Node implements Closeable {
         assert localNodeFactory.getNode() != null;
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
+        final MetaData onDiskMetadata;
+        try {
+            // we load the global state here (the persistent part of the cluster state stored on disk) to
+            // pass it to the bootstrap checks to allow plugins to enforce certain preconditions based on the recovered state.
+            onDiskMetadata = injector.getInstance(GatewayMetaState.class).loadMetaState();
+            assert onDiskMetadata != null : "metadata is null but shouldn't"; // this is never null
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress(), pluginsService.filterPlugins(Plugin.class).stream()
-            .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
+            .flatMap(p -> p.getBootstrapChecks(onDiskMetadata).stream()).collect(Collectors.toList()));
 
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known

@@ -23,6 +23,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -76,7 +77,8 @@ public class NodeTests extends ESTestCase {
             }
         };
         @Override
-        public List<BootstrapCheck> getBootstrapChecks() {
+        public List<BootstrapCheck> getBootstrapChecks(MetaData metaData) {
+            assertNotNull(metaData);
             return Collections.singletonList(CHECK);
         }
     }

@@ -221,8 +221,9 @@ public abstract class Plugin implements Closeable {
      * interface. In this case we assume the node is running in production and all bootstrap checks must pass. This allows plugins
      * to provide a better out of the box experience by pre-configuring otherwise (in production) mandatory settings or to enforce certain
      * configurations like OS settings or 3rd party resources.
+     * @param metaData the on-disk metadata for this nodes. This allows bootstrap-checks based on the locally recovered cluster metadata
      */
-    public List<BootstrapCheck> getBootstrapChecks() { return Collections.emptyList(); }
+    public List<BootstrapCheck> getBootstrapChecks(MetaData metaData) { return Collections.emptyList(); }
 
     /**
      * Close the resources opened by this plugin.

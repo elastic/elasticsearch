@@ -53,11 +53,13 @@ public interface BootstrapCheck {
         }
 
         public boolean isFailure() {
+            assert message != null;
             return !isSuccess();
         }
 
         public String getMessage() {
             assert isFailure();
+            assert message != null;
             return message;
         }
 

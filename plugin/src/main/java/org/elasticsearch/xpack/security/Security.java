@@ -242,10 +242,10 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
             // fetched
             final List<BootstrapCheck> checks = new ArrayList<>();
             checks.addAll(Arrays.asList(
-                    new SSLBootstrapCheck(sslService, settings, env),
+                    new SSLBootstrapCheck(sslService, env),
                     new TokenPassphraseBootstrapCheck(settings),
-                    new TokenSSLBootstrapCheck(settings),
-                    new PkiRealmBootstrapCheck(settings, sslService)));
+                    new TokenSSLBootstrapCheck(),
+                    new PkiRealmBootstrapCheck(sslService)));
             checks.addAll(InternalRealms.getBootstrapChecks(settings));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
         } else {

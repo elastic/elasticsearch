@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -45,7 +46,7 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
-        assertThat(check.check(), equalTo(false));
+        assertThat(check.check(new BootstrapContext(settings, null)), equalTo(false));
     }
 
     public void testBootstrapCheckOfMissingFile() {
@@ -58,7 +59,7 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
-        assertThat(check.check(), equalTo(true));
+        assertThat(check.check(new BootstrapContext(settings, null)), equalTo(true));
         assertThat(check.errorMessage(), containsString("the-realm-name"));
         assertThat(check.errorMessage(), containsString(fileName));
         assertThat(check.errorMessage(), containsString("does not exist"));
@@ -76,7 +77,7 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
-        assertThat(check.check(), equalTo(true));
+        assertThat(check.check(new BootstrapContext(settings, null)), equalTo(true));
         assertThat(check.errorMessage(), containsString("the-realm-name"));
         assertThat(check.errorMessage(), containsString(file.toString()));
         assertThat(check.errorMessage(), containsString("could not read"));
@@ -94,7 +95,7 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
-        assertThat(check.check(), equalTo(true));
+        assertThat(check.check(new BootstrapContext(settings, null)), equalTo(true));
         assertThat(check.errorMessage(), containsString("the-realm-name"));
         assertThat(check.errorMessage(), containsString(file.toString()));
         assertThat(check.errorMessage(), containsString("invalid DN"));

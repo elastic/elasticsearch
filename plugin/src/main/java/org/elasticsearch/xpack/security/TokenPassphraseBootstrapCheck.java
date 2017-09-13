@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.XPackSettings;
@@ -29,7 +30,7 @@ final class TokenPassphraseBootstrapCheck implements BootstrapCheck {
     }
 
     @Override
-    public boolean check() {
+    public boolean check(BootstrapContext context) {
         if (tokenPassphrase == null) { // that's fine we bootstrap it ourself
             return false;
         }

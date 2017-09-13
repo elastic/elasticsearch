@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
@@ -20,10 +21,8 @@ import static org.elasticsearch.xpack.security.Security.setting;
 class PkiRealmBootstrapCheck implements BootstrapCheck {
 
     private final SSLService sslService;
-    private final Settings settings;
 
-    PkiRealmBootstrapCheck(Settings settings, SSLService sslService) {
-        this.settings = settings;
+    PkiRealmBootstrapCheck(SSLService sslService) {
         this.sslService = sslService;
     }
 
@@ -32,7 +31,8 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
      * least one network communication layer.
      */
     @Override
-    public boolean check() {
+    public boolean check(BootstrapContext context) {
+        final Settings settings = context.settings;
         final boolean pkiRealmEnabled = settings.getGroups(RealmSettings.PREFIX).values().stream()
                 .filter(s -> PkiRealm.TYPE.equals(s.get("type")))
                 .anyMatch(s -> s.getAsBoolean("enabled", true));

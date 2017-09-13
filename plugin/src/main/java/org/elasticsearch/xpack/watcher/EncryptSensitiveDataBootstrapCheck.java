@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -15,17 +16,16 @@ import java.nio.file.Path;
 
 final class EncryptSensitiveDataBootstrapCheck implements BootstrapCheck {
 
-    private final Settings settings;
     private final Environment environment;
 
-    EncryptSensitiveDataBootstrapCheck(Settings settings, Environment environment) {
-        this.settings = settings;
+    EncryptSensitiveDataBootstrapCheck(Environment environment) {
         this.environment = environment;
     }
 
     @Override
-    public boolean check() {
-        return Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.get(settings) && Watcher.ENCRYPTION_KEY_SETTING.exists(settings) == false;
+    public boolean check(BootstrapContext context) {
+        return Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.get(context.settings)
+                && Watcher.ENCRYPTION_KEY_SETTING.exists(context.settings) == false;
     }
 
     @Override

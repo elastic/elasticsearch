@@ -20,7 +20,6 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -413,7 +412,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     // Parse the valid query and inserts a new object level called "newField"
                     XContentParser.Token token;
                     while ((token = parser.nextToken()) != null) {
-                        if (token == XContentParser.Token.START_OBJECT) {
+                        if (token == XContentParser.Token.START_ARRAY) {
+                            levels.addLast(parser.currentName());
+                        } else if (token == XContentParser.Token.START_OBJECT) {
                             objectIndex++;
                             levels.addLast(parser.currentName());
 
@@ -438,7 +439,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                                 // Jump to next token
                                 continue;
                             }
-                        } else if (token == XContentParser.Token.END_OBJECT) {
+                        } else if (token == XContentParser.Token.END_OBJECT || token == XContentParser.Token.END_ARRAY) {
                             levels.removeLast();
                         }
 

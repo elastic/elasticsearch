@@ -408,14 +408,22 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     @Override
-    public SortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
-        if (nestedFilter == null) {
+    public FieldSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        if (nestedFilter == null && nestedSort == null) {
             return this;
         }
-        QueryBuilder rewrite = nestedFilter.rewrite(ctx);
-        if (nestedFilter == rewrite) {
-            return this;
+        if (nestedFilter != null) {
+            QueryBuilder rewrite = nestedFilter.rewrite(ctx);
+            if (nestedFilter == rewrite) {
+                return this;
+            }
+            return new FieldSortBuilder(this).setNestedFilter(rewrite);
+        } else {
+            NestedSortBuilder rewrite = nestedSort.rewrite(ctx);
+            if (nestedSort == rewrite) {
+                return this;
+            }
+            return new FieldSortBuilder(this).setNestedSort(rewrite);
         }
-        return new FieldSortBuilder(this).setNestedFilter(rewrite);
     }
 }

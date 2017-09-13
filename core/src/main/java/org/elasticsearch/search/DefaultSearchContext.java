@@ -212,6 +212,9 @@ final class DefaultSearchContext extends SearchContext {
                             + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey() + "] index level setting.");
         }
         if (rescore != null) {
+            if (sort != null) {
+                throw new QueryPhaseExecutionException(this, "Cannot use [sort] option in conjunction with [rescore].");
+            }
             int maxWindow = indexService.getIndexSettings().getMaxRescoreWindow();
             for (RescoreContext rescoreContext: rescore) {
                 if (rescoreContext.getWindowSize() > maxWindow) {

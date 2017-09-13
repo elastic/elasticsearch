@@ -46,7 +46,7 @@ before retrying after a first timeout or failure. The maximum backoff period is 
 
 [source,yaml]
 ----
-cloud.azure.storage.timeout: 10s
+azure.client.default.timeout: 10s
 azure.client.default.max_retries: 7
 azure.client.secondary.timeout: 30s
 ----

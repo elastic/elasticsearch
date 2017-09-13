@@ -104,6 +104,15 @@ public final class IndexSettings {
      */
     public static final Setting<Integer> MAX_RESULT_WINDOW_SETTING =
         Setting.intSetting("index.max_result_window", 10000, 1, Property.Dynamic, Property.IndexScope);
+
+    /**
+     * Index setting describing the maximum value of allowed `script_fields`that can be retrieved
+     * per search request. The default maximum of 32 is defensive for the reason that retrieving
+     * script fields is a costly operation.
+     */
+    public static final Setting<Integer> MAX_SCRIPT_FIELDS_SETTING =
+        Setting.intSetting("index.max_script_fields", 32, 0, Property.Dynamic, Property.IndexScope);
+
     /**
      * Index setting describing the maximum value of from + size on an individual inner hit definition or
      * top hits aggregation. The default maximum of 100 is defensive for the reason that the number of inner hit responses
@@ -242,6 +251,7 @@ public final class IndexSettings {
     private volatile int maxAdjacencyMatrixFilters;
     private volatile int maxRescoreWindow;
     private volatile int maxDocvalueFields;
+    private volatile int maxScriptFields;
     private volatile boolean TTLPurgeDisabled;
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -344,6 +354,7 @@ public final class IndexSettings {
         maxAdjacencyMatrixFilters = scopedSettings.get(MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
         maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
         maxDocvalueFields = scopedSettings.get(MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
+        maxScriptFields = scopedSettings.get(MAX_SCRIPT_FIELDS_SETTING);
         TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
@@ -374,6 +385,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_ADJACENCY_MATRIX_FILTERS_SETTING, this::setMaxAdjacencyMatrixFilters);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESCORE_WINDOW_SETTING, this::setMaxRescoreWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_DOCVALUE_FIELDS_SEARCH_SETTING, this::setMaxDocvalueFields);
+        scopedSettings.addSettingsUpdateConsumer(MAX_SCRIPT_FIELDS_SETTING, this::setMaxScriptFields);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
@@ -639,6 +651,17 @@ public final class IndexSettings {
 
     private void setMaxDocvalueFields(int maxDocvalueFields) {
         this.maxDocvalueFields = maxDocvalueFields;
+    }
+
+    /**
+     * Returns the maximum number of allowed script_fields to retrieve in a search request
+     */
+    public int getMaxScriptFields() {
+        return this.maxScriptFields;
+    }
+
+    private void setMaxScriptFields(int maxScriptFields) {
+        this.maxScriptFields = maxScriptFields;
     }
 
     /**

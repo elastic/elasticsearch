@@ -789,6 +789,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         if (source.scriptFields() != null) {
+            int maxAllowedScriptFields = context.mapperService().getIndexSettings().getMaxScriptFields();
+            if (source.scriptFields().size() > maxAllowedScriptFields) {
+                throw new IllegalArgumentException(
+                        "Trying to retrieve too many script_fields. Must be less than or equal to: [" + maxAllowedScriptFields
+                                + "] but was [" + source.scriptFields().size() + "]. This limit can be set by changing the ["
+                                + IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey() + "] index level setting.");
+            }
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
                 SearchScript.Factory factory = scriptService.compile(field.script(), SearchScript.CONTEXT);
                 SearchScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), context.lookup());

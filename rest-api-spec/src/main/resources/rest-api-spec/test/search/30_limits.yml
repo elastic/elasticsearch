@@ -72,3 +72,29 @@ setup:
           query:
             match_all: {}
           docvalue_fields: ["one", "two", "three"]
+
+---
+"Script_fields size limit":
+  - skip:
+      version: " - 5.99.99"
+      reason: soft limit for script_fields only available as of 6.0.0
+
+  - do:
+      indices.create:
+          index: test_3
+          body:
+            settings:
+              index.max_script_fields: 2
+
+  - do:
+      catch:      /Trying to retrieve too many script_fields\. Must be less than or equal to[:] \[2\] but was \[3\]\. This limit can be set by changing the \[index.max_script_fields\] index level setting\./
+      search:
+        index: test_3
+        body:
+          query:
+            match_all: {}
+          script_fields: {
+            "test1" : { "script" : { "lang": "painless", "source": "1" }},
+            "test2" : { "script" : { "lang": "painless", "source": "1" }},
+            "test3" : { "script" : { "lang": "painless", "source": "1" }}
+          }

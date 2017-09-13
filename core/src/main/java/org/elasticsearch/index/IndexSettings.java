@@ -101,7 +101,7 @@ public final class IndexSettings {
 
     /**
      * Index setting describing the maximum value of allowed `script_fields`that can be retrieved
-     * per search request. The default maximum of 50 is defensive for the reason that retrieving
+     * per search request. The default maximum of 32 is defensive for the reason that retrieving
      * script fields is a costly operation.
      */
     public static final Setting<Integer> MAX_SCRIPT_FIELDS_SETTING =

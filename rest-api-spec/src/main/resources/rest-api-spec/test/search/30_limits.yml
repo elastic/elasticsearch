@@ -5,6 +5,7 @@ setup:
           body:
             settings:
               index.max_docvalue_fields_search: 2
+              index.max_script_fields: 2
 
   - do:
       index:
@@ -72,21 +73,11 @@ setup:
 
 ---
 "Script_fields size limit":
-  - skip:
-      version: " - 6.99.99"
-      reason: soft limit for script_fields only available as of 7.0.0
-
-  - do:
-      indices.create:
-          index: test_2
-          body:
-            settings:
-              index.max_script_fields: 2
 
   - do:
       catch:      /Trying to retrieve too many script_fields\. Must be less than or equal to[:] \[2\] but was \[3\]\. This limit can be set by changing the \[index.max_script_fields\] index level setting\./
       search:
-        index: test_2
+        index: test_1
         body:
           query:
             match_all: {}

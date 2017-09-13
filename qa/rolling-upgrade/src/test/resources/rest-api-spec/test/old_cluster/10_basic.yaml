@@ -1,6 +1,8 @@
 ---
 "Index data, search, and create things in the cluster state that we'll validate are there after the ugprade":
   - skip:
+      version: " - 5.5.99"
+      reason: stored search template API is deprecated in 5.6.0
       features: "warnings"
 
   - do:

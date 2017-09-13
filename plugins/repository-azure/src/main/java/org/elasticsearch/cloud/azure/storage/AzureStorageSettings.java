@@ -22,6 +22,7 @@ package org.elasticsearch.cloud.azure.storage;
 import com.microsoft.azure.storage.RetryPolicy;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -31,9 +32,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,27 +50,33 @@ public final class AzureStorageSettings {
     // prefix for azure client settings
     private static final String PREFIX = "azure.client.";
 
-    /**
-     * Azure account name
-     */
-    public static final AffixSetting<SecureString> ACCOUNT_SETTING = Setting.affixKeySetting(PREFIX, "account",
-        key -> SecureSetting.secureString(key, null));
+    /** Azure account name */
+    public static final AffixSetting<SecureString> ACCOUNT_SETTING =
+        Setting.affixKeySetting(PREFIX, "account", key -> SecureSetting.secureString(key, null));
 
-    /**
-     * max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT).
-     */
+    /** max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT). */
     private static final Setting<Integer> MAX_RETRIES_SETTING =
         Setting.affixKeySetting(PREFIX, "max_retries",
             (key) -> Setting.intSetting(key, RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT, Setting.Property.NodeScope));
 
-    /**
-     * Azure key
-     */
+    /** Azure key */
     public static final AffixSetting<SecureString> KEY_SETTING = Setting.affixKeySetting(PREFIX, "key",
         key -> SecureSetting.secureString(key, null));
 
     public static final AffixSetting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "timeout",
         (key) -> Setting.timeSetting(key, Storage.TIMEOUT_SETTING, Property.NodeScope));
+
+    /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
+    public static final AffixSetting<Proxy.Type> PROXY_TYPE_SETTING = Setting.affixKeySetting(PREFIX, "proxy.type",
+        (key) -> new Setting<>(key, "direct", s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope));
+
+    /** The host name of a proxy to connect to azure through. */
+    public static final Setting<String> PROXY_HOST_SETTING = Setting.affixKeySetting(PREFIX, "proxy.host",
+        (key) -> Setting.simpleString(key, Property.NodeScope));
+
+    /** The port of a proxy to connect to azure through. */
+    public static final Setting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(PREFIX, "proxy.port",
+        (key) -> Setting.intSetting(key, 0, 0, 65535, Setting.Property.NodeScope));
 
 
     @Deprecated
@@ -89,14 +101,36 @@ public final class AzureStorageSettings {
     @Deprecated
     private final boolean activeByDefault;
     private final int maxRetries;
+    private final Proxy proxy;
 
-    public AzureStorageSettings(String account, String key, TimeValue timeout, int maxRetries) {
+
+    public AzureStorageSettings(String account, String key, TimeValue timeout, int maxRetries, Proxy.Type proxyType, String proxyHost,
+                                Integer proxyPort) {
         this.name = null;
         this.account = account;
         this.key = key;
         this.timeout = timeout;
         this.activeByDefault = false;
         this.maxRetries = maxRetries;
+
+        // Register the proxy if we have any
+        // Validate proxy settings
+        if (proxyType.equals(Proxy.Type.DIRECT) && (proxyPort != 0 || Strings.hasText(proxyHost))) {
+            throw new SettingsException("Azure Proxy port or host have been set but proxy type is not defined.");
+        }
+        if (proxyType.equals(Proxy.Type.DIRECT) == false && (proxyPort == 0 || Strings.isEmpty(proxyHost))) {
+            throw new SettingsException("Azure Proxy type has been set but proxy host or port is not defined.");
+        }
+
+        if (proxyType.equals(Proxy.Type.DIRECT)) {
+            proxy = null;
+        } else {
+            try {
+                proxy = new Proxy(proxyType, new InetSocketAddress(InetAddress.getByName(proxyHost), proxyPort));
+            } catch (UnknownHostException e) {
+                throw new SettingsException("Azure proxy host is unknown.", e);
+            }
+        }
     }
 
     @Deprecated
@@ -107,6 +141,7 @@ public final class AzureStorageSettings {
         this.timeout = timeout;
         this.activeByDefault = activeByDefault;
         this.maxRetries = maxRetries;
+        this.proxy = null;
     }
 
     @Deprecated
@@ -135,6 +170,10 @@ public final class AzureStorageSettings {
         return maxRetries;
     }
 
+    public Proxy getProxy() {
+        return proxy;
+    }
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("AzureStorageSettings{");
@@ -144,6 +183,7 @@ public final class AzureStorageSettings {
         sb.append(", activeByDefault='").append(activeByDefault).append('\'');
         sb.append(", timeout=").append(timeout);
         sb.append(", maxRetries=").append(maxRetries);
+        sb.append(", proxy=").append(proxy);
         sb.append('}');
         return sb.toString();
     }
@@ -188,7 +228,10 @@ public final class AzureStorageSettings {
              SecureString key = getConfigValue(settings, clientName, KEY_SETTING)) {
             return new AzureStorageSettings(account.toString(), key.toString(),
                 getValue(settings, clientName, TIMEOUT_SETTING),
-                getValue(settings, clientName, MAX_RETRIES_SETTING));
+                getValue(settings, clientName, MAX_RETRIES_SETTING),
+                getValue(settings, clientName, PROXY_TYPE_SETTING),
+                getValue(settings, clientName, PROXY_HOST_SETTING),
+                getValue(settings, clientName, PROXY_PORT_SETTING));
         }
     }
 

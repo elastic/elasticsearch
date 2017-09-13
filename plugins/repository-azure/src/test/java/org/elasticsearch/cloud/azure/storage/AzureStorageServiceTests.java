@@ -20,15 +20,21 @@
 package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.LocationMode;
+import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.util.Map;
 
 import static org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl.blobNameFromUri;
@@ -149,13 +155,123 @@ public class AzureStorageServiceTests extends ESTestCase {
     public void testGetSelectedClientBackoffPolicyNbRetries() {
         Settings timeoutSettings = Settings.builder()
             .setSecureSettings(buildSecureSettings())
-            .put("cloud.azure.storage.azure.max_retries", 7)
+            .put("azure.client.azure1.max_retries", 7)
             .build();
 
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(timeoutSettings);
         CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
         assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), is(notNullValue()));
         assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), instanceOf(RetryExponentialRetry.class));
+    }
+
+    public void testNoProxy() {
+        Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .build();
+        AzureStorageServiceMock mock = new AzureStorageServiceMock(settings);
+        assertThat(mock.storageSettings.get("azure1").getProxy(), nullValue());
+        assertThat(mock.storageSettings.get("azure2").getProxy(), nullValue());
+        assertThat(mock.storageSettings.get("azure3").getProxy(), nullValue());
+    }
+
+    public void testProxyHttp() throws UnknownHostException {
+        Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.proxy.host", "127.0.0.1")
+            .put("azure.client.azure1.proxy.port", 8080)
+            .put("azure.client.azure1.proxy.type", "http")
+            .build();
+        AzureStorageServiceMock mock = new AzureStorageServiceMock(settings);
+        Proxy azure1Proxy = mock.storageSettings.get("azure1").getProxy();
+
+        assertThat(azure1Proxy, notNullValue());
+        assertThat(azure1Proxy.type(), is(Proxy.Type.HTTP));
+        assertThat(azure1Proxy.address(), is(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 8080)));
+        assertThat(mock.storageSettings.get("azure2").getProxy(), nullValue());
+        assertThat(mock.storageSettings.get("azure3").getProxy(), nullValue());
+    }
+
+    public void testMultipleProxies() throws UnknownHostException {
+        Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.proxy.host", "127.0.0.1")
+            .put("azure.client.azure1.proxy.port", 8080)
+            .put("azure.client.azure1.proxy.type", "http")
+            .put("azure.client.azure2.proxy.host", "127.0.0.1")
+            .put("azure.client.azure2.proxy.port", 8081)
+            .put("azure.client.azure2.proxy.type", "http")
+            .build();
+        AzureStorageServiceMock mock = new AzureStorageServiceMock(settings);
+        Proxy azure1Proxy = mock.storageSettings.get("azure1").getProxy();
+        assertThat(azure1Proxy, notNullValue());
+        assertThat(azure1Proxy.type(), is(Proxy.Type.HTTP));
+        assertThat(azure1Proxy.address(), is(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 8080)));
+        Proxy azure2Proxy = mock.storageSettings.get("azure2").getProxy();
+        assertThat(azure2Proxy, notNullValue());
+        assertThat(azure2Proxy.type(), is(Proxy.Type.HTTP));
+        assertThat(azure2Proxy.address(), is(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 8081)));
+        assertThat(mock.storageSettings.get("azure3").getProxy(), nullValue());
+    }
+
+    public void testProxySocks() throws UnknownHostException {
+        Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.proxy.host", "127.0.0.1")
+            .put("azure.client.azure1.proxy.port", 8080)
+            .put("azure.client.azure1.proxy.type", "socks")
+            .build();
+        AzureStorageServiceMock mock = new AzureStorageServiceMock(settings);
+        Proxy azure1Proxy = mock.storageSettings.get("azure1").getProxy();
+        assertThat(azure1Proxy, notNullValue());
+        assertThat(azure1Proxy.type(), is(Proxy.Type.SOCKS));
+        assertThat(azure1Proxy.address(), is(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 8080)));
+        assertThat(mock.storageSettings.get("azure2").getProxy(), nullValue());
+        assertThat(mock.storageSettings.get("azure3").getProxy(), nullValue());
+    }
+
+    public void testProxyNoHost() {
+        Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.proxy.port", 8080)
+            .put("azure.client.azure1.proxy.type", randomFrom("socks", "http"))
+            .build();
+
+        SettingsException e = expectThrows(SettingsException.class, () -> new AzureStorageServiceMock(settings));
+        assertEquals("Azure Proxy type has been set but proxy host or port is not defined.", e.getMessage());
+    }
+
+    public void testProxyNoPort() {
+        Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.proxy.host", "127.0.0.1")
+            .put("azure.client.azure1.proxy.type", randomFrom("socks", "http"))
+            .build();
+
+        SettingsException e = expectThrows(SettingsException.class, () -> new AzureStorageServiceMock(settings));
+        assertEquals("Azure Proxy type has been set but proxy host or port is not defined.", e.getMessage());
+    }
+
+    public void testProxyNoType() {
+        Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.proxy.host", "127.0.0.1")
+            .put("azure.client.azure1.proxy.port", 8080)
+            .build();
+
+        SettingsException e = expectThrows(SettingsException.class, () -> new AzureStorageServiceMock(settings));
+        assertEquals("Azure Proxy port or host have been set but proxy type is not defined.", e.getMessage());
+    }
+
+    public void testProxyWrongHost() {
+        Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.proxy.type", randomFrom("socks", "http"))
+            .put("azure.client.azure1.proxy.host", "thisisnotavalidhostorwehavebeensuperunlucky")
+            .put("azure.client.azure1.proxy.port", 8080)
+            .build();
+
+        SettingsException e = expectThrows(SettingsException.class, () -> new AzureStorageServiceMock(settings));
+        assertEquals("Azure proxy host is unknown.", e.getMessage());
     }
 
     /**

@@ -32,7 +32,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.Proxy;
 import java.net.URISyntaxException;
+import java.util.Locale;
 import java.util.Map;
 
 /**

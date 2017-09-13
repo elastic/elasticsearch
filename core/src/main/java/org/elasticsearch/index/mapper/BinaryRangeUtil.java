@@ -18,11 +18,14 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -32,28 +35,17 @@ enum BinaryRangeUtil {
 
     static BytesRef encodeLongRanges(Set<RangeFieldMapper.Range> ranges) throws IOException {
         List<RangeFieldMapper.Range> sortedRanges = new ArrayList<>(ranges);
-        sortedRanges.sort((r1, r2) -> {
-            long r1From = ((Number) r1.from).longValue();
-            long r2From = ((Number) r2.from).longValue();
-            int cmp = Long.compare(r1From, r2From);
-            if (cmp != 0) {
-                return cmp;
-            } else {
-                long r1To = ((Number) r1.from).longValue();
-                long r2To = ((Number) r2.from).longValue();
-                return Long.compare(r1To, r2To);
-            }
-        });
+        Comparator<RangeFieldMapper.Range> fromComparator = Comparator.comparingLong(range -> ((Number) range.from).longValue());
+        Comparator<RangeFieldMapper.Range> toComparator = Comparator.comparingLong(range -> ((Number) range.to).longValue());
+        sortedRanges.sort(fromComparator.thenComparing(toComparator));
 
-        final byte[] encoded = new byte[5 + ((5 + 9) * 2) * sortedRanges.size()];
+        final byte[] encoded = new byte[5 + (9 * 2) * sortedRanges.size()];
         ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
         out.writeVInt(sortedRanges.size());
         for (RangeFieldMapper.Range range : sortedRanges) {
-            byte[] encodedFrom = encode(((Number) range.from).longValue());
-            out.writeVInt(encodedFrom.length);
+            byte[] encodedFrom = encodeLong(((Number) range.from).longValue());
             out.writeBytes(encodedFrom, encodedFrom.length);
-            byte[] encodedTo = encode(((Number) range.to).longValue());
-            out.writeVInt(encodedTo.length);
+            byte[] encodedTo = encodeLong(((Number) range.to).longValue());
             out.writeBytes(encodedTo, encodedTo.length);
         }
         return new BytesRef(encoded, 0, out.getPosition());
@@ -61,38 +53,59 @@ enum BinaryRangeUtil {
 
     static BytesRef encodeDoubleRanges(Set<RangeFieldMapper.Range> ranges) throws IOException {
         List<RangeFieldMapper.Range> sortedRanges = new ArrayList<>(ranges);
-        sortedRanges.sort((r1, r2) -> {
-            double r1From = ((Number) r1.from).doubleValue();
-            double r2From = ((Number) r2.from).doubleValue();
-            int cmp = Double.compare(r1From, r2From);
-            if (cmp != 0) {
-                return cmp;
-            } else {
-                double r1To = ((Number) r1.from).doubleValue();
-                double r2To = ((Number) r2.from).doubleValue();
-                return Double.compare(r1To, r2To);
-            }
-        });
+        Comparator<RangeFieldMapper.Range> fromComparator = Comparator.comparingDouble(range -> ((Number) range.from).doubleValue());
+        Comparator<RangeFieldMapper.Range> toComparator = Comparator.comparingDouble(range -> ((Number) range.to).doubleValue());
+        sortedRanges.sort(fromComparator.thenComparing(toComparator));
 
-        final byte[] encoded = new byte[5 + ((5 + 9) * 2) * sortedRanges.size()];
+        final byte[] encoded = new byte[5 + (8 * 2) * sortedRanges.size()];
         ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
         out.writeVInt(sortedRanges.size());
         for (RangeFieldMapper.Range range : sortedRanges) {
-            byte[] encodedFrom = BinaryRangeUtil.encode(((Number) range.from).doubleValue());
-            out.writeVInt(encodedFrom.length);
+            byte[] encodedFrom = encodeDouble(((Number) range.from).doubleValue());
             out.writeBytes(encodedFrom, encodedFrom.length);
-            byte[] encodedTo = BinaryRangeUtil.encode(((Number) range.to).doubleValue());
-            out.writeVInt(encodedTo.length);
+            byte[] encodedTo = encodeDouble(((Number) range.to).doubleValue());
             out.writeBytes(encodedTo, encodedTo.length);
         }
         return new BytesRef(encoded, 0, out.getPosition());
     }
 
+    static BytesRef encodeFloatRanges(Set<RangeFieldMapper.Range> ranges) throws IOException {
+        List<RangeFieldMapper.Range> sortedRanges = new ArrayList<>(ranges);
+        Comparator<RangeFieldMapper.Range> fromComparator = Comparator.comparingDouble(range -> ((Number) range.from).floatValue());
+        Comparator<RangeFieldMapper.Range> toComparator = Comparator.comparingDouble(range -> ((Number) range.to).floatValue());
+        sortedRanges.sort(fromComparator.thenComparing(toComparator));
+
+        final byte[] encoded = new byte[5 + (4 * 2) * sortedRanges.size()];
+        ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
+        out.writeVInt(sortedRanges.size());
+        for (RangeFieldMapper.Range range : sortedRanges) {
+            byte[] encodedFrom = encodeFloat(((Number) range.from).floatValue());
+            out.writeBytes(encodedFrom, encodedFrom.length);
+            byte[] encodedTo = encodeFloat(((Number) range.to).floatValue());
+            out.writeBytes(encodedTo, encodedTo.length);
+        }
+        return new BytesRef(encoded, 0, out.getPosition());
+    }
+
+    static byte[] encodeDouble(double number) {
+        byte[] encoded = new byte[8];
+        NumericUtils.longToSortableBytes(NumericUtils.doubleToSortableLong(number), encoded, 0);
+        return encoded;
+    }
+
+    static byte[] encodeFloat(float number) {
+        byte[] encoded = new byte[4];
+        NumericUtils.intToSortableBytes(NumericUtils.floatToSortableInt(number), encoded, 0);
+        return encoded;
+    }
+
     /**
      * Encodes the specified number of type long in a variable-length byte format.
      * The byte format preserves ordering, which means the returned byte array can be used for comparing as is.
+     * The first bit stores the sign and the 4 subsequent bits encode the number of bytes that are used to
+     * represent the long value, in addition to the first one.
      */
-    static byte[] encode(long number) {
+    static byte[] encodeLong(long number) {
         int sign = 1; // means positive
         if (number < 0) {
             number = -1 - number;
@@ -101,46 +114,48 @@ enum BinaryRangeUtil {
         return encode(number, sign);
     }
 
-    /**
-     * Encodes the specified number of type double in a variable-length byte format.
-     * The byte format preserves ordering, which means the returned byte array can be used for comparing as is.
-     */
-    static byte[] encode(double number) {
-        long l;
-        int sign;
-        if (number < 0.0) {
-            l = Double.doubleToRawLongBits(-0d - number);
-            sign = 0;
-        } else {
-            l = Double.doubleToRawLongBits(number);
-            sign = 1; // means positive
-        }
-        return encode(l, sign);
-    }
-
     private static byte[] encode(long l, int sign) {
         assert l >= 0;
-        int bits = 64 - Long.numberOfLeadingZeros(l);
 
-        int numBytes = (bits + 7) / 8; // between 0 and 8
-        byte[] encoded = new byte[1 + numBytes];
-        // encode the sign first to make sure positive values compare greater than negative values
-        // and then the number of bytes, to make sure that large values compare greater than low values
-        if (sign > 0) {
-            encoded[0] = (byte) ((sign << 4) | numBytes);
-        } else {
-            encoded[0] = (byte) ((sign << 4) | (8 - numBytes));
+        // the header is formed of:
+        // - 1 bit for the sign
+        // - 4 bits for the number of additional bytes
+        // - up to 3 bits of the value
+        // additional bytes are data bytes
+
+        int numBits = 64 - Long.numberOfLeadingZeros(l);
+        int numAdditionalBytes = (numBits + 7 - 3) / 8;
+
+        byte[] encoded = new byte[1 + numAdditionalBytes];
+
+        // write data bytes
+        int i = encoded.length;
+        while (numBits > 0) {
+            int index = --i;
+            assert index > 0 || numBits <= 3; // byte 0 can't encode more than 3 bits
+            encoded[index] = (byte) l;
+            l >>>= 8;
+            numBits -= 8;
         }
-        for (int b = 0; b < numBytes; ++b) {
-            if (sign == 1) {
-                encoded[encoded.length - 1 - b] = (byte) (l >>> (8 * b));
-            } else if (sign == 0) {
-                encoded[encoded.length - 1 - b] = (byte) (0xFF - ((l >>> (8 * b)) & 0xFF));
-            } else {
-                throw new AssertionError();
+        assert Byte.toUnsignedInt(encoded[0]) <= 0x07;
+        assert encoded.length == 1 || encoded[0] != 0 || Byte.toUnsignedInt(encoded[1]) > 0x07;
+
+        if (sign == 0) {
+            // reverse the order
+            for (int j = 0; j < encoded.length; ++j) {
+                encoded[j] = (byte) ~Byte.toUnsignedInt(encoded[j]);
             }
+            // the first byte only uses 3 bits, we need the 5 upper bits for the header
+            encoded[0] &= 0x07;
+        }
+
+        // write the header
+        encoded[0] |= sign << 7;
+        if (sign > 0) {
+            encoded[0] |= numAdditionalBytes << 3;
+        } else {
+            encoded[0] |= (15 - numAdditionalBytes) << 3;
         }
         return encoded;
     }
-
 }

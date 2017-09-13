@@ -41,7 +41,7 @@ field, so documents of different types with the same `_id` could exist in a
 single index.
 
 Mapping types were also used to establish a
-https://www.elastic.co/guide/en/elasticsearch/reference/5.4/mapping-parent-field.html[parent-child relationship]
+<<mapping-parent-field,parent-child relationship>>
 between documents, so documents of type `question` could be parents to
 documents of type `answer`.
 

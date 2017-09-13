@@ -1026,6 +1026,7 @@
     - match:  { tokens.10.token: ちた }
 
 ---
+# Deprecate delimited_payload_filter
 "delimited_payload_filter":
     - do:
         indices.create:
@@ -1055,6 +1056,39 @@
             text:      foo|5
             tokenizer: keyword
             filter:    [delimited_payload_filter]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo }
+
+---
+"delimited_payload":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_delimited_payload:
+                    type: delimited_payload
+                    delimiter: ^
+                    encoding: identity
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foo^bar
+            tokenizer: keyword
+            filter:    [my_delimited_payload]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text:      foo|5
+            tokenizer: keyword
+            filter:    [delimited_payload]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: foo }
 

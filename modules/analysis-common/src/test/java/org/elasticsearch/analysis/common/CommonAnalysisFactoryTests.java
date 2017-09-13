@@ -169,7 +169,9 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("common_grams", null);
         filters.put("czech_stem", null);
         filters.put("decimal_digit", null);
+        // TODO deprecate delimited_payload_filter
         filters.put("delimited_payload_filter", org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory.class);
+        filters.put("delimited_payload", org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory.class);
         filters.put("dutch_stem", SnowballPorterFilterFactory.class);
         filters.put("edge_ngram", null);
         filters.put("edgeNGram", null);

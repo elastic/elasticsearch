@@ -47,9 +47,9 @@ import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TaskAwareTransportRequestHandler;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
-import org.elasticsearch.transport.TaskAwareTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -59,7 +59,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -447,12 +446,8 @@ public class SearchTransportService extends AbstractComponent {
             });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
 
-        /*
-         * If the query coordinating node is the same as the data node holding all the shards for the request, the can match phase could
-         * recurse through the local transport and callbacks if we executed on the same thread. Therefore we have to fork this request to
-         * another thread otherwise we could stack overflow (and we do not want to tie up a network thread anyway).
-         */
-        transportService.registerRequestHandler(QUERY_CAN_MATCH_NAME, ThreadPool.Names.SEARCH, ShardSearchTransportRequest::new,
+        // this is cheap, it does not fetch during the rewrite phase, so we can let it quickly execute on a networking thread
+        transportService.registerRequestHandler(QUERY_CAN_MATCH_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
                 @Override
                 public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) throws Exception {

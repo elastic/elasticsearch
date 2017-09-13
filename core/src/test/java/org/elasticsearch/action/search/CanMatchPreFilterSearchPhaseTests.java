@@ -170,4 +170,62 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         assertEquals(shard1, !result.get().get(0).skip());
         assertFalse(result.get().get(1).skip()); // never skip the failure
     }
+
+    /*
+     * In cases that a query coordinating node held all the shards for a query, the can match phase would recurse and end in stack overflow
+     * when subjected to max concurrent search requests. This test is a test for that situation.
+     */
+    public void testLotsOfShards() throws InterruptedException, IOException {
+
+        final TransportSearchAction.SearchTimeProvider timeProvider =
+                new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
+
+        final Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
+        final DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
+        lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
+
+        final SearchTransportService searchTransportService =
+                new SearchTransportService(Settings.builder().put("search.remote.connect", false).build(), null, null) {
+                    @Override
+                    public void sendCanMatch(
+                            Transport.Connection connection,
+                            ShardSearchTransportRequest request,
+                            SearchTask task,
+                            ActionListener<CanMatchResponse> listener) {
+                        listener.onResponse(new CanMatchResponse(randomBoolean()));
+                    }
+                };
+
+        final AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        final OriginalIndices originalIndices = new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed());
+        final GroupShardsIterator<SearchShardIterator> shardsIter =
+                SearchAsyncActionTests.getShardsIter("idx", originalIndices, 2048, randomBoolean(), primaryNode, replicaNode);
+        final CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
+                logger,
+                searchTransportService,
+                (clusterAlias, node) -> lookup.get(node),
+                Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                Collections.emptyMap(),
+                EsExecutors.newDirectExecutorService(),
+                new SearchRequest(),
+                null,
+                shardsIter,
+                timeProvider,
+                0,
+                null,
+                (iter) -> new SearchPhase("test") {
+                    @Override
+                    public void run() throws IOException {
+                        result.set(iter);
+                        latch.countDown();
+                    }});
+
+        canMatchPhase.start();
+        latch.await();
+
+    }
+
 }

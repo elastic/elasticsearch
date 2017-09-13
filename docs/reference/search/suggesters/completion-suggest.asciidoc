@@ -156,9 +156,9 @@ POST music/_search?pretty
 {
     "suggest": {
         "song-suggest" : {
-            "prefix" : "nir",
-            "completion" : {
-                "field" : "suggest"
+            "prefix" : "nir", <1>
+            "completion" : { <2>
+                "field" : "suggest" <3>
             }
         }
     }
@@ -166,6 +166,10 @@ POST music/_search?pretty
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+<1> Prefix used to search for suggestions
+<2> Type of suggestions
+<3> Name of the field to search for suggestions in
 
 returns this response:
 
@@ -218,14 +222,15 @@ filtering but using suggest on the `_search` endpoint does:
 
 [source,js]
 --------------------------------------------------
-POST music/_search?size=0
+POST music/_search
 {
-    "_source": "suggest",
+    "_source": "suggest", <1>
     "suggest": {
         "song-suggest" : {
             "prefix" : "nir",
             "completion" : {
-                "field" : "suggest"
+                "field" : "suggest", <2>
+                "size" : 5 <3>
             }
         }
     }
@@ -233,6 +238,10 @@ POST music/_search?size=0
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+<1> Filter the source to return only the `suggest` field
+<2> Name of the field to search for suggestions in
+<3> Number of suggestions to return
 
 Which should look like:
 

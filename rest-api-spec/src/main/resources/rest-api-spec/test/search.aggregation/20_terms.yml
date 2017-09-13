@@ -500,7 +500,8 @@ setup:
 
   - do:
       search:
-        check_fieldnames: false
+      # TODO reinstate this in master once backport to 6.x is backported
+#        check_fieldnames: false
         body: { "size" : 0, "aggs" : { "string_terms" : { "terms" : { "field" : "unmapped_string", "value_type" : "string", "missing": "abc" } } } }
 
   - match: { hits.total: 1 }
@@ -530,7 +531,8 @@ setup:
 
   - do:
       search:
-        check_fieldnames: false
+      # TODO reinstate this in master once backport to 6.x is backported
+#        check_fieldnames: false
         body: { "size" : 0, "aggs" : { "boolean_terms" : { "terms" : { "field" : "unmapped_boolean", "value_type" : "boolean", "missing": true } } } }
 
   - match: { hits.total: 1 }
@@ -562,7 +564,8 @@ setup:
 
   - do:
       search:
-        check_fieldnames: false      
+      # TODO reinstate this in master once backport to 6.x is backported
+#        check_fieldnames: false      
         body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "unmapped_date", "value_type" : "date", "missing": "2016-05-11" } } } }
 
   - match: { hits.total: 1 }
@@ -594,7 +597,8 @@ setup:
 
   - do:
       search:
-        check_fieldnames: false
+      # TODO reinstate this in master once backport to 6.x is backported
+#        check_fieldnames: false
         body: { "size" : 0, "aggs" : { "long_terms" : { "terms" : { "field" : "unmapped_long", "value_type" : "long", "missing": 3 } } } }
 
   - match: { hits.total: 1 }
@@ -624,7 +628,8 @@ setup:
 
   - do:
       search:
-        check_fieldnames: false
+      # TODO reinstate this in master once backport to 6.x is backported
+#        check_fieldnames: false
         body: { "size" : 0, "aggs" : { "double_terms" : { "terms" : { "field" : "unmapped_double", "value_type" : "double", "missing": 3.5 } } } }
 
   - match: { hits.total: 1 }

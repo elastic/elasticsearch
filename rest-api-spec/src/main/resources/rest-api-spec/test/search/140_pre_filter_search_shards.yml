@@ -165,7 +165,9 @@ setup:
 ---
 "check_fieldnames is on but canMatch optimizes out crucial index":
   - skip:
-      version: " - 6.0.99"
+# TODO set this back to 6.0.99 once this master change is backported to 6.x
+      version: " - 6.1.99"
+#      version: " - 6.0.99"
       reason:  check_fieldnames was added in 6.1.0
 
   - do:

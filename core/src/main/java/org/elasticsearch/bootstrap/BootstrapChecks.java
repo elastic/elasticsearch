@@ -64,7 +64,7 @@ final class BootstrapChecks {
      * {@code es.enforce.bootstrap.checks} is set to {@code true} then the bootstrap checks will be enforced regardless of whether or not
      * the transport protocol is bound to a non-loopback interface.
      *
-     * @param context              the current node boostrap context
+     * @param context              the current node bootstrap context
      * @param boundTransportAddress the node network bindings
      */
     static void check(final BootstrapContext context, final BoundTransportAddress boundTransportAddress,

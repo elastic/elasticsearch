@@ -83,9 +83,8 @@ public final class TransportAddress implements Writeable {
         final InetAddress inetAddress = InetAddress.getByAddress(host, a);
         int port = in.readInt();
         this.address = new InetSocketAddress(inetAddress, port);
-        this.verbatimAddress = null;
+        this.verbatimAddress = in.readOptionalString();
     }
-
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -97,6 +96,7 @@ public final class TransportAddress implements Writeable {
         // these only make sense with respect to the local machine, and will only formulate
         // the address incorrectly remotely.
         out.writeInt(address.getPort());
+        out.writeOptionalString(this.verbatimAddress);
     }
 
     /**

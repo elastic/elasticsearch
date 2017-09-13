@@ -35,6 +35,7 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -86,6 +87,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
@@ -139,6 +141,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -604,7 +607,23 @@ public class Node implements Closeable {
         assert localNodeFactory.getNode() != null;
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
-        validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress(), pluginsService.filterPlugins(Plugin.class).stream()
+        final MetaData onDiskMetadata;
+        try {
+            // we load the global state here (the persistent part of the cluster state stored on disk) to
+            // pass it to the bootstrap checks to allow plugins to enforce certain preconditions based on the recovered state.
+            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+                onDiskMetadata = injector.getInstance(GatewayMetaState.class).loadMetaState();
+            } else {
+                onDiskMetadata = MetaData.EMPTY_META_DATA;
+            }
+            assert onDiskMetadata != null : "metadata is null but shouldn't"; // this is never null
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        validateNodeBeforeAcceptingRequests(new BootstrapContext(settings, onDiskMetadata), transportService.boundAddress(), pluginsService
+            .filterPlugins(Plugin
+            .class)
+            .stream()
             .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
 
         clusterService.addStateApplier(transportService.getTaskManager());
@@ -811,13 +830,13 @@ public class Node implements Closeable {
      * and before the network service starts accepting incoming network
      * requests.
      *
-     * @param settings              the fully-resolved settings
+     * @param context               the bootstrap context for this node
      * @param boundTransportAddress the network addresses the node is
      *                              bound and publishing to
      */
     @SuppressWarnings("unused")
     protected void validateNodeBeforeAcceptingRequests(
-        final Settings settings,
+        final BootstrapContext context,
         final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> bootstrapChecks) throws NodeValidationException {
     }
 

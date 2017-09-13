@@ -27,9 +27,10 @@ public interface BootstrapCheck {
     /**
      * Test if the node fails the check.
      *
+     * @param context the bootstrap context for more sophisticated checks
      * @return {@code true} if the node failed the check
      */
-    boolean check();
+    boolean check(BootstrapContext context);
 
     /**
      * The error message for a failed check.
@@ -41,5 +42,4 @@ public interface BootstrapCheck {
     default boolean alwaysEnforce() {
         return false;
     }
-
 }

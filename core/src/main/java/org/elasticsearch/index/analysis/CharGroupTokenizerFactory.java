@@ -123,7 +123,7 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
                 if (tokenizeOnPunctuation && CharMatcher.Basic.PUNCTUATION.isTokenChar(c)) {
                     return false;
                 }
-                if (tokenizeOnSymbol && CharMatcher.Basic.PUNCTUATION.isTokenChar(c)) {
+                if (tokenizeOnSymbol && CharMatcher.Basic.SYMBOL.isTokenChar(c)) {
                     return false;
                 }
                 return !tokenizeOnChars.contains(c);

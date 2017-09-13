@@ -26,7 +26,6 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -65,18 +64,18 @@ final class BootstrapChecks {
      * {@code es.enforce.bootstrap.checks} is set to {@code true} then the bootstrap checks will be enforced regardless of whether or not
      * the transport protocol is bound to a non-loopback interface.
      *
-     * @param settings              the current node settings
+     * @param context              the current node boostrap context
      * @param boundTransportAddress the node network bindings
      */
-    static void check(final Settings settings, final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> additionalChecks)
-        throws NodeValidationException {
-        final List<BootstrapCheck> builtInChecks = checks(settings);
+    static void check(final BootstrapContext context, final BoundTransportAddress boundTransportAddress,
+                      List<BootstrapCheck> additionalChecks) throws NodeValidationException {
+        final List<BootstrapCheck> builtInChecks = checks();
         final List<BootstrapCheck> combinedChecks = new ArrayList<>(builtInChecks);
         combinedChecks.addAll(additionalChecks);
-        check(
-                enforceLimits(boundTransportAddress, DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings)),
+        check(  context,
+                enforceLimits(boundTransportAddress, DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings)),
                 Collections.unmodifiableList(combinedChecks),
-                Node.NODE_NAME_SETTING.get(settings));
+                Node.NODE_NAME_SETTING.get(context.settings));
     }
 
     /**
@@ -84,15 +83,17 @@ final class BootstrapChecks {
      * property {@code es.enforce.bootstrap.checks} is set to {@code true} then the bootstrap checks will be enforced regardless of whether
      * or not the transport protocol is bound to a non-loopback interface.
      *
+     * @param context        the current node boostrap context
      * @param enforceLimits {@code true} if the checks should be enforced or otherwise warned
      * @param checks        the checks to execute
      * @param nodeName      the node name to be used as a logging prefix
      */
     static void check(
+        final BootstrapContext context,
         final boolean enforceLimits,
         final List<BootstrapCheck> checks,
         final String nodeName) throws NodeValidationException {
-        check(enforceLimits, checks, Loggers.getLogger(BootstrapChecks.class, nodeName));
+        check(context, enforceLimits, checks, Loggers.getLogger(BootstrapChecks.class, nodeName));
     }
 
     /**
@@ -100,11 +101,13 @@ final class BootstrapChecks {
      * property {@code es.enforce.bootstrap.checks }is set to {@code true} then the bootstrap checks will be enforced regardless of whether
      * or not the transport protocol is bound to a non-loopback interface.
      *
+     * @param context the current node boostrap context
      * @param enforceLimits {@code true} if the checks should be enforced or otherwise warned
      * @param checks        the checks to execute
      * @param logger        the logger to
      */
     static void check(
+            final BootstrapContext context,
             final boolean enforceLimits,
             final List<BootstrapCheck> checks,
             final Logger logger) throws NodeValidationException {
@@ -134,7 +137,7 @@ final class BootstrapChecks {
         }
 
         for (final BootstrapCheck check : checks) {
-            if (check.check()) {
+            if (check.check(context)) {
                 if (!(enforceLimits || enforceBootstrapChecks) && !check.alwaysEnforce()) {
                     ignoredErrors.add(check.errorMessage());
                 } else {
@@ -180,13 +183,13 @@ final class BootstrapChecks {
     }
 
     // the list of checks to execute
-    static List<BootstrapCheck> checks(final Settings settings) {
+    static List<BootstrapCheck> checks() {
         final List<BootstrapCheck> checks = new ArrayList<>();
         checks.add(new HeapSizeCheck());
         final FileDescriptorCheck fileDescriptorCheck
             = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
         checks.add(fileDescriptorCheck);
-        checks.add(new MlockallCheck(BootstrapSettings.MEMORY_LOCK_SETTING.get(settings)));
+        checks.add(new MlockallCheck());
         if (Constants.LINUX) {
             checks.add(new MaxNumberOfThreadsCheck());
         }
@@ -201,7 +204,7 @@ final class BootstrapChecks {
         }
         checks.add(new ClientJvmCheck());
         checks.add(new UseSerialGCCheck());
-        checks.add(new SystemCallFilterCheck(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings)));
+        checks.add(new SystemCallFilterCheck());
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new EarlyAccessCheck());
@@ -212,7 +215,7 @@ final class BootstrapChecks {
     static class HeapSizeCheck implements BootstrapCheck {
 
         @Override
-        public boolean check() {
+        public boolean check(BootstrapContext context) {
             final long initialHeapSize = getInitialHeapSize();
             final long maxHeapSize = getMaxHeapSize();
             return initialHeapSize != 0 && maxHeapSize != 0 && initialHeapSize != maxHeapSize;
@@ -268,7 +271,7 @@ final class BootstrapChecks {
             this.limit = limit;
         }
 
-        public final boolean check() {
+        public final boolean check(BootstrapContext context) {
             final long maxFileDescriptorCount = getMaxFileDescriptorCount();
             return maxFileDescriptorCount != -1 && maxFileDescriptorCount < limit;
         }
@@ -292,15 +295,9 @@ final class BootstrapChecks {
 
     static class MlockallCheck implements BootstrapCheck {
 
-        private final boolean mlockallSet;
-
-        MlockallCheck(final boolean mlockAllSet) {
-            this.mlockallSet = mlockAllSet;
-        }
-
         @Override
-        public boolean check() {
-            return mlockallSet && !isMemoryLocked();
+        public boolean check(BootstrapContext context) {
+            return BootstrapSettings.MEMORY_LOCK_SETTING.get(context.settings) && !isMemoryLocked();
         }
 
         @Override
@@ -321,7 +318,7 @@ final class BootstrapChecks {
         private static final long MAX_NUMBER_OF_THREADS_THRESHOLD = 1 << 12;
 
         @Override
-        public boolean check() {
+        public boolean check(BootstrapContext context) {
             return getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < MAX_NUMBER_OF_THREADS_THRESHOLD;
         }
 
@@ -345,7 +342,7 @@ final class BootstrapChecks {
     static class MaxSizeVirtualMemoryCheck implements BootstrapCheck {
 
         @Override
-        public boolean check() {
+        public boolean check(BootstrapContext context) {
             return getMaxSizeVirtualMemory() != Long.MIN_VALUE && getMaxSizeVirtualMemory() != getRlimInfinity();
         }
 
@@ -376,7 +373,7 @@ final class BootstrapChecks {
     static class MaxFileSizeCheck implements BootstrapCheck {
 
         @Override
-        public boolean check() {
+        public boolean check(BootstrapContext context) {
             final long maxFileSize = getMaxFileSize();
             return maxFileSize != Long.MIN_VALUE && maxFileSize != getRlimInfinity();
         }
@@ -405,7 +402,7 @@ final class BootstrapChecks {
         private static final long LIMIT = 1 << 18;
 
         @Override
-        public boolean check() {
+        public boolean check(BootstrapContext context) {
             return getMaxMapCount() != -1 && getMaxMapCount() < LIMIT;
         }
 
@@ -470,7 +467,7 @@ final class BootstrapChecks {
     static class ClientJvmCheck implements BootstrapCheck {
 
         @Override
-        public boolean check() {
+        public boolean check(BootstrapContext context) {
             return getVmName().toLowerCase(Locale.ROOT).contains("client");
         }
 
@@ -496,7 +493,7 @@ final class BootstrapChecks {
     static class UseSerialGCCheck implements BootstrapCheck {
 
         @Override
-        public boolean check() {
+        public boolean check(BootstrapContext context) {
             return getUseSerialGC().equals("true");
         }
 
@@ -521,15 +518,9 @@ final class BootstrapChecks {
      */
     static class SystemCallFilterCheck implements BootstrapCheck {
 
-        private final boolean areSystemCallFiltersEnabled;
-
-        SystemCallFilterCheck(final boolean areSystemCallFiltersEnabled) {
-            this.areSystemCallFiltersEnabled = areSystemCallFiltersEnabled;
-        }
-
         @Override
-        public boolean check() {
-            return areSystemCallFiltersEnabled && !isSystemCallFilterInstalled();
+        public boolean check(BootstrapContext context) {
+            return BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(context.settings) && !isSystemCallFilterInstalled();
         }
 
         // visible for testing
@@ -548,7 +539,7 @@ final class BootstrapChecks {
     abstract static class MightForkCheck implements BootstrapCheck {
 
         @Override
-        public boolean check() {
+        public boolean check(BootstrapContext context) {
             return isSystemCallFilterInstalled() && mightFork();
         }
 
@@ -623,7 +614,7 @@ final class BootstrapChecks {
     static class EarlyAccessCheck implements BootstrapCheck {
 
         @Override
-        public boolean check() {
+        public boolean check(BootstrapContext context) {
             return "Oracle Corporation".equals(jvmVendor()) && javaVersion().endsWith("-ea");
         }
 
@@ -651,7 +642,7 @@ final class BootstrapChecks {
     static class G1GCCheck implements BootstrapCheck {
 
         @Override
-        public boolean check() {
+        public boolean check(BootstrapContext context) {
             if ("Oracle Corporation".equals(jvmVendor()) && isJava8() && isG1GCEnabled()) {
                 final String jvmVersion = jvmVersion();
                 // HotSpot versions on Java 8 match this regular expression; note that this changes with Java 9 after JEP-223

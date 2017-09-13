@@ -35,6 +35,7 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -615,8 +616,11 @@ public class Node implements Closeable {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress(), pluginsService.filterPlugins(Plugin.class).stream()
-            .flatMap(p -> p.getBootstrapChecks(onDiskMetadata).stream()).collect(Collectors.toList()));
+        validateNodeBeforeAcceptingRequests(new BootstrapContext(settings, onDiskMetadata), transportService.boundAddress(), pluginsService
+            .filterPlugins(Plugin
+            .class)
+            .stream()
+            .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
 
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known
@@ -822,13 +826,13 @@ public class Node implements Closeable {
      * and before the network service starts accepting incoming network
      * requests.
      *
-     * @param settings              the fully-resolved settings
+     * @param context               the bootstrap context for this node
      * @param boundTransportAddress the network addresses the node is
      *                              bound and publishing to
      */
     @SuppressWarnings("unused")
     protected void validateNodeBeforeAcceptingRequests(
-        final Settings settings,
+        final BootstrapContext context,
         final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> bootstrapChecks) throws NodeValidationException {
     }
 

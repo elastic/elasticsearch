@@ -19,7 +19,6 @@
 
 package org.elasticsearch.get;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -913,68 +912,6 @@ public class GetActionIT extends ESIntegTestCase {
         index("test", "doc", "1", doc);
     }
 
-    public void testGeneratedNumberFieldsUnstored() throws IOException {
-        indexSingleDocumentWithNumericFieldsGeneratedFromText(false, randomBoolean());
-        String[] fieldsList = {"token_count", "text.token_count"};
-        // before refresh - document is only in translog
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
-        refresh();
-        //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
-        flush();
-        //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
-    }
-
-    public void testGeneratedNumberFieldsStored() throws IOException {
-        indexSingleDocumentWithNumericFieldsGeneratedFromText(true, randomBoolean());
-        String[] fieldsList = {"token_count", "text.token_count"};
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
-        flush();
-        //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
-    }
-
-    void indexSingleDocumentWithNumericFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
-        String storedString = stored ? "true" : "false";
-        String createIndexSource = "{\n" +
-                "  \"settings\": {\n" +
-                "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
-                "    \"refresh_interval\": \"-1\"\n" +
-                "  },\n" +
-                "  \"mappings\": {\n" +
-                "    \"doc\": {\n" +
-                "      \"_source\" : {\"enabled\" : " + sourceEnabled + "}," +
-                "      \"properties\": {\n" +
-                "        \"token_count\": {\n" +
-                "          \"type\": \"token_count\",\n" +
-                "          \"analyzer\": \"standard\",\n" +
-                "          \"store\": \"" + storedString + "\"" +
-                "        },\n" +
-                "        \"text\": {\n" +
-                "          \"type\": \"text\",\n" +
-                "          \"fields\": {\n" +
-                "            \"token_count\": {\n" +
-                "              \"type\": \"token_count\",\n" +
-                "              \"analyzer\": \"standard\",\n" +
-                "              \"store\": \"" + storedString + "\"" +
-                "            }\n" +
-                "          }\n" +
-                "        }" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
-        ensureGreen();
-        String doc = "{\n" +
-                "  \"token_count\": \"A text with five words.\",\n" +
-                "  \"text\": \"A text with five words.\"\n" +
-                "}\n";
-        index("test", "doc", "1", doc);
-    }
-
     private void assertGetFieldsAlwaysWorks(String index, String type, String docId, String[] fields) {
         assertGetFieldsAlwaysWorks(index, type, docId, fields, null);
     }
@@ -995,18 +932,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getId(), equalTo(docId));
         assertTrue(response.isExists());
         assertNotNull(response.getField(field));
-    }
-
-    private void assertGetFieldException(String index, String type, String docId, String field) {
-        try {
-            client().prepareGet().setIndex(index).setType(type).setId(docId).setStoredFields(field);
-            fail();
-        } catch (ElasticsearchException e) {
-            assertTrue(e.getMessage().contains("You can only get this field after refresh() has been called."));
-        }
-        MultiGetResponse multiGetResponse = client().prepareMultiGet().add(new MultiGetRequest.Item(index, type, docId).storedFields(field)).get();
-        assertNull(multiGetResponse.getResponses()[0].getResponse());
-        assertTrue(multiGetResponse.getResponses()[0].getFailure().getMessage().contains("You can only get this field after refresh() has been called."));
     }
 
     protected void assertGetFieldsNull(String index, String type, String docId, String[] fields) {

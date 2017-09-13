@@ -69,10 +69,6 @@ public class QueryStringIT extends ESIntegTestCase {
         ensureGreen("test");
     }
 
-    private QueryStringQueryBuilder lenientQuery(String queryText) {
-        return queryStringQuery(queryText).lenient(true);
-    }
-
     public void testBasicAllQuery() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo bar baz"));
@@ -174,8 +170,6 @@ public class QueryStringIT extends ESIntegTestCase {
         resp = client().prepareSearch("test").setQuery(queryStringQuery("1.7")).get();
         assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(queryStringQuery("1.5")).get();
-        assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("12.23")).get();
         assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(queryStringQuery("127.0.0.1")).get();
         assertHits(resp.getHits(), "1");

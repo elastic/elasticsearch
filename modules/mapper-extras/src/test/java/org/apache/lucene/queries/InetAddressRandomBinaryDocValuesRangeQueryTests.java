@@ -67,7 +67,7 @@ public class InetAddressRandomBinaryDocValuesRangeQueryTests extends BaseRandomB
         }
     }
 
-    private static class IpRange extends AbstractRange {
+    private static class IpRange extends AbstractRange<InetAddress> {
         InetAddress minAddress;
         InetAddress maxAddress;
         byte[] min;
@@ -81,7 +81,7 @@ public class InetAddressRandomBinaryDocValuesRangeQueryTests extends BaseRandomB
         }
 
         @Override
-        public Object getMin() {
+        public InetAddress getMin() {
             return minAddress;
         }
 
@@ -101,7 +101,7 @@ public class InetAddressRandomBinaryDocValuesRangeQueryTests extends BaseRandomB
         }
 
         @Override
-        public Object getMax() {
+        public InetAddress getMax() {
             return maxAddress;
         }
 

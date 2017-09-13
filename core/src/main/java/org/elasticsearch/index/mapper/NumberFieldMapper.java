@@ -62,8 +62,7 @@ import java.util.Objects;
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
 public class NumberFieldMapper extends FieldMapper {
 
-    // this is private since it has a different default
-    static final Setting<Boolean> COERCE_SETTING =
+    public static final Setting<Boolean> COERCE_SETTING =
             Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
 
     public static class Defaults {
@@ -162,7 +161,7 @@ public class NumberFieldMapper extends FieldMapper {
     public enum NumberType {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
-            Float parse(Object value, boolean coerce) {
+            public Float parse(Object value, boolean coerce) {
                 final float result;
 
                 if (value instanceof Number) {
@@ -178,20 +177,20 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Float parse(XContentParser parser, boolean coerce) throws IOException {
+            public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
                 validateParsed(parsed);
                 return parsed;
             }
 
             @Override
-            Query termQuery(String field, Object value) {
+            public Query termQuery(String field, Object value) {
                 float v = parse(value, false);
                 return HalfFloatPoint.newExactQuery(field, v);
             }
 
             @Override
-            Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, List<Object> values) {
                 float[] v = new float[values.size()];
                 for (int i = 0; i < values.size(); ++i) {
                     v[i] = parse(values.get(i), false);
@@ -200,7 +199,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                              boolean includeLower, boolean includeUpper,
                              boolean hasDocValues) {
                 float l = Float.NEGATIVE_INFINITY;
@@ -254,7 +253,7 @@ public class NumberFieldMapper extends FieldMapper {
         },
         FLOAT("float", NumericType.FLOAT) {
             @Override
-            Float parse(Object value, boolean coerce) {
+            public Float parse(Object value, boolean coerce) {
                 final float result;
 
                 if (value instanceof Number) {
@@ -270,20 +269,20 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Float parse(XContentParser parser, boolean coerce) throws IOException {
+            public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
                 validateParsed(parsed);
                 return parsed;
             }
 
             @Override
-            Query termQuery(String field, Object value) {
+            public Query termQuery(String field, Object value) {
                 float v = parse(value, false);
                 return FloatPoint.newExactQuery(field, v);
             }
 
             @Override
-            Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, List<Object> values) {
                 float[] v = new float[values.size()];
                 for (int i = 0; i < values.size(); ++i) {
                     v[i] = parse(values.get(i), false);
@@ -292,7 +291,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                              boolean includeLower, boolean includeUpper,
                              boolean hasDocValues) {
                 float l = Float.NEGATIVE_INFINITY;
@@ -344,27 +343,27 @@ public class NumberFieldMapper extends FieldMapper {
         },
         DOUBLE("double", NumericType.DOUBLE) {
             @Override
-            Double parse(Object value, boolean coerce) {
+            public Double parse(Object value, boolean coerce) {
                 double parsed = objectToDouble(value);
                 validateParsed(parsed);
                 return parsed;
             }
 
             @Override
-            Double parse(XContentParser parser, boolean coerce) throws IOException {
+            public Double parse(XContentParser parser, boolean coerce) throws IOException {
                 double parsed = parser.doubleValue(coerce);
                 validateParsed(parsed);
                 return parsed;
             }
 
             @Override
-            Query termQuery(String field, Object value) {
+            public Query termQuery(String field, Object value) {
                 double v = parse(value, false);
                 return DoublePoint.newExactQuery(field, v);
             }
 
             @Override
-            Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, List<Object> values) {
                 double[] v = new double[values.size()];
                 for (int i = 0; i < values.size(); ++i) {
                     v[i] = parse(values.get(i), false);
@@ -373,7 +372,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                              boolean includeLower, boolean includeUpper,
                              boolean hasDocValues) {
                 double l = Double.NEGATIVE_INFINITY;
@@ -425,7 +424,7 @@ public class NumberFieldMapper extends FieldMapper {
         },
         BYTE("byte", NumericType.BYTE) {
             @Override
-            Byte parse(Object value, boolean coerce) {
+            public Byte parse(Object value, boolean coerce) {
                 double doubleValue = objectToDouble(value);
 
                 if (doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE) {
@@ -443,7 +442,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Short parse(XContentParser parser, boolean coerce) throws IOException {
+            public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 int value = parser.intValue(coerce);
                 if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
                     throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
@@ -452,17 +451,17 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Query termQuery(String field, Object value) {
+            public Query termQuery(String field, Object value) {
                 return INTEGER.termQuery(field, value);
             }
 
             @Override
-            Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, List<Object> values) {
                 return INTEGER.termsQuery(field, values);
             }
 
             @Override
-            Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                              boolean includeLower, boolean includeUpper,
                              boolean hasDocValues) {
                 return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues);
@@ -481,7 +480,7 @@ public class NumberFieldMapper extends FieldMapper {
         },
         SHORT("short", NumericType.SHORT) {
             @Override
-            Short parse(Object value, boolean coerce) {
+            public Short parse(Object value, boolean coerce) {
                 double doubleValue = objectToDouble(value);
 
                 if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
@@ -499,22 +498,22 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Short parse(XContentParser parser, boolean coerce) throws IOException {
+            public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.shortValue(coerce);
             }
 
             @Override
-            Query termQuery(String field, Object value) {
+            public Query termQuery(String field, Object value) {
                 return INTEGER.termQuery(field, value);
             }
 
             @Override
-            Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, List<Object> values) {
                 return INTEGER.termsQuery(field, values);
             }
 
             @Override
-            Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                              boolean includeLower, boolean includeUpper,
                              boolean hasDocValues) {
                 return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues);
@@ -533,7 +532,7 @@ public class NumberFieldMapper extends FieldMapper {
         },
         INTEGER("integer", NumericType.INT) {
             @Override
-            Integer parse(Object value, boolean coerce) {
+            public Integer parse(Object value, boolean coerce) {
                 double doubleValue = objectToDouble(value);
 
                 if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
@@ -551,12 +550,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Integer parse(XContentParser parser, boolean coerce) throws IOException {
+            public Integer parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.intValue(coerce);
             }
 
             @Override
-            Query termQuery(String field, Object value) {
+            public Query termQuery(String field, Object value) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
@@ -565,7 +564,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, List<Object> values) {
                 int[] v = new int[values.size()];
                 int upTo = 0;
 
@@ -586,7 +585,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                              boolean includeLower, boolean includeUpper,
                              boolean hasDocValues) {
                 int l = Integer.MIN_VALUE;
@@ -644,7 +643,7 @@ public class NumberFieldMapper extends FieldMapper {
         },
         LONG("long", NumericType.LONG) {
             @Override
-            Long parse(Object value, boolean coerce) {
+            public Long parse(Object value, boolean coerce) {
                 if (value instanceof Long) {
                     return (Long)value;
                 }
@@ -665,12 +664,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Long parse(XContentParser parser, boolean coerce) throws IOException {
+            public Long parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.longValue(coerce);
             }
 
             @Override
-            Query termQuery(String field, Object value) {
+            public Query termQuery(String field, Object value) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
@@ -679,7 +678,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, List<Object> values) {
                 long[] v = new long[values.size()];
                 int upTo = 0;
 
@@ -700,7 +699,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                              boolean includeLower, boolean includeUpper,
                              boolean hasDocValues) {
                 long l = Long.MIN_VALUE;
@@ -773,13 +772,13 @@ public class NumberFieldMapper extends FieldMapper {
         final NumericType numericType() {
             return numericType;
         }
-        abstract Query termQuery(String field, Object value);
-        abstract Query termsQuery(String field, List<Object> values);
-        abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+        public abstract Query termQuery(String field, Object value);
+        public abstract Query termsQuery(String field, List<Object> values);
+        public abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                   boolean includeLower, boolean includeUpper,
                                   boolean hasDocValues);
-        abstract Number parse(XContentParser parser, boolean coerce) throws IOException;
-        abstract Number parse(Object value, boolean coerce);
+        public abstract Number parse(XContentParser parser, boolean coerce) throws IOException;
+        public abstract Number parse(Object value, boolean coerce);
         public abstract List<Field> createFields(String name, Number value, boolean indexed,
                                                  boolean docValued, boolean stored);
         Number valueForSearch(Number value) {

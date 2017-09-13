@@ -39,11 +39,11 @@ public final class ResponseException extends IOException {
     }
 
     private static String buildMessage(Response response) throws IOException {
-        String message = response.getRequestLine().getMethod() + " " + response.getHost();
-        if (!message.endsWith("/") && !response.getRequestLine().getUri().startsWith("/"))
-            message += "/";
-        message += response.getRequestLine().getUri()
-                + ": " + response.getStatusLine().toString();
+        final StringBuilder sb = new StringBuilder("method [");
+        sb.append(response.getRequestLine().getMethod());
+        sb.append("], host [").append(response.getHost());
+        sb.append("], URI [").append(response.getRequestLine().getUri());
+        sb.append("], status line [").append(response.getStatusLine().toString()).append(']');
 
         HttpEntity entity = response.getEntity();
         if (entity != null) {
@@ -51,9 +51,9 @@ public final class ResponseException extends IOException {
                 entity = new BufferedHttpEntity(entity);
                 response.getHttpResponse().setEntity(entity);
             }
-            message += "\n" + EntityUtils.toString(entity);
+            sb.append('\n').append(EntityUtils.toString(entity));
         }
-        return message;
+        return sb.toString();
     }
 
     /**

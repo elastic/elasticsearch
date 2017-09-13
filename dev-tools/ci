@@ -57,6 +57,16 @@ case $key in
             "-Dtests.badapples=true"
         )
         ;;
+    releaseTest)
+        GRADLE_CLI_ARGS=(
+            "--info"
+            "check"
+            "-Dtests.network=true"
+            "-Dtests.badapples=true"
+            "-Dbuild.snapshot=false"
+            "-Dtests.jvm.argline=-Dbuild.snapshot=false"
+        )
+        ;;
     jdk9)
         GRADLE_CLI_ARGS=(
             "-Pxpack.kibana.build=false"

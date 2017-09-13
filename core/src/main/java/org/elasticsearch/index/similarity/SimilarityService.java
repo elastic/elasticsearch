@@ -46,19 +46,19 @@ public final class SimilarityService extends AbstractIndexComponent {
     public static final Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> BUILT_IN;
     static {
         Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> defaults = new HashMap<>();
-        Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> buildIn = new HashMap<>();
         defaults.put("classic", ClassicSimilarityProvider::new);
         defaults.put("BM25", BM25SimilarityProvider::new);
         defaults.put("boolean", BooleanSimilarityProvider::new);
-        buildIn.put("classic", ClassicSimilarityProvider::new);
-        buildIn.put("BM25", BM25SimilarityProvider::new);
-        buildIn.put("DFR", DFRSimilarityProvider::new);
-        buildIn.put("IB", IBSimilarityProvider::new);
-        buildIn.put("LMDirichlet", LMDirichletSimilarityProvider::new);
-        buildIn.put("LMJelinekMercer", LMJelinekMercerSimilarityProvider::new);
-        buildIn.put("DFI", DFISimilarityProvider::new);
+
+        Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> builtIn = new HashMap<>(defaults);
+        builtIn.put("DFR", DFRSimilarityProvider::new);
+        builtIn.put("IB", IBSimilarityProvider::new);
+        builtIn.put("LMDirichlet", LMDirichletSimilarityProvider::new);
+        builtIn.put("LMJelinekMercer", LMJelinekMercerSimilarityProvider::new);
+        builtIn.put("DFI", DFISimilarityProvider::new);
+
         DEFAULTS = Collections.unmodifiableMap(defaults);
-        BUILT_IN = Collections.unmodifiableMap(buildIn);
+        BUILT_IN = Collections.unmodifiableMap(builtIn);
     }
 
     public SimilarityService(IndexSettings indexSettings,

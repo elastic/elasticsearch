@@ -76,8 +76,8 @@ azure.client.default.proxy.port: 8888
 azure.client.default.proxy.type: http
 ----
 
-Supported values for `proxy.type` are `http` or `socks`. When `proxy.type` is set, `proxy.host` and `proxy.port` must
-be provided.
+Supported values for `proxy.type` are `direct` (default), `http` or `socks`.
+When `proxy.type` is set to `http` or `socks`, `proxy.host` and `proxy.port` must be provided.
 
 
 [[repository-azure-repository-settings]]

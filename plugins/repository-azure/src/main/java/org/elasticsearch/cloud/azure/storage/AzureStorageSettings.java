@@ -46,7 +46,7 @@ public final class AzureStorageSettings {
 
     /** Azure account name */
     public static final AffixSetting<SecureString> ACCOUNT_SETTING =
-        Setting.affixKeySetting(PREFIX, "account",key -> SecureSetting.secureString(key, null));
+        Setting.affixKeySetting(PREFIX, "account", key -> SecureSetting.secureString(key, null));
 
     /** max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT). */
     private static final Setting<Integer> MAX_RETRIES_SETTING =

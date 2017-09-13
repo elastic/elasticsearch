@@ -77,19 +77,19 @@ public class LicensesManagerServiceTests extends XPackSingleNodeTestCase {
         // put gold license
         TestUtils.registerAndAckSignedLicenses(licenseService, goldLicense, LicensesStatus.VALID);
         LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licenseService.getLicense(licensesMetaData), equalTo(goldLicense));
+        assertThat(LicenseService.getLicense(licensesMetaData), equalTo(goldLicense));
 
         License platinumLicense = TestUtils.generateSignedLicense("platinum", TimeValue.timeValueSeconds(3));
         // put platinum license
         TestUtils.registerAndAckSignedLicenses(licenseService, platinumLicense, LicensesStatus.VALID);
         licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licenseService.getLicense(licensesMetaData), equalTo(platinumLicense));
+        assertThat(LicenseService.getLicense(licensesMetaData), equalTo(platinumLicense));
 
         License basicLicense = TestUtils.generateSignedLicense("basic", TimeValue.timeValueSeconds(3));
         // put basic license
         TestUtils.registerAndAckSignedLicenses(licenseService, basicLicense, LicensesStatus.VALID);
         licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licenseService.getLicense(licensesMetaData), equalTo(basicLicense));
+        assertThat(LicenseService.getLicense(licensesMetaData), equalTo(basicLicense));
     }
 
     public void testInvalidLicenseStorage() throws Exception {

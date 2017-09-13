@@ -60,7 +60,7 @@ public class XPackSettings {
      * Legacy setting for enabling or disabling transport ssl. Defaults to true. This is just here to make upgrading easier since the
      * user needs to set this setting in 5.x to upgrade
      */
-    private static final Setting<Boolean> TRANSPORT_SSL_ENABLED =
+    public static final Setting<Boolean> TRANSPORT_SSL_ENABLED =
             new Setting<>("xpack.security.transport.ssl.enabled", (s) -> Boolean.toString(true),
                     (s) -> {
                         final boolean parsed = Booleans.parseBoolean(s);

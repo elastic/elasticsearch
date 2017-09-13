@@ -271,7 +271,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     }
 
     public License getLicense() {
-        final License license = getLicense(clusterService.state().metaData().custom(LicensesMetaData.TYPE));
+        final License license = getLicense(clusterService.state());
         return license == LicensesMetaData.LICENSE_TOMBSTONE ? null : license;
     }
 
@@ -469,7 +469,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         };
     }
 
-    License getLicense(final LicensesMetaData metaData) {
+    public static License getLicense(final ClusterState state) {
+        final LicensesMetaData licensesMetaData = state.metaData().custom(LicensesMetaData.TYPE);
+        return getLicense(licensesMetaData);
+    }
+
+    static License getLicense(final LicensesMetaData metaData) {
         if (metaData != null) {
             License license = metaData.getLicense();
             if (license == LicensesMetaData.LICENSE_TOMBSTONE) {

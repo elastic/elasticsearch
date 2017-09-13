@@ -75,6 +75,7 @@ List projects = [
   'qa:smoke-test-ingest-with-all-dependencies',
   'qa:smoke-test-ingest-disabled',
   'qa:smoke-test-multinode',
+  'qa:smoke-test-http-publish-host',
   'qa:smoke-test-plugins',
   'qa:smoke-test-reindex-with-all-modules',
   'qa:smoke-test-tribe-node',

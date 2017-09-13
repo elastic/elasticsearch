@@ -46,19 +46,14 @@ public final class SimilarityService extends AbstractIndexComponent {
     public static final Map<String, SimilarityProvider.Factory> BUILT_IN;
     static {
         Map<String, SimilarityProvider.Factory> defaults = new HashMap<>();
-        Map<String, SimilarityProvider.Factory> builtIn = new HashMap<>();
         defaults.put("classic",
                 (name, settings, indexSettings, scriptService) -> new ClassicSimilarityProvider(name, settings, indexSettings));
         defaults.put("BM25",
                 (name, settings, indexSettings, scriptService) -> new BM25SimilarityProvider(name, settings, indexSettings));
         defaults.put("boolean",
                 (name, settings, indexSettings, scriptService) -> new BooleanSimilarityProvider(name, settings, indexSettings));
-        builtIn.put("classic",
-                (name, settings, indexSettings, scriptService) -> new ClassicSimilarityProvider(name, settings, indexSettings));
-        builtIn.put("BM25",
-                (name, settings, indexSettings, scriptService) -> new BM25SimilarityProvider(name, settings, indexSettings));
-        builtIn.put("boolean",
-                (name, settings, indexSettings, scriptService) -> new BooleanSimilarityProvider(name, settings, indexSettings));
+
+        Map<String, SimilarityProvider.Factory> builtIn = new HashMap<>(defaults);
         builtIn.put("DFR",
                 (name, settings, indexSettings, scriptService) -> new DFRSimilarityProvider(name, settings, indexSettings));
         builtIn.put("IB",

@@ -212,9 +212,9 @@ final class Bootstrap {
         node = new Node(environment) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
-                final Settings settings,
+                final BootstrapContext context,
                 final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
-                BootstrapChecks.check(settings, boundTransportAddress, checks);
+                BootstrapChecks.check(context, boundTransportAddress, checks);
             }
         };
     }

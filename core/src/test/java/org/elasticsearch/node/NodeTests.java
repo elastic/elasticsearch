@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.network.NetworkModule;
@@ -75,7 +76,7 @@ public class NodeTests extends ESTestCase {
     public static class CheckPlugin extends Plugin {
         public static final BootstrapCheck CHECK = new BootstrapCheck() {
             @Override
-            public boolean check() {
+            public boolean check(BootstrapContext context) {
                 return false;
             }
 
@@ -99,7 +100,7 @@ public class NodeTests extends ESTestCase {
         AtomicBoolean executed = new AtomicBoolean(false);
         try (Node node = new MockNode(settings.build(), Arrays.asList(MockTcpTransportPlugin.class, CheckPlugin.class)) {
             @Override
-            protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress,
+            protected void validateNodeBeforeAcceptingRequests(BootstrapContext context, BoundTransportAddress boundTransportAddress,
                                                                List<BootstrapCheck> bootstrapChecks) throws NodeValidationException {
                 assertEquals(1, bootstrapChecks.size());
                 assertSame(CheckPlugin.CHECK, bootstrapChecks.get(0));

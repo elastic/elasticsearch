@@ -16,30 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.bootstrap;
 
-package org.elasticsearch.node;
-
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-
-import java.util.List;
 
 /**
- * An exception thrown during node validation. Node validation runs immediately before a node
- * begins accepting network requests in
- * {@link Node#validateNodeBeforeAcceptingRequests(org.elasticsearch.bootstrap.BootstrapContext, BoundTransportAddress, List)}.
- * This exception is a checked exception that is declared as thrown from this method for the purpose of bubbling up to the user.
+ * Context that is passed to every bootstrap check to make decisions on.
  */
-public class NodeValidationException extends Exception {
-
+public class BootstrapContext {
     /**
-     * Creates a node validation exception with the specified validation message to be displayed to
-     * the user.
-     *
-     * @param message the message to display to the user
+     * The nodes settings
      */
-    public NodeValidationException(final String message) {
-        super(message);
-    }
+    public final Settings settings;
+    /**
+     * The nodes local state metadata loaded on startup
+     */
+    public final MetaData metaData;
 
+    public BootstrapContext(Settings settings, MetaData metaData) {
+        this.settings = settings;
+        this.metaData = metaData;
+    }
 }

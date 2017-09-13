@@ -23,12 +23,14 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -39,6 +41,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -857,7 +860,18 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testIgnoreUnmapped() throws Exception {
-        createIndex("test");
+        assertIgnoreUnmapped(Version.CURRENT);
+    }
+
+    public void testIgnoreUnmappedBWC() throws Exception{
+        // test BWC with indices created in 2.x
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_4_6);
+        assertIgnoreUnmapped(version);
+    }
+
+    private void assertIgnoreUnmapped(Version version) throws IOException {
+        prepareCreate("test")
+            .setSettings(Settings.builder().put(indexSettings()).put("index.version.created", version).build()).get();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("id", "1")

@@ -212,6 +212,7 @@ The JSON response looks like this:
 {
   "took" : 147,
   "timed_out": false,
+  "total": 119,
   "deleted": 119,
   "batches": 1,
   "version_conflicts": 0,
@@ -223,7 +224,6 @@ The JSON response looks like this:
   "throttled_millis": 0,
   "requests_per_second": -1.0,
   "throttled_until_millis": 0,
-  "total": 119,
   "failures" : [ ]
 }
 --------------------------------------------------
@@ -233,25 +233,48 @@ The JSON response looks like this:
 
 The number of milliseconds from start to end of the whole operation.
 
+`timed_out`::
+
+This flag is set to `true` if any of the requests executed during the
+delete by query execution has timed out.
+
+`total`::
+
+The number of documents that were successfully processed.
+
 `deleted`::
 
 The number of documents that were successfully deleted.
 
 `batches`::
 
-The number of scroll responses pulled back by the the delete by query.
+The number of scroll responses pulled back by the delete by query.
 
 `version_conflicts`::
 
 The number of version conflicts that the delete by query hit.
 
+`noops`::
+
+The number of documents that were ignored because the script used for
+the delete by query returned a `noop` value for `ctx.op`.
+
 `retries`::
 
-The number of retries that the delete by query did in response to a full queue.
+The number of retries attempted by delete by query. `bulk` is the number
+of bulk actions retried and `search` is the number of search actions retried.
 
 `throttled_millis`::
 
 Number of milliseconds the request slept to conform to `requests_per_second`.
+
+`requests_per_second`::
+
+The number of requests per second effectively executed during the delete by query.
+
+`throttled_until_millis`::
+
+Ask Nik. He knows, as always.
 
 `failures`::
 

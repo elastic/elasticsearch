@@ -21,3 +21,7 @@ esplugin {
     description 'Adds advanced field mappers'
     classname 'org.elasticsearch.index.mapper.MapperExtrasPlugin'
 }
+
+integTestCluster {
+    module project.project(':modules:lang-painless')
+}

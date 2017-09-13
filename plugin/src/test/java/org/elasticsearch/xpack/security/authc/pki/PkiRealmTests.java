@@ -11,25 +11,31 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -246,6 +252,20 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(token, notNullValue());
         assertThat(token.principal(), is("PKI Client"));
         assertThat(token.dn(), is("EMAILADDRESS=pki@elastic.co, CN=PKI Client, OU=Security"));
+    }
+
+    public void testPKIRealmSettingsPassValidation() throws Exception {
+        Settings settings = Settings.builder()
+                .put("xpack.security.authc.realms.pki1.type", "pki")
+                .put("xpack.security.authc.realms.pki1.truststore.path", "/foo/bar")
+                .put("xpack.security.authc.realms.pki1.truststore.password", "supersecret")
+                .build();
+        List<Setting<?>> settingList = new ArrayList<>();
+        RealmSettings.addSettings(settingList, Collections.emptyList());
+        ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(settingList));
+        clusterSettings.validate(settings);
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { SSLConfigurationSettings.withoutPrefix().legacyTruststorePassword });
     }
 
     static X509Certificate readCert(Path path) throws Exception {

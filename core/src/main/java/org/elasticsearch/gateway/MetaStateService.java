@@ -53,7 +53,7 @@ public class MetaStateService extends AbstractComponent {
      * Loads the full state, which includes both the global state and all the indices
      * meta state.
      */
-    MetaData loadFullState() throws Exception {
+    MetaData loadFullState() throws IOException {
         MetaData globalMetaData = loadGlobalState();
         MetaData.Builder metaDataBuilder;
         if (globalMetaData != null) {

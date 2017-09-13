@@ -5,39 +5,40 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.TokenSSLBootstrapCheck;
 
 public class TokenSSLBootsrapCheckTests extends ESTestCase {
 
     public void testTokenSSLBootstrapCheck() {
         Settings settings = Settings.EMPTY;
-        assertFalse(new TokenSSLBootstrapCheck(settings).check());
+
+        assertFalse(new TokenSSLBootstrapCheck().check(new BootstrapContext(settings, null)));
 
         settings = Settings.builder()
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
-        assertFalse(new TokenSSLBootstrapCheck(settings).check());
+        assertFalse(new TokenSSLBootstrapCheck().check(new BootstrapContext(settings, null)));
 
         settings = Settings.builder().put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
-        assertFalse(new TokenSSLBootstrapCheck(settings).check());
+        assertFalse(new TokenSSLBootstrapCheck().check(new BootstrapContext(settings, null)));
 
         // XPackSettings.HTTP_SSL_ENABLED default false
         settings = Settings.builder().put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
-        assertTrue(new TokenSSLBootstrapCheck(settings).check());
+        assertTrue(new TokenSSLBootstrapCheck().check(new BootstrapContext(settings, null)));
 
         settings = Settings.builder()
                 .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), false)
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
-        assertTrue(new TokenSSLBootstrapCheck(settings).check());
+        assertTrue(new TokenSSLBootstrapCheck().check(new BootstrapContext(settings, null)));
 
         settings = Settings.builder()
                 .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), false)
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false).build();
-        assertFalse(new TokenSSLBootstrapCheck(settings).check());
+        assertFalse(new TokenSSLBootstrapCheck().check(new BootstrapContext(settings, null)));
     }
 }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.XPackSettings;
@@ -15,16 +16,11 @@ import org.elasticsearch.xpack.XPackSettings;
  */
 final class TokenSSLBootstrapCheck implements BootstrapCheck {
 
-    private final Settings settings;
-
-    TokenSSLBootstrapCheck(Settings settings) {
-        this.settings = settings;
-    }
-
     @Override
-    public boolean check() {
-        if (NetworkModule.HTTP_ENABLED.get(settings)) {
-            return XPackSettings.HTTP_SSL_ENABLED.get(settings) == false && XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings);
+    public boolean check(BootstrapContext context) {
+        if (NetworkModule.HTTP_ENABLED.get(context.settings)) {
+            return XPackSettings.HTTP_SSL_ENABLED.get(context.settings) == false && XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get
+                    (context.settings);
         }
         return false;
     }

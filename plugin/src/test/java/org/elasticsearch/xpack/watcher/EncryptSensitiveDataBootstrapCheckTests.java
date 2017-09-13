@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -16,8 +17,8 @@ public class EncryptSensitiveDataBootstrapCheckTests extends ESTestCase {
     public void testDefaultIsFalse() {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         Environment env = new Environment(settings);
-        EncryptSensitiveDataBootstrapCheck check = new EncryptSensitiveDataBootstrapCheck(settings, env);
-        assertFalse(check.check());
+        EncryptSensitiveDataBootstrapCheck check = new EncryptSensitiveDataBootstrapCheck(env);
+        assertFalse(check.check(new BootstrapContext(settings, null)));
         assertTrue(check.alwaysEnforce());
     }
 
@@ -27,8 +28,8 @@ public class EncryptSensitiveDataBootstrapCheckTests extends ESTestCase {
                 .put(Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.getKey(), true)
                 .build();
         Environment env = new Environment(settings);
-        EncryptSensitiveDataBootstrapCheck check = new EncryptSensitiveDataBootstrapCheck(settings, env);
-        assertTrue(check.check());
+        EncryptSensitiveDataBootstrapCheck check = new EncryptSensitiveDataBootstrapCheck(env);
+        assertTrue(check.check(new BootstrapContext(settings, null)));
     }
 
     public void testKeyInKeystore() {
@@ -40,7 +41,7 @@ public class EncryptSensitiveDataBootstrapCheckTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         Environment env = new Environment(settings);
-        EncryptSensitiveDataBootstrapCheck check = new EncryptSensitiveDataBootstrapCheck(settings, env);
-        assertFalse(check.check());
+        EncryptSensitiveDataBootstrapCheck check = new EncryptSensitiveDataBootstrapCheck(env);
+        assertFalse(check.check(new BootstrapContext(settings, null)));
     }
 }

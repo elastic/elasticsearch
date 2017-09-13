@@ -9,6 +9,7 @@ import java.nio.file.Path;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 
 /**
@@ -27,7 +28,7 @@ public class RoleMappingFileBootstrapCheck implements BootstrapCheck {
     }
 
     @Override
-    public boolean check() {
+    public boolean check(BootstrapContext context) {
         try {
             DnRoleMapper.parseFile(path, realmConfig.logger(getClass()), realmConfig.type(), realmConfig.name(), true);
             return false;

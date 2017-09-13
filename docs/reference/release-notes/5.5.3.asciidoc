@@ -5,6 +5,14 @@ See https://www.elastic.co/blog/multi-data-path-bug-in-elasticsearch-5-3-0[Multi
 
 Also see <<breaking-changes-5.5>>.
 
+[[breaking-msi-5.5.3]]
+[float]
+=== Breaking MSI Windows Installer changes
+
+Upgrades from 5.5.0, 5.5.1, 5.5.2. See https://github.com/elastic/windows-installers/releases/tag/v5.5.3[release notes]::
+* `ES_HOME` and `ES_CONFIG` environment variables unset after successful upgrade
+* Windows Service stopped after successful upgrade
+
 [[deprecation-5.5.3]]
 [float]
 === Deprecations

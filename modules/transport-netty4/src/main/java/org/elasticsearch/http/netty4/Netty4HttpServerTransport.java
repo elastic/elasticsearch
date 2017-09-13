@@ -334,7 +334,8 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         List<String> publishHosts = SETTING_HTTP_PUBLISH_HOST.get(settings);
         final String verbatimPublishAdress = publishHosts.isEmpty() ? null : publishHosts.get(0);
 
-        return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), new TransportAddress(publishAddress, verbatimPublishAdress));
+        final TransportAddress publishTransportAdress = new TransportAddress(publishAddress, verbatimPublishAdress);
+        return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), publishTransportAdress);
     }
 
     // package private for tests

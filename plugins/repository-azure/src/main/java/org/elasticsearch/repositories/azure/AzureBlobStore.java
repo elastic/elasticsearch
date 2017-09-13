@@ -17,11 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.blobstore;
+package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -130,8 +129,8 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         return this.client.getOutputStream(this.clientName, this.locMode, container, blob);
     }
 
-    public Map<String,BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException
-    {
+    public Map<String,BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix)
+        throws URISyntaxException, StorageException {
         return this.client.listBlobsByPrefix(this.clientName, this.locMode, container, keyPath, prefix);
     }
 

@@ -110,7 +110,7 @@ PUT my_index/doc/4?routing=1&refresh
 // CONSOLE
 // TEST[continued]
 
-<1> The routing value is mandatory because parent and child documents must be indexed on the same shard.
+<1> The routing value is mandatory because parent and child documents must be indexed on the same shard
 <2> `answer` is the name of the join for this document
 <3> The parent id of this child document
 

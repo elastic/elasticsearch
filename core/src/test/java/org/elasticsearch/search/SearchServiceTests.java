@@ -25,7 +25,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
@@ -260,6 +259,35 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             service.freeContext(context.id());
         }
 
+    }
+
+    /**
+     * test that getting more than the allowed number of docvalue_fields throws an exception
+     */
+    public void testMaxDocvalueFieldsSearch() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        // adding the maximum allowed number of docvalue_fields to retrieve
+        for (int i = 0; i < indexService.getIndexSettings().getMaxDocvalueFields(); i++) {
+            searchSourceBuilder.docValueField("field" + i);
+        }
+        try (SearchContext context = service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f), null)) {
+            assertNotNull(context);
+            searchSourceBuilder.docValueField("one_field_too_much");
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                    () -> service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                            searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f), null));
+            assertEquals(
+                    "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [100] but was [101]. "
+                            + "This limit can be set by changing the [index.max_docvalue_fields_search] index level setting.",
+                    ex.getMessage());
+        }
     }
 
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {

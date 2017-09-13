@@ -11,16 +11,18 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -47,6 +49,14 @@ public class JobUpdate implements Writeable, ToXContentObject {
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareString(Builder::setModelSnapshotId, Job.MODEL_SNAPSHOT_ID);
     }
+
+    /**
+     * Prior to 6.1 a default model_memory_limit was not enforced in Java.
+     * The default of 4GB was used in the C++ code.
+     * If model_memory_limit is not defined for a job then the
+     * job was created before 6.1 and a value of 4GB is assumed.
+     */
+    private static final long UNDEFINED_MODEL_MEMORY_LIMIT_DEFAULT = 4096;
 
     private final String jobId;
     private final List<String> groups;
@@ -242,9 +252,10 @@ public class JobUpdate implements Writeable, ToXContentObject {
      * Updates {@code source} with the new values in this object returning a new {@link Job}.
      *
      * @param source Source job to be updated
+     * @param maxModelMemoryLimit The maximum model memory allowed
      * @return A new job equivalent to {@code source} updated.
      */
-    public Job mergeWithJob(Job source) {
+    public Job mergeWithJob(Job source, ByteSizeValue maxModelMemoryLimit) {
         Job.Builder builder = new Job.Builder(source);
         if (groups != null) {
             builder.setGroups(groups);
@@ -278,6 +289,36 @@ public class JobUpdate implements Writeable, ToXContentObject {
             builder.setModelPlotConfig(modelPlotConfig);
         }
         if (analysisLimits != null) {
+            Long oldMemoryLimit;
+            if (source.getAnalysisLimits() != null) {
+                oldMemoryLimit = source.getAnalysisLimits().getModelMemoryLimit() != null ?
+                        source.getAnalysisLimits().getModelMemoryLimit()
+                        : UNDEFINED_MODEL_MEMORY_LIMIT_DEFAULT;
+            } else {
+                oldMemoryLimit = UNDEFINED_MODEL_MEMORY_LIMIT_DEFAULT;
+            }
+
+            Long newMemoryLimit = analysisLimits.getModelMemoryLimit() != null ?
+                    analysisLimits.getModelMemoryLimit()
+                    : oldMemoryLimit;
+
+            if (newMemoryLimit < oldMemoryLimit) {
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED,
+                                new ByteSizeValue(oldMemoryLimit, ByteSizeUnit.MB),
+                                new ByteSizeValue(newMemoryLimit, ByteSizeUnit.MB)));
+            }
+
+            boolean maxModelMemoryLimitIsSet = maxModelMemoryLimit != null && maxModelMemoryLimit.getMb() > 0;
+            if (maxModelMemoryLimitIsSet) {
+                Long modelMemoryLimit = analysisLimits.getModelMemoryLimit();
+                if (modelMemoryLimit != null && modelMemoryLimit > maxModelMemoryLimit.getMb()) {
+                    throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX,
+                            new ByteSizeValue(modelMemoryLimit, ByteSizeUnit.MB),
+                            maxModelMemoryLimit));
+                }
+            }
+
             builder.setAnalysisLimits(analysisLimits);
         }
         if (renormalizationWindowDays != null) {

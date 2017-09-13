@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
@@ -18,6 +19,7 @@ import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
 
 import java.util.Objects;
+import java.util.Random;
 import java.util.concurrent.ScheduledFuture;
 import java.util.function.Supplier;
 
@@ -27,6 +29,8 @@ import java.util.function.Supplier;
 public class MlDailyMaintenanceService implements Releasable {
 
     private static final Logger LOGGER = Loggers.getLogger(MlDailyMaintenanceService.class);
+
+    private static final int MAX_TIME_OFFSET_MINUTES = 120;
 
     private final ThreadPool threadPool;
     private final Client client;
@@ -45,16 +49,26 @@ public class MlDailyMaintenanceService implements Releasable {
         this.schedulerProvider = Objects.requireNonNull(scheduleProvider);
     }
 
-    public MlDailyMaintenanceService(ThreadPool threadPool, Client client) {
-        this(threadPool, client, createAfterMidnightScheduleProvider());
+    public MlDailyMaintenanceService(ClusterName clusterName, ThreadPool threadPool, Client client) {
+        this(threadPool, client, () -> delayToNextTime(clusterName));
     }
 
-    private static Supplier<TimeValue> createAfterMidnightScheduleProvider() {
-        return () -> {
-            DateTime now = DateTime.now(ISOChronology.getInstance());
-            DateTime next = now.plusDays(1).withTimeAtStartOfDay().plusMinutes(30);
-            return TimeValue.timeValueMillis(next.getMillis() - now.getMillis());
-        };
+    /**
+     * Calculates the delay until the next time the maintenance should be triggered.
+     * The next time is 30 minutes past midnight of the following day plus a random
+     * offset. The random offset is added in order to avoid multiple clusters
+     * running the maintenance tasks at the same time. A cluster with a given name
+     * shall have the same offset throughout its life.
+     *
+     * @param clusterName the cluster name is used to seed the random offset
+     * @return the delay to the next time the maintenance should be triggered
+     */
+    private static TimeValue delayToNextTime(ClusterName clusterName) {
+        Random random = new Random(clusterName.hashCode());
+        int minutesOffset = random.ints(0, MAX_TIME_OFFSET_MINUTES).findFirst().getAsInt();
+        DateTime now = DateTime.now(ISOChronology.getInstance());
+        DateTime next = now.plusDays(1).withTimeAtStartOfDay().plusMinutes(30).plusMinutes(minutesOffset);
+        return TimeValue.timeValueMillis(next.getMillis() - now.getMillis());
     }
 
     public void start() {

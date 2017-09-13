@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -115,88 +114,58 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         if (currentWatcherStopped) {
             executor.execute(() -> this.stop("watcher manually marked to shutdown in cluster state update, shutting down"));
         } else {
-            // if there are old nodes in the cluster hosting the watch index shards, we cannot run distributed, only on the master node
-            boolean isDistributedWatchExecutionEnabled = isWatchExecutionDistributed(event.state());
-            if (isDistributedWatchExecutionEnabled) {
-                if (watcherService.state() == WatcherState.STARTED && event.state().nodes().getLocalNode().isDataNode()) {
-                    DiscoveryNode localNode = event.state().nodes().getLocalNode();
-                    RoutingNode routingNode = event.state().getRoutingNodes().node(localNode.getId());
-                    IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
+            if (watcherService.state() == WatcherState.STARTED && event.state().nodes().getLocalNode().isDataNode()) {
+                DiscoveryNode localNode = event.state().nodes().getLocalNode();
+                RoutingNode routingNode = event.state().getRoutingNodes().node(localNode.getId());
+                IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
 
-                    // no watcher index, time to pause, as there are for sure no shards on this node
-                    if (watcherIndexMetaData == null) {
-                        if (previousAllocationIds.get().isEmpty() == false) {
-                            previousAllocationIds.set(Collections.emptyList());
-                            executor.execute(() -> watcherService.pauseExecution("no watcher index found"));
-                        }
-                        return;
+                // no watcher index, time to pause, as there are for sure no shards on this node
+                if (watcherIndexMetaData == null) {
+                    if (previousAllocationIds.get().isEmpty() == false) {
+                        previousAllocationIds.set(Collections.emptyList());
+                        executor.execute(() -> watcherService.pauseExecution("no watcher index found"));
                     }
-
-                    String watchIndex = watcherIndexMetaData.getIndex().getName();
-                    List<ShardRouting> localShards = routingNode.shardsWithState(watchIndex, RELOCATING, STARTED);
-
-                    // no local shards, empty out watcher and not waste resources!
-                    if (localShards.isEmpty()) {
-                        if (previousAllocationIds.get().isEmpty() == false) {
-                            executor.execute(() -> watcherService.pauseExecution("no local watcher shards"));
-                            previousAllocationIds.set(Collections.emptyList());
-                        }
-                        return;
-                    }
-
-                    List<String> currentAllocationIds = localShards.stream()
-                            .map(ShardRouting::allocationId)
-                            .map(AllocationId::getId)
-                            .collect(Collectors.toList());
-                    Collections.sort(currentAllocationIds);
-
-                    if (previousAllocationIds.get().equals(currentAllocationIds) == false) {
-                        previousAllocationIds.set(currentAllocationIds);
-                        executor.execute(() -> watcherService.reload(event.state(), "different shard allocation ids"));
-                    }
-                } else if (watcherService.state() != WatcherState.STARTED && watcherService.state() != WatcherState.STARTING) {
-                    IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
-                    IndexMetaData triggeredWatchesIndexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStore.INDEX_NAME,
-                            event.state().metaData());
-                    boolean isIndexInternalFormatWatchIndex = watcherIndexMetaData == null ||
-                            Upgrade.checkInternalIndexFormat(watcherIndexMetaData);
-                    boolean isIndexInternalFormatTriggeredWatchIndex = triggeredWatchesIndexMetaData == null ||
-                            Upgrade.checkInternalIndexFormat(triggeredWatchesIndexMetaData);
-                    if (isIndexInternalFormatTriggeredWatchIndex && isIndexInternalFormatWatchIndex) {
-                        executor.execute(() -> start(event.state(), false));
-                    } else {
-                        logger.warn("not starting watcher, upgrade API run required: .watches[{}], .triggered_watches[{}]",
-                                isIndexInternalFormatWatchIndex, isIndexInternalFormatTriggeredWatchIndex);
-                    }
+                    return;
                 }
-            } else {
-                if (event.localNodeMaster()) {
-                    if (watcherService.state() != WatcherState.STARTED && watcherService.state() != WatcherState.STARTING) {
-                        executor.execute(() -> start(event.state(), false));
+
+                String watchIndex = watcherIndexMetaData.getIndex().getName();
+                List<ShardRouting> localShards = routingNode.shardsWithState(watchIndex, RELOCATING, STARTED);
+
+                // no local shards, empty out watcher and not waste resources!
+                if (localShards.isEmpty()) {
+                    if (previousAllocationIds.get().isEmpty() == false) {
+                        executor.execute(() -> watcherService.pauseExecution("no local watcher shards"));
+                        previousAllocationIds.set(Collections.emptyList());
                     }
+                    return;
+                }
+
+                List<String> currentAllocationIds = localShards.stream()
+                        .map(ShardRouting::allocationId)
+                        .map(AllocationId::getId)
+                        .collect(Collectors.toList());
+                Collections.sort(currentAllocationIds);
+
+                if (previousAllocationIds.get().equals(currentAllocationIds) == false) {
+                    previousAllocationIds.set(currentAllocationIds);
+                    executor.execute(() -> watcherService.reload(event.state(), "different shard allocation ids"));
+                }
+            } else if (watcherService.state() != WatcherState.STARTED && watcherService.state() != WatcherState.STARTING) {
+                IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
+                IndexMetaData triggeredWatchesIndexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStore.INDEX_NAME,
+                        event.state().metaData());
+                boolean isIndexInternalFormatWatchIndex = watcherIndexMetaData == null ||
+                        Upgrade.checkInternalIndexFormat(watcherIndexMetaData);
+                boolean isIndexInternalFormatTriggeredWatchIndex = triggeredWatchesIndexMetaData == null ||
+                        Upgrade.checkInternalIndexFormat(triggeredWatchesIndexMetaData);
+                if (isIndexInternalFormatTriggeredWatchIndex && isIndexInternalFormatWatchIndex) {
+                    executor.execute(() -> start(event.state(), false));
                 } else {
-                    if (watcherService.state() == WatcherState.STARTED || watcherService.state() == WatcherState.STARTING) {
-                        executor.execute(() -> watcherService.pauseExecution("Pausing watcher, cluster contains old nodes not supporting" +
-                                " distributed watch execution"));
-                    }
+                    logger.warn("not starting watcher, upgrade API run required: .watches[{}], .triggered_watches[{}]",
+                            isIndexInternalFormatWatchIndex, isIndexInternalFormatTriggeredWatchIndex);
                 }
             }
         }
-    }
-
-    /**
-     * Checks if the preconditions are given to run watcher with distributed watch execution.
-     * The following requirements need to be fulfilled
-     *
-     * 1. The master node must run on a version greather than or equal 6.0
-     * 2. The nodes holding the watcher shards must run on a version greater than or equal 6.0
-     *
-     * @param state The cluster to check against
-     * @return true, if the above requirements are fulfilled, false otherwise
-     */
-    public static boolean isWatchExecutionDistributed(ClusterState state) {
-        // short circuit if all nodes are on 6.x, should be standard after upgrade
-        return state.nodes().getMinNodeVersion().onOrAfter(Version.V_6_0_0_beta1);
     }
 
     public WatcherMetaData watcherMetaData() {

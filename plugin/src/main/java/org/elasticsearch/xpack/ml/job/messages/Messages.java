@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.messages;
 
+import org.elasticsearch.xpack.ml.MachineLearning;
+
 import java.text.MessageFormat;
 import java.util.Locale;
 
@@ -105,6 +107,8 @@ public final class Messages {
     public static final String JOB_CONFIG_FIELDNAME_INCOMPATIBLE_FUNCTION = "field_name cannot be used with function ''{0}''";
     public static final String JOB_CONFIG_FIELD_VALUE_TOO_LOW = "{0} cannot be less than {1,number}. Value = {2,number}";
     public static final String JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW = "model_memory_limit must be at least 1 MiB. Value = {0,number}";
+    public static final String JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX =
+            "model_memory_limit [{0}] must be less than the value of the " + MachineLearning.MAX_MODEL_MEMORY.getKey() + " setting [{1}]";
     public static final String JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED =
             "The ''{0}'' function cannot be used in jobs that will take pre-summarized input";
     public static final String JOB_CONFIG_FUNCTION_REQUIRES_BYFIELD = "by_field_name must be set when the ''{0}'' function is used";

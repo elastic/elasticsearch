@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
@@ -135,6 +136,13 @@ public class JobManager extends AbstractComponent {
      * Stores a job in the cluster state
      */
     public void putJob(PutJobAction.Request request, ClusterState state, ActionListener<PutJobAction.Response> actionListener) {
+        // In 6.1 we want to make the model memory size limit more prominent, and also reduce the default from
+        // 4GB to 1GB.  However, changing the meaning of a null model memory limit for existing jobs would be a
+        // breaking change, so instead we add an explicit limit to newly created jobs that didn't have one when
+        // submitted
+        request.getJobBuilder().validateModelMemoryLimit(MachineLearning.MAX_MODEL_MEMORY.get(settings));
+
+
         Job job = request.getJobBuilder().build(new Date());
 
         MlMetadata currentMlMetadata = state.metaData().custom(MlMetadata.TYPE);
@@ -235,7 +243,7 @@ public class JobManager extends AbstractComponent {
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         Job job = getJobOrThrowIfUnknown(jobId, currentState);
-                        updatedJob = jobUpdate.mergeWithJob(job);
+                        updatedJob = jobUpdate.mergeWithJob(job, MachineLearning.MAX_MODEL_MEMORY.get(settings));
                         return updateClusterState(updatedJob, true, currentState);
                     }
 

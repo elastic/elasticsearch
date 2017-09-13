@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.delete;
 
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * A delete document action request builder.
  */
-public class DeleteWatchRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteWatchRequest, DeleteWatchResponse,
+public class DeleteWatchRequestBuilder extends ActionRequestBuilder<DeleteWatchRequest, DeleteWatchResponse,
         DeleteWatchRequestBuilder> {
 
     public DeleteWatchRequestBuilder(ElasticsearchClient client) {

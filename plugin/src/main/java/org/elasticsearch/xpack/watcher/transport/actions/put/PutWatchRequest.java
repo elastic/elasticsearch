@@ -6,15 +6,12 @@
 package org.elasticsearch.xpack.watcher.transport.actions.put;
 
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.watch.Watch;
@@ -25,9 +22,7 @@ import java.io.IOException;
  * This request class contains the data needed to create a watch along with the name of the watch.
  * The name of the watch will become the ID of the indexed document.
  */
-public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
-
-    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
+public class PutWatchRequest extends ActionRequest {
 
     private String id;
     private BytesReference source;
@@ -45,7 +40,6 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         this.id = id;
         this.source = source;
         this.xContentType = xContentType;
-        masterNodeTimeout(DEFAULT_TIMEOUT);
     }
 
     /**
@@ -125,11 +119,7 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         id = in.readString();
         source = in.readBytesReference();
         active = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType = XContentType.readFrom(in);
-        } else {
-            xContentType = XContentFactory.xContentType(source);
-        }
+        xContentType = XContentType.readFrom(in);
     }
 
     @Override
@@ -138,9 +128,6 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         out.writeString(id);
         out.writeBytesReference(source);
         out.writeBoolean(active);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType.writeTo(out);
-        }
+        xContentType.writeTo(out);
     }
-
 }

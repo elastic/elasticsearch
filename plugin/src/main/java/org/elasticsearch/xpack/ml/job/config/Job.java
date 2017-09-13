@@ -10,9 +10,12 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
@@ -716,15 +719,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         }
 
         public Builder setAnalysisLimits(AnalysisLimits analysisLimits) {
-            if (this.analysisLimits != null) {
-                long oldMemoryLimit = this.analysisLimits.getModelMemoryLimit();
-                long newMemoryLimit = analysisLimits.getModelMemoryLimit();
-                if (newMemoryLimit < oldMemoryLimit) {
-                    throw new IllegalArgumentException(
-                            Messages.getMessage(Messages.JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED,
-                                    oldMemoryLimit, newMemoryLimit));
-                }
-            }
             this.analysisLimits = analysisLimits;
             return this;
         }
@@ -1004,14 +998,36 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
          * In 6.1 we want to make the model memory size limit more prominent, and also reduce the default from
          * 4GB to 1GB.  However, changing the meaning of a null model memory limit for existing jobs would be a
          * breaking change, so instead we add an explicit limit to newly created jobs that didn't have one when
-         * submitted
+         * submitted.
+         * Additionally the MAX_MODEL_MEM setting limits the value, an exception is thrown if the max limit
+         * is exceeded.
          */
-        public void setDefaultMemoryLimitIfUnset() {
-            if (analysisLimits == null) {
-                analysisLimits = new AnalysisLimits((Long) null);
-            } else if (analysisLimits.getModelMemoryLimit() == null) {
-                analysisLimits = new AnalysisLimits(analysisLimits.getCategorizationExamplesLimit());
+        public void validateModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
+
+            boolean maxModelMemoryIsSet = maxModelMemoryLimit != null && maxModelMemoryLimit.getMb() > 0;
+            Long categorizationExampleLimit = null;
+            long modelMemoryLimit;
+            if (maxModelMemoryIsSet) {
+                modelMemoryLimit = Math.min(maxModelMemoryLimit.getMb(), AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB);
+            } else {
+                modelMemoryLimit = AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB;
             }
+
+            if (analysisLimits != null) {
+                categorizationExampleLimit = analysisLimits.getCategorizationExamplesLimit();
+
+                if (analysisLimits.getModelMemoryLimit() != null) {
+                    modelMemoryLimit = analysisLimits.getModelMemoryLimit();
+
+                    if (maxModelMemoryIsSet && modelMemoryLimit > maxModelMemoryLimit.getMb()) {
+                        throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX,
+                                new ByteSizeValue(modelMemoryLimit, ByteSizeUnit.MB),
+                                maxModelMemoryLimit));
+                    }
+                }
+            }
+
+            analysisLimits = new AnalysisLimits(modelMemoryLimit, categorizationExampleLimit);
         }
 
         private void validateGroups() {

@@ -219,7 +219,6 @@ integTestCluster {
   setting 'xpack.monitoring.collection.interval', '-1'
   setting 'xpack.security.authc.token.enabled', 'true'
   keystoreSetting 'bootstrap.password', 'x-pack-test-password'
-  keystoreSetting 'xpack.security.authc.token.passphrase', 'x-pack-token-service-password'
   distribution = 'zip' // this is important since we use the reindex module in ML
 
   setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'

@@ -187,8 +187,8 @@ public class IndexDeprecationChecks {
             indexMetaData.getSettings().get("index.shared_filesystem") != null) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "[index.shared_filesystem] setting should be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                    "breaking_60_settings_changes.html#_shadow_replicas_have_been_removed", null);
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
+                    "breaking_60_indices_changes.html#_shadow_replicas_have_been_removed", null);
 
         }
         return null;

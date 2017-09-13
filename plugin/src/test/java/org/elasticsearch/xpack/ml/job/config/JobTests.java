@@ -9,6 +9,8 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -17,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 
@@ -109,12 +112,42 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
     public void testEnsureModelMemoryLimitSet() {
         Job.Builder builder = buildJobBuilder("foo");
-        builder.setDefaultMemoryLimitIfUnset();
+        builder.setAnalysisLimits(null);
+        builder.validateModelMemoryLimit(new ByteSizeValue(0L));
         Job job = builder.build();
-
         assertEquals("foo", job.getId());
         assertNotNull(job.getAnalysisLimits());
         assertThat(job.getAnalysisLimits().getModelMemoryLimit(), equalTo(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB));
+        assertNull(job.getAnalysisLimits().getCategorizationExamplesLimit());
+
+        builder.setAnalysisLimits(new AnalysisLimits(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB * 2, 4L));
+        builder.validateModelMemoryLimit(null);
+        job = builder.build();
+        assertNotNull(job.getAnalysisLimits());
+        assertThat(job.getAnalysisLimits().getModelMemoryLimit(), equalTo(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB * 2));
+        assertThat(job.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(4L));
+    }
+
+    public void testValidateModelMemoryLimit_whenMaxIsLessThanTheDefault() {
+        Job.Builder builder = buildJobBuilder("foo");
+        builder.setAnalysisLimits(null);
+        builder.validateModelMemoryLimit(new ByteSizeValue(512L, ByteSizeUnit.MB));
+
+        Job job = builder.build();
+        assertNotNull(job.getAnalysisLimits());
+        assertThat(job.getAnalysisLimits().getModelMemoryLimit(), equalTo(512L));
+        assertNull(job.getAnalysisLimits().getCategorizationExamplesLimit());
+    }
+
+    public void testValidateModelMemoryLimit_throwsWhenMaxLimitIsExceeded() {
+        Job.Builder builder = buildJobBuilder("foo");
+        builder.setAnalysisLimits(new AnalysisLimits(4096L, null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> builder.validateModelMemoryLimit(new ByteSizeValue(1000L, ByteSizeUnit.MB)));
+        assertEquals("model_memory_limit [4gb] must be less than the value of the " +
+                MachineLearning.MAX_MODEL_MEMORY.getKey() + " setting [1000mb]", e.getMessage());
+
+        builder.validateModelMemoryLimit(new ByteSizeValue(8192L, ByteSizeUnit.MB));
     }
 
     public void testEquals_GivenDifferentClass() {
@@ -202,15 +235,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         customSettings2.put("key2", "value2");
         jobDetails2.setCustomSettings(customSettings2);
         assertFalse(jobDetails1.build().equals(jobDetails2.build()));
-    }
-
-    public void testSetAnalysisLimits() {
-        Job.Builder builder = new Job.Builder();
-        builder.setAnalysisLimits(new AnalysisLimits(42L, null));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> builder.setAnalysisLimits(new AnalysisLimits(41L, null)));
-        assertEquals("Invalid update value for analysis_limits: model_memory_limit cannot be decreased; existing is 42, update had 41",
-                e.getMessage());
     }
 
     // JobConfigurationTests:

@@ -2,10 +2,36 @@
 [[migration-api-deprecation]]
 == Deprecation Info APIs
 
-The deprecation API is to be used to retrieve information about different cluster, node, and index level
-settings that use deprecated features that will be removed or changed in the next major version.
+The deprecation API is to be used to retrieve information about different
+cluster, node, and index level settings that use deprecated features that will
+be removed or changed in the next major version.
 
-To see the list of offenders in your cluster, submit a GET request to the `_xpack/migration/deprecations` endpoint:
+[float]
+=== Request
+
+`GET /_xpack/migration/deprecations` +
+
+`GET /<index_name>/_xpack/migration/deprecations`
+
+//=== Description
+
+[float]
+=== Path Parameters
+
+`index_name`::
+  (string) Identifier for the index. It can be an index name or a wildcard
+  expression. When you specify this parameter, only index-level deprecations for
+  the specified indices are returned.
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
+
+To see the list of offenders in your cluster, submit a GET request to the
+`_xpack/migration/deprecations` endpoint:
 
 [source,js]
 --------------------------------------------------
@@ -43,8 +69,9 @@ Example response:
 --------------------------------------------------
 // NOTCONSOLE
 
-The response you will receive will break down all the specific forward-incompatible settings that your
-cluster should resolve before upgrading. Any offending setting will be represented as a deprecation warning.
+The response breaks down all the specific forward-incompatible settings that you
+should resolve before upgrading your cluster. Any offending settings are
+represented as a deprecation warning.
 
 The following is an example deprecation warning:
 
@@ -59,25 +86,31 @@ The following is an example deprecation warning:
 --------------------------------------------------
 // NOTCONSOLE
 
-As is shown, there is a `level` property that describes how significant the issue may be.
+As is shown, there is a `level` property that describes the significance of the
+issue.
 
 |=======
-|none | everything is good
-|info | An advisory note that something has changed. No action needed
-|warning | You can upgrade directly, but you are using deprecated functionality which will not be available in the next major version
-|critical | You cannot upgrade without fixing this problem
+|none | Everything is good.
+|info | An advisory note that something has changed. No action needed.
+|warning | You can upgrade directly, but you are using deprecated functionality
+which will not be available in the next major version.
+|critical | You cannot upgrade without fixing this problem.
 |=======
 
-`message` and the optional `details` provide descriptive information about the deprecation warning, while the `url`
-property provides a link to the Breaking Changes Documentation, where more information about this change can be found.
+The `message` property and the optional `details` property provide descriptive
+information about the deprecation warning. The `url` property provides a link to
+the Breaking Changes Documentation, where you can find more information about
+this change.
 
-Any cluster-level deprecation warnings can be found under
-the `cluster_settings` key. Similarly, any node-level warnings will be found under `node_settings`. 
-Since only a select subset of your nodes may incorporate these settings, it is important to read the
-`details` section for more information about which nodes are to be updated. Index warnings are
-sectioned off per index and can be filtered using an index-pattern in the query.
+Any cluster-level deprecation warnings can be found under the `cluster_settings`
+key. Similarly, any node-level warnings are found under `node_settings`. Since
+only a select subset of your nodes might incorporate these settings, it is
+important to read the `details` section for more information about which nodes
+are affected. Index warnings are sectioned off per index and can be filtered
+using an index-pattern in the query.
 
-Example request that only shows index-level deprecations of all `logstash-*` indices:
+The following example request shows only index-level deprecations of all
+`logstash-*` indices:
 
 [source,js]
 --------------------------------------------------

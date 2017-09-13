@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.ack;
 
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * A ack watch action request builder.
  */
-public class AckWatchRequestBuilder extends MasterNodeOperationRequestBuilder<AckWatchRequest, AckWatchResponse, AckWatchRequestBuilder> {
+public class AckWatchRequestBuilder extends ActionRequestBuilder<AckWatchRequest, AckWatchResponse, AckWatchRequestBuilder> {
 
     public AckWatchRequestBuilder(ElasticsearchClient client) {
         super(client, AckWatchAction.INSTANCE, new AckWatchRequest());
@@ -25,6 +25,4 @@ public class AckWatchRequestBuilder extends MasterNodeOperationRequestBuilder<Ac
         request.setActionIds(actionIds);
         return this;
     }
-
-
 }

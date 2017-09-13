@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.Version
 
 import java.nio.charset.StandardCharsets
+import java.nio.file.Paths
 import java.util.regex.Matcher
 
 // Apply the java plugin to this project so the sources can be edited in an IDE
@@ -59,6 +60,19 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
 
 Project mainProject = project
 
+String coreFullClusterRestartPath = project(':qa:full-cluster-restart').projectDir.toPath().resolve('src/test/java').toString()
+sourceSets {
+    test {
+        java {
+            srcDirs += [coreFullClusterRestartPath]
+        }
+    }
+}
+
+licenseHeaders {
+    approvedLicenses << 'Apache'
+}
+
 /**
  * Subdirectories of this project are test rolling upgrades with various
  * configuration options based on their name.
@@ -76,12 +90,16 @@ subprojects {
   sourceSets {
     test {
       java {
-        srcDirs = ["${mainProject.projectDir}/src/test/java"]
+        srcDirs = ["${mainProject.projectDir}/src/test/java", coreFullClusterRestartPath]
       }
       resources {
         srcDirs = ["${mainProject.projectDir}/src/test/resources"]
       }
     }
+  }
+
+  licenseHeaders {
+    approvedLicenses << 'Apache'
   }
 
   String outputDir = "generated-resources/${project.name}"
@@ -143,6 +161,8 @@ subprojects {
     oldClusterTestRunner.configure {
       systemProperty 'tests.is_old_cluster', 'true'
       systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
+      systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
+      exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
     }
 
     Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
@@ -156,6 +176,7 @@ subprojects {
       numNodes = 2
       clusterName = 'full-cluster-restart'
       dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
+      cleanShared = false // We want to keep snapshots made by the old cluster!
       setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       waitCondition = waitWithAuth
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
@@ -174,6 +195,8 @@ subprojects {
     upgradedClusterTestRunner.configure {
       systemProperty 'tests.is_old_cluster', 'false'
       systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
+      systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
+      exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
     }
 
     Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {

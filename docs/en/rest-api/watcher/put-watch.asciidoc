@@ -98,22 +98,6 @@ A watch has the following fields:
 |======
 
 [float]
-==== Timeouts
-
-When updating a watch while it is executing, the put action will block and wait
-for the watch execution to finish. Depending on the nature of the watch, in some
-situations this can take a while. For this reason, the put watch action is
-associated with a timeout that is set to 10 seconds by default. You can control
-this timeout by passing in the `master_timeout` parameter.
-
-The following snippet shows how to change the default timeout of the put action
-to 30 seconds:
-
-[source,js]
---------------------------------------------------
-PUT _xpack/watcher/watch/my-watch?master_timeout=30s
---------------------------------------------------
-
 [[watcher-api-put-watch-active-state]]
 ==== Controlling Default Active State
 

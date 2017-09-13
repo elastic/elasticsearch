@@ -16,7 +16,6 @@ teardown:
   - do:
       xpack.watcher.put_watch:
         id: "my_watch1"
-        master_timeout: "40s"
         body:  >
           {
             "throttle_period" : "10s",

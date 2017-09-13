@@ -116,7 +116,7 @@ public class DatafeedJobTests extends ESTestCase {
         long queryDelayMs = 500;
         DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, -1, -1);
         long next = datafeedJob.runLookBack(0L, null);
-        assertEquals(2000 + frequencyMs + 100, next);
+        assertEquals(2000 + frequencyMs + queryDelayMs + 100, next);
 
         verify(dataExtractorFactory).newExtractor(0L, 1500L);
         FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
@@ -138,7 +138,7 @@ public class DatafeedJobTests extends ESTestCase {
         long queryDelayMs = 500;
         DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, latestFinalBucketEndTimeMs, latestRecordTimeMs);
         long next = datafeedJob.runLookBack(0L, null);
-        assertEquals(10000 + frequencyMs + 100, next);
+        assertEquals(10000 + frequencyMs + queryDelayMs + 100, next);
 
         verify(dataExtractorFactory).newExtractor(5000 + 1L, currentTime - queryDelayMs);
         assertThat(flushJobRequests.getAllValues().size(), equalTo(1));
@@ -185,7 +185,7 @@ public class DatafeedJobTests extends ESTestCase {
         long queryDelayMs = 1000;
         DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1);
         long next = datafeedJob.runRealtime();
-        assertEquals(currentTime + frequencyMs + 100, next);
+        assertEquals(currentTime + frequencyMs + queryDelayMs + 100, next);
 
         verify(dataExtractorFactory).newExtractor(1000L + 1L, currentTime - queryDelayMs);
         FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");

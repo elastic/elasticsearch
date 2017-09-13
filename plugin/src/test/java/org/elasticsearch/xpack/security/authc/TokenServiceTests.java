@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
@@ -15,7 +14,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -36,12 +34,10 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import javax.crypto.SecretKey;
-import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.time.Clock;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
 import static org.hamcrest.Matchers.containsString;
@@ -281,10 +277,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             // verify a second separate token service with its own passphrase cannot verify
-            MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setString(TokenService.TOKEN_PASSPHRASE.getKey(), randomAlphaOfLengthBetween(8, 30));
-            Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-            TokenService anotherService = new TokenService(settings, Clock.systemUTC(), internalClient, lifecycleService, clusterService);
+            TokenService anotherService = new TokenService(Settings.EMPTY, Clock.systemUTC(), internalClient, lifecycleService,
+                    clusterService);
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             anotherService.getAndValidateToken(requestContext, future);
             assertNull(future.get());
@@ -454,29 +448,6 @@ public class TokenServiceTests extends ESTestCase {
             future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             assertNull(future.get());
-        }
-    }
-
-
-    public void testDecodePre6xToken() throws GeneralSecurityException, ExecutionException, InterruptedException, IOException {
-        String token = "g+y0AiDWsbLNzUGTywPa3VCz053RUPW7wAx4xTAonlcqjOmO1AzMhQDTUku/+ZtdtMgDobKqIrNdNvchvFMX0pvZLY6i4nAG2OhkApSstPfQQP" +
-                "J1fxg/JZNQDPufePg1GxV/RAQm2Gr8mYAelijEVlWIdYaQ3R76U+P/w6Q1v90dGVZQn6DKMOfgmkfwAFNY";
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(TokenService.TOKEN_PASSPHRASE.getKey(), "xpack_token_passpharse");
-        Settings settings = Settings.builder().put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).setSecureSettings(secureSettings).build();
-        TokenService tokenService = new TokenService(settings, Clock.systemUTC(), internalClient, lifecycleService, clusterService);
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
-        ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + token);
-
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
-            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.decodeToken(tokenService.getFromHeader(requestContext), future);
-            UserToken serialized = future.get();
-            assertNotNull(serialized);
-            assertEquals("joe", serialized.getAuthentication().getUser().principal());
-            assertEquals(Version.V_5_6_0, serialized.getAuthentication().getVersion());
-            assertArrayEquals(new String[] {"admin"}, serialized.getAuthentication().getUser().roles());
         }
     }
 }

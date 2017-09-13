@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.ack;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
@@ -20,9 +19,7 @@ import java.util.Locale;
 /**
  * A ack watch request to ack a watch by name (id)
  */
-public class AckWatchRequest extends MasterNodeRequest<AckWatchRequest> {
-
-    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
+public class AckWatchRequest extends ActionRequest {
 
     private String watchId;
     private String[] actionIds = Strings.EMPTY_ARRAY;
@@ -34,7 +31,6 @@ public class AckWatchRequest extends MasterNodeRequest<AckWatchRequest> {
     public AckWatchRequest(String watchId, String... actionIds) {
         this.watchId = watchId;
         this.actionIds = actionIds;
-        masterNodeTimeout(DEFAULT_TIMEOUT);
     }
 
     /**

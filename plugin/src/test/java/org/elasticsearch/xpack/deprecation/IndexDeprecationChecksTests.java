@@ -142,11 +142,11 @@ public class IndexDeprecationChecksTests extends ESTestCase {
     }
     public void testStoreThrottleSettingsCheck() {
         assertSettingsAndIssue("index.store.throttle.max_bytes_per_sec", "32",
-        new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-            "index.store.throttle settings are no longer recognized. these settings should be removed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                "breaking_60_settings_changes.html#_store_throttling_settings",
-            "present settings: [index.store.throttle.max_bytes_per_sec]"));
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "index.store.throttle settings are no longer recognized. these settings should be removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                    "breaking_60_settings_changes.html#_store_throttling_settings",
+                "present settings: [index.store.throttle.max_bytes_per_sec]"));
         assertSettingsAndIssue("index.store.throttle.type", "none",
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "index.store.throttle settings are no longer recognized. these settings should be removed",
@@ -159,7 +159,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertSettingsAndIssue("index.shared_filesystem", "true",
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "[index.shared_filesystem] setting should be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                    "breaking_60_settings_changes.html#_shadow_replicas_have_been_removed", null));
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
+                    "breaking_60_indices_changes.html#_shadow_replicas_have_been_removed", null));
     }
 }

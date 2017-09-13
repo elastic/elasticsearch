@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.delete;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
@@ -19,9 +18,7 @@ import java.io.IOException;
 /**
  * A delete watch request to delete an watch by name (id)
  */
-public class DeleteWatchRequest extends MasterNodeRequest<DeleteWatchRequest> {
-
-    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
+public class DeleteWatchRequest extends ActionRequest {
 
     private String id;
     private long version = Versions.MATCH_ANY;
@@ -32,7 +29,6 @@ public class DeleteWatchRequest extends MasterNodeRequest<DeleteWatchRequest> {
 
     public DeleteWatchRequest(String id) {
         this.id = id;
-        masterNodeTimeout(DEFAULT_TIMEOUT);
     }
 
     /**

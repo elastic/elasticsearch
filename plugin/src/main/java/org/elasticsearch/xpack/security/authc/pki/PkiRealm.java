@@ -209,6 +209,7 @@ public class PkiRealm extends Realm {
 
         settings.add(SSL_SETTINGS.truststorePath);
         settings.add(SSL_SETTINGS.truststorePassword);
+        settings.add(SSL_SETTINGS.legacyTruststorePassword);
         settings.add(SSL_SETTINGS.truststoreAlgorithm);
         settings.add(SSL_SETTINGS.caPaths);
 

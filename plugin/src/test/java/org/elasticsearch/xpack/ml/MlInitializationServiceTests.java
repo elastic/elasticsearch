@@ -40,6 +40,8 @@ import static org.mockito.Mockito.when;
 
 public class MlInitializationServiceTests extends ESTestCase {
 
+    private static final ClusterName CLUSTER_NAME = new ClusterName("my_cluster");
+
     private ThreadPool threadPool;
     private ExecutorService executorService;
     private ClusterService clusterService;
@@ -60,6 +62,8 @@ public class MlInitializationServiceTests extends ESTestCase {
 
         ScheduledFuture scheduledFuture = mock(ScheduledFuture.class);
         when(threadPool.schedule(any(), any(), any())).thenReturn(scheduledFuture);
+
+        when(clusterService.getClusterName()).thenReturn(CLUSTER_NAME);
     }
 
     public void testInitialize() throws Exception {
@@ -93,7 +97,6 @@ public class MlInitializationServiceTests extends ESTestCase {
     }
 
     public void testInitialize_alreadyInitialized() throws Exception {
-        ClusterService clusterService = mock(ClusterService.class);
         MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
@@ -113,7 +116,6 @@ public class MlInitializationServiceTests extends ESTestCase {
     }
 
     public void testInitialize_onlyOnce() throws Exception {
-        ClusterService clusterService = mock(ClusterService.class);
         MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))

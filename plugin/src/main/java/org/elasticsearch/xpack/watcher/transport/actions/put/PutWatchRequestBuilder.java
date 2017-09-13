@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.put;
 
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 
-public class PutWatchRequestBuilder extends MasterNodeOperationRequestBuilder<PutWatchRequest, PutWatchResponse, PutWatchRequestBuilder> {
+public class PutWatchRequestBuilder extends ActionRequestBuilder<PutWatchRequest, PutWatchResponse, PutWatchRequestBuilder> {
 
     public PutWatchRequestBuilder(ElasticsearchClient client) {
         super(client, PutWatchAction.INSTANCE, new PutWatchRequest());

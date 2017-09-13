@@ -137,6 +137,11 @@ The `unified` highlighter outputs the same highlighting when `index_options` is 
 
 The deprecated `fielddata_fields` have now been removed. `docvalue_fields` should be used instead.
 
+==== `docvalue_fields`
+
+`docvalue_fields` now have a default upper limit of 100 fields that can be requested.
+This limit can be overridden by using the `index.max_docvalue_fields_search` index setting.
+
 ==== Inner hits
 
 The source inside a hit of inner hits keeps its full path with respect to the entire source.

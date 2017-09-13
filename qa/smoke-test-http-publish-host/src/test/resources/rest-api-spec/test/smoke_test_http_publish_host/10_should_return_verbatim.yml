@@ -1,8 +1,5 @@
-# Integration tests for smoke testing multi-node IT
-# If the local machine which is running the test is low on disk space
-# We can have one unassigned shard
 ---
-"cluster health basic test, wait for both nodes to join":
+"nodes info http publish host should be verbatim":
   - do:
       cluster.health:
         wait_for_nodes: 2

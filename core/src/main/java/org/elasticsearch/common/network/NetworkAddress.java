@@ -115,12 +115,12 @@ public final class NetworkAddress {
         return format(address, port, null);
     }
     // note, we don't validate port, because we only allow InetSocketAddress
-    static String format(InetAddress address, int port, String verbatimAddress) {
+    static String format(InetAddress address, int port, String verbatimHost) {
         Objects.requireNonNull(address);
 
         StringBuilder builder = new StringBuilder();
-        if (verbatimAddress != null && !verbatimAddress.isEmpty()) {
-            builder.append(verbatimAddress);
+        if (verbatimHost != null && !verbatimHost.isEmpty()) {
+            builder.append(verbatimHost);
         }
         else if (port != -1 && address instanceof Inet6Address) {
             builder.append(InetAddresses.toUriString(address));

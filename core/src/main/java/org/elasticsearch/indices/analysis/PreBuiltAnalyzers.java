@@ -63,7 +63,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.PatternAnalyzer;
 import org.elasticsearch.index.analysis.SnowballAnalyzer;
-import org.elasticsearch.index.analysis.StandardHtmlStripAnalyzer;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.util.Locale;
@@ -144,15 +143,6 @@ public enum PreBuiltAnalyzers {
         @Override
         protected Analyzer create(Version version) {
             return new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET);
-        }
-    },
-
-    STANDARD_HTML_STRIP(CachingStrategy.ELASTICSEARCH) {
-        @Override
-        protected Analyzer create(Version version) {
-            final Analyzer analyzer = new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET);
-            analyzer.setVersion(version.luceneVersion);
-            return analyzer;
         }
     },
 

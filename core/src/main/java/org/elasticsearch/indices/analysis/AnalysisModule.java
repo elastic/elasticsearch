@@ -80,7 +80,6 @@ import org.elasticsearch.index.analysis.SnowballAnalyzerProvider;
 import org.elasticsearch.index.analysis.SoraniAnalyzerProvider;
 import org.elasticsearch.index.analysis.SpanishAnalyzerProvider;
 import org.elasticsearch.index.analysis.StandardAnalyzerProvider;
-import org.elasticsearch.index.analysis.StandardHtmlStripAnalyzerProvider;
 import org.elasticsearch.index.analysis.StandardTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopAnalyzerProvider;
@@ -260,7 +259,6 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = new NamedRegistry<>("analyzer");
         analyzers.register("default", StandardAnalyzerProvider::new);
         analyzers.register("standard", StandardAnalyzerProvider::new);
-        analyzers.register("standard_html_strip", StandardHtmlStripAnalyzerProvider::new);
         analyzers.register("simple", SimpleAnalyzerProvider::new);
         analyzers.register("stop", StopAnalyzerProvider::new);
         analyzers.register("whitespace", WhitespaceAnalyzerProvider::new);

@@ -134,6 +134,11 @@ specific index module:
     Defaults to `100`. Doc-value fields are costly since they might incur
     a per-field per-document seek.
 
+`index.max_script_fields`::
+
+    The maximum number of `script_fields` that are allowed in a query.
+    Defaults to `32`.
+
 `index.blocks.read_only`::
 
     Set to `true` to make the index and index metadata read only, `false` to

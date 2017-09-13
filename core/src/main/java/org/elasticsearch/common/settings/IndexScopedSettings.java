@@ -111,6 +111,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
         IndexSettings.MAX_RESULT_WINDOW_SETTING,
         IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
+        IndexSettings.MAX_SCRIPT_FIELDS_SETTING,
         IndexSettings.MAX_RESCORE_WINDOW_SETTING,
         IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
         IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,

@@ -142,6 +142,11 @@ The deprecated `fielddata_fields` have now been removed. `docvalue_fields` shoul
 `docvalue_fields` now have a default upper limit of 100 fields that can be requested.
 This limit can be overridden by using the `index.max_docvalue_fields_search` index setting.
 
+==== `script_fields`
+
+`script_fields` now have a default upper limit of 32 script fields that can be requested.
+This limit can be overridden by using the `index.max_script_fields` index setting.
+
 ==== Inner hits
 
 The source inside a hit of inner hits keeps its full path with respect to the entire source.

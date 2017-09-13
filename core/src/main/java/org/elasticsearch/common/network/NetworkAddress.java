@@ -88,13 +88,41 @@ public final class NetworkAddress {
         return format(address.getAddress(), address.getPort());
     }
 
-    // note, we don't validate port, because we only allow InetSocketAddress
+    /**
+     * Formats a network address and port for display purposes.
+     * Allowing the hostname to be passed verbatim as configured externally.
+     * <p>
+     * When {@code verbatimHost} is not null or empty it will be used as the hostname.
+     * </p>
+     * Otherwise this formats the address with {@link #format(InetAddress)}
+     * and appends the port number. IPv6 addresses will be bracketed.
+     * <p>
+     * Example output:
+     * <ul>
+     *   <li>With hostname: {@code elastic.co:9300}</li>
+     *   <li>IPv4: {@code 127.0.0.1:9300}</li>
+     *   <li>IPv6: {@code [::1]:9300}</li>
+     * </ul>
+     * @param address IPv4 or IPv6 address with port
+     * @param verbatimHost String representing the host name.
+     * @return formatted string
+     */
+    public static String format(InetSocketAddress address, String verbatimHost) {
+        return format(address.getAddress(), address.getPort(), verbatimHost);
+    }
+
     static String format(InetAddress address, int port) {
+        return format(address, port, null);
+    }
+    // note, we don't validate port, because we only allow InetSocketAddress
+    static String format(InetAddress address, int port, String verbatimAddress) {
         Objects.requireNonNull(address);
 
         StringBuilder builder = new StringBuilder();
-
-        if (port != -1 && address instanceof Inet6Address) {
+        if (verbatimAddress != null && !verbatimAddress.isEmpty()) {
+            builder.append(verbatimAddress);
+        }
+        else if (port != -1 && address instanceof Inet6Address) {
             builder.append(InetAddresses.toUriString(address));
         } else {
             builder.append(InetAddresses.toAddrString(address));

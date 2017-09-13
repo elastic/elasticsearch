@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -54,7 +53,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -787,8 +785,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 final Boolean primary = ObjectPath.evaluate(shard, "routing.primary");
                 String historyUUID = ObjectPath.evaluate(shard, "commit.user_data.history_uuid");
                 assertThat("no history uuid found on " + nodeId + " (primary: " + primary + ")", historyUUID, notNullValue());
-                assertThat("history uuid is _na_ on " + nodeId + " (primary: " + primary + ")", historyUUID,
-                    not(equalTo(Translog.HISTORY_UUID_NA)));
                 if (globalHistoryUUID == null) {
                     globalHistoryUUID = historyUUID;
                 } else {

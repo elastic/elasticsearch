@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.replication.RecoveryDuringReplicationTests;
@@ -157,7 +158,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
 
             IndexShard replica = shards.getReplicas().get(0);
             final String translogUUID = replica.getTranslog().getTranslogUUID();
-            final String historyUUID = replica.getTranslog().getHistoryUUID();
+            final String historyUUID = replica.getHistoryUUID();
             Translog.TranslogGeneration translogGeneration = replica.getTranslog().getGeneration();
             shards.removeReplica(replica);
             replica.close("test", false);
@@ -171,27 +172,22 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             Map<String, String> userData = new HashMap<>(replica.store().readLastCommittedSegmentsInfo().getUserData());
             final String translogUUIDtoUse;
             final long translogGenToUse;
-            final String historyUUIDtoUse;
+            final String historyUUIDtoUse = UUIDs.randomBase64UUID(random());
             if (randomBoolean()) {
                 // create a new translog
                 final TranslogConfig translogConfig =
                     new TranslogConfig(replica.shardId(), replica.shardPath().resolveTranslog(), replica.indexSettings(),
                         BigArrays.NON_RECYCLING_INSTANCE);
-                // since the translog will be consistent with the local lucene index, we must break the history.
-                historyUUIDtoUse = UUIDs.randomBase64UUID(random());
-                try (Translog translog = new Translog(translogConfig, null, historyUUIDtoUse, createTranslogDeletionPolicy(),
-                    () -> flushedDocs)) {
+                try (Translog translog = new Translog(translogConfig, null, createTranslogDeletionPolicy(), () -> flushedDocs)) {
                     translogUUIDtoUse = translog.getTranslogUUID();
                     translogGenToUse = translog.currentFileGeneration();
                 }
             } else {
-                boolean wrongHistory = randomBoolean();
-                translogUUIDtoUse = wrongHistory == false || randomBoolean() ? UUIDs.randomBase64UUID(random()) : translogUUID;
+                translogUUIDtoUse = translogGeneration.translogUUID;
                 translogGenToUse = translogGeneration.translogFileGeneration;
-                historyUUIDtoUse = wrongHistory ? UUIDs.randomBase64UUID(random()) : historyUUID;
             }
             try (IndexWriter writer = new IndexWriter(replica.store().directory(), iwc)) {
-                userData.put(Translog.HISTORY_UUID_KEY, historyUUIDtoUse);
+                userData.put(Engine.HISTORY_UUID_KEY, historyUUIDtoUse);
                 userData.put(Translog.TRANSLOG_UUID_KEY, translogUUIDtoUse);
                 userData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGenToUse));
                 writer.setLiveCommitData(userData.entrySet());
@@ -205,8 +201,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             assertThat(newReplica.getTranslog().totalOperations(), equalTo(numDocs));
 
             // history uuid was restored
-            assertThat(newReplica.getTranslog().getHistoryUUID(), equalTo(historyUUID));
-            assertThat(newReplica.commitStats().getUserData().get(Translog.HISTORY_UUID_KEY), equalTo(historyUUID));
+            assertThat(newReplica.getHistoryUUID(), equalTo(historyUUID));
+            assertThat(newReplica.commitStats().getUserData().get(Engine.HISTORY_UUID_KEY), equalTo(historyUUID));
 
             shards.assertAllEqual(numDocs);
         }

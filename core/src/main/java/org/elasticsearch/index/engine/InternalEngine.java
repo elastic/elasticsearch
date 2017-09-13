@@ -96,9 +96,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.index.translog.Translog.HISTORY_UUID_KEY;
-import static org.elasticsearch.index.translog.Translog.HISTORY_UUID_NA;
-
 public class InternalEngine extends Engine {
 
     /**
@@ -146,6 +143,9 @@ public class InternalEngine extends Engine {
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
 
+    @Nullable
+    private final String historyUUID;
+
     public InternalEngine(EngineConfig engineConfig) throws EngineException {
         super(engineConfig);
         openMode = engineConfig.getOpenMode();
@@ -177,16 +177,23 @@ public class InternalEngine extends Engine {
                 switch (openMode) {
                     case OPEN_INDEX_AND_TRANSLOG:
                         writer = createWriter(false);
-                        final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath(),
-                            loadTranslogUUIDFromCommit(writer), loadHistoryUUIDFromCommit(writer));
+                        String existingHistoryUUID = loadHistoryUUIDFromCommit(writer);
+                        if (existingHistoryUUID == null) {
+                            historyUUID = UUIDs.randomBase64UUID();
+                        } else {
+                            historyUUID = existingHistoryUUID;
+                        }
+                        final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
                         seqNoStats = store.loadSeqNoStats(globalCheckpoint);
                         break;
                     case OPEN_INDEX_CREATE_TRANSLOG:
                         writer = createWriter(false);
+                        historyUUID = loadHistoryUUIDFromCommit(writer);
                         seqNoStats = store.loadSeqNoStats(SequenceNumbers.UNASSIGNED_SEQ_NO);
                         break;
                     case CREATE_INDEX_AND_TRANSLOG:
                         writer = createWriter(true);
+                        historyUUID = UUIDs.randomBase64UUID();
                         seqNoStats = new SeqNoStats(
                             SequenceNumbers.NO_OPS_PERFORMED,
                             SequenceNumbers.NO_OPS_PERFORMED,
@@ -344,6 +351,10 @@ public class InternalEngine extends Engine {
             flush(true, true);
         } else if (translog.isCurrent(translogGeneration) == false) {
             commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
+        } else if (lastCommittedSegmentInfos.getUserData().containsKey(HISTORY_UUID_KEY) == false)  {
+            assert historyUUID != null;
+            // put the history uuid into the index
+            commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
         }
         // clean up what's not needed
         translog.trimUnreferencedReaders();
@@ -352,44 +363,18 @@ public class InternalEngine extends Engine {
     private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) throws IOException {
         assert openMode != null;
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-        final String translogUUID;
-        final String historyUUID;
-        final boolean requiresCommit;
-        switch (openMode) {
-            case CREATE_INDEX_AND_TRANSLOG:
-                translogUUID = null;
-                historyUUID = UUIDs.randomBase64UUID();
-                requiresCommit = true;
-                break;
-            case OPEN_INDEX_CREATE_TRANSLOG:
-                translogUUID = null; // create a new one;
-                historyUUID = loadHistoryUUIDFromCommit(writer);
-                requiresCommit = true;
-                break;
-            case OPEN_INDEX_AND_TRANSLOG:
-                translogUUID = loadTranslogUUIDFromCommit(writer);
-                // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
-                if (translogUUID == null) {
-                    throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
-                }
-                final String existingHistoryUUID = loadHistoryUUIDFromCommit(writer);
-                if (existingHistoryUUID.equals(HISTORY_UUID_NA)) {
-                    // we are recovering an old primary, generate a history
-                    historyUUID = UUIDs.randomBase64UUID();
-                    requiresCommit = true;
-                } else {
-                    historyUUID = existingHistoryUUID;
-                    requiresCommit = false;
-                }
-                break;
-            default:
-                throw new IllegalStateException("unknown mode: " + openMode);
+        String translogUUID = null;
+        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            translogUUID = loadTranslogUUIDFromCommit(writer);
+            // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
+            if (translogUUID == null) {
+                throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
+            }
         }
-        final Translog translog = new Translog(translogConfig, translogUUID, historyUUID, translogDeletionPolicy, globalCheckpointSupplier);
-        if (requiresCommit) {
-            assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG ||
-                config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)
-                : "OpenMode must not be" + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG + ", index is post 6.0.0rc1";
+        final Translog translog = new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
+        if (translogUUID == null) {
+            assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OpenMode must not be "
+                + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
             boolean success = false;
             try {
                 commitIndexWriter(writer, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
@@ -408,6 +393,11 @@ public class InternalEngine extends Engine {
     public Translog getTranslog() {
         ensureOpen();
         return translog;
+    }
+
+    @Override
+    public String getHistoryUUID() {
+        return historyUUID;
     }
 
     /**
@@ -429,15 +419,17 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * Reads the current stored history ID from the IW commit data. If the id is not found, returns null.
+     */
+    @Nullable
     private String loadHistoryUUIDFromCommit(final IndexWriter writer) throws IOException {
         String uuid = commitDataAsMap(writer).get(HISTORY_UUID_KEY);
         if (uuid == null) {
             assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
                 "index was created after 6_0_0_rc1 but has no history uuid";
-            return HISTORY_UUID_NA;
-        } else {
-            return uuid;
         }
+        return uuid;
     }
 
     private SearcherManager createSearcherManager() throws EngineException {
@@ -1902,7 +1894,6 @@ public class InternalEngine extends Engine {
             final String translogFileGeneration = Long.toString(translogGeneration.translogFileGeneration);
             final String translogUUID = translogGeneration.translogUUID;
             final String localCheckpointValue = Long.toString(localCheckpoint);
-            final String historyUUID = translog.getHistoryUUID();
 
             writer.setLiveCommitData(() -> {
                 /*
@@ -1923,7 +1914,9 @@ public class InternalEngine extends Engine {
                 }
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
-                commitData.put(HISTORY_UUID_KEY, historyUUID);
+                if (historyUUID != null) {
+                    commitData.put(HISTORY_UUID_KEY, historyUUID);
+                }
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });

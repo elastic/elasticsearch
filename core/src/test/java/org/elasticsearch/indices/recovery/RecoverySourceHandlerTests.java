@@ -147,7 +147,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     public StartRecoveryRequest getStartRecoveryRequest() throws IOException {
         Store.MetadataSnapshot metadataSnapshot = randomBoolean() ? Store.MetadataSnapshot.EMPTY :
             new Store.MetadataSnapshot(Collections.emptyMap(),
-                Collections.singletonMap(Translog.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()), randomIntBetween(0, 100));
+                Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()), randomIntBetween(0, 100));
         return new StartRecoveryRequest(
             shardId,
             null,
@@ -156,7 +156,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),
-            randomBoolean() || metadataSnapshot.getHistoryUUID().equals(Translog.HISTORY_UUID_NA) ?
+            randomBoolean() || metadataSnapshot.getHistoryUUID() == null ?
                 SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
     }
 

@@ -95,6 +95,7 @@ import java.util.function.Function;
 public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";
+    public static final String HISTORY_UUID_KEY = "history_uuid";
 
     protected final ShardId shardId;
     protected final Logger logger;
@@ -180,6 +181,9 @@ public abstract class Engine implements Closeable {
     public MergeStats getMergeStats() {
         return new MergeStats();
     }
+
+    /** returns the history uuid for the engine */
+    public abstract String getHistoryUUID();
 
     /**
      * A throttling class that can be activated, causing the

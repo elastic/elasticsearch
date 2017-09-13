@@ -318,7 +318,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         final long startingSeqNo;
         if (metadataSnapshot.size() > 0) {
-            startingSeqNo = getStartingSeqNo(recoveryTarget, metadataSnapshot.getHistoryUUID(), metadataSnapshot.getHistoryUUID());
+            startingSeqNo = getStartingSeqNo(recoveryTarget);
         } else {
             startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
@@ -349,14 +349,12 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      * Get the starting sequence number for a sequence-number-based request.
      *
      * @param recoveryTarget the target of the recovery
-     * @param translogUUID the expected translog uuid
-     * @param historyUUID the expected history uuid
      * @return the starting sequence number or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if obtaining the starting sequence number
      * failed
      */
-    public static long getStartingSeqNo(final RecoveryTarget recoveryTarget, final String translogUUID, final String historyUUID) {
+    public static long getStartingSeqNo(final RecoveryTarget recoveryTarget) {
         try {
-            final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), translogUUID, historyUUID);
+            final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation());
             final SeqNoStats seqNoStats = recoveryTarget.store().loadSeqNoStats(globalCheckpoint);
             if (seqNoStats.getMaxSeqNo() <= seqNoStats.getGlobalCheckpoint()) {
                 assert seqNoStats.getLocalCheckpoint() <= seqNoStats.getGlobalCheckpoint();

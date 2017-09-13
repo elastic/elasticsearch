@@ -103,13 +103,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public static final String TRANSLOG_GENERATION_KEY = "translog_generation";
     public static final String TRANSLOG_UUID_KEY = "translog_uuid";
-    public static final String TRANSLOG_UUID_NA = "_________na___________"; // same length as a normal uuid
     public static final String TRANSLOG_FILE_PREFIX = "translog-";
     public static final String TRANSLOG_FILE_SUFFIX = ".tlog";
     public static final String CHECKPOINT_SUFFIX = ".ckp";
     public static final String CHECKPOINT_FILE_NAME = "translog" + CHECKPOINT_SUFFIX;
-    public static final String HISTORY_UUID_KEY = "history_uuid";
-    public static final String HISTORY_UUID_NA = "_________na___________"; // same length as a normal uuid;
 
     static final Pattern PARSE_STRICT_ID_PATTERN = Pattern.compile("^" + TRANSLOG_FILE_PREFIX + "(\\d+)(\\.tlog)$");
 
@@ -125,7 +122,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final TranslogConfig config;
     private final LongSupplier globalCheckpointSupplier;
     private final String translogUUID;
-    private final String historyUUID;
     private final TranslogDeletionPolicy deletionPolicy;
 
     /**
@@ -137,19 +133,17 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      *
      * @param config                   the configuration of this translog
      * @param expectedTranslogUUID     the translog uuid to open, null for a new translog
-     * @param historyUUID              the uuid of the history for this translog. This will be validated if an existing translog is opened.
      * @param deletionPolicy           an instance of {@link TranslogDeletionPolicy} that controls when a translog file can be safely
      *                                 deleted
      * @param globalCheckpointSupplier a supplier for the global checkpoint
      */
     public Translog(
-        final TranslogConfig config, final String expectedTranslogUUID, final String historyUUID, TranslogDeletionPolicy deletionPolicy,
+        final TranslogConfig config, final String expectedTranslogUUID, TranslogDeletionPolicy deletionPolicy,
         final LongSupplier globalCheckpointSupplier) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.deletionPolicy = deletionPolicy;
-        this.historyUUID = historyUUID;
         if (expectedTranslogUUID == null) {
             translogUUID = UUIDs.randomBase64UUID();
         } else {
@@ -164,7 +158,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         try {
             if (expectedTranslogUUID != null) {
-                final Checkpoint checkpoint = readCheckpoint(location.resolve(CHECKPOINT_FILE_NAME), translogUUID, historyUUID);
+                final Checkpoint checkpoint = readCheckpoint(location);
                 final Path nextTranslogFile = location.resolve(getFilename(checkpoint.generation + 1));
                 final Path currentCheckpointFile = location.resolve(getCommitCheckpointFileName(checkpoint.generation));
                 // this is special handling for error condition when we create a new writer but we fail to bake
@@ -203,8 +197,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 final long generation = deletionPolicy.getMinTranslogGenerationForRecovery();
                 logger.debug("wipe translog location - creating new translog, starting generation [{}]", generation);
                 Files.createDirectories(location);
-                final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, globalCheckpointSupplier.getAsLong(),
-                    generation, translogUUID, historyUUID);
+                final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, globalCheckpointSupplier.getAsLong(), generation);
                 final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
                 Checkpoint.write(getChannelFactory(), checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
                 IOUtils.fsync(checkpointFile, false);
@@ -249,8 +242,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     throw new IllegalStateException("translog file doesn't exist with generation: " + i + " recovering from: " +
                         minGenerationToRecoverFrom + " checkpoint: " + checkpoint.generation + " - translog ids must be consecutive");
                 }
-                final TranslogReader reader = openReader(committedTranslogFile,
-                    readCheckpoint(location.resolve(getCommitCheckpointFileName(i)), translogUUID, historyUUID));
+                final TranslogReader reader = openReader(committedTranslogFile, Checkpoint.read(location.resolve(getCommitCheckpointFileName(i))));
                 foundTranslogs.add(reader);
                 logger.debug("recovered local translog from checkpoint {}", checkpoint);
             }
@@ -476,7 +468,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             newFile = TranslogWriter.create(
                 shardId,
                 translogUUID,
-                historyUUID,
                 fileGeneration,
                 location.resolve(getFilename(fileGeneration)),
                 getChannelFactory(),
@@ -1640,11 +1631,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    /** returns the history uuid of this translog */
-    public String getHistoryUUID() {
-        return historyUUID;
-    }
-
     /**
      * Returns <code>true</code> iff the given generation is the current generation of this translog
      */
@@ -1683,22 +1669,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return current.getTragicException();
     }
 
-    /** Reads, validates and returns and returns the checkpoint at the given path */
-    static final Checkpoint readCheckpoint(final Path location, final String translogUUID, final String historyUUID) throws IOException {
-        final Checkpoint checkpoint = Checkpoint.read(location);
-        if (checkpoint.translogUUID.equals(TRANSLOG_UUID_NA) == false &&
-            checkpoint.translogUUID.equals(translogUUID) == false
-            ) {
-            throw new TranslogCorruptedException("expected translog UUID " + translogUUID+ " but got: " + checkpoint.translogUUID +
-                " this checkpoint file belongs to a different translog. path:" + location);
-        }
-        if (checkpoint.historyUUID.equals(HISTORY_UUID_NA) == false &&
-            checkpoint.historyUUID.equals(historyUUID) == false
-            ) {
-            throw new TranslogCorruptedException("expected history UUID " + historyUUID+ " but got: " + checkpoint.historyUUID +
-                "the lucene index and translog do not belong to the same history. path:" + location);
-        }
-        return checkpoint;
+    /** Reads and returns the current checkpoint */
+    static final Checkpoint readCheckpoint(final Path location) throws IOException {
+        return Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
     }
 
     /**
@@ -1708,9 +1681,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @return the global checkpoint
      * @throws IOException if an I/O exception occurred reading the checkpoint
      */
-    public static final long readGlobalCheckpoint(final Path location, final String translogUUID, final String historyUUID)
-        throws IOException {
-        return readCheckpoint(location.resolve(CHECKPOINT_FILE_NAME), translogUUID, historyUUID).globalCheckpoint;
+    public static final long readGlobalCheckpoint(final Path location) throws IOException {
+        return readCheckpoint(location).globalCheckpoint;
     }
 
     /**

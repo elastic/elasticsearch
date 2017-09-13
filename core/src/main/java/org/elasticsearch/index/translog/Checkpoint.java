@@ -36,9 +36,6 @@ import java.nio.channels.FileChannel;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 
-import static org.elasticsearch.index.translog.Translog.HISTORY_UUID_NA;
-import static org.elasticsearch.index.translog.Translog.TRANSLOG_UUID_NA;
-
 final class Checkpoint {
 
     final long offset;
@@ -48,24 +45,21 @@ final class Checkpoint {
     final long maxSeqNo;
     final long globalCheckpoint;
     final long minTranslogGeneration;
-    final String translogUUID;
-    final String historyUUID;
 
     private static final int INITIAL_VERSION = 1; // start with 1, just to recognize there was some magic serialization logic before
-    private static final int CURRENT_VERSION = 2; // introduction of global checkpoints, translog UUID and history UUID
+    private static final int CURRENT_VERSION = 2; // introduction of global checkpoints
 
     private static final String CHECKPOINT_CODEC = "ckp";
 
     // size of 6.0.0 checkpoint
     static final int FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
         + Integer.BYTES  // ops
-        + Long.BYTES   // offset
-        + Long.BYTES   // generation
-        + Long.BYTES   // minimum sequence number, introduced in 6.0.0
-        + Long.BYTES   // maximum sequence number, introduced in 6.0.0
-        + Long.BYTES   // global checkpoint, introduced in 6.0.0
-        + Long.BYTES   // minimum translog generation in the translog - introduced in 6.0.0
-        + (22 + 1) * 2 // uuids (22 chars + one byte length)
+        + Long.BYTES // offset
+        + Long.BYTES // generation
+        + Long.BYTES // minimum sequence number, introduced in 6.0.0
+        + Long.BYTES // maximum sequence number, introduced in 6.0.0
+        + Long.BYTES // global checkpoint, introduced in 6.0.0
+        + Long.BYTES // minimum translog generation in the translog - introduced in 6.0.0
         + CodecUtil.footerLength();
 
     // size of 5.0.0 checkpoint
@@ -78,18 +72,15 @@ final class Checkpoint {
     /**
      * Create a new translog checkpoint.
      *
-     * @param offset                the current offset in the translog
-     * @param numOps                the current number of operations in the translog
-     * @param generation            the current translog generation
-     * @param minSeqNo              the current minimum sequence number of all operations in the translog
-     * @param maxSeqNo              the current maximum sequence number of all operations in the translog
-     * @param globalCheckpoint      the last-known global checkpoint
+     * @param offset           the current offset in the translog
+     * @param numOps           the current number of operations in the translog
+     * @param generation       the current translog generation
+     * @param minSeqNo         the current minimum sequence number of all operations in the translog
+     * @param maxSeqNo         the current maximum sequence number of all operations in the translog
+     * @param globalCheckpoint the last-known global checkpoint
      * @param minTranslogGeneration the minimum generation referenced by the translog at this moment.
-     * @param translogUUID          the translog uuid this checkpoint belongs to
-     * @param historyUUID           the history uuid of operations in this translog
      */
-    Checkpoint(long offset, int numOps, long generation, long minSeqNo, long maxSeqNo, long globalCheckpoint, long minTranslogGeneration,
-               String translogUUID, String historyUUID) {
+    Checkpoint(long offset, int numOps, long generation, long minSeqNo, long maxSeqNo, long globalCheckpoint, long minTranslogGeneration) {
         assert minSeqNo <= maxSeqNo : "minSeqNo [" + minSeqNo + "] is higher than maxSeqNo [" + maxSeqNo + "]";
         assert minTranslogGeneration <= generation :
             "minTranslogGen [" + minTranslogGeneration + "] is higher than generation [" + generation + "]";
@@ -100,8 +91,6 @@ final class Checkpoint {
         this.maxSeqNo = maxSeqNo;
         this.globalCheckpoint = globalCheckpoint;
         this.minTranslogGeneration = minTranslogGeneration;
-        this.translogUUID = translogUUID;
-        this.historyUUID = historyUUID;
     }
 
     private void write(DataOutput out) throws IOException {
@@ -112,21 +101,17 @@ final class Checkpoint {
         out.writeLong(maxSeqNo);
         out.writeLong(globalCheckpoint);
         out.writeLong(minTranslogGeneration);
-        out.writeString(translogUUID);
-        out.writeString(historyUUID);
     }
 
     static Checkpoint emptyTranslogCheckpoint(final long offset, final long generation, final long globalCheckpoint,
-                                              long minTranslogGeneration, String translogUUID, String historyUUID) {
+                                              long minTranslogGeneration) {
         final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-        return
-            new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, translogUUID, historyUUID);
+        return new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration);
     }
 
     static Checkpoint readCheckpointV6_0_0(final DataInput in) throws IOException {
-        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), in.readLong(), in.readLong(), in.readLong(), in.readLong(),
-            in.readString(), in.readString());
+        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), in.readLong(), in.readLong(), in.readLong(), in.readLong());
     }
 
     // reads a checksummed checkpoint introduced in ES 5.0.0
@@ -135,8 +120,7 @@ final class Checkpoint {
         final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         final long globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
         final long minTranslogGeneration = -1L;
-        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration,
-            TRANSLOG_UUID_NA, HISTORY_UUID_NA);
+        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration);
     }
 
     @Override
@@ -149,8 +133,6 @@ final class Checkpoint {
             ", maxSeqNo=" + maxSeqNo +
             ", globalCheckpoint=" + globalCheckpoint +
             ", minTranslogGeneration=" + minTranslogGeneration +
-            ", translogUUID=" + translogUUID +
-            ", historyUUID=" + historyUUID+
             '}';
     }
 
@@ -188,8 +170,7 @@ final class Checkpoint {
             CodecUtil.writeFooter(indexOutput);
 
             assert indexOutput.getFilePointer() == FILE_SIZE :
-                "get your numbers straight; bytes written: " + indexOutput.getFilePointer() + ", buffer size: " + FILE_SIZE
-                    + ", ckp: " + checkpoint;
+                "get you numbers straight; bytes written: " + indexOutput.getFilePointer() + ", buffer size: " + FILE_SIZE;
             assert indexOutput.getFilePointer() < 512 :
                 "checkpoint files have to be smaller than 512 bytes for atomic writes; size: " + indexOutput.getFilePointer();
 
@@ -215,9 +196,7 @@ final class Checkpoint {
         if (generation != that.generation) return false;
         if (minSeqNo != that.minSeqNo) return false;
         if (maxSeqNo != that.maxSeqNo) return false;
-        if (globalCheckpoint != that.globalCheckpoint) return false;
-        if (translogUUID.equals(that.translogUUID) == false) return false;
-        return historyUUID.equals(that.historyUUID);
+        return globalCheckpoint == that.globalCheckpoint;
     }
 
     @Override
@@ -228,8 +207,6 @@ final class Checkpoint {
         result = 31 * result + Long.hashCode(minSeqNo);
         result = 31 * result + Long.hashCode(maxSeqNo);
         result = 31 * result + Long.hashCode(globalCheckpoint);
-        result = 31 * result + translogUUID.hashCode();
-        result = 31 * result + historyUUID.hashCode();
         return result;
     }
 

@@ -75,35 +75,24 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
             final Translog translog = replica.getTranslog();
             final String translogUUID = translog.getTranslogUUID();
-            final String historyUUID = translog.getHistoryUUID();
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget, translogUUID, historyUUID),
-                equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
 
-            translogLocation.set(writeTranslog(replica.shardId(), translogUUID, historyUUID,
-                        translog.currentFileGeneration(), maxSeqNo - 1));
+            translogLocation.set(writeTranslog(replica.shardId(), translogUUID, translog.currentFileGeneration(), maxSeqNo - 1));
 
             // commit is good, global checkpoint is at least max *committed* which is NO_OPS_PERFORMED
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget, translogUUID, historyUUID), equalTo(0L));
-
-            // but using translog uuids of history uuids breaks stuff
-            boolean wrongTUID = randomBoolean();
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget,
-                wrongTUID ? "bla" : translogUUID, wrongTUID == false || randomBoolean() ? "bla" : historyUUID),
-                equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(0L));
 
             replica.flush(new FlushRequest());
 
             translogLocation.set(replica.getTranslog().location());
 
             // commit is not good, global checkpoint is below max
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget, translogUUID, historyUUID),
-                equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
 
-            translogLocation.set(writeTranslog(replica.shardId(), translogUUID, historyUUID,
-                translog.currentFileGeneration(), maxSeqNo));
+            translogLocation.set(writeTranslog(replica.shardId(), translogUUID, translog.currentFileGeneration(), maxSeqNo));
 
             // commit is good, global checkpoint is above max
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget, translogUUID, historyUUID), equalTo(localCheckpoint + 1));
+            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(localCheckpoint + 1));
         } finally {
             closeShards(replica);
             recoveryTarget.decRef();
@@ -113,7 +102,6 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     private Path writeTranslog(
             final ShardId shardId,
             final String translogUUID,
-            final String historyUUID,
             final long generation,
             final long globalCheckpoint
             ) throws IOException {
@@ -123,7 +111,6 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         try (TranslogWriter ignored = TranslogWriter.create(
                 shardId,
                 translogUUID,
-                historyUUID,
                 generation,
                 resolve,
                 FileChannel::open,

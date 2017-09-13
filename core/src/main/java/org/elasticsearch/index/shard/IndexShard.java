@@ -1583,6 +1583,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().getTranslog();
     }
 
+    public String getHistoryUUID() {
+        return getEngine().getHistoryUUID();
+    }
+
     public IndexEventListener getIndexEventListener() {
         return indexEventListener;
     }

@@ -43,6 +43,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
@@ -152,7 +153,7 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
                 // Write empty checkpoint and translog to empty files
                 long gen = Long.parseLong(translogGeneration);
                 int translogLen = writeEmptyTranslog(tempEmptyTranslog, translogUUID);
-                writeEmptyCheckpoint(tempEmptyCheckpoint, translogLen, gen, translogUUID, historyUUID);
+                writeEmptyCheckpoint(tempEmptyCheckpoint, translogLen, gen);
 
                 terminal.println("Removing existing translog files");
                 IOUtils.rm(translogFiles.toArray(new Path[]{}));
@@ -177,7 +178,7 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
                 .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 Map<String, String> newCommitData = new HashMap<>(commitData);
-                newCommitData.put(Translog.HISTORY_UUID_KEY, historyUUID);
+                newCommitData.put(Engine.HISTORY_UUID_KEY, historyUUID);
                 writer.setLiveCommitData(newCommitData.entrySet());
                 writer.commit();
             }
@@ -189,10 +190,9 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
     }
 
     /** Write a checkpoint file to the given location with the given generation */
-    public static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration, String translogUUID,
-                                            String historyUUID) throws IOException {
+    public static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration) throws IOException {
         Checkpoint emptyCheckpoint = Checkpoint.emptyTranslogCheckpoint(translogLength, translogGeneration,
-            SequenceNumbers.UNASSIGNED_SEQ_NO, translogGeneration, translogUUID, historyUUID);
+            SequenceNumbers.UNASSIGNED_SEQ_NO, translogGeneration);
         Checkpoint.write(FileChannel::open, filename, emptyCheckpoint,
             StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
         // fsync with metadata here to make sure.

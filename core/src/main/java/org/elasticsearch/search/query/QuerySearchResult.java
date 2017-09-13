@@ -311,7 +311,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
             serviceTimeEWMA = -1;
             nodeQueueSize = -1;
         }
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+        // TODO - reinstate this line once checkFieldNames is backported to 6.1 
+        // otherwise 7.0 commit will cause many BWC failures
+//        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (in.getVersion().after(Version.V_6_1_0)) {
             String[] unmappedFieldsArray = in.readOptionalStringArray();            
             unmappedFields = unmappedFieldsArray == null ? Collections.emptySet() : new HashSet<>(Arrays.asList(unmappedFieldsArray));
         }
@@ -357,7 +360,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
             out.writeZLong(serviceTimeEWMA);
             out.writeInt(nodeQueueSize);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        // TODO - reinstate this line once checkFieldNames is backported to 6.1 
+        // otherwise 7.0 commit will cause many BWC failures
+//        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (out.getVersion().after(Version.V_6_1_0)) {
             String[] unmappedFieldsArray = unmappedFields.size() == 0 ? null : unmappedFields.toArray(new String[unmappedFields.size()]);
             out.writeOptionalStringArray(unmappedFieldsArray);
         }

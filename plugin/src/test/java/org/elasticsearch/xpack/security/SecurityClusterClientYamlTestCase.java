@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -14,8 +12,10 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
 
-import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -37,34 +37,18 @@ public abstract class SecurityClusterClientYamlTestCase extends ESClientYamlSuit
     }
 
     public static void waitForSecurity() throws Exception {
-        String masterNode = null;
-        HttpEntity entity = client().performRequest("GET", "/_cat/nodes?h=id,master").getEntity();
-        String catNodesResponse = EntityUtils.toString(entity, StandardCharsets.UTF_8);
-        for (String line : catNodesResponse.split("\n")) {
-            int indexOfStar = line.indexOf('*'); // * in the node's output denotes it is master
-            if (indexOfStar != -1) {
-                masterNode = line.substring(0, indexOfStar).trim();
-                break;
-            }
-        }
-        assertNotNull(masterNode);
-        final String masterNodeId = masterNode;
-
         assertBusy(() -> {
             try {
-                Response nodeDetailsResponse = client().performRequest("GET", "/_nodes");
-                ObjectPath path = ObjectPath.createFromResponse(nodeDetailsResponse);
-                Map<String, Object> nodes = path.evaluate("nodes");
-                String masterVersion = null;
-                for (String key : nodes.keySet()) {
-                    // get the ES version number master is on
-                    if (key.startsWith(masterNodeId)) {
-                        masterVersion = path.evaluate("nodes." + key + ".version");
-                        break;
-                    }
+                Response nodesResponse = client().performRequest("GET", "/_nodes");
+                ObjectPath nodesPath = ObjectPath.createFromResponse(nodesResponse);
+                Map<String, Object> nodes = nodesPath.evaluate("nodes");
+                Set<Version> nodeVersions = new HashSet<>();
+                for (String nodeId : nodes.keySet()) {
+                    String nodeVersionPath = "nodes." + nodeId + ".version";
+                    Version nodeVersion = Version.fromString(nodesPath.evaluate(nodeVersionPath));
+                    nodeVersions.add(nodeVersion);
                 }
-                assertNotNull(masterVersion);
-                final String masterTemplateVersion = masterVersion;
+                Version highestNodeVersion = Collections.max(nodeVersions);
 
                 Response response = client().performRequest("GET", "/_cluster/state/metadata");
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);
@@ -74,10 +58,8 @@ public abstract class SecurityClusterClientYamlTestCase extends ESClientYamlSuit
                 assertThat(mappings.size(), greaterThanOrEqualTo(1));
                 for (String key : mappings.keySet()) {
                     String templatePath = mappingsPath + "." + key + "._meta.security-version";
-                    String templateVersion = objectPath.evaluate(templatePath);
-                    final Version mVersion = Version.fromString(masterTemplateVersion);
-                    final Version tVersion = Version.fromString(templateVersion);
-                    assertTrue(mVersion.onOrBefore(tVersion));
+                    Version templateVersion = Version.fromString(objectPath.evaluate(templatePath));
+                    assertEquals(highestNodeVersion, templateVersion);
                 }
             } catch (Exception e) {
                 throw new AssertionError("failed to get cluster state", e);

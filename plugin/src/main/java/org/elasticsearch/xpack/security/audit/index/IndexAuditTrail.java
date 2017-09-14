@@ -48,6 +48,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
@@ -177,7 +178,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         return NAME;
     }
 
-    public IndexAuditTrail(Settings settings, InternalClient client, ThreadPool threadPool, ClusterService clusterService) {
+    public IndexAuditTrail(Settings settings, InternalSecurityClient client, ThreadPool threadPool, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;

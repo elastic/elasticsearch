@@ -7,11 +7,13 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -36,6 +38,11 @@ public class ControlMsgToProcessWriter {
      * This must match the code defined in the api::CAnomalyDetector C++ class.
      */
     private static final String FLUSH_MESSAGE_CODE = "f";
+
+    /**
+     * This must match the code defined in the api::CAnomalyDetector C++ class.
+     */
+    private static final String FORECAST_MESSAGE_CODE = "p";
 
     /**
      * This must match the code defined in the api::CAnomalyDetector C++ class.
@@ -137,12 +144,30 @@ public class ControlMsgToProcessWriter {
         String flushId = Long.toString(ms_FlushNumber.getAndIncrement());
         writeMessage(FLUSH_MESSAGE_CODE + flushId);
 
-        char[] spaces = new char[FLUSH_SPACES_LENGTH];
-        Arrays.fill(spaces, ' ');
-        writeMessage(new String(spaces));
+        fillCommandBuffer();
 
         lengthEncodedWriter.flush();
         return flushId;
+    }
+
+    public void writeForecastMessage(ForecastParams params) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("forecast_id", params.getId())
+                    .field("end_time", params.getEndTime())
+                .endObject();
+        
+        writeMessage(FORECAST_MESSAGE_CODE + builder.string());
+        fillCommandBuffer();
+        lengthEncodedWriter.flush();
+    }
+
+    // todo(hendrikm): workaround, see
+    // https://github.com/elastic/machine-learning-cpp/issues/123
+    private void fillCommandBuffer() throws IOException {
+        char[] spaces = new char[FLUSH_SPACES_LENGTH];
+        Arrays.fill(spaces, ' ');
+        writeMessage(new String(spaces));
     }
 
     public void writeResetBucketsMessage(DataLoadParams params) throws IOException {

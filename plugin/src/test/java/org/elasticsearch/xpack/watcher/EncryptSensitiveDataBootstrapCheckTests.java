@@ -18,7 +18,7 @@ public class EncryptSensitiveDataBootstrapCheckTests extends ESTestCase {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         Environment env = new Environment(settings);
         EncryptSensitiveDataBootstrapCheck check = new EncryptSensitiveDataBootstrapCheck(env);
-        assertFalse(check.check(new BootstrapContext(settings, null)));
+        assertFalse(check.check(new BootstrapContext(settings, null)).isFailure());
         assertTrue(check.alwaysEnforce());
     }
 
@@ -29,7 +29,7 @@ public class EncryptSensitiveDataBootstrapCheckTests extends ESTestCase {
                 .build();
         Environment env = new Environment(settings);
         EncryptSensitiveDataBootstrapCheck check = new EncryptSensitiveDataBootstrapCheck(env);
-        assertTrue(check.check(new BootstrapContext(settings, null)));
+        assertTrue(check.check(new BootstrapContext(settings, null)).isFailure());
     }
 
     public void testKeyInKeystore() {
@@ -42,6 +42,7 @@ public class EncryptSensitiveDataBootstrapCheckTests extends ESTestCase {
                 .build();
         Environment env = new Environment(settings);
         EncryptSensitiveDataBootstrapCheck check = new EncryptSensitiveDataBootstrapCheck(env);
-        assertFalse(check.check(new BootstrapContext(settings, null)));
+        assertFalse(check.check(new BootstrapContext(settings, null)).isFailure());
     }
+
 }

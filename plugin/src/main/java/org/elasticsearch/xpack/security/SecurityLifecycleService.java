@@ -57,7 +57,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     private final IndexLifecycleManager securityIndex;
 
     public SecurityLifecycleService(Settings settings, ClusterService clusterService,
-                                    ThreadPool threadPool, InternalClient client,
+                                    ThreadPool threadPool, InternalSecurityClient client,
                                     @Nullable IndexAuditTrail indexAuditTrail) {
         super(settings);
         this.settings = settings;

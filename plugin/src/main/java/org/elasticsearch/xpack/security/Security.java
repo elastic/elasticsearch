@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NamedDiff;
@@ -295,12 +296,13 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         return modules;
     }
 
-    public Collection<Object> createComponents(InternalClient client, ThreadPool threadPool, ClusterService clusterService,
+    public Collection<Object> createComponents(Client nodeClient, ThreadPool threadPool, ClusterService clusterService,
                                                ResourceWatcherService resourceWatcherService,
                                                List<XPackExtension> extensions) throws Exception {
         if (enabled == false) {
             return Collections.emptyList();
         }
+        final InternalSecurityClient client = new InternalSecurityClient(settings, threadPool, nodeClient);
         threadContext.set(threadPool.getThreadContext());
         List<Object> components = new ArrayList<>();
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));

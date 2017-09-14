@@ -1,0 +1,24 @@
+{
+  "xpack.ml.forecast": {
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/_forecast",
+      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/_forecast" ],
+      "parts": {
+        "job_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the job to forecast for"
+        }
+      },
+      "params": {
+        "end": {
+          "type": "string",
+          "required": false,
+          "description": "The end time of the forecast"
+        }
+      }
+    },
+    "body": null
+  }
+}

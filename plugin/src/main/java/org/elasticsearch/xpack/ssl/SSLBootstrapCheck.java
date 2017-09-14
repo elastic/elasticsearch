@@ -42,10 +42,15 @@ public final class SSLBootstrapCheck implements BootstrapCheck {
     }
 
     @Override
-    public boolean check(BootstrapContext context) {
+    public BootstrapCheckResult check(BootstrapContext context) {
         final Settings transportSSLSettings = context.settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX);
-        return sslService.sslConfiguration(transportSSLSettings).keyConfig() == KeyConfig.NONE
-                || isDefaultCACertificateTrusted() || isDefaultPrivateKeyUsed();
+        if (sslService.sslConfiguration(transportSSLSettings).keyConfig() == KeyConfig.NONE
+                || isDefaultCACertificateTrusted() || isDefaultPrivateKeyUsed()) {
+            return BootstrapCheckResult.failure(
+                    "default SSL key and certificate do not provide security; please generate keys and certificates");
+        } else {
+            return BootstrapCheckResult.success();
+        }
     }
 
     /**
@@ -91,8 +96,4 @@ public final class SSLBootstrapCheck implements BootstrapCheck {
                 .anyMatch(defaultPrivateKey::equals);
     }
 
-    @Override
-    public String errorMessage() {
-        return "Default SSL key and certificate do not provide security; please generate keys and certificates";
-    }
 }

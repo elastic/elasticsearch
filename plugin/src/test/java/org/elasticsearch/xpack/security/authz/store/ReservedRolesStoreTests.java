@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.security.user.XPackUser;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchAction;
@@ -123,6 +124,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("watcher_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("watcher_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("kibana_dashboard_only_user"), is(true));
+        assertThat(ReservedRolesStore.isReserved(XPackUser.ROLE_NAME), is(true));
     }
 
     public void testIngestAdminRole() {

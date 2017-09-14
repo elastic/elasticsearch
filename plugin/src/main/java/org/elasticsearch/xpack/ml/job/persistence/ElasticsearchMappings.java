@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
+import org.elasticsearch.xpack.ml.job.results.Forecast;
 import org.elasticsearch.xpack.ml.job.results.Influence;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelPlot;
@@ -289,6 +290,7 @@ public class ElasticsearchMappings {
                 .field(TYPE, DOUBLE)
             .endObject();
 
+        addForecastFieldsToMapping(builder);
         addAnomalyRecordFieldsToMapping(builder);
         addInfluencerFieldsToMapping(builder);
         addModelSizeStatsFieldsToMapping(builder);
@@ -320,6 +322,24 @@ public class ElasticsearchMappings {
         }
     }
 
+    private static void addForecastFieldsToMapping(XContentBuilder builder) throws IOException {
+        
+        // Forecast Output
+        builder.startObject(Forecast.FORECAST_LOWER.getPreferredName())
+            .field(TYPE, DOUBLE)
+        .endObject()
+        .startObject(Forecast.FORECAST_UPPER.getPreferredName())
+            .field(TYPE, DOUBLE)
+        .endObject()
+        .startObject(Forecast.FORECAST_PREDICTION.getPreferredName())
+            .field(TYPE, DOUBLE)
+        .endObject()
+        .startObject(Forecast.FORECAST_ID.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject();
+    }
+    
+    
     /**
      * AnomalyRecord fields to be added under the 'properties' section of the mapping
      * @param builder Add properties to this builder

@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
+import org.elasticsearch.xpack.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsAction;
@@ -108,6 +109,7 @@ import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestFlushJobAction;
+import org.elasticsearch.xpack.ml.rest.job.RestForecastJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestGetJobStatsAction;
 import org.elasticsearch.xpack.ml.rest.job.RestGetJobsAction;
 import org.elasticsearch.xpack.ml.rest.job.RestOpenJobAction;
@@ -383,7 +385,8 @@ public class MachineLearning implements ActionPlugin {
             new RestStartDatafeedAction(settings, restController),
             new RestStopDatafeedAction(settings, restController),
             new RestDeleteModelSnapshotAction(settings, restController),
-            new RestDeleteExpiredDataAction(settings, restController)
+            new RestDeleteExpiredDataAction(settings, restController), 
+            new RestForecastJobAction(settings, restController)
         );
     }
 
@@ -431,7 +434,8 @@ public class MachineLearning implements ActionPlugin {
                 new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(UpdateProcessAction.INSTANCE, UpdateProcessAction.TransportAction.class),
-                new ActionHandler<>(DeleteExpiredDataAction.INSTANCE, DeleteExpiredDataAction.TransportAction.class)
+                new ActionHandler<>(DeleteExpiredDataAction.INSTANCE, DeleteExpiredDataAction.TransportAction.class),
+                new ActionHandler<>(ForecastJobAction.INSTANCE, ForecastJobAction.TransportAction.class)
         );
     }
 

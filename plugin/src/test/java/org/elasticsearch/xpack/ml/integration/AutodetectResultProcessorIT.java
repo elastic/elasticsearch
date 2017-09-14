@@ -357,47 +357,47 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         private List<AutodetectResult> results = new ArrayList<>();
 
         ResultsBuilder addBucket(Bucket bucket) {
-            results.add(new AutodetectResult(Objects.requireNonNull(bucket), null, null, null, null, null, null, null, null));
+            results.add(new AutodetectResult(Objects.requireNonNull(bucket), null, null, null, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addRecords(List<AnomalyRecord> records) {
-            results.add(new AutodetectResult(null, records, null, null, null, null, null, null, null));
+            results.add(new AutodetectResult(null, records, null, null, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addInfluencers(List<Influencer> influencers) {
-            results.add(new AutodetectResult(null, null, influencers, null, null, null, null, null, null));
+            results.add(new AutodetectResult(null, null, influencers, null, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addCategoryDefinition(CategoryDefinition categoryDefinition) {
-            results.add(new AutodetectResult(null, null, null, null, null, null, null, categoryDefinition, null));
+            results.add(new AutodetectResult(null, null, null, null, null, null, null, null, null, categoryDefinition, null));
             return this;
         }
 
         ResultsBuilder addmodelPlot(ModelPlot modelPlot) {
-            results.add(new AutodetectResult(null, null, null, null, null, null, modelPlot, null, null));
+            results.add(new AutodetectResult(null, null, null, null, null, null, modelPlot, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addModelSizeStats(ModelSizeStats modelSizeStats) {
-            results.add(new AutodetectResult(null, null, null, null, null, modelSizeStats, null, null, null));
+            results.add(new AutodetectResult(null, null, null, null, null, modelSizeStats, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addModelSnapshot(ModelSnapshot modelSnapshot) {
-            results.add(new AutodetectResult(null, null, null, null, modelSnapshot, null, null, null, null));
+            results.add(new AutodetectResult(null, null, null, null, modelSnapshot, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addQuantiles(Quantiles quantiles) {
-            results.add(new AutodetectResult(null, null, null, quantiles, null, null, null, null, null));
+            results.add(new AutodetectResult(null, null, null, quantiles, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addFlushAcknowledgement(FlushAcknowledgement flushAcknowledgement) {
-            results.add(new AutodetectResult(null, null, null, null, null, null, null, null, flushAcknowledgement));
+            results.add(new AutodetectResult(null, null, null, null, null, null, null, null, null, null, flushAcknowledgement));
             return this;
         }
 

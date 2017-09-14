@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.security.support.Automatons;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.security.user.XPackUser;
 import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
@@ -442,7 +443,11 @@ public class AuthorizationService extends AbstractComponent {
                     " roles");
         }
         if (XPackUser.is(user)) {
-            assert XPackUser.INSTANCE.roles().length == 1 && ReservedRolesStore.SUPERUSER_ROLE.name().equals(XPackUser.INSTANCE.roles()[0]);
+            assert XPackUser.INSTANCE.roles().length == 1;
+            roleActionListener.onResponse(XPackUser.ROLE);
+            return;
+        }
+        if (XPackSecurityUser.is(user)) {
             roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
             return;
         }
@@ -518,7 +523,6 @@ public class AuthorizationService extends AbstractComponent {
         }
         if (indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME) != null
                 && indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME).isGranted()
-                && XPackUser.is(authentication.getUser()) == false
                 && MONITOR_INDEX_PREDICATE.test(action) == false
                 && isSuperuser(authentication.getUser()) == false) {
             // only the superusers are allowed to work with this index, but we should allow indices monitoring actions through for debugging

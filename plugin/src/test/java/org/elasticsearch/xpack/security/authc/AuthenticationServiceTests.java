@@ -48,6 +48,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
@@ -135,7 +136,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadPool = new ThreadPool(settings,
                 new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool"));
         threadContext = threadPool.getThreadContext();
-        InternalClient internalClient = new InternalClient(Settings.EMPTY, threadPool, client);
+        InternalSecurityClient internalClient = new InternalSecurityClient(Settings.EMPTY, threadPool, client);
         lifecycleService = mock(SecurityLifecycleService.class);
         ClusterService clusterService = new ClusterService(settings, new ClusterSettings(settings, ClusterSettings
                 .BUILT_IN_CLUSTER_SETTINGS), threadPool, Collections.emptyMap());

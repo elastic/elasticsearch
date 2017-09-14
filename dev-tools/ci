@@ -73,6 +73,14 @@ case $key in
             "-x:x-pack-elasticsearch:qa:sql:forbiddenPatterns"
             "-x:x-pack-elasticsearch:qa:sql:no-security:forbiddenPatterns"
             "-x:x-pack-elasticsearch:qa:sql:security:forbiddenPatterns"
+    releaseTest)
+        GRADLE_CLI_ARGS=(
+            "--info"
+            "check"
+            "-Dtests.network=true"
+            "-Dtests.badapples=true"
+            "-Dbuild.snapshot=false"
+            "-Dtests.jvm.argline=-Dbuild.snapshot=false"
         )
         ;;
     jdk9)

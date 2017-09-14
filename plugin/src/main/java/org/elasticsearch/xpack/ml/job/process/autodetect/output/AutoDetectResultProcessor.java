@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
+import org.elasticsearch.xpack.ml.job.results.Forecast;
+import org.elasticsearch.xpack.ml.job.results.ForecastStats;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelPlot;
 
@@ -183,6 +185,20 @@ public class AutoDetectResultProcessor {
         ModelPlot modelPlot = result.getModelPlot();
         if (modelPlot != null) {
             context.bulkResultsPersister.persistModelPlot(modelPlot);
+        }
+        Forecast forecast = result.getForecast();
+        if (forecast != null) {
+            context.bulkResultsPersister.persistForecast(forecast);
+        }
+        ForecastStats forecastStats = result.getForecastStats();
+        if (forecastStats != null) {
+            // forecast stats are send by autodetect but do not get persisted,
+            // still they mark the end of a forecast
+
+            LOGGER.trace("Received Forecast Stats [{}]", forecastStats.getId());
+
+            // forecast stats mark the end of a forecast, therefore commit whatever we have
+            context.bulkResultsPersister.executeRequest();
         }
         ModelSizeStats modelSizeStats = result.getModelSizeStats();
         if (modelSizeStats != null) {

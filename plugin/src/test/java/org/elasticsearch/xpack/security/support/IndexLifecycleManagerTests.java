@@ -45,6 +45,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.hamcrest.Matchers;
@@ -71,7 +72,7 @@ public class IndexLifecycleManagerTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
         actions = new LinkedHashMap<>();
-        final InternalClient client = new InternalClient(Settings.EMPTY, threadPool, mockClient) {
+        final InternalSecurityClient client = new InternalSecurityClient(Settings.EMPTY, threadPool, mockClient) {
             @Override
             protected <Request extends ActionRequest,
                     Response extends ActionResponse,

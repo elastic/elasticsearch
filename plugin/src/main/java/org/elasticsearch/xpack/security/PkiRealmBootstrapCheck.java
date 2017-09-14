@@ -31,7 +31,7 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
      * least one network communication layer.
      */
     @Override
-    public boolean check(BootstrapContext context) {
+    public BootstrapCheckResult check(BootstrapContext context) {
         final Settings settings = context.settings;
         final boolean pkiRealmEnabled = settings.getGroups(RealmSettings.PREFIX).values().stream()
                 .filter(s -> PkiRealm.TYPE.equals(s.get("type")))
@@ -42,32 +42,28 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
             Settings httpSSLSettings = SSLService.getHttpTransportSSLSettings(settings);
             final boolean httpClientAuth = sslService.isSSLClientAuthEnabled(httpSSLSettings);
             if (httpSsl && httpClientAuth) {
-                return false;
+                return BootstrapCheckResult.success();
             }
 
             // Default Transport
             final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
             final boolean clientAuthEnabled = sslService.isSSLClientAuthEnabled(transportSSLSettings);
             if (clientAuthEnabled) {
-                return false;
+                return BootstrapCheckResult.success();
             }
 
             // Transport Profiles
             Map<String, Settings> groupedSettings = settings.getGroups("transport.profiles.");
             for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
                 if (sslService.isSSLClientAuthEnabled(SecurityNetty4Transport.profileSslSettings(entry.getValue()), transportSSLSettings)) {
-                    return false;
+                    return BootstrapCheckResult.success();
                 }
             }
-            return true;
+            return BootstrapCheckResult.failure(
+                    "a PKI realm is enabled but cannot be used as neither HTTP or Transport have SSL and client authentication enabled");
         } else {
-            return false;
+            return BootstrapCheckResult.success();
         }
-    }
-
-    @Override
-    public String errorMessage() {
-        return "A PKI realm is enabled but cannot be used as neither HTTP or Transport have SSL and client authentication enabled";
     }
 
     @Override

@@ -111,7 +111,7 @@ S3Object getZip() {
       return client.getObject('prelert-artifacts', key)
     } catch (AmazonServiceException e) {
       if (e.getStatusCode() != 403) {
-        throw new GradleException('Error while trying to get ml-cpp snapshot', e)
+        throw new GradleException('Error while trying to get ml-cpp snapshot: ' + e.getMessage(), e)
       }
       sleep(500)
       retries--

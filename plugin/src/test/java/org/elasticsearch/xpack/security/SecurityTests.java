@@ -77,9 +77,9 @@ public class SecurityTests extends ESTestCase {
         allowedSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterSettings clusterSettings = new ClusterSettings(settings, allowedSettings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        InternalClient client = new InternalClient(Settings.EMPTY, threadPool, mock(Client.class));
         when(threadPool.relativeTimeInMillis()).thenReturn(1L);
-        return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class), Arrays.asList(extensions));
+        return security.createComponents(mock(Client.class), threadPool, clusterService, mock(ResourceWatcherService.class),
+                Arrays.asList(extensions));
     }
 
     private <T> T findComponent(Class<T> type, Collection<Object> components) {

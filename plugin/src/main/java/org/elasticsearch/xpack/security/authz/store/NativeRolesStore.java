@@ -38,6 +38,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.security.action.role.ClearRolesCacheResponse;
@@ -79,14 +80,14 @@ public class NativeRolesStore extends AbstractComponent {
             TimeValue.timeValueMinutes(20), Property.NodeScope, Property.Deprecated);
     private static final String ROLE_DOC_TYPE = "doc";
 
-    private final InternalClient client;
+    private final InternalSecurityClient client;
     private final XPackLicenseState licenseState;
     private final boolean isTribeNode;
 
     private SecurityClient securityClient;
     private final SecurityLifecycleService securityLifecycleService;
 
-    public NativeRolesStore(Settings settings, InternalClient client, XPackLicenseState licenseState,
+    public NativeRolesStore(Settings settings, InternalSecurityClient client, XPackLicenseState licenseState,
                             SecurityLifecycleService securityLifecycleService) {
         super(settings);
         this.client = client;

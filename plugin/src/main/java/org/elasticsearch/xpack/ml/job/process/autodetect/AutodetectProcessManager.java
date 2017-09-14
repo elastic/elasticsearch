@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledge
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ShortCircuitingRenormalizer;
+import org.elasticsearch.xpack.ml.job.results.Forecast;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
@@ -236,6 +238,33 @@ public class AutodetectProcessManager extends AbstractComponent {
                 handler.onFailure(ExceptionsHelper.serverError(msg, e));
             } else {
                 handler.onResponse(flushAcknowledgement);
+            }
+        });
+    }
+
+    /**
+     * Do a forecast for the running job.
+     *
+     * @param jobTask   The job task
+     * @param params    Forecast parameters
+     */
+    public void forecastJob(JobTask jobTask, ForecastParams params, Consumer<Exception> handler) {
+        logger.debug("Forecasting job {}", jobTask.getJobId());
+        AutodetectCommunicator communicator = autoDetectCommunicatorByOpenJob.get(jobTask.getAllocationId());
+        if (communicator == null) {
+            String message = String.format(Locale.ROOT, "Cannot forecast because job [%s] is not open", jobTask.getJobId());
+            logger.debug(message);
+            handler.accept(ExceptionsHelper.conflictStatusException(message));
+            return;
+        }
+
+        communicator.forecastJob(params, (aVoid, e) -> {
+            if (e == null) {
+                handler.accept(null);
+            } else {
+                String msg = String.format(Locale.ROOT, "[%s] exception while forecasting job", jobTask.getJobId());
+                logger.error(msg, e);
+                handler.accept(ExceptionsHelper.serverError(msg, e));
             }
         });
     }

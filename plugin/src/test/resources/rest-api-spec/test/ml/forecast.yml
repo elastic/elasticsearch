@@ -1,0 +1,41 @@
+setup:
+  - do:
+      xpack.ml.put_job:
+        job_id: forecast-job
+        body:  >
+          {
+            "description":"A forecast job",
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"xcontent"
+            }
+          }
+
+---
+"Test forecast unknown job":
+    - do:
+        catch: missing
+        xpack.ml.forecast:
+          job_id: "non-existing-job"
+
+---
+"Test forecast on closed job":
+    - do:
+        catch: /status_exception/
+        xpack.ml.forecast:
+          job_id: "forecast-job"
+
+---
+"Test bad end param errors":
+
+    - do:
+        xpack.ml.open_job:
+          job_id: "forecast-job"
+
+    - do:
+        catch: /parse_exception/
+        xpack.ml.forecast:
+          job_id: "forecast-job"
+          end: "tomorrow"

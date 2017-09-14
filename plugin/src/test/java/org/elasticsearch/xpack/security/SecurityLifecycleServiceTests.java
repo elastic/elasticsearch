@@ -64,7 +64,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
 
         threadPool = new TestThreadPool("security template service tests");
         transportClient = new MockTransportClient(Settings.EMPTY);
-        class IClient extends InternalClient {
+        class IClient extends InternalSecurityClient {
             IClient(Client transportClient) {
                 super(Settings.EMPTY, null, transportClient);
             }
@@ -79,7 +79,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
             }
         }
 
-        InternalClient client = new IClient(transportClient);
+        InternalSecurityClient client = new IClient(transportClient);
         securityLifecycleService = new SecurityLifecycleService(Settings.EMPTY, clusterService,
                 threadPool, client, mock(IndexAuditTrail.class));
         listeners = new CopyOnWriteArrayList<>();

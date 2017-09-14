@@ -38,6 +38,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.elasticsearch.xpack.upgrade.IndexUpgradeCheck;
 
@@ -58,7 +59,7 @@ public class IndexLifecycleManager extends AbstractComponent {
 
     private final String indexName;
     private final String templateName;
-    private final InternalClient client;
+    private final InternalSecurityClient client;
 
     private final List<BiConsumer<ClusterIndexHealth, ClusterIndexHealth>> indexHealthChangeListeners = new CopyOnWriteArrayList<>();
 
@@ -70,7 +71,7 @@ public class IndexLifecycleManager extends AbstractComponent {
     private volatile boolean mappingIsUpToDate;
     private volatile Version mappingVersion;
 
-    public IndexLifecycleManager(Settings settings, InternalClient client, String indexName, String templateName) {
+    public IndexLifecycleManager(Settings settings, InternalSecurityClient client, String indexName, String templateName) {
         super(settings);
         this.client = client;
         this.indexName = indexName;

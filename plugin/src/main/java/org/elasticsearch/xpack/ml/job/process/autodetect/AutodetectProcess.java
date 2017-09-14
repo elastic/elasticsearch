@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
@@ -84,6 +85,14 @@ public interface AutodetectProcess extends Closeable {
      * @throws IOException If the flush failed
      */
     String flushJob(FlushJobParams params) throws IOException;
+
+    /**
+     * Do a forecast on a running job.
+     *
+     * @param params The forecast parameters
+     * @throws IOException If the write fails
+     */
+    void forecastJob(ForecastParams params) throws IOException;
 
     /**
      * Flush the output data stream

@@ -127,6 +127,10 @@ public final class ReservedFieldNames {
             ModelPlot.MODEL_UPPER.getPreferredName(), ModelPlot.MODEL_MEDIAN.getPreferredName(),
             ModelPlot.ACTUAL.getPreferredName(),
 
+            Forecast.FORECAST_LOWER.getPreferredName(), Forecast.FORECAST_UPPER.getPreferredName(),
+            Forecast.FORECAST_PREDICTION.getPreferredName(),
+            Forecast.FORECAST_ID.getPreferredName(),
+
             ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName(),

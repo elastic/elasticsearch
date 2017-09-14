@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResult
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ControlMsgToProcessWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.LengthEncodedWriter;
@@ -94,7 +95,9 @@ class NativeAutodetectProcess implements AutodetectProcess {
                 if (processCloseInitiated == false && processKilled == false) {
                     // The log message doesn't say "crashed", as the process could have been killed
                     // by a user or other process (e.g. the Linux OOM killer)
-                    LOGGER.error("[{}] autodetect process stopped unexpectedly", jobId);
+
+                    String errors = cppLogHandler.getErrors();
+                    LOGGER.error("[{}] autodetect process stopped unexpectedly: {}", jobId, errors);
                     onProcessCrash.run();
                 }
             }
@@ -161,6 +164,12 @@ class NativeAutodetectProcess implements AutodetectProcess {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfAnalysisFields);
         writer.writeFlushControlMessage(params);
         return writer.writeFlushMessage();
+    }
+
+    @Override
+    public void forecastJob(ForecastParams params) throws IOException {
+        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfAnalysisFields);
+        writer.writeForecastMessage(params);
     }
 
     @Override

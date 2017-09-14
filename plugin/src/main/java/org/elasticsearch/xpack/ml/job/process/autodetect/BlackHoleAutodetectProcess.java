@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
@@ -78,7 +79,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     @Override
     public String flushJob(FlushJobParams params) throws IOException {
         FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement(FLUSH_ID, null);
-        AutodetectResult result = new AutodetectResult(null, null, null, null, null, null, null, null, flushAcknowledgement);
+        AutodetectResult result = new AutodetectResult(null, null, null, null, null, null, null, null, null, null, flushAcknowledgement);
         results.add(result);
         return FLUSH_ID;
     }
@@ -91,7 +92,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     public void close() throws IOException {
         if (open) {
             Quantiles quantiles = new Quantiles(jobId, new Date(), "black hole quantiles");
-            AutodetectResult result = new AutodetectResult(null, null, null, quantiles, null, null, null, null, null);
+            AutodetectResult result = new AutodetectResult(null, null, null, quantiles, null, null, null, null, null, null, null);
             results.add(result);
             open = false;
         }
@@ -146,5 +147,9 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     @Override
     public String readError() {
         return "";
+    }
+
+    @Override
+    public void forecastJob(ForecastParams params) throws IOException {
     }
 }

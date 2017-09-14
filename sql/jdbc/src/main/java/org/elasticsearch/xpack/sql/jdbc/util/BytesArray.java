@@ -90,8 +90,7 @@ public class BytesArray {
 
     @Override
     public String toString() {
-        // NOCOMMIT I think we're much more likely to want this as hex....
-        return StringUtils.asUTFString(bytes, offset, size);
+        return StringUtils.asHexString(bytes, offset, size);
     }
 
     public void reset() {

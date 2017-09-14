@@ -292,4 +292,17 @@ public abstract class StringUtils {
         default: throw new IllegalArgumentException("must be [true] or [false]");
         }
     }
+
+    public static String asHexString(byte[] content, int offset, int length) {
+        StringBuilder buf = new StringBuilder();
+        for (int i = offset; i < length; i++) {
+            String hex = Integer.toHexString(0xFF & content[i]);
+            if (hex.length() == 1) {
+                buf.append('0');
+            }
+            buf.append(hex);
+        }
+        return buf.toString();
+    }
+
 }

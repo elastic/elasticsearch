@@ -290,7 +290,7 @@ The number of documents that were successfully updated.
 
 `batches`::
 
-The number of scroll responses pulled back by the the update by query.
+The number of scroll responses pulled back by the update by query.
 
 `version_conflicts`::
 

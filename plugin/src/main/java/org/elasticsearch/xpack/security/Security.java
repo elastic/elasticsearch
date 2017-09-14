@@ -168,6 +168,7 @@ import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.ssl.SSLBootstrapCheck;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.TLSLicenseBootstrapCheck;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -247,7 +248,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
             checks.addAll(Arrays.asList(
                     new SSLBootstrapCheck(sslService, env),
                     new TokenSSLBootstrapCheck(),
-                    new PkiRealmBootstrapCheck(sslService)));
+                    new PkiRealmBootstrapCheck(sslService),
+                    new TLSLicenseBootstrapCheck()));
             checks.addAll(InternalRealms.getBootstrapChecks(settings));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
         } else {
@@ -918,32 +920,10 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
 
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
-            License license = LicenseService.getLicense(state);
-            validateLicense(license);
-        }
-
-        void validateLicense(License license) {
-            if (license != null) {
-                switch (license.operationMode()) {
-                    case MISSING:
-                    case TRIAL:
-                    case BASIC:
-                        break;
-                    case STANDARD:
-                    case GOLD:
-                    case PLATINUM:
-                        if (isTLSEnabled == false) {
-                            throw new IllegalStateException("TLS setup is required for license type [" + license.operationMode().name()
-                                    + "]");
-                        }
-                        break;
-                    default:
-                        throw new AssertionError("unknown operation mode: " + license.operationMode());
-
-                }
+            License license = LicenseService.getLicense(state.metaData());
+            if (license != null && license.isProductionLicense() && isTLSEnabled == false) {
+                throw new IllegalStateException("TLS setup is required for license type [" + license.operationMode().name() + "]");
             }
         }
     }
-
-
 }

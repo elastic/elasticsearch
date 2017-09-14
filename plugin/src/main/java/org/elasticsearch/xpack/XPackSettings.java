@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -56,20 +55,9 @@ public class XPackSettings {
     public static final Setting<Boolean> LOGSTASH_ENABLED = Setting.boolSetting("xpack.logstash.enabled", true,
             Setting.Property.NodeScope);
 
-    /**
-     * Legacy setting for enabling or disabling transport ssl. Defaults to true. This is just here to make upgrading easier since the
-     * user needs to set this setting in 5.x to upgrade
-     */
-    public static final Setting<Boolean> TRANSPORT_SSL_ENABLED =
-            new Setting<>("xpack.security.transport.ssl.enabled", (s) -> Boolean.toString(true),
-                    (s) -> {
-                        final boolean parsed = Booleans.parseBoolean(s);
-                        if (parsed == false) {
-                            throw new IllegalArgumentException("transport ssl cannot be disabled. Remove setting [" +
-                                    XPackPlugin.featureSettingPrefix(XPackPlugin.SECURITY) + ".transport.ssl.enabled]");
-                        }
-                        return true;
-                    }, Property.NodeScope, Property.Deprecated);
+    /** Setting for enabling or disabling TLS. Defaults to false. */
+    public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = Setting.boolSetting("xpack.security.transport.ssl.enabled", false,
+            Property.NodeScope);
 
     /** Setting for enabling or disabling http ssl. Defaults to false. */
     public static final Setting<Boolean> HTTP_SSL_ENABLED = Setting.boolSetting("xpack.security.http.ssl.enabled", false,

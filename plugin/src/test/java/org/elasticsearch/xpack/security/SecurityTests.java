@@ -213,23 +213,26 @@ public class SecurityTests extends ESTestCase {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
-        joinValidator.accept(new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT), state);
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        joinValidator.accept(node, ClusterState.builder(ClusterName.DEFAULT).build());
         assertTrue(joinValidator instanceof Security.ValidateTLSOnJoin);
         int numIters = randomIntBetween(1,10);
         for (int i = 0; i < numIters; i++) {
             boolean tlsOn = randomBoolean();
             Security.ValidateTLSOnJoin validator = new Security.ValidateTLSOnJoin(tlsOn);
+            MetaData.Builder builder = MetaData.builder();
             License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
+            TestUtils.putLicense(builder, license);
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
             EnumSet<License.OperationMode> productionModes = EnumSet.of(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
                     License.OperationMode.STANDARD);
             if (productionModes.contains(license.operationMode()) && tlsOn == false) {
-                IllegalStateException ise = expectThrows(IllegalStateException.class, () -> validator.validateLicense(license));
+                IllegalStateException ise = expectThrows(IllegalStateException.class, () -> validator.accept(node, state));
                 assertEquals("TLS setup is required for license type [" + license.operationMode().name() + "]", ise.getMessage());
             } else {
-                validator.validateLicense(license);
+                validator.accept(node, state);
             }
-            validator.validateLicense(null);
+            validator.accept(node, ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder().build()).build());
         }
     }
 }

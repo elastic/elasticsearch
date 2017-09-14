@@ -186,7 +186,7 @@ task verifyVersions {
  * after the backport of the backcompat code is complete.
  */
 allprojects {
-  ext.bwc_tests_enabled = false
+  ext.bwc_tests_enabled = true
 }
 
 task verifyBwcTestsEnabled {

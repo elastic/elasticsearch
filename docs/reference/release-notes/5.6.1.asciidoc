@@ -1,0 +1,26 @@
+[[release-notes-5.6.1]]
+== 5.6.1 Release Notes
+
+Also see <<breaking-changes-5.6>>.
+
+[[bug-5.6.1]]
+[float]
+=== Bug fixes
+
+Highlighting::
+* Fix percolator highlight sub fetch phase to not highlight query twice {pull}26622[#26622]
+
+Mapping::
+* Fix unmapped_type creation for indices created in 2.x  {pull}26602[#26602] (issue: {issue}26162[#26162])
+
+Similarities::
+* Add boolean similarity to built in similarity types {pull}26613[#26613]
+
+
+
+[[upgrade-5.6.1]]
+[float]
+=== Upgrades
+
+Core::
+* Upgrade to Lucene-6.6.1. {pull}26535[#26535]

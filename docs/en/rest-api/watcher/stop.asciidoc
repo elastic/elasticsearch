@@ -2,8 +2,21 @@
 [[watcher-api-stop]]
 === Stop API
 
-The `stop` API stops the {watcher} service if the service is running, as in the
-following example:
+The `stop` API stops the {watcher} service if the service is running.
+
+[float]
+==== Request
+
+`POST _xpack/watcher/_stop`
+
+[float]
+==== Authorization
+
+You must have `manage_watcher` cluster privileges to use this API. For more
+information, see {xpack-ref}/security-privileges.html[Security Privileges].
+
+[float]
+==== Examples
 
 [source,js]
 --------------------------------------------------

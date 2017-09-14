@@ -6,6 +6,25 @@ A watch can be either
 {xpack-ref}/how-watcher-works.html#watch-active-state[active or inactive]. This
 API enables you to deactivate a currently active watch.
 
+[float]
+==== Request
+
+`PUT _xpack/watcher/watch/<watch_id>/_deactivate`
+
+[float]
+==== Path Parameters
+
+`watch_id` (required)::
+  (string) Identifier for the watch.
+
+[float]
+==== Authorization
+You must have `manage_watcher` cluster privileges to use this API. For more
+information, see {xpack-ref}/security-privileges.html[Security Privileges].
+
+[float]
+==== Examples
+
 The status of an active watch is returned with the watch definition when you
 call the <<watcher-api-get-watch, Get Watch API>>:
 

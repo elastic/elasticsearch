@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.storage;
+package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
@@ -26,6 +26,7 @@ import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.azure.AzureStorageService;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -85,7 +86,8 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     }
 
     @Override
-    public OutputStream getOutputStream(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException {
+    public OutputStream getOutputStream(String account, LocationMode mode, String container, String blob)
+        throws URISyntaxException, StorageException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         blobs.put(blob, outputStream);
         return outputStream;
@@ -110,7 +112,8 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     }
 
     @Override
-    public void moveBlob(String account, LocationMode mode, String container, String sourceBlob, String targetBlob) throws URISyntaxException, StorageException {
+    public void moveBlob(String account, LocationMode mode, String container, String sourceBlob, String targetBlob)
+        throws URISyntaxException, StorageException {
         for (String blobName : blobs.keySet()) {
             if (endsWithIgnoreCase(blobName, sourceBlob)) {
                 ByteArrayOutputStream outputStream = blobs.get(blobName);

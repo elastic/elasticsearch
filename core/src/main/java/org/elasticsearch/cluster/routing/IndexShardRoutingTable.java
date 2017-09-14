@@ -44,9 +44,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalDouble;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -402,7 +400,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         @Override
         public int compare(ShardRouting s1, ShardRouting s2) {
             if (s1.currentNodeId().equals(s2.currentNodeId())) {
-                // these shards on the the same node
+                // these shards on the same node
                 return 0;
             }
             Double shard1rank = nodeRanks.get(s1.currentNodeId());

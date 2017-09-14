@@ -19,7 +19,7 @@
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'
-  classname 'org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin'
+  classname 'org.elasticsearch.repositories.azure.AzureRepositoryPlugin'
 }
 
 dependencies {

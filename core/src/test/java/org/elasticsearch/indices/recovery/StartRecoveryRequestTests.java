@@ -51,7 +51,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
                 UUIDs.randomBase64UUID(),
                 new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
-                Store.MetadataSnapshot.EMPTY,
+                metadataSnapshot,
                 randomBoolean(),
                 randomNonNegativeLong(),
                 randomBoolean() || metadataSnapshot.getHistoryUUID() == null ?

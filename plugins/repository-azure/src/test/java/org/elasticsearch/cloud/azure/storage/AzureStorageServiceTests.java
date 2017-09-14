@@ -86,8 +86,8 @@ public class AzureStorageServiceTests extends ESTestCase {
         secureSettings.setString("azure.client.azure2.key", "mykey2");
         secureSettings.setString("azure.client.azure3.account", "myaccount3");
         secureSettings.setString("azure.client.azure3.key", "mykey3");
-        secureSettings.setString("azure.client.azure3.endpoint_suffix", "my_endpoint_suffix");
-        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        Settings settings = Settings.builder().setSecureSettings(secureSettings)
+            .put("azure.client.azure3.endpoint_suffix", "my_endpoint_suffix").build();
 
         Map<String, AzureStorageSettings> loadedSettings = AzureStorageSettings.load(settings);
         assertThat(loadedSettings.keySet(), containsInAnyOrder("azure1","azure2","azure3","default"));
@@ -101,10 +101,10 @@ public class AzureStorageServiceTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("azure.client.azure1.account", "myaccount1");
         secureSettings.setString("azure.client.azure1.key", Base64.encode("mykey1".getBytes()));
-        secureSettings.setString("azure.client.azure1.endpoint_suffix", "my_endpoint_suffix");
         secureSettings.setString("azure.client.azure2.account", "myaccount2");
         secureSettings.setString("azure.client.azure2.key", Base64.encode("mykey2".getBytes()));
-        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        Settings settings = Settings.builder().setSecureSettings(secureSettings)
+            .put("azure.client.azure1.endpoint_suffix", "my_endpoint_suffix").build();
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceImpl(settings, AzureStorageSettings.load(settings));
         CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
         assertThat(client1.getEndpoint().toString(), equalTo("https://myaccount1.blob.my_endpoint_suffix"));

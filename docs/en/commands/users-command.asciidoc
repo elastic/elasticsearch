@@ -37,6 +37,11 @@ Passwords must be at least 6 characters long.
 
 For more information, see {xpack-ref}/file-realm.html[File-based User Authentication].
 
+TIP: To ensure that {es} can read the user and role information at startup, run
+`users useradd` as the same user you use to run {es}. Running the command as
+root or some other user updates the permissions for the `users` and `users_roles`
+files and prevents {es} from accessing them.
+
 [float]
 === Parameters
 
@@ -78,13 +83,8 @@ removing roles within the same command to change a user's roles.
 
 //`-v, --verbose`:: Shows verbose output.
 
-[float]
-=== Authorization
-
-To ensure that {es} can read the user and role information at startup, run
-`users useradd` as the same user you use to run {es}. Running the command as
-root or some other user updates the permissions for the `users` and `users_roles`
-files and prevents {es} from accessing them.
+//[float]
+//=== Authorization
 
 [float]
 === Examples

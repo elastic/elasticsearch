@@ -298,7 +298,7 @@ setup:
                   number_of_significant_value_digits: 10
 
   - do:
-      catch: request
+      catch: bad_request
       search:
         body:
           aggs:
@@ -309,7 +309,7 @@ setup:
                   number_of_significant_value_digits: null
 
   - do:
-      catch: request
+      catch: bad_request
       search:
         body:
           aggs:
@@ -320,7 +320,7 @@ setup:
                 percents: null
 
   - do:
-      catch: request
+      catch: bad_request
       search:
         body:
           aggs:
@@ -331,7 +331,7 @@ setup:
                 percents: ["foo"]
 
   - do:
-      catch: request
+      catch: bad_request
       search:
         body:
           aggs:

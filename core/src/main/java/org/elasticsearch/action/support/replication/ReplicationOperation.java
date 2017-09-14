@@ -343,7 +343,7 @@ public class ReplicationOperation<
     public interface Replicas<RequestT extends ReplicationRequest<RequestT>> {
 
         /**
-         * Performs the the specified request on the specified replica.
+         * Performs the specified request on the specified replica.
          *
          * @param replica          the shard this request should be executed on
          * @param replicaRequest   the operation to perform

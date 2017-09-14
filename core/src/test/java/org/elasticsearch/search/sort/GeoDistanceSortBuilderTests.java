@@ -588,7 +588,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     /**
-     * Test the the nested Filter gets rewritten
+     * Test the nested Filter gets rewritten
      */
     public void testNestedRewrites() throws IOException {
         GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", 0.0, 0.0);
@@ -605,7 +605,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     /**
-     * Test the the nested sort gets rewritten
+     * Test the nested sort gets rewritten
      */
     public void testNestedSortRewrites() throws IOException {
         GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", 0.0, 0.0);

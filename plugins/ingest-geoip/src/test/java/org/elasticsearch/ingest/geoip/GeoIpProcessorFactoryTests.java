@@ -231,7 +231,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb.gz")),
             geoIpConfigDir.resolve("GeoLite2-Country.mmdb.gz"));
 
-        // Loading another database reader instances, because otherwise we can't test lazy loading as the the
+        // Loading another database reader instances, because otherwise we can't test lazy loading as the
         // database readers used at class level are reused between tests. (we want to keep that otherwise running this
         // test will take roughly 4 times more time)
         Map<String, DatabaseReaderLazyLoader> databaseReaders =

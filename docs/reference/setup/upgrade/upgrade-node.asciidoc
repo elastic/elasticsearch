@@ -9,7 +9,7 @@ To upgrade using a zip or compressed tarball:
 .. Extract the zip or tarball to a _new_ directory. This is critical if you
    are not using external `config` and `data` directories.
 
-.. Set the the `ES_PATH_CONF` environment variable to specify the location of
+.. Set the `ES_PATH_CONF` environment variable to specify the location of
    your external `config` directory and `jvm.options` file. If you are not
    using an external `config` directory, copy your old configuration
    over to the new installation.

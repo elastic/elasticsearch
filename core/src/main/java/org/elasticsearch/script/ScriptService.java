@@ -272,7 +272,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         if (type == ScriptType.STORED) {
             // * lang and options will both be null when looking up a stored script,
-            // so we must get the source to retrieve the them before checking if the
+            // so we must get the source to retrieve them before checking if the
             // context is supported
             // * a stored script must be pulled from the cluster state every time in case
             // the script has been updated since the last compilation

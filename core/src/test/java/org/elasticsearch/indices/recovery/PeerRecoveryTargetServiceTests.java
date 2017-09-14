@@ -73,11 +73,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
             translogLocation.set(replica.getTranslog().location());
 
+            final Translog translog = replica.getTranslog();
+            final String translogUUID = translog.getTranslogUUID();
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
 
-            final Translog translog = replica.getTranslog();
-            translogLocation.set(
-                    writeTranslog(replica.shardId(), translog.getTranslogUUID(), translog.currentFileGeneration(), maxSeqNo - 1));
+            translogLocation.set(writeTranslog(replica.shardId(), translogUUID, translog.currentFileGeneration(), maxSeqNo - 1));
 
             // commit is good, global checkpoint is at least max *committed* which is NO_OPS_PERFORMED
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(0L));
@@ -89,8 +89,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             // commit is not good, global checkpoint is below max
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
 
-            translogLocation.set(
-                    writeTranslog(replica.shardId(), translog.getTranslogUUID(), translog.currentFileGeneration(), maxSeqNo));
+            translogLocation.set(writeTranslog(replica.shardId(), translogUUID, translog.currentFileGeneration(), maxSeqNo));
 
             // commit is good, global checkpoint is above max
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(localCheckpoint + 1));

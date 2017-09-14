@@ -38,8 +38,7 @@ public abstract class AbstractProto {
     public Request readRequest(DataInput in) throws IOException {
         int clientVersion = readHeader(in);
         if (clientVersion > CURRENT_VERSION) {
-            throw new IOException("Unknown client version [" + clientVersion + "]. Always upgrade sql last.");
-            // NOCOMMIT I believe we usually advise upgrading the clients *first* so this might be backwards.....
+            throw new IOException("Unknown client version [" + clientVersion + "]. Always upgrade client last.");
         }
         return readRequestType(in).reader().read(clientVersion, in);
     }

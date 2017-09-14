@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.joda.time.DateTimeZone;
 
@@ -32,7 +33,7 @@ public class SqlRequest extends ActionRequest implements CompositeIndicesRequest
     }
 
     public static final DateTimeZone DEFAULT_TIME_ZONE = DateTimeZone.UTC;
-    public static final int DEFAULT_FETCH_SIZE = 1000;
+    public static final int DEFAULT_FETCH_SIZE = AbstractQueryInitRequest.DEFAULT_FETCH_SIZE;
 
     private String query = "";
     private DateTimeZone timeZone = DEFAULT_TIME_ZONE;
@@ -41,10 +42,19 @@ public class SqlRequest extends ActionRequest implements CompositeIndicesRequest
 
     public SqlRequest() {}
 
-    public SqlRequest(String query, DateTimeZone timeZone, Cursor nextPageInfo) {
+    public SqlRequest(String query, DateTimeZone timeZone, Cursor cursor) {
+        if (query == null) {
+            throw new IllegalArgumentException("query must not be null");
+        }
+        if (timeZone == null) {
+            throw new IllegalArgumentException("timeZone must not be null");
+        }
+        if (cursor == null) {
+            throw new IllegalArgumentException("cursor must not be null");
+        }
         this.query = query;
         this.timeZone = timeZone;
-        this.cursor = nextPageInfo;
+        this.cursor = cursor;
     }
 
     @Override

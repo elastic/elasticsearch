@@ -17,7 +17,9 @@ import static org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequestTest
 
 public class QueryPageResponseTests extends ESTestCase {
     static QueryPageResponse randomQueryPageResponse(Page page) {
-        return new QueryPageResponse(randomAlphaOfLength(5), page);
+        byte[] cursor = new byte[between(0, 5)];
+        random().nextBytes(cursor);
+        return new QueryPageResponse(randomNonNegativeLong(), cursor, page);
     }
 
     public void testRoundTrip() throws IOException {
@@ -29,6 +31,7 @@ public class QueryPageResponseTests extends ESTestCase {
         Page results = new Page(singletonList(varcharInfo("a")), new Object[][] {
                 new Object[] {"test"}
         });
-        assertEquals("QueryPageResponse<requestId=[test_id] data=[\ntest\n]>", new QueryPageResponse("test_id", results).toString());
+        assertEquals("QueryPageResponse<tookNanos=[123] cursor=[0810] data=[\ntest\n]>",
+                new QueryPageResponse(123, new byte[] {0x08, 0x10}, results).toString());
     }
 }

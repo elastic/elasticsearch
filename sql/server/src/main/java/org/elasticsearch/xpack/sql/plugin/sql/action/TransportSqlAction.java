@@ -45,6 +45,13 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
     @Override
     protected void doExecute(SqlRequest request, ActionListener<SqlResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed();
+        operation(planExecutor, request, listener);
+    }
+
+    /**
+     * Actual implementation of the action. Statically available to support embedded mode.
+     */
+    public static void operation(PlanExecutor planExecutor, SqlRequest request, ActionListener<SqlResponse> listener) {
         if (request.cursor() == Cursor.EMPTY) {
             SqlSettings sqlSettings = new SqlSettings(Settings.builder()
                     .put(SqlSettings.PAGE_SIZE, request.fetchSize())

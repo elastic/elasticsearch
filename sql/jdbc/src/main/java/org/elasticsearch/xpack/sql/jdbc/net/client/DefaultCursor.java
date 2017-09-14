@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.jdbc.net.client;
 
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Page;
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -19,17 +18,13 @@ class DefaultCursor implements Cursor {
 
     private final Page page;
     private int row = -1;
-    private String requestId;
+    private byte[] cursor;
 
-    DefaultCursor(JdbcHttpClient client, String scrollId, Page page, RequestMeta meta) {
+    DefaultCursor(JdbcHttpClient client, byte[] cursor, Page page, RequestMeta meta) {
         this.client = client;
         this.meta = meta;
-        this.requestId = simplifyScrollId(scrollId);
+        this.cursor = cursor;
         this.page = page;
-    }
-
-    private static String simplifyScrollId(String scrollId) {
-        return StringUtils.hasText(scrollId) ? scrollId : null;
     }
 
     @Override
@@ -44,8 +39,8 @@ class DefaultCursor implements Cursor {
             return true;
         }
         else {
-            if (requestId != null) {
-                requestId = simplifyScrollId(client.nextPage(requestId, page, meta));
+            if (cursor.length != 0) {
+                cursor = client.nextPage(cursor, page, meta);
                 row = -1;
                 return next();
             }

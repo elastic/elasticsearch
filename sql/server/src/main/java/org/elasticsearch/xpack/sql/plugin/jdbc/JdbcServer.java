@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
-import org.elasticsearch.xpack.sql.execution.search.SearchHitRowSetCursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ErrorResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ExceptionResponse;
@@ -134,7 +133,7 @@ public class JdbcServer extends AbstractSqlServer {
 
 
     public void queryInit(QueryInitRequest req, ActionListener<Response> listener) {
-        final long start = System.currentTimeMillis();
+        final long start = System.nanoTime();
 
         SqlSettings sqlCfg = new SqlSettings(Settings.builder()
                 .put(SqlSettings.PAGE_SIZE, req.fetchSize)
@@ -144,17 +143,14 @@ public class JdbcServer extends AbstractSqlServer {
         
         //NOCOMMIT: this should be pushed down to the TransportSqlAction to hook up pagination
         executor.sql(sqlCfg, req.query, wrap(c -> {
-            long stop = System.currentTimeMillis();
-            String requestId = EMPTY;
-            if (c.hasNextSet() && c instanceof SearchHitRowSetCursor) {
-                requestId = StringUtils.nullAsEmpty(((SearchHitRowSetCursor) c).scrollId());
-            }
+            long stop = System.nanoTime();
 
             List<ColumnInfo> columnInfo = c.schema().stream()
                     .map(e -> new ColumnInfo(e.name(), e.type().sqlType(), EMPTY, EMPTY, EMPTY, EMPTY))
                     .collect(toList());
 
-            listener.onResponse(new QueryInitResponse(start, stop, requestId, columnInfo, new RowSetPayload(c)));
+            // NOCOMMIT paging for jdbc
+            listener.onResponse(new QueryInitResponse(stop - start, new byte[0], columnInfo, new RowSetPayload(c)));
         }, ex -> listener.onResponse(exceptionResponse(req, ex))));
     }
 

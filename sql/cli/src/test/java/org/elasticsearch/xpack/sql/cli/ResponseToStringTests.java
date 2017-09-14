@@ -6,9 +6,10 @@
 package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.cli.net.protocol.CommandResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitResponse;
+import org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageResponse;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
 import org.jline.terminal.Terminal;
 import org.jline.utils.AttributedStringBuilder;
@@ -17,8 +18,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ResponseToStringTests extends ESTestCase {
-    public void testCommandResponse() {
-        AttributedStringBuilder s = ResponseToString.toAnsi(new CommandResponse(123, 223, "test", "some command response"));
+    public void testQueryInitResponse() {
+        AttributedStringBuilder s = ResponseToString.toAnsi(new QueryInitResponse(123, new byte[0], "some command response"));
+        assertEquals("some command response", unstyled(s));
+        assertEquals("[37msome command response[0m", fullyStyled(s));
+    }
+
+    public void testQueryPageResponse() {
+        AttributedStringBuilder s = ResponseToString.toAnsi(new QueryPageResponse(123, new byte[0], "some command response"));
         assertEquals("some command response", unstyled(s));
         assertEquals("[37msome command response[0m", fullyStyled(s));
     }

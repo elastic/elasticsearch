@@ -41,7 +41,7 @@ public class RestSqlAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "sql_action";
+        return "xpack_sql_action";
     }
 }
 

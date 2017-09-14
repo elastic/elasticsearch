@@ -27,9 +27,6 @@ import org.elasticsearch.xpack.sql.analysis.catalog.EsCatalog;
 import org.elasticsearch.xpack.sql.analysis.catalog.FilteredCatalog;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.plugin.SqlGetIndicesAction.TransportAction.CatalogHolder;
-import org.elasticsearch.xpack.sql.plugin.cli.action.CliAction;
-import org.elasticsearch.xpack.sql.plugin.cli.action.CliHttpHandler;
-import org.elasticsearch.xpack.sql.plugin.cli.action.TransportCliAction;
 import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcAction;
 import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcHttpHandler;
 import org.elasticsearch.xpack.sql.plugin.jdbc.action.TransportJdbcAction;
@@ -81,14 +78,13 @@ public class SqlPlugin implements ActionPlugin {
             IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
 
         return Arrays.asList(new RestSqlAction(settings, restController),
-                             new CliHttpHandler(settings, restController),
+                             new RestSqlCliAction(settings, restController),
                              new JdbcHttpHandler(settings, restController));
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(new ActionHandler<>(SqlAction.INSTANCE, TransportSqlAction.class),
-                             new ActionHandler<>(CliAction.INSTANCE, TransportCliAction.class),
                              new ActionHandler<>(JdbcAction.INSTANCE, TransportJdbcAction.class),
                              new ActionHandler<>(SqlGetIndicesAction.INSTANCE, SqlGetIndicesAction.TransportAction.class));
     }

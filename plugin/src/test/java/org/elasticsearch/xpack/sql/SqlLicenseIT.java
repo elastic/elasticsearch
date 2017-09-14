@@ -12,11 +12,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.AbstractLicensesIntegrationTestCase;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.License.OperationMode;
-import org.elasticsearch.xpack.sql.cli.net.protocol.CommandRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableResponse;
-import org.elasticsearch.xpack.sql.plugin.cli.action.CliAction;
-import org.elasticsearch.xpack.sql.plugin.cli.action.CliResponse;
 import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcAction;
 import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcResponse;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
@@ -32,7 +29,6 @@ import static org.elasticsearch.license.XPackLicenseStateTests.randomBasicStanda
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialBasicStandardGoldOrPlatinumMode;
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialOrPlatinumMode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -101,22 +97,6 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
 
         SqlResponse response = client().prepareExecute(SqlAction.INSTANCE).query("SELECT * FROM test").get();
         assertThat(response.size(), Matchers.equalTo(2L));
-    }
-
-    public void testCliActionLicense() throws Exception {
-        setupTestIndex();
-        disableSqlLicensing();
-
-        Request request = new CommandRequest("SELECT * FROM test");
-
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> client().prepareExecute(CliAction.INSTANCE).request(request).get());
-        assertThat(e.getMessage(), equalTo("current license is non-compliant for [sql]"));
-        enableSqlLicensing();
-
-        CliResponse response = client().prepareExecute(CliAction.INSTANCE).request(request).get();
-        assertThat(response.response(request).toString(), containsString("bar"));
-        assertThat(response.response(request).toString(), containsString("baz"));
     }
 
     public void testJdbcActionLicense() throws Exception {

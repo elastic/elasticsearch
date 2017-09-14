@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.xpack.sql.cli.net.protocol.CommandResponse;
+import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ErrorResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
@@ -32,8 +32,8 @@ abstract class ResponseToString {
     static AttributedStringBuilder toAnsi(Response response) {
         AttributedStringBuilder sb = new AttributedStringBuilder();
 
-        if (response instanceof CommandResponse) {
-            CommandResponse cmd = (CommandResponse) response;
+        if (response instanceof QueryResponse) {
+            QueryResponse cmd = (QueryResponse) response;
             if (cmd.data != null) {
                 String data = cmd.data.toString();
                 if (data.startsWith("digraph ")) {

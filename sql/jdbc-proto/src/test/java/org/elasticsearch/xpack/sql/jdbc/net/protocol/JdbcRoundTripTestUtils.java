@@ -7,10 +7,13 @@ package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
+import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
 import org.elasticsearch.xpack.sql.test.RoundTripTestUtils;
 
 import java.io.IOException;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 
 public final class JdbcRoundTripTestUtils {
     private JdbcRoundTripTestUtils() {
@@ -25,5 +28,9 @@ public final class JdbcRoundTripTestUtils {
         RoundTripTestUtils.assertRoundTrip(response,
                 (r, out) -> Proto.INSTANCE.writeResponse(r, Proto.CURRENT_VERSION, out), 
                 in -> Proto.INSTANCE.readResponse(request.get(), in));
+    }
+
+    static TimeoutInfo randomTimeoutInfo() {
+        return new TimeoutInfo(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 }

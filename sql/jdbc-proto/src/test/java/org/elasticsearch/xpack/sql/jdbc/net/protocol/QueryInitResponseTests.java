@@ -16,8 +16,10 @@ import static org.elasticsearch.xpack.sql.jdbc.net.protocol.PageTests.randomPage
 
 public class QueryInitResponseTests extends ESTestCase {
     static QueryInitResponse randomQueryInitResponse() {
+        byte[] cursor = new byte[between(0, 5)];
+        random().nextBytes(cursor);
         Page page = randomPage();
-        return new QueryInitResponse(randomNonNegativeLong(), randomNonNegativeLong(), randomAlphaOfLength(5), page.columnInfo(), page);
+        return new QueryInitResponse(randomNonNegativeLong(), cursor, page.columnInfo(), page);
     }
 
     public void testRoundTrip() throws IOException {
@@ -29,8 +31,8 @@ public class QueryInitResponseTests extends ESTestCase {
                 new Object[] {"test"},
                 new Object[] {"string"},
         });
-        assertEquals("QueryInitResponse<timeReceived=[123] timeSent=[456] requestId=[test_id] columns=[a<type=[VARCHAR]>] data=["
+        assertEquals("QueryInitResponse<tookNanos=[123] cursor=[0120] columns=[a<type=[VARCHAR]>] data=["
                     + "\ntest\nstring\n]>",
-                new QueryInitResponse(123, 456, "test_id", page.columnInfo(), page).toString());
+                new QueryInitResponse(123, new byte[] {0x01, 0x20}, page.columnInfo(), page).toString());
     }
 }

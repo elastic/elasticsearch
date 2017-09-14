@@ -67,7 +67,7 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
 
     @ClassRule
     public static final Supplier<CliConfiguration> ES = EMBED_SQL ? new EmbeddedCliServer() : () ->
-            new CliConfiguration(System.getProperty("tests.rest.cluster") + "/_cli", new Properties());
+            new CliConfiguration(System.getProperty("tests.rest.cluster") + "/_sql/cli", new Properties());
 
     protected PrintWriter out;
     protected BufferedReader in;
@@ -93,7 +93,7 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
         terminal.echo(false);
         Cli cli = new Cli(ES.get(), terminal) {
             @Override
-            protected void handleExceptionWhileCommunicatingWithServer(PrintWriter out, RuntimeException e) {
+            protected void handleExceptionWhileCommunicatingWithServer(RuntimeException e) {
                 throw e;
             }
         };

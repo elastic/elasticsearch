@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.plugin.sql.action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,7 +23,6 @@ import java.util.Objects;
 import static java.util.Collections.unmodifiableList;
 
 public class SqlResponse extends ActionResponse implements ToXContentObject {
-
     private Cursor cursor;
     private long size;
     private int columnCount;
@@ -44,10 +42,9 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
 
     /**
      * The key that must be sent back to SQL to access the next page of
-     * results. If {@link BytesReference#length()} is {@code 0} then
-     * there is no next page.
+     * results. If equal to {@link Cursor#EMPTY} then there is no next page.
      */
-    public Cursor nextPageInfo() {
+    public Cursor cursor() {
         return cursor;
     }
 
@@ -164,6 +161,9 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
         return Strings.toString(this);
     }
 
+    /**
+     * Information about a column.
+     */
     public static final class ColumnInfo implements Writeable, ToXContentObject {
         // NOCOMMIT: we probably need to add more info about columns, but that's all we use for now
         private final String name;

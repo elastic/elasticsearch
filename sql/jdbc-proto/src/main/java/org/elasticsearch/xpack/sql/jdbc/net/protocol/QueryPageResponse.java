@@ -7,31 +7,24 @@ package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.ResponseType;
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryResponse;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
-import org.elasticsearch.xpack.sql.protocol.shared.Response;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Objects;
 
-public class QueryPageResponse extends Response {
-    public final String requestId;
+public class QueryPageResponse extends AbstractQueryResponse {
     private final Payload data;
 
-    public QueryPageResponse(String requestId, Page data) {
-        if (requestId == null) {
-            throw new IllegalArgumentException("[requestId] must not be null");
-        }
-        if (data == null) {
-            throw new IllegalArgumentException("[data] must not be null");
-        }
-        this.requestId = requestId;
+    public QueryPageResponse(long tookNanos, byte[] cursor, Payload data) {
+        super(tookNanos, cursor);
         this.data = data;
     }
 
     QueryPageResponse(Request request, DataInput in) throws IOException {
-        this.requestId = in.readUTF();
+        super(request, in);
         QueryPageRequest queryPageRequest = (QueryPageRequest) request;
         data = queryPageRequest.data();
         queryPageRequest.data().read(in);
@@ -39,14 +32,13 @@ public class QueryPageResponse extends Response {
 
     @Override
     public void write(int clientVersion, DataOutput out) throws IOException {
-        out.writeUTF(requestId);
+        super.write(clientVersion, out);
         data.write(out);
     }
 
     @Override
     protected String toStringBody() {
-        return "requestId=[" + requestId
-                + "] data=[\n" + data + "]";
+        return super.toStringBody() + " data=[\n" + data + "]";
     }
 
     @Override
@@ -61,16 +53,15 @@ public class QueryPageResponse extends Response {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
+        if (false == super.equals(obj)) {
             return false;
         }
         QueryPageResponse other = (QueryPageResponse) obj;
-        return requestId.equals(other.requestId)
-                && data.equals(other.data);
+        return data.equals(other.data);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(requestId, data);
+        return Objects.hash(data);
     }
 }

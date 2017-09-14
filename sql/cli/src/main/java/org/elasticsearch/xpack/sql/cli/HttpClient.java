@@ -3,9 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.cli.net.client;
+package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.xpack.sql.cli.CliConfiguration;
 import org.elasticsearch.xpack.sql.net.client.ClientException;
 import org.elasticsearch.xpack.sql.net.client.JreHttpUrlConnection;
 import org.elasticsearch.xpack.sql.net.client.util.Bytes;

@@ -26,12 +26,14 @@ public abstract class ProtoHandler<R> implements HttpHandler, AutoCloseable {
 
     protected static final Logger log = ESLoggerFactory.getLogger(ProtoHandler.class.getName());
     private final TimeValue TV = TimeValue.timeValueSeconds(5);
+    protected final Client client;
     protected final NodeInfo info;
     protected final String clusterName;
     private final CheckedFunction<R, BytesReference, IOException> toProto;
 
     protected ProtoHandler(Client client, CheckedFunction<R, BytesReference, IOException> toProto) {
         NodesInfoResponse niResponse = client.admin().cluster().prepareNodesInfo("_local").clear().get(TV);
+        this.client = client;
         info = niResponse.getNodes().get(0);
         clusterName = niResponse.getClusterName().value();
 

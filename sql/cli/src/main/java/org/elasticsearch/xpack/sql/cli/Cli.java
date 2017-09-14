@@ -5,9 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.xpack.sql.cli.net.client.CliHttpClient;
+import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
 import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 import org.elasticsearch.xpack.sql.net.client.util.IOUtils;
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
 import org.jline.keymap.BindingReader;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
@@ -25,6 +26,8 @@ import java.io.PrintWriter;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.logging.LogManager;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.jline.utils.AttributedStyle.BOLD;
 import static org.jline.utils.AttributedStyle.BRIGHT;
@@ -39,7 +42,7 @@ public class Cli {
         LogManager.getLogManager().readConfiguration(Cli.class.getResourceAsStream("/logging.properties"));
         try (Terminal term = TerminalBuilder.builder().build()) {
             try {
-                Cli console = new Cli(new CliConfiguration("localhost:9200/_cli", new Properties()), term);
+                Cli console = new Cli(new CliConfiguration("localhost:9200/_sql/cli", new Properties()), term);
                 console.run();
             } catch (FatalException e) {
                 term.writer().println(e.getMessage());
@@ -58,9 +61,12 @@ public class Cli {
     private final Keys keys;
     private final CliConfiguration cfg;
     private final CliHttpClient cliClient;
+    private int fetchSize = AbstractQueryInitRequest.DEFAULT_FETCH_SIZE;
+    private String fetchSeparator = "";
 
     Cli(CliConfiguration cfg, Terminal terminal) {
         term = terminal;
+        // NOCOMMIT figure out if we need to build these for side effects or not. We don't currently use them.
         bindingReader = new BindingReader(term.reader());
         keys = new Keys(term);
         
@@ -85,7 +91,7 @@ public class Cli {
         prompt = DEFAULT_PROMPT;
 
         out.flush();
-        printLogo(out);
+        printLogo();
 
         while (true) {
             String line = null;
@@ -118,9 +124,6 @@ public class Cli {
                 line = multiLine.toString().trim();
                 multiLine.setLength(0);
             }
-            //
-            // local commands
-            //
 
             // special case to handle exit
             if (isExit(line)) {
@@ -128,23 +131,16 @@ public class Cli {
                 out.flush();
                 return;
             }
-            if (isClear(line)) {
-                term.puts(Capability.clear_screen);
-            }
-            else if (isLogo(line)) {
-                printLogo(out);
-            }
-
-            else {
+            boolean wasLocal = handleLocalCommand(line);
+            if (false == wasLocal) {
                 try {
                     if (isServerInfo(line)) {
-                        executeServerInfo(out);
-                    }
-                    else {
-                        executeCommand(line, out);
+                        executeServerInfo();
+                    } else {
+                        executeQuery(line);
                     }
                 } catch (RuntimeException e) {
-                    handleExceptionWhileCommunicatingWithServer(out, e);
+                    handleExceptionWhileCommunicatingWithServer(e);
                 }
                 out.println();
             }
@@ -157,12 +153,12 @@ public class Cli {
      * Handle an exception while communication with the server. Extracted
      * into a method so that tests can bubble the failure. 
      */
-    protected void handleExceptionWhileCommunicatingWithServer(PrintWriter out, RuntimeException e) {
+    protected void handleExceptionWhileCommunicatingWithServer(RuntimeException e) {
         AttributedStringBuilder asb = new AttributedStringBuilder();
         asb.append("Communication error [", BOLD.foreground(RED));
         asb.append(e.getMessage(), DEFAULT.boldOff().italic().foreground(YELLOW));
         asb.append("]", BOLD.underlineOff().foreground(RED));
-        out.println(asb.toAnsi(term));
+        term.writer().println(asb.toAnsi(term));
     }
 
     private static String logo() {
@@ -176,38 +172,96 @@ public class Cli {
         }
     }
 
-    private void printLogo(PrintWriter out) {
+    private void printLogo() {
         term.puts(Capability.clear_screen);
-        out.println(logo());
-        out.println();
+        term.writer().println(logo());
+        term.writer().println();
+    }
+
+    private static final Pattern LOGO_PATTERN = Pattern.compile("logo", Pattern.CASE_INSENSITIVE);
+    private static final Pattern CLEAR_PATTERN = Pattern.compile("cls", Pattern.CASE_INSENSITIVE);
+    private static final Pattern FETCH_SIZE_PATTERN = Pattern.compile("fetch(?: |_)size *= *(.+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern FETCH_SEPARATOR_PATTERN = Pattern.compile("fetch(?: |_)separator *= *\"(.+)\"", Pattern.CASE_INSENSITIVE);
+    private boolean handleLocalCommand(String line) {
+        Matcher m = LOGO_PATTERN.matcher(line);
+        if (m.matches()) {
+            printLogo();
+            return true;
+        }
+        m = CLEAR_PATTERN.matcher(line);
+        if (m.matches()) {
+            term.puts(Capability.clear_screen);
+            return true;
+        }
+        m = FETCH_SIZE_PATTERN.matcher(line);
+        if (m.matches()) {
+            int proposedFetchSize;
+            try {
+                proposedFetchSize = fetchSize = Integer.parseInt(m.group(1));
+            } catch (NumberFormatException e) {
+                AttributedStringBuilder asb = new AttributedStringBuilder();
+                asb.append("Invalid fetch size [", BOLD.foreground(RED));
+                asb.append(m.group(1), DEFAULT.boldOff().italic().foreground(YELLOW));
+                asb.append("]", BOLD.underlineOff().foreground(RED));
+                term.writer().println(asb.toAnsi(term));
+                return true;
+            }
+            if (proposedFetchSize <= 0) {
+                AttributedStringBuilder asb = new AttributedStringBuilder();
+                asb.append("Invalid fetch size [", BOLD.foreground(RED));
+                asb.append(m.group(1), DEFAULT.boldOff().italic().foreground(YELLOW));
+                asb.append("]. Must be > 0.", BOLD.underlineOff().foreground(RED));
+                term.writer().println(asb.toAnsi(term));
+                return true;
+            }
+            this.fetchSize = proposedFetchSize;
+            AttributedStringBuilder asb = new AttributedStringBuilder();
+            asb.append("fetch size set to ", DEFAULT);
+            asb.append(Integer.toString(fetchSize), DEFAULT.foreground(BRIGHT));
+            term.writer().println(asb.toAnsi(term));
+            return true;
+        }
+        m = FETCH_SEPARATOR_PATTERN.matcher(line);
+        if (m.matches()) {
+            fetchSeparator = m.group(1);
+            AttributedStringBuilder asb = new AttributedStringBuilder();
+            asb.append("fetch separator set to \"", DEFAULT);
+            asb.append(fetchSeparator, DEFAULT.foreground(BRIGHT));
+            asb.append("\"", DEFAULT);
+            term.writer().println(asb.toAnsi(term));
+            return true;
+        }
+
+        return false;
     }
     
-    private static boolean isClear(String line) {
-        line = line.toLowerCase(Locale.ROOT);
-        return (line.equals("cls"));
-    }
-
     private boolean isServerInfo(String line) {
         line = line.toLowerCase(Locale.ROOT);
-        return (line.equals("info"));
+        return line.equals("info");
     }
 
-    private boolean isLogo(String line) {
-        line = line.toLowerCase(Locale.ROOT);
-        return (line.equals("logo"));
-    }
-
-    private void executeServerInfo(PrintWriter out) {
-        out.println(ResponseToString.toAnsi(cliClient.serverInfo()).toAnsi(term));
+    private void executeServerInfo() {
+        term.writer().println(ResponseToString.toAnsi(cliClient.serverInfo()).toAnsi(term));
     }
 
     private static boolean isExit(String line) {
         line = line.toLowerCase(Locale.ROOT);
-        return (line.equals("exit") || line.equals("quit"));
+        return line.equals("exit") || line.equals("quit");
     }
 
-    protected void executeCommand(String line, PrintWriter out) throws IOException {
-        out.print(ResponseToString.toAnsi(cliClient.command(line, null)).toAnsi(term));
+    private void executeQuery(String line) throws IOException {
+        QueryResponse response = cliClient.queryInit(line, fetchSize);
+        while (true) {
+            term.writer().print(ResponseToString.toAnsi(response).toAnsi(term));
+            term.writer().flush();
+            if (response.cursor().length == 0) {
+                return;
+            }
+            if (false == fetchSeparator.equals("")) {
+                term.writer().println(fetchSeparator);
+            }
+            response = cliClient.nextPage(response.cursor());
+        }
     }
 
     static class FatalException extends RuntimeException {

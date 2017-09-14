@@ -23,12 +23,12 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageResponse;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.TimeoutInfo;
 import org.elasticsearch.xpack.sql.jdbc.util.BytesArray;
 import org.elasticsearch.xpack.sql.jdbc.util.FastByteArrayInputStream;
 import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
+import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
 
 import java.io.Closeable;
 import java.io.DataInput;
@@ -69,17 +69,17 @@ public class JdbcHttpClient implements Closeable {
         QueryInitRequest request = new QueryInitRequest(sql, fetch, conCfg.timeZone(), timeout(meta));
         BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
         QueryInitResponse response = doIO(ba, in -> (QueryInitResponse) readResponse(request, in));
-        return new DefaultCursor(this, response.requestId, (Page) response.data, meta);
+        return new DefaultCursor(this, response.cursor(), (Page) response.data, meta);
     }
 
     /**
      * Read the next page of results, updating the {@link Page} and returning
      * the scroll id to use to fetch the next page.
      */
-    public String nextPage(String requestId, Page page, RequestMeta meta) throws SQLException {
-        QueryPageRequest request = new QueryPageRequest(requestId, timeout(meta), page);
+    public byte[] nextPage(byte[] cursor, Page page, RequestMeta meta) throws SQLException {
+        QueryPageRequest request = new QueryPageRequest(cursor, timeout(meta), page);
         BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
-        return doIO(ba, in -> ((QueryPageResponse) readResponse(request, in)).requestId);
+        return doIO(ba, in -> ((QueryPageResponse) readResponse(request, in)).cursor());
     }
 
     public InfoResponse serverInfo() throws SQLException {

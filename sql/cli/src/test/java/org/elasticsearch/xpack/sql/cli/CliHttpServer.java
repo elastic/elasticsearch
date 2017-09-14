@@ -6,15 +6,15 @@
 package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.sql.protocol.shared.Response;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.sql.test.server.ProtoHttpServer;
 
 /**
  * Internal server used for testing without starting a new Elasticsearch instance.
  */
-public class CliHttpServer extends ProtoHttpServer<Response> {
+public class CliHttpServer extends ProtoHttpServer<BytesReference> {
     public CliHttpServer(Client client) {
-        super(client, new CliProtoHandler(client), "/_cli");
+        super(client, new CliProtoHandler(client), "/_sql/cli");
     }
 
     @Override

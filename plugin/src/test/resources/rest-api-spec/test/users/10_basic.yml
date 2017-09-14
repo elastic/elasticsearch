@@ -86,7 +86,7 @@ teardown:
 ---
 "Test put user with different username in body":
   - do:
-      catch: request
+      catch: bad_request
       xpack.security.put_user:
         username: "joe"
         body:  >

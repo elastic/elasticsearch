@@ -180,7 +180,7 @@ setup:
 "Test delete with in-use model":
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.delete_model_snapshot:
         job_id: "delete-model-snapshot"
         snapshot_id: "active-snapshot"

@@ -348,7 +348,7 @@
           }
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.update_job:
         job_id: _all
         body:  >

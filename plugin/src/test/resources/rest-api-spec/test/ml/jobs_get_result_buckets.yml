@@ -173,35 +173,35 @@ setup:
 ---
 "Test mutually-exclusive params":
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         start: "2016-05-01T00:00:00Z"
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         end: "2016-05-01T00:00:00Z"
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         from: "2016-05-01T00:00:00Z"
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         end: "2016-05-01T00:00:00Z"
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
@@ -210,7 +210,7 @@ setup:
 ---
 "Test mutually-exclusive params via body":
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         body:
@@ -218,7 +218,7 @@ setup:
           start: "2016-05-01T00:00:00Z"
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         body:
@@ -226,7 +226,7 @@ setup:
           end: "2016-05-01T00:00:00Z"
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         body:
@@ -234,7 +234,7 @@ setup:
           from: "2016-05-01T00:00:00Z"
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         body:
@@ -242,7 +242,7 @@ setup:
           end: "2016-05-01T00:00:00Z"
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         body:

@@ -202,7 +202,7 @@ GET /my-index/_search
 
 <1> The version is optional, but useful in certain cases. We can ensure that we are trying to percolate
 the document we just have indexed. A change may be made after we have indexed, and if that is the
-case the then the search request would fail with a version conflict error.
+case the search request would fail with a version conflict error.
 
 The search response returned is identical as in the previous example.
 

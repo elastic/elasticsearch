@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -2845,7 +2846,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     /**
-     * Tests that when the the close method returns the engine is actually guaranteed to have cleaned up and that resources are closed
+     * Tests that when the close method returns the engine is actually guaranteed to have cleaned up and that resources are closed
      */
     public void testConcurrentEngineClosed() throws BrokenBarrierException, InterruptedException {
         Thread[] closingThreads = new Thread[3];

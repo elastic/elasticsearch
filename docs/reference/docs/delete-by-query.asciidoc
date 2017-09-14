@@ -239,7 +239,7 @@ The number of documents that were successfully deleted.
 
 `batches`::
 
-The number of scroll responses pulled back by the the delete by query.
+The number of scroll responses pulled back by the delete by query.
 
 `version_conflicts`::
 

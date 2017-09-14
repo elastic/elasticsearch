@@ -277,7 +277,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * The unique ephemeral id of the node. Ephemeral ids are meant to be attached the the life span
+     * The unique ephemeral id of the node. Ephemeral ids are meant to be attached the life span
      * of a node process. When ever a node is restarted, it's ephemeral id is required to change (while it's {@link #getId()}
      * will be read from the data folder and will remain the same across restarts). Since all node attributes and addresses
      * are maintained during the life span of a node process, we can (and are) using the ephemeralId in

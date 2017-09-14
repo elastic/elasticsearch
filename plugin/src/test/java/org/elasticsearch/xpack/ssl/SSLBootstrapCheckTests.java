@@ -16,7 +16,7 @@ public class SSLBootstrapCheckTests extends ESTestCase {
     public void testSSLBootstrapCheckWithNoKey() throws Exception {
         SSLService sslService = new SSLService(Settings.EMPTY, null);
         SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(sslService, null);
-        assertTrue(bootstrapCheck.check(new BootstrapContext(Settings.EMPTY, null)));
+        assertTrue(bootstrapCheck.check(new BootstrapContext(Settings.EMPTY, null)).isFailure());
     }
 
     public void testSSLBootstrapCheckWithKey() throws Exception {
@@ -33,7 +33,7 @@ public class SSLBootstrapCheckTests extends ESTestCase {
                 .build();
         final Environment env = randomBoolean() ? new Environment(settings) : null;
         SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), env);
-        assertFalse(bootstrapCheck.check(new BootstrapContext(settings, null)));
+        assertFalse(bootstrapCheck.check(new BootstrapContext(settings, null)).isFailure());
     }
 
     public void testSSLBootstrapCheckWithDefaultCABeingTrusted() throws Exception {
@@ -53,14 +53,14 @@ public class SSLBootstrapCheckTests extends ESTestCase {
                 .build();
         final Environment env = randomBoolean() ? new Environment(settings) : null;
         SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), env);
-        assertTrue(bootstrapCheck.check(new BootstrapContext(settings, null)));
+        assertTrue(bootstrapCheck.check(new BootstrapContext(settings, null)).isFailure());
 
         settings = Settings.builder().put(settings.filter((s) -> s.contains(".certificate_authorities")))
                 .put("xpack.security.http.ssl.certificate_authorities",
                         getDataPath("/org/elasticsearch/xpack/ssl/ca.pem").toString())
                 .build();
         bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), env);
-        assertTrue(bootstrapCheck.check(new BootstrapContext(settings, null)));
+        assertTrue(bootstrapCheck.check(new BootstrapContext(settings, null)).isFailure());
     }
 
     public void testSSLBootstrapCheckWithDefaultKeyBeingUsed() throws Exception {
@@ -79,7 +79,7 @@ public class SSLBootstrapCheckTests extends ESTestCase {
                 .build();
         final Environment env = randomBoolean() ? new Environment(settings) : null;
         SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), env);
-        assertTrue(bootstrapCheck.check(new BootstrapContext(settings, null)));
+        assertTrue(bootstrapCheck.check(new BootstrapContext(settings, null)).isFailure());
 
         settings = Settings.builder().put(settings.filter((s) -> s.contains(".http.ssl.")))
                 .put("xpack.security.transport.profiles.foo.xpack.security.ssl.key",
@@ -88,6 +88,6 @@ public class SSLBootstrapCheckTests extends ESTestCase {
                         getDataPath("/org/elasticsearch/xpack/ssl/ca.pem").toString())
                 .build();
         bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), env);
-        assertTrue(bootstrapCheck.check(new BootstrapContext(settings, null)));
+        assertTrue(bootstrapCheck.check(new BootstrapContext(settings, null)).isFailure());
     }
 }

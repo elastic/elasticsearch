@@ -74,17 +74,8 @@ public class NodeTests extends ESTestCase {
     }
 
     public static class CheckPlugin extends Plugin {
-        public static final BootstrapCheck CHECK = new BootstrapCheck() {
-            @Override
-            public boolean check(BootstrapContext context) {
-                return false;
-            }
+        public static final BootstrapCheck CHECK = context -> BootstrapCheck.BootstrapCheckResult.success();
 
-            @Override
-            public String errorMessage() {
-                return "boom";
-            }
-        };
         @Override
         public List<BootstrapCheck> getBootstrapChecks() {
             return Collections.singletonList(CHECK);

@@ -54,7 +54,7 @@ public final class AzureStorageSettings {
      * Azure endpoint suffix. Default to core.windows.net (CloudStorageAccount.DEFAULT_DNS).
      */
     public static final Setting<String> ENDPOINT_SUFFIX_SETTING = Setting.affixKeySetting(PREFIX, "endpoint_suffix",
-        key -> SecureSetting.simpleString(key));
+        key -> Setting.simpleString(key, Property.NodeScope));
 
     /**
      * max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT).

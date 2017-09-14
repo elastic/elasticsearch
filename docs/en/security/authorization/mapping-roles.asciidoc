@@ -2,8 +2,8 @@
 === Mapping Users and Groups to Roles
 
 If you authenticate users with the `native` or `file` realms, you can manage
-role assignment user the <<managing-native-users, User Management APIs>> or the
-<<managing-file-users, file-realm>> command-line tool respectively.
+role assignment by using the <<managing-native-users, User Management APIs>> or
+the {ref}/users-command.html[users] command-line tool respectively.
 
 For other types of realms, you must create _role-mappings_ that define which
 roles should be assigned to each user based on their username, groups, or

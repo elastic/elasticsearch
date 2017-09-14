@@ -47,9 +47,8 @@ _realms_. {security} provides the following built-in realms:
 | `file`              | | | An internal realm where users are defined in files
                             stored on each node in the Elasticsearch cluster.
                             With this realm, users are authenticated by usernames
-                            and passwords. The users are managed via
-                            <<managing-file-users,dedicated tools>> that are
-                            provided by {xpack} on installation.
+                            and passwords. The users are managed via dedicated
+                            tools that are provided by {xpack} on installation.
 |======
 
 If none of the built-in realms meets your needs, you can also build your own

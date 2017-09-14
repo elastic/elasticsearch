@@ -35,7 +35,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     /**
      * Represents a local checkpoint coming from a pre-6.0 node
      */
-    public static final long PRE_60_NODE_LOCAL_CHECKPOINT = -3L;
+    public static final long PRE_60_NODE_CHECKPOINT = -3L;
 
     private final LocalCheckpointTracker localCheckpointTracker;
     private final GlobalCheckpointTracker globalCheckpointTracker;
@@ -130,6 +130,16 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public void updateLocalCheckpointForShard(final String allocationId, final long checkpoint) {
         globalCheckpointTracker.updateLocalCheckpoint(allocationId, checkpoint);
+    }
+
+    /**
+     * Update the local knowledge of the global checkpoint for the specified allocation ID.
+     *
+     * @param allocationId     the allocation ID to update the global checkpoint for
+     * @param globalCheckpoint the global checkpoint
+     */
+    public void updateGlobalCheckpointForShard(final String allocationId, final long globalCheckpoint) {
+        globalCheckpointTracker.updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
     }
 
     /**

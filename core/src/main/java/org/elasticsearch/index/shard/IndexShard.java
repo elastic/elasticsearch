@@ -1670,6 +1670,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Update the local knowledge of the global checkpoint for the specified allocation ID.
+     *
+     * @param allocationId     the allocation ID to update the global checkpoint for
+     * @param globalCheckpoint the global checkpoint
+     */
+    public void updateGlobalCheckpointForShard(final String allocationId, final long globalCheckpoint) {
+        verifyPrimary();
+        verifyNotClosed();
+        getEngine().seqNoService().updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
+    }
+
+    /**
      * Waits for all operations up to the provided sequence number to complete.
      *
      * @param seqNo the sequence number that the checkpoint must advance to before this method returns

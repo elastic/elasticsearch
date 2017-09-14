@@ -380,6 +380,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final long globalCheckpoint;
         final Supplier<ClusterState> clusterStateSupplier;
         final Map<String, Long> knownLocalCheckpoints = new HashMap<>();
+        final Map<String, Long> knownGlobalCheckpoints = new HashMap<>();
 
         TestPrimary(ShardRouting routing, Supplier<ClusterState> clusterStateSupplier) {
             this.routing = routing;
@@ -435,6 +436,11 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         @Override
+        public void updateGlobalCheckpointForShard(String allocationId, long globalCheckpoint) {
+            knownGlobalCheckpoints.compute(allocationId, (k, v) -> v == null || globalCheckpoint > v ? globalCheckpoint : v);
+        }
+
+        @Override
         public long localCheckpoint() {
             return localCheckpoint;
         }
@@ -455,15 +461,23 @@ public class ReplicationOperationTests extends ESTestCase {
 
     static class ReplicaResponse implements ReplicationOperation.ReplicaResponse {
         final long localCheckpoint;
+        final long globalCheckpoint;
 
-        ReplicaResponse(long localCheckpoint) {
+        ReplicaResponse(long localCheckpoint, long globalCheckpoint) {
             this.localCheckpoint = localCheckpoint;
+            this.globalCheckpoint = globalCheckpoint;
         }
 
         @Override
         public long localCheckpoint() {
             return localCheckpoint;
         }
+
+        @Override
+        public long globalCheckpoint() {
+            return globalCheckpoint;
+        }
+
     }
 
     static class TestReplicaProxy implements ReplicationOperation.Replicas<Request> {
@@ -501,7 +515,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 final String allocationId = replica.allocationId().getId();
                 Long existing = generatedLocalCheckpoints.put(allocationId, checkpoint);
                 assertNull(existing);
-                listener.onResponse(new ReplicaResponse(checkpoint));
+                listener.onResponse(new ReplicaResponse(checkpoint, randomNonNegativeLong()));
             }
         }
 

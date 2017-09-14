@@ -531,7 +531,8 @@ public abstract class TransportReplicationAction<
             try {
                 final ReplicaResult replicaResult = shardOperationOnReplica(request, replica);
                 releasable.close(); // release shard operation lock before responding to caller
-                final TransportReplicationAction.ReplicaResponse response = new ReplicaResponse(replica.getLocalCheckpoint());
+                final TransportReplicationAction.ReplicaResponse response =
+                        new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint());
                 replicaResult.respond(new ResponseListener(response));
             } catch (final Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
@@ -1007,6 +1008,11 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
+        public void updateGlobalCheckpointForShard(final String allocationId, final long globalCheckpoint) {
+            indexShard.updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
+        }
+
+        @Override
         public long localCheckpoint() {
             return indexShard.getLocalCheckpoint();
         }
@@ -1025,40 +1031,47 @@ public abstract class TransportReplicationAction<
 
     public static class ReplicaResponse extends ActionResponse implements ReplicationOperation.ReplicaResponse {
         private long localCheckpoint;
+        private long globalCheckpoint;
 
         ReplicaResponse() {
 
         }
 
-        public ReplicaResponse(long localCheckpoint) {
+        public ReplicaResponse(long localCheckpoint, long globalCheckpoint) {
             /*
-             * A replica should always know its own local checkpoint so this should always be a valid sequence number or the pre-6.0 local
+             * A replica should always know its own local checkpoints so this should always be valida  sequence number or the pre-6.0
              * checkpoint value when simulating responses to replication actions that pre-6.0 nodes are not aware of (e.g., the global
              * checkpoint background sync, and the primary/replica resync).
              */
             assert localCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO;
             this.localCheckpoint = localCheckpoint;
+            this.globalCheckpoint = globalCheckpoint;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                super.readFrom(in);
                 localCheckpoint = in.readZLong();
             } else {
                 // 5.x used to read empty responses, which don't really read anything off the stream, so just do nothing.
-                localCheckpoint = SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT;
+                localCheckpoint = SequenceNumbersService.PRE_60_NODE_CHECKPOINT;
+            }
+            if (in.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
+                globalCheckpoint = in.readZLong();
+            } else {
+                globalCheckpoint = SequenceNumbersService.PRE_60_NODE_CHECKPOINT;
             }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                super.writeTo(out);
                 out.writeZLong(localCheckpoint);
-            } else {
-                // we use to write empty responses
-                Empty.INSTANCE.writeTo(out);
+            }
+            if (out.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
+                out.writeZLong(globalCheckpoint);
             }
         }
 
@@ -1066,6 +1079,12 @@ public abstract class TransportReplicationAction<
         public long localCheckpoint() {
             return localCheckpoint;
         }
+
+        @Override
+        public long globalCheckpoint() {
+            return globalCheckpoint;
+        }
+
     }
 
     /**

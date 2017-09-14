@@ -2028,7 +2028,7 @@ public class InternalEngineTests extends ESTestCase {
         final Set<String> indexedIds = new HashSet<>();
         long localCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
         long replicaLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
-        long globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        long globalCheckpoint;
         long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         InternalEngine initialEngine = null;
 

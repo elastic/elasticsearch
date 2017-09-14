@@ -163,6 +163,7 @@ be caught and tested.  For instance:
 The argument to `catch` can be any of:
 
 [horizontal]
+`bad_request`::     a 400 response from ES
 `unauthorized`::    a 401 response from ES
 `forbidden`::       a 403 response from ES
 `missing`::         a 404 response from ES

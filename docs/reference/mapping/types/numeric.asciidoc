@@ -174,8 +174,8 @@ setting `num_significant_bits` to +10+ and `zero_exponent` to +8+.
 
 `zero_exponent`::
 
-    This setting is more expert and represents the exponent that should be used
-    to represent 0 in the float representation. Must be in -1023..1023, default
-    value is -1023.
+    This setting is more expert and represents the exponent that is represented
+    by 0 in the float representation. Must be in -1023..1023, default value is
+    -1023.
     Fields that will only store integers in practice can set this value to
     `num_significant_bits - 2` in order to save space.

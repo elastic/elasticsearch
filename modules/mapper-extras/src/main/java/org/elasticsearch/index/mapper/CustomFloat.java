@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.packed.PackedInts;
 
 import java.util.function.DoubleToLongFunction;
 import java.util.function.LongToDoubleFunction;
@@ -167,4 +168,12 @@ class CustomFloat {
 
     }
 
+    public static void main(String[] args) {
+        DoubleToLongFunction encoder = CustomFloat.getEncoder(10, 8);
+        LongToDoubleFunction decoder = CustomFloat.getDecoder(10, 8);
+        System.out.println(encoder.applyAsLong(Long.MAX_VALUE));
+        System.out.println(PackedInts.bitsRequired(Long.MAX_VALUE));
+        System.out.println(PackedInts.bitsRequired(encoder.applyAsLong(Long.MAX_VALUE)));
+        System.out.println(decoder.applyAsDouble(1<<14));
+    }
 }

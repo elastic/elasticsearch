@@ -204,25 +204,15 @@ task branchConsistency {
 }
 
 subprojects {
-  project.afterEvaluate {
-    // ignore missing javadocs
-    tasks.withType(Javadoc) { Javadoc javadoc ->
-      // the -quiet here is because of a bug in gradle, in that adding a string option
-      // by itself is not added to the options. By adding quiet, both this option and
-      // the "value" -quiet is added, separated by a space. This is ok since the javadoc
-      // command already adds -quiet, so we are just duplicating it
-      // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
-      javadoc.options.encoding='UTF8'
-      javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
-      /*
-      TODO: building javadocs with java 9 b118 is currently broken with weird errors, so
-      for now this is commented out...try again with the next ea build...
-      javadoc.executable = new File(project.javaHome, 'bin/javadoc')
-      if (project.javaVersion == JavaVersion.VERSION_1_9) {
-        // TODO: remove this hack! gradle should be passing this...
-        javadoc.options.addStringOption('source', '8')
-      }*/
-    }
+  // ignore missing javadocs
+  tasks.withType(Javadoc) { Javadoc javadoc ->
+    // the -quiet here is because of a bug in gradle, in that adding a string option
+    // by itself is not added to the options. By adding quiet, both this option and
+    // the "value" -quiet is added, separated by a space. This is ok since the javadoc
+    // command already adds -quiet, so we are just duplicating it
+    // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
+    javadoc.options.encoding='UTF8'
+    javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
   }
 
   /* Sets up the dependencies that we build as part of this project but
@@ -279,6 +269,27 @@ subprojects {
           subs.substitute(subs.module(k)).with(subs.project(v))
         }
       }
+    }
+
+    // Handle javadoc dependencies across projects. Order matters: the linksOffline for
+    // org.elasticsearch:elasticsearch must be the last one or all the links for the
+    // other packages (e.g org.elasticsearch.client) will point to core rather than
+    // their own artifacts.
+    if (project.plugins.hasPlugin(BuildPlugin)) {
+      String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
+      Closure sortClosure = { a, b -> b.group <=> a.group }
+      Closure depJavadocClosure = { dep ->
+        if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
+          String substitution = project.ext.projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
+          if (substitution != null) {
+            project.javadoc.dependsOn substitution + ':javadoc'
+            String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
+            project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${project.project(substitution).buildDir}/docs/javadoc/"
+          }
+        }
+      }
+      project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+      project.configurations.provided.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
     }
   }
 }

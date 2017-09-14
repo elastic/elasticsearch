@@ -320,7 +320,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             }
         };
         ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-            masterService, clusterApplier, clusterSettings, Collections::emptyList, ESAllocationTestCase.createAllocationService());
+            masterService, clusterApplier, clusterSettings, Collections::emptyList, ESAllocationTestCase.createAllocationService(),
+            Collections.emptyList());
         zenDiscovery.start();
         return zenDiscovery;
     }
@@ -342,7 +343,10 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
             final DiscoveryNode otherNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
                 EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
-            MembershipAction.ValidateJoinRequestRequestHandler request = new MembershipAction.ValidateJoinRequestRequestHandler();
+            final DiscoveryNode localNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
+                EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+            MembershipAction.ValidateJoinRequestRequestHandler request = new MembershipAction.ValidateJoinRequestRequestHandler
+                (() -> localNode, ZenDiscovery.addBuiltInJoinValidators(Collections.emptyList()));
             final boolean incompatible = randomBoolean();
             IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(Settings.builder()
                 .put(SETTING_VERSION_CREATED, incompatible ? VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())

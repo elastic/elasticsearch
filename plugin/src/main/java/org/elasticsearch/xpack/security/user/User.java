@@ -184,6 +184,8 @@ public class User implements ToXContentObject {
                 return SystemUser.INSTANCE;
             } else if (XPackUser.is(username)) {
                 return XPackUser.INSTANCE;
+            } else if (XPackSecurityUser.is(username)) {
+                return XPackSecurityUser.INSTANCE;
             }
             throw new IllegalStateException("user [" + username + "] is not an internal user");
         }
@@ -214,6 +216,9 @@ public class User implements ToXContentObject {
         } else if (XPackUser.is(user)) {
             output.writeBoolean(true);
             output.writeString(XPackUser.NAME);
+        } else if (XPackSecurityUser.is(user)) {
+            output.writeBoolean(true);
+            output.writeString(XPackSecurityUser.NAME);
         } else {
             if (user.authenticatedUser == null) {
                 // no backcompat necessary, since there is no inner user

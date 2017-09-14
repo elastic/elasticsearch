@@ -141,7 +141,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
         return eventsRef.get();
     }
     private Collection<Map<String, Object>> getAuditEvents() throws Exception {
-        final InternalClient client = internalClient();
+        final InternalClient client = internalSecurityClient();
         DateTime now = new DateTime(DateTimeZone.UTC);
         String indexName = IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, now, IndexNameResolver.Rollover.DAILY);
 

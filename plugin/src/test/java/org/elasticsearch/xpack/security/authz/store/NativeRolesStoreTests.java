@@ -38,6 +38,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
@@ -184,7 +185,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testPutOfRoleWithFlsDlsUnlicensed() throws IOException {
-        final InternalClient internalClient = mock(InternalClient.class);
+        final InternalSecurityClient internalClient = mock(InternalSecurityClient.class);
         final ClusterService clusterService = mock(ClusterService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);

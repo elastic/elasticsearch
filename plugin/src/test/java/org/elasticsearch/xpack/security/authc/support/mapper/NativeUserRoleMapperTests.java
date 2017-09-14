@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
@@ -53,7 +54,7 @@ public class NativeUserRoleMapperTests extends ESTestCase {
                         Collections.singletonList(FieldPredicate.create("cn=mutants,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca"))),
                 Arrays.asList("mutants"), Collections.emptyMap(), false);
 
-        final InternalClient client = mock(InternalClient.class);
+        final InternalSecurityClient client = mock(InternalSecurityClient.class);
         final SecurityLifecycleService lifecycleService = mock(SecurityLifecycleService.class);
         when(lifecycleService.isSecurityIndexAvailable()).thenReturn(true);
 

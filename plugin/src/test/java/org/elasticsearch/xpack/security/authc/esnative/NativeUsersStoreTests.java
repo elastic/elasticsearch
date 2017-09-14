@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -54,12 +55,12 @@ public class NativeUsersStoreTests extends ESTestCase {
     private static final String PASSWORD_FIELD = User.Fields.PASSWORD.getPreferredName();
     private static final String BLANK_PASSWORD = "";
 
-    private InternalClient internalClient;
+    private InternalSecurityClient internalClient;
     private final List<Tuple<ActionRequest, ActionListener<? extends ActionResponse>>> requests = new CopyOnWriteArrayList<>();
 
     @Before
     public void setupMocks() {
-        internalClient = new InternalClient(Settings.EMPTY, null, null) {
+        internalClient = new InternalSecurityClient(Settings.EMPTY, null, null) {
 
             @Override
             protected <

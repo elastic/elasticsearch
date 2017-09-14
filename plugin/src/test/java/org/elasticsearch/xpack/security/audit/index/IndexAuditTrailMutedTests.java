@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.State;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -42,7 +43,7 @@ import static org.mockito.Mockito.when;
 
 public class IndexAuditTrailMutedTests extends ESTestCase {
 
-    private InternalClient client;
+    private InternalSecurityClient client;
     private TransportClient transportClient;
     private ThreadPool threadPool;
     private ClusterService clusterService;
@@ -61,7 +62,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         threadPool = new TestThreadPool("index audit trail tests");
         transportClient = new MockTransportClient(Settings.EMPTY);
         clientCalled = new AtomicBoolean(false);
-        class IClient extends InternalClient {
+        class IClient extends InternalSecurityClient {
             IClient(Client transportClient){
                 super(Settings.EMPTY, threadPool, transportClient);
             }

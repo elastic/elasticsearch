@@ -27,6 +27,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.Authentication;
+import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
 
 import java.io.IOException;
@@ -48,15 +49,21 @@ public class InternalClient extends FilterClient {
 
     private final String nodeName;
     private final boolean securityEnabled;
+    private final User user;
 
     /**
      * Constructs an InternalClient.
      * If security is enabled the client is secure. Otherwise this client is a passthrough.
      */
     public InternalClient(Settings settings, ThreadPool threadPool, Client in) {
+        this(settings, threadPool, in, XPackUser.INSTANCE);
+    }
+
+    InternalClient(Settings settings, ThreadPool threadPool, Client in, User user) {
         super(settings, threadPool, in);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.securityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
+        this.user = user;
     }
 
     @Override
@@ -80,7 +87,7 @@ public class InternalClient extends FilterClient {
 
     protected void processContext(ThreadContext threadContext) {
         try {
-            Authentication authentication = new Authentication(XPackUser.INSTANCE,
+            Authentication authentication = new Authentication(user,
                     new Authentication.RealmRef("__attach", "__attach", nodeName), null);
             authentication.writeToContext(threadContext);
         } catch (IOException ioe) {

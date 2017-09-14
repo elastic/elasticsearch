@@ -23,27 +23,28 @@ final class EncryptSensitiveDataBootstrapCheck implements BootstrapCheck {
     }
 
     @Override
-    public boolean check(BootstrapContext context) {
-        return Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.get(context.settings)
-                && Watcher.ENCRYPTION_KEY_SETTING.exists(context.settings) == false;
-    }
-
-    @Override
-    public String errorMessage() {
-        final Path sysKeyPath = environment.configFile().resolve(XPackPlugin.NAME).resolve("system_key").toAbsolutePath();
-        if (Files.exists(sysKeyPath)) {
-            return "Encryption of sensitive data requires the key to be placed in the secure setting store. Run " +
-                    "'bin/elasticsearch-keystore add-file " + Watcher.ENCRYPTION_KEY_SETTING.getKey() + " " +
-                    environment.configFile().resolve(XPackPlugin.NAME).resolve("system_key").toAbsolutePath() +
-                    "' to import the file.\nAfter importing, the system_key file should be removed from the " +
-                    "filesystem.\nRepeat this on every node in the cluster.";
+    public BootstrapCheckResult check(BootstrapContext context) {
+        if (Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.get(context.settings)
+                && Watcher.ENCRYPTION_KEY_SETTING.exists(context.settings) == false) {
+            final Path systemKeyPath = environment.configFile().resolve(XPackPlugin.NAME).resolve("system_key").toAbsolutePath();
+            final String message;
+            if (Files.exists(systemKeyPath)) {
+                message = "Encryption of sensitive data requires the key to be placed in the secure setting store. Run " +
+                        "'bin/elasticsearch-keystore add-file " + Watcher.ENCRYPTION_KEY_SETTING.getKey() + " " +
+                        systemKeyPath +
+                        "' to import the file.\nAfter importing, the system_key file should be removed from the " +
+                        "filesystem.\nRepeat this on every node in the cluster.";
+            } else {
+                message = "Encryption of sensitive data requires a key to be placed in the secure setting store. First run the " +
+                        "bin/x-pack/syskeygen tool to generate a key file.\nThen run 'bin/elasticsearch-keystore add-file " +
+                        Watcher.ENCRYPTION_KEY_SETTING.getKey() + " " +
+                        systemKeyPath + "' to import the key into" +
+                        " the secure setting store. Finally, remove the system_key file from the filesystem.\n" +
+                        "Repeat this on every node in the cluster";
+            }
+            return BootstrapCheckResult.failure(message);
         } else {
-            return "Encryption of sensitive data requires a key to be placed in the secure setting store. First run the " +
-                    "bin/x-pack/syskeygen tool to generate a key file.\nThen run 'bin/elasticsearch-keystore add-file " +
-                    Watcher.ENCRYPTION_KEY_SETTING.getKey() + " " +
-                    environment.configFile().resolve(XPackPlugin.NAME).resolve("system_key").toAbsolutePath() + "' to import the key into" +
-                    " the secure setting store. Finally, remove the system_key file from the filesystem.\n" +
-                    "Repeat this on every node in the cluster";
+            return BootstrapCheckResult.success();
         }
     }
 

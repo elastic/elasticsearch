@@ -12,6 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.TokenService;
 
+import java.util.Locale;
+
 /**
  * Bootstrap check to ensure that the user has set the token passphrase setting and is not using
  * the default value in production
@@ -30,23 +32,26 @@ final class TokenPassphraseBootstrapCheck implements BootstrapCheck {
     }
 
     @Override
-    public boolean check(BootstrapContext context) {
-        if (tokenPassphrase == null) { // that's fine we bootstrap it ourself
-            return false;
+    public BootstrapCheckResult check(BootstrapContext context) {
+        if (tokenPassphrase == null) {
+            // that's fine we bootstrap it our self
+            return BootstrapCheckResult.success();
         }
         try (SecureString ignore = tokenPassphrase) {
-            if (tokenServiceEnabled) {
-                return tokenPassphrase.length() < MINIMUM_PASSPHRASE_LENGTH;
+            if (tokenServiceEnabled && tokenPassphrase.length() < MINIMUM_PASSPHRASE_LENGTH) {
+                final String message = String.format(
+                        Locale.ROOT,
+                        "please set a passphrase using the elasticsearch-keystore tool for the setting [%s] "
+                                + "that is at least [%d] characters in length or disable the token service using the [%s] setting",
+                        TokenService.TOKEN_PASSPHRASE.getKey(),
+                        MINIMUM_PASSPHRASE_LENGTH,
+                        XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey());
+                return BootstrapCheckResult.failure(message);
+            } else {
+                // service is not enabled so no need to check
+                return BootstrapCheckResult.success();
             }
         }
-        // service is not enabled so no need to check
-        return false;
     }
 
-    @Override
-    public String errorMessage() {
-        return "Please set a passphrase using the elasticsearch-keystore tool for the setting [" + TokenService.TOKEN_PASSPHRASE.getKey() +
-                "] that is at least " + MINIMUM_PASSPHRASE_LENGTH + " characters in length or " +
-                "disable the token service using the [" + XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey() + "] setting";
-    }
 }

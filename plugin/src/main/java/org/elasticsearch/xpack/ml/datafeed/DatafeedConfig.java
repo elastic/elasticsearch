@@ -41,6 +41,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -352,12 +353,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public static class Builder {
 
         private static final int DEFAULT_SCROLL_SIZE = 1000;
-        private static final TimeValue DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(1);
+        private static final TimeValue MIN_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(1);
+        private static final TimeValue MAX_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(2);
         private static final int DEFAULT_AGGREGATION_CHUNKING_BUCKETS = 1000;
 
         private String id;
         private String jobId;
-        private TimeValue queryDelay = DEFAULT_QUERY_DELAY;
+        private TimeValue queryDelay;
         private TimeValue frequency;
         private List<String> indices = Collections.emptyList();
         private List<String> types = Collections.emptyList();
@@ -460,6 +462,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
             validateAggregations();
             setDefaultChunkingConfig();
+            setDefaultQueryDelay();
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, types, query, aggregations, scriptFields, scrollSize,
                     chunkingConfig);
         }
@@ -527,6 +530,15 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                     chunkingConfig = ChunkingConfig.newManual(TimeValue.timeValueMillis(
                             DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis));
                 }
+            }
+        }
+
+        private void setDefaultQueryDelay() {
+            if (queryDelay == null) {
+                Random random = new Random(jobId.hashCode());
+                long delayMillis = random.longs(MIN_DEFAULT_QUERY_DELAY.millis(), MAX_DEFAULT_QUERY_DELAY.millis())
+                        .findFirst().getAsLong();
+                queryDelay = TimeValue.timeValueMillis(delayMillis);
             }
         }
 

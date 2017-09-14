@@ -6,33 +6,34 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.XPackSettings;
+
+import java.util.Locale;
 
 /**
  * Bootstrap check to ensure that the user has enabled HTTPS when using the token service
  */
 final class TokenSSLBootstrapCheck implements BootstrapCheck {
 
-    private final Settings settings;
-
-    TokenSSLBootstrapCheck(Settings settings) {
-        this.settings = settings;
-    }
-
     @Override
-    public boolean check() {
-        if (NetworkModule.HTTP_ENABLED.get(settings)) {
-            return XPackSettings.HTTP_SSL_ENABLED.get(settings) == false && XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings);
+    public BootstrapCheckResult check(BootstrapContext context) {
+        final Boolean httpEnabled = NetworkModule.HTTP_ENABLED.get(context.settings);
+        final Boolean httpsEnabled = XPackSettings.HTTP_SSL_ENABLED.get(context.settings);
+        final Boolean tokenServiceEnabled = XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(context.settings);
+        if (httpEnabled && httpsEnabled == false && tokenServiceEnabled) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "HTTPS is required in order to use the token service; "
+                            + "please enable HTTPS using the [%s] setting or disable the token service using the [%s] setting",
+                    XPackSettings.HTTP_SSL_ENABLED.getKey(),
+                    XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey());
+            return BootstrapCheckResult.failure(message);
+        } else {
+            return BootstrapCheckResult.success();
         }
-        return false;
     }
 
-    @Override
-    public String errorMessage() {
-        return "HTTPS is required in order to use the token service. Please enable HTTPS using the [" +
-                XPackSettings.HTTP_SSL_ENABLED.getKey() + "] setting or disable the token service using the [" +
-                XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey() + "] setting.";
-    }
 }

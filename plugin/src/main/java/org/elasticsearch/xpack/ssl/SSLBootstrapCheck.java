@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -33,20 +34,23 @@ import java.util.stream.Stream;
 public final class SSLBootstrapCheck implements BootstrapCheck {
 
     private final SSLService sslService;
-    private final Settings settings;
     private final Environment environment;
 
-    public SSLBootstrapCheck(SSLService sslService, Settings settings, @Nullable Environment environment) {
+    public SSLBootstrapCheck(SSLService sslService, @Nullable Environment environment) {
         this.sslService = sslService;
-        this.settings = settings;
         this.environment = environment;
     }
 
     @Override
-    public boolean check() {
-        final Settings transportSSLSettings = settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX);
-        return sslService.sslConfiguration(transportSSLSettings).keyConfig() == KeyConfig.NONE
-                || isDefaultCACertificateTrusted() || isDefaultPrivateKeyUsed();
+    public BootstrapCheckResult check(BootstrapContext context) {
+        final Settings transportSSLSettings = context.settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX);
+        if (sslService.sslConfiguration(transportSSLSettings).keyConfig() == KeyConfig.NONE
+                || isDefaultCACertificateTrusted() || isDefaultPrivateKeyUsed()) {
+            return BootstrapCheckResult.failure(
+                    "default SSL key and certificate do not provide security; please generate keys and certificates");
+        } else {
+            return BootstrapCheckResult.success();
+        }
     }
 
     /**
@@ -92,8 +96,4 @@ public final class SSLBootstrapCheck implements BootstrapCheck {
                 .anyMatch(defaultPrivateKey::equals);
     }
 
-    @Override
-    public String errorMessage() {
-        return "Default SSL key and certificate do not provide security; please generate keys and certificates";
-    }
 }

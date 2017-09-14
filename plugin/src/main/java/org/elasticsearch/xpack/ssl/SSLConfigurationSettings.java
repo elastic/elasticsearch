@@ -47,10 +47,12 @@ public class SSLConfigurationSettings {
     public final Setting<Optional<SSLClientAuth>> clientAuth;
     public final Setting<Optional<VerificationMode>> verificationMode;
 
+    // public for PKI realm
+    public final Setting<SecureString> legacyTruststorePassword;
+
     // pkg private for tests
     final Setting<SecureString> legacyKeystorePassword;
     final Setting<SecureString> legacyKeystoreKeyPassword;
-    final Setting<SecureString> legacyTruststorePassword;
     final Setting<SecureString> legacyKeyPassword;
 
     private final List<Setting<?>> allSettings;

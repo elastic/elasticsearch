@@ -63,7 +63,7 @@ class MlInitializationService extends AbstractComponent implements ClusterStateL
     private void installMlMetadata(MetaData metaData) {
         if (metaData.custom(MlMetadata.TYPE) == null) {
             if (installMlMetadataCheck.compareAndSet(false, true)) {
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(() ->
                     clusterService.submitStateUpdateTask("install-ml-metadata", new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) throws Exception {
@@ -83,8 +83,8 @@ class MlInitializationService extends AbstractComponent implements ClusterStateL
                             installMlMetadataCheck.set(false);
                             logger.error("unable to install ml metadata", e);
                         }
-                    });
-                });
+                    })
+                );
             }
         } else {
             installMlMetadataCheck.set(false);
@@ -93,7 +93,7 @@ class MlInitializationService extends AbstractComponent implements ClusterStateL
 
     private void installDailyMaintenanceService() {
         if (mlDailyMaintenanceService == null) {
-            mlDailyMaintenanceService = new MlDailyMaintenanceService(threadPool, client);
+            mlDailyMaintenanceService = new MlDailyMaintenanceService(clusterService.getClusterName(), threadPool, client);
             mlDailyMaintenanceService.start();
             clusterService.addLifecycleListener(new LifecycleListener() {
                 @Override

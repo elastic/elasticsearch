@@ -9,6 +9,7 @@ import java.nio.file.Path;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 
 /**
@@ -19,28 +20,20 @@ public class RoleMappingFileBootstrapCheck implements BootstrapCheck {
     private final RealmConfig realmConfig;
     private final Path path;
 
-    private final SetOnce<String> error = new SetOnce<>();
-
-    public RoleMappingFileBootstrapCheck(RealmConfig config, Path path) {
+    RoleMappingFileBootstrapCheck(RealmConfig config, Path path) {
         this.realmConfig = config;
         this.path = path;
     }
 
     @Override
-    public boolean check() {
+    public BootstrapCheckResult check(BootstrapContext context) {
         try {
             DnRoleMapper.parseFile(path, realmConfig.logger(getClass()), realmConfig.type(), realmConfig.name(), true);
-            return false;
+            return BootstrapCheckResult.success();
         } catch (Exception e) {
-            error.set(e.getMessage());
-            return true;
+            return BootstrapCheckResult.failure(e.getMessage());
         }
 
-    }
-
-    @Override
-    public String errorMessage() {
-        return error.get();
     }
 
     @Override
@@ -55,4 +48,5 @@ public class RoleMappingFileBootstrapCheck implements BootstrapCheck {
         }
         return null;
     }
+
 }

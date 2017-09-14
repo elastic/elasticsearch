@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -45,7 +46,7 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
-        assertThat(check.check(), equalTo(false));
+        assertFalse(check.check(new BootstrapContext(settings, null)).isFailure());
     }
 
     public void testBootstrapCheckOfMissingFile() {
@@ -58,10 +59,11 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
-        assertThat(check.check(), equalTo(true));
-        assertThat(check.errorMessage(), containsString("the-realm-name"));
-        assertThat(check.errorMessage(), containsString(fileName));
-        assertThat(check.errorMessage(), containsString("does not exist"));
+        final BootstrapCheck.BootstrapCheckResult result = check.check(new BootstrapContext(settings, null));
+        assertTrue(result.isFailure());
+        assertThat(result.getMessage(), containsString("the-realm-name"));
+        assertThat(result.getMessage(), containsString(fileName));
+        assertThat(result.getMessage(), containsString("does not exist"));
     }
 
     public void testBootstrapCheckWithInvalidYaml() throws IOException {
@@ -76,10 +78,11 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
-        assertThat(check.check(), equalTo(true));
-        assertThat(check.errorMessage(), containsString("the-realm-name"));
-        assertThat(check.errorMessage(), containsString(file.toString()));
-        assertThat(check.errorMessage(), containsString("could not read"));
+        final BootstrapCheck.BootstrapCheckResult result = check.check(new BootstrapContext(settings, null));
+        assertTrue(result.isFailure());
+        assertThat(result.getMessage(), containsString("the-realm-name"));
+        assertThat(result.getMessage(), containsString(file.toString()));
+        assertThat(result.getMessage(), containsString("could not read"));
     }
 
     public void testBootstrapCheckWithInvalidDn() throws IOException {
@@ -94,10 +97,11 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
-        assertThat(check.check(), equalTo(true));
-        assertThat(check.errorMessage(), containsString("the-realm-name"));
-        assertThat(check.errorMessage(), containsString(file.toString()));
-        assertThat(check.errorMessage(), containsString("invalid DN"));
-        assertThat(check.errorMessage(), containsString("not-a-dn"));
+        final BootstrapCheck.BootstrapCheckResult result = check.check(new BootstrapContext(settings, null));
+        assertTrue(result.isFailure());
+        assertThat(result.getMessage(), containsString("the-realm-name"));
+        assertThat(result.getMessage(), containsString(file.toString()));
+        assertThat(result.getMessage(), containsString("invalid DN"));
+        assertThat(result.getMessage(), containsString("not-a-dn"));
     }
 }

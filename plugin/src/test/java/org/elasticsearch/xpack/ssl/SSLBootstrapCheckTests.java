@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -14,8 +15,8 @@ public class SSLBootstrapCheckTests extends ESTestCase {
 
     public void testSSLBootstrapCheckWithNoKey() throws Exception {
         SSLService sslService = new SSLService(Settings.EMPTY, null);
-        SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(sslService, Settings.EMPTY, null);
-        assertTrue(bootstrapCheck.check());
+        SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(sslService, null);
+        assertTrue(bootstrapCheck.check(new BootstrapContext(Settings.EMPTY, null)).isFailure());
     }
 
     public void testSSLBootstrapCheckWithKey() throws Exception {
@@ -31,8 +32,8 @@ public class SSLBootstrapCheckTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         final Environment env = randomBoolean() ? new Environment(settings) : null;
-        SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), settings, env);
-        assertFalse(bootstrapCheck.check());
+        SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), env);
+        assertFalse(bootstrapCheck.check(new BootstrapContext(settings, null)).isFailure());
     }
 
     public void testSSLBootstrapCheckWithDefaultCABeingTrusted() throws Exception {
@@ -51,15 +52,15 @@ public class SSLBootstrapCheckTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         final Environment env = randomBoolean() ? new Environment(settings) : null;
-        SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), settings, env);
-        assertTrue(bootstrapCheck.check());
+        SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), env);
+        assertTrue(bootstrapCheck.check(new BootstrapContext(settings, null)).isFailure());
 
         settings = Settings.builder().put(settings.filter((s) -> s.contains(".certificate_authorities")))
                 .put("xpack.security.http.ssl.certificate_authorities",
                         getDataPath("/org/elasticsearch/xpack/ssl/ca.pem").toString())
                 .build();
-        bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), settings, env);
-        assertTrue(bootstrapCheck.check());
+        bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), env);
+        assertTrue(bootstrapCheck.check(new BootstrapContext(settings, null)).isFailure());
     }
 
     public void testSSLBootstrapCheckWithDefaultKeyBeingUsed() throws Exception {
@@ -77,8 +78,8 @@ public class SSLBootstrapCheckTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         final Environment env = randomBoolean() ? new Environment(settings) : null;
-        SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), settings, env);
-        assertTrue(bootstrapCheck.check());
+        SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), env);
+        assertTrue(bootstrapCheck.check(new BootstrapContext(settings, null)).isFailure());
 
         settings = Settings.builder().put(settings.filter((s) -> s.contains(".http.ssl.")))
                 .put("xpack.security.transport.profiles.foo.xpack.security.ssl.key",
@@ -86,7 +87,7 @@ public class SSLBootstrapCheckTests extends ESTestCase {
                 .put("xpack.security.transport.profiles.foo.xpack.security.ssl.certificate",
                         getDataPath("/org/elasticsearch/xpack/ssl/ca.pem").toString())
                 .build();
-        bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), settings, env);
-        assertTrue(bootstrapCheck.check());
+        bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), env);
+        assertTrue(bootstrapCheck.check(new BootstrapContext(settings, null)).isFailure());
     }
 }

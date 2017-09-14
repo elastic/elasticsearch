@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.security.user.XPackUser;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.watch.Watch;
@@ -126,7 +127,7 @@ public class ReservedRolesStore {
     }
 
     public static boolean isReserved(String role) {
-        return RESERVED_ROLES.containsKey(role) || SystemUser.ROLE_NAME.equals(role);
+        return RESERVED_ROLES.containsKey(role) || SystemUser.ROLE_NAME.equals(role) || XPackUser.ROLE_NAME.equals(role);
     }
 
 }

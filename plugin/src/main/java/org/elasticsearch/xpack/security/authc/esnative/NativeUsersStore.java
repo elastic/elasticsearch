@@ -36,6 +36,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheResponse;
@@ -73,12 +74,12 @@ public class NativeUsersStore extends AbstractComponent {
 
 
     private final Hasher hasher = Hasher.BCRYPT;
-    private final InternalClient client;
+    private final InternalSecurityClient client;
     private final boolean isTribeNode;
 
     private volatile SecurityLifecycleService securityLifecycleService;
 
-    public NativeUsersStore(Settings settings, InternalClient client, SecurityLifecycleService securityLifecycleService) {
+    public NativeUsersStore(Settings settings, InternalSecurityClient client, SecurityLifecycleService securityLifecycleService) {
         super(settings);
         this.client = client;
         this.isTribeNode = XPackPlugin.isTribeNode(settings);

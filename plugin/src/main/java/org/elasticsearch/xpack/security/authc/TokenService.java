@@ -50,6 +50,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 
 import javax.crypto.Cipher;
@@ -134,7 +135,7 @@ public final class TokenService extends AbstractComponent {
     private final Clock clock;
     private final TimeValue expirationDelay;
     private final TimeValue deleteInterval;
-    private final InternalClient internalClient;
+    private final InternalSecurityClient internalClient;
     private final SecurityLifecycleService lifecycleService;
     private final ExpiredTokenRemover expiredTokenRemover;
     private final boolean enabled;
@@ -150,7 +151,7 @@ public final class TokenService extends AbstractComponent {
      * @param clock the clock that will be used for comparing timestamps
      * @param internalClient the client to use when checking for revocations
      */
-    public TokenService(Settings settings, Clock clock, InternalClient internalClient,
+    public TokenService(Settings settings, Clock clock, InternalSecurityClient internalClient,
                         SecurityLifecycleService lifecycleService, ClusterService clusterService) throws GeneralSecurityException {
         super(settings);
         byte[] saltArr = new byte[SALT_BYTES];

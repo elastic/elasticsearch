@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.template.TemplateUtils;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.upgrade.rest.RestIndexUpgradeAction;
@@ -92,12 +93,13 @@ public class Upgrade implements ActionPlugin {
         upgradeCheckFactories.add(getSecurityUpgradeCheckFactory(settings));
     }
 
-    public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, ThreadPool threadPool,
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry) {
+        final InternalSecurityClient internalSecurityClient = new InternalSecurityClient(settings, threadPool, client);
         List<IndexUpgradeCheck> upgradeChecks = new ArrayList<>(upgradeCheckFactories.size());
         for (BiFunction<InternalClient, ClusterService, IndexUpgradeCheck> checkFactory : upgradeCheckFactories) {
-            upgradeChecks.add(checkFactory.apply(internalClient, clusterService));
+            upgradeChecks.add(checkFactory.apply(internalSecurityClient, clusterService));
         }
         return Collections.singletonList(new IndexUpgradeService(settings, Collections.unmodifiableList(upgradeChecks)));
     }

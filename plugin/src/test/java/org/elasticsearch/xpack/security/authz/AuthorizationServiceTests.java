@@ -715,7 +715,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
     }
 
-    public void testXPackUserAndSuperusersCanExecuteOperationAgainstSecurityIndex() {
+    public void testSuperusersCanExecuteOperationAgainstSecurityIndex() {
         final User superuser = new User("custom_admin", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         ClusterState state = mock(ClusterState.class);
@@ -726,37 +726,35 @@ public class AuthorizationServiceTests extends ESTestCase {
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build());
 
-        for (User user : Arrays.asList(XPackUser.INSTANCE, superuser)) {
-            List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
-            requests.add(new Tuple<>(DeleteAction.NAME, new DeleteRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
-            requests.add(new Tuple<>(BulkAction.NAME + "[s]",
-                    createBulkShardRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, DeleteRequest::new)));
-            requests.add(new Tuple<>(UpdateAction.NAME, new UpdateRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
-            requests.add(new Tuple<>(IndexAction.NAME, new IndexRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
-            requests.add(new Tuple<>(BulkAction.NAME + "[s]",
-                    createBulkShardRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, IndexRequest::new)));
-            requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(SecurityLifecycleService.SECURITY_INDEX_NAME)));
-            requests.add(new Tuple<>(TermVectorsAction.NAME,
-                    new TermVectorsRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
-            requests.add(new Tuple<>(GetAction.NAME, new GetRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
-            requests.add(new Tuple<>(TermVectorsAction.NAME,
-                    new TermVectorsRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
-            requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest()
-                    .addAliasAction(AliasActions.add().alias("security_alias").index(SecurityLifecycleService.SECURITY_INDEX_NAME))));
-            requests.add(new Tuple<>(ClusterHealthAction.NAME, new ClusterHealthRequest(SecurityLifecycleService.SECURITY_INDEX_NAME)));
-            requests.add(new Tuple<>(ClusterHealthAction.NAME,
-                    new ClusterHealthRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "foo", "bar")));
+        List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
+        requests.add(new Tuple<>(DeleteAction.NAME, new DeleteRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(BulkAction.NAME + "[s]",
+                createBulkShardRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, DeleteRequest::new)));
+        requests.add(new Tuple<>(UpdateAction.NAME, new UpdateRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(IndexAction.NAME, new IndexRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(BulkAction.NAME + "[s]",
+                createBulkShardRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, IndexRequest::new)));
+        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(SecurityLifecycleService.SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(TermVectorsAction.NAME,
+                new TermVectorsRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(GetAction.NAME, new GetRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(TermVectorsAction.NAME,
+                new TermVectorsRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest()
+                .addAliasAction(AliasActions.add().alias("security_alias").index(SecurityLifecycleService.SECURITY_INDEX_NAME))));
+        requests.add(new Tuple<>(ClusterHealthAction.NAME, new ClusterHealthRequest(SecurityLifecycleService.SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(ClusterHealthAction.NAME,
+                new ClusterHealthRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "foo", "bar")));
 
-            for (Tuple<String, TransportRequest> requestTuple : requests) {
-                String action = requestTuple.v1();
-                TransportRequest request = requestTuple.v2();
-                authorize(createAuthentication(user), action, request);
-                verify(auditTrail).accessGranted(user, action, request);
-            }
+        for (Tuple<String, TransportRequest> requestTuple : requests) {
+            String action = requestTuple.v1();
+            TransportRequest request = requestTuple.v2();
+            authorize(createAuthentication(superuser), action, request);
+            verify(auditTrail).accessGranted(superuser, action, request);
         }
     }
 
-    public void testXPackUserAndSuperusersCanExecuteOperationAgainstSecurityIndexWithWildcard() {
+    public void testSuperusersCanExecuteOperationAgainstSecurityIndexWithWildcard() {
         final User superuser = new User("custom_admin", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         ClusterState state = mock(ClusterState.class);
@@ -769,11 +767,6 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         String action = SearchAction.NAME;
         SearchRequest request = new SearchRequest("_all");
-        authorize(createAuthentication(XPackUser.INSTANCE), action, request);
-        verify(auditTrail).accessGranted(XPackUser.INSTANCE, action, request);
-        assertThat(request.indices(), arrayContaining(".security"));
-
-        request = new SearchRequest("_all");
         authorize(createAuthentication(superuser), action, request);
         verify(auditTrail).accessGranted(superuser, action, request);
         assertThat(request.indices(), arrayContaining(".security"));
@@ -1073,7 +1066,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
         authorizationService.roles(XPackUser.INSTANCE, rolesFuture);
         final Role roles = rolesFuture.actionGet();
-        assertThat(roles, equalTo(ReservedRolesStore.SUPERUSER_ROLE));
+        assertThat(roles, equalTo(XPackUser.ROLE));
         verifyZeroInteractions(rolesStore);
     }
 

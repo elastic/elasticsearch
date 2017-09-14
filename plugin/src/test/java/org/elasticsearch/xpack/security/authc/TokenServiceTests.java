@@ -26,6 +26,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.TokenService.BytesKey;
@@ -53,7 +54,7 @@ import static org.mockito.Mockito.when;
 
 public class TokenServiceTests extends ESTestCase {
 
-    private InternalClient internalClient;
+    private InternalSecurityClient internalClient;
     private static ThreadPool threadPool;
     private static final Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "TokenServiceTests")
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
@@ -67,7 +68,7 @@ public class TokenServiceTests extends ESTestCase {
     @Before
     public void setupClient() throws GeneralSecurityException {
         client = mock(Client.class);
-        internalClient = new InternalClient(settings, threadPool, client);
+        internalClient = new InternalSecurityClient(settings, threadPool, client);
         lifecycleService = mock(SecurityLifecycleService.class);
         when(lifecycleService.isSecurityIndexWriteable()).thenReturn(true);
         doAnswer(invocationOnMock -> {

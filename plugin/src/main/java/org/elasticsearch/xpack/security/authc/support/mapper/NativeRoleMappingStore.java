@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.security.action.rolemapping.PutRoleMappingRequest;
@@ -70,12 +71,12 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
 
     private static final String SECURITY_GENERIC_TYPE = "doc";
 
-    private final InternalClient client;
+    private final InternalSecurityClient client;
     private final boolean isTribeNode;
     private final SecurityLifecycleService securityLifecycleService;
     private final List<String> realmsToRefresh = new CopyOnWriteArrayList<>();
 
-    public NativeRoleMappingStore(Settings settings, InternalClient client, SecurityLifecycleService securityLifecycleService) {
+    public NativeRoleMappingStore(Settings settings, InternalSecurityClient client, SecurityLifecycleService securityLifecycleService) {
         super(settings);
         this.client = client;
         this.isTribeNode = XPackPlugin.isTribeNode(settings);

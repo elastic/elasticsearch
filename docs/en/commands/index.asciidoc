@@ -1,0 +1,16 @@
+[role="xpack"]
+[[xpack-commands]]
+= {xpack} Commands
+
+[partintro]
+--
+
+{xpack} includes commands that help you configure security:
+
+//* <<certgen>>
+//* <<setup-passwords>>
+* <<users-command>>
+
+--
+
+include::users-command.asciidoc[]

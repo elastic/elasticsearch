@@ -50,6 +50,8 @@ import java.util.stream.Collectors;
  */
 public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
 
+    private final String allocationId;
+
     /**
      * The global checkpoint tracker can operate in two modes:
      * - primary: this shard is in charge of collecting local checkpoint information from all shard copies and computing the global
@@ -245,12 +247,18 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * {@link SequenceNumbers#UNASSIGNED_SEQ_NO}.
      *
      * @param shardId          the shard ID
+     * @param allocationId     the allocation ID
      * @param indexSettings    the index settings
      * @param globalCheckpoint the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
      */
-    GlobalCheckpointTracker(final ShardId shardId, final IndexSettings indexSettings, final long globalCheckpoint) {
+    GlobalCheckpointTracker(
+            final ShardId shardId,
+            final String allocationId,
+            final IndexSettings indexSettings,
+            final long globalCheckpoint) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
+        this.allocationId = allocationId;
         this.primaryMode = false;
         this.handoffInProgress = false;
         this.appliedClusterStateVersion = -1L;
@@ -310,7 +318,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     /**
      * Initializes the global checkpoint tracker in primary mode (see {@link #primaryMode}. Called on primary activation or promotion.
      */
-    public synchronized void activatePrimaryMode(final String allocationId, final long localCheckpoint) {
+    public synchronized void activatePrimaryMode(final long localCheckpoint) {
         assert invariant();
         assert primaryMode == false;
         assert localCheckpoints.get(allocationId) != null && localCheckpoints.get(allocationId).inSync &&

@@ -89,8 +89,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        // TODO should be backported to 6.1.0
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             skipDuplicates = in.readBoolean();
         }
     }
@@ -98,8 +97,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        // TODO should be backported to 6.1.0
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeBoolean(skipDuplicates);
         }
     }

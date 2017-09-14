@@ -23,10 +23,6 @@ import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cloud.azure.AbstractAzureWithThirdPartyIntegTestCase;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService;
-import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
-import org.elasticsearch.cloud.azure.storage.AzureStorageSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -37,7 +33,7 @@ import org.junit.Before;
 import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cloud.azure.AzureTestUtils.readSettingsFromFile;
+import static org.elasticsearch.repositories.azure.AzureTestUtils.readSettingsFromFile;
 import static org.elasticsearch.repositories.azure.AzureSnapshotRestoreTests.getContainerName;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -62,6 +58,9 @@ public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThi
     private final AzureStorageService azureStorageService = new AzureStorageServiceImpl(readSettingsFromFile(),
         AzureStorageSettings.load(readSettingsFromFile()));
     private final String containerName = getContainerName();
+
+    public AzureSnapshotRestoreListSnapshotsTests() {
+    }
 
     public void testList() throws Exception {
         Client client = client();

@@ -203,7 +203,7 @@ public class InternalEngine extends Engine {
                         throw new IllegalArgumentException(openMode.toString());
                 }
                 logger.trace("recovered [{}]", seqNoStats);
-                seqNoService = sequenceNumberService(shardId, engineConfig.getIndexSettings(), seqNoStats);
+                seqNoService = sequenceNumberService(shardId, allocationId, engineConfig.getIndexSettings(), seqNoStats);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
                 indexWriter = writer;
                 translog = openTranslog(engineConfig, writer, translogDeletionPolicy, () -> seqNoService().getGlobalCheckpoint());
@@ -294,10 +294,12 @@ public class InternalEngine extends Engine {
 
     private static SequenceNumbersService sequenceNumberService(
         final ShardId shardId,
+        final String allocationId,
         final IndexSettings indexSettings,
         final SeqNoStats seqNoStats) {
         return new SequenceNumbersService(
             shardId,
+            allocationId,
             indexSettings,
             seqNoStats.getMaxSeqNo(),
             seqNoStats.getLocalCheckpoint(),

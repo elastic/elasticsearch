@@ -20,6 +20,7 @@ package org.elasticsearch.index.shard;
 
 
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +37,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
@@ -45,6 +47,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
 
 /** Separate test class from ShardPathTests because we need static (BeforeClass) setup to install mock filesystems... */
 public class NewPathForShardTests extends ESTestCase {
@@ -159,6 +163,10 @@ public class NewPathForShardTests extends ESTestCase {
         }
     }
 
+    static void createFakeShard(ShardPath path) throws IOException {
+        Files.createDirectories(path.resolveIndex().getParent());
+    }
+
     public void testSelectNewPathForShard() throws Exception {
         Path path = PathUtils.get(createTempDir().toString());
 
@@ -208,6 +216,64 @@ public class NewPathForShardTests extends ESTestCase {
         // had the most free space, never using the other drive unless new shards arrive
         // after the first shards started using storage:
         assertNotEquals(result1.getDataPath(), result2.getDataPath());
+
+        nodeEnv.close();
+    }
+
+    public void testSelectNewPathForShardEvenly() throws Exception {
+        Path path = PathUtils.get(createTempDir().toString());
+
+        // Use 2 data paths:
+        String[] paths = new String[] {path.resolve("a").toString(),
+                                       path.resolve("b").toString()};
+
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), path)
+            .putArray(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+        NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
+
+        // Make sure all our mocking above actually worked:
+        NodePath[] nodePaths = nodeEnv.nodePaths();
+        assertEquals(2, nodePaths.length);
+
+        assertEquals("mocka", nodePaths[0].fileStore.name());
+        assertEquals("mockb", nodePaths[1].fileStore.name());
+
+        // Path a has lots of free space, but b has little, so new shard should go to a:
+        aFileStore.usableSpace = 100000;
+        bFileStore.usableSpace = 1000;
+
+        ShardId shardId = new ShardId("index", "uid1", 0);
+        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        createFakeShard(result);
+        // First shard should go to a
+        assertThat(result.getDataPath().toString(), containsString(aPathPart));
+
+        shardId = new ShardId("index", "uid1", 1);
+        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        createFakeShard(result);
+        // Second shard should go to b
+        assertThat(result.getDataPath().toString(), containsString(bPathPart));
+
+        Map<Path,Integer> dataPathToShardCount = new HashMap<>();
+        shardId = new ShardId("index2", "uid2", 0);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index2",
+                Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3).build());
+        ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
+        createFakeShard(result1);
+        dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), 1);
+        shardId = new ShardId("index2", "uid2", 1);
+        ShardPath result2 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
+        createFakeShard(result2);
+        dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result2.getDataPath()), 1);
+        shardId = new ShardId("index2", "uid2", 2);
+        ShardPath result3 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
+        createFakeShard(result3);
+        // 2 shards go to 'a'
+        assertThat(result1.getDataPath().toString(), containsString(aPathPart));
+        assertThat(result2.getDataPath().toString(), containsString(aPathPart));
+        // and 1 to 'b'
+        assertThat(result3.getDataPath().toString(), containsString(bPathPart));
 
         nodeEnv.close();
     }

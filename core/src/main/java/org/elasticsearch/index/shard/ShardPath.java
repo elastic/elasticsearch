@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -189,22 +190,41 @@ public final class ShardPath {
 
             // TODO - do we need something more extensible? Yet, this does the job for now...
             final NodeEnvironment.NodePath[] paths = env.nodePaths();
+
             NodeEnvironment.NodePath bestPath = null;
-            BigInteger maxUsableBytes = BigInteger.valueOf(Long.MIN_VALUE);
-            for (NodeEnvironment.NodePath nodePath : paths) {
-                FileStore fileStore = nodePath.fileStore;
 
-                BigInteger usableBytes = BigInteger.valueOf(fileStore.getUsableSpace());
-                assert usableBytes.compareTo(BigInteger.ZERO) >= 0;
+            if (paths.length == 1) {
+                // There's only one option, it's the best!
+                bestPath = paths[0];
+            } else {
+                int shardCount = indexSettings.getNumberOfShards();
+                // Maximum number of shards that a path should have for a particular index assuming
+                // all the shards were assigned to this node. For example, with a node with 4 data
+                // paths and an index with 9 primary shards, the maximum number of shards per path
+                // would be 3.
+                int maxShardsPerPath = Math.floorDiv(shardCount, paths.length) + ((shardCount % paths.length) == 0 ? 0 : 1);
+                ObjectLongHashMap<NodeEnvironment.NodePath> pathToShardCount = env.shardCountPerPath(shardId.getIndex());
 
-                // Deduct estimated reserved bytes from usable space:
-                Integer count = dataPathToShardCount.get(nodePath.path);
-                if (count != null) {
-                    usableBytes = usableBytes.subtract(estShardSizeInBytes.multiply(BigInteger.valueOf(count)));
-                }
-                if (bestPath == null || usableBytes.compareTo(maxUsableBytes) > 0) {
-                    maxUsableBytes = usableBytes;
-                    bestPath = nodePath;
+                BigInteger maxUsableBytes = BigInteger.valueOf(Long.MIN_VALUE);
+                for (NodeEnvironment.NodePath nodePath : paths) {
+                    FileStore fileStore = nodePath.fileStore;
+
+                    BigInteger usableBytes = BigInteger.valueOf(fileStore.getUsableSpace());
+                    assert usableBytes.compareTo(BigInteger.ZERO) >= 0;
+
+                    // Deduct estimated reserved bytes from usable space:
+                    Integer count = dataPathToShardCount.get(nodePath.path);
+                    if (count != null) {
+                        usableBytes = usableBytes.subtract(estShardSizeInBytes.multiply(BigInteger.valueOf(count)));
+                    }
+                    if (pathToShardCount.get(nodePath) >= maxShardsPerPath) {
+                        // Too many shards for this index on this path, skip this path
+                        continue;
+                    } else if (bestPath == null || usableBytes.compareTo(maxUsableBytes) > 0) {
+                        // This path has been determined to be "better" based on the usable bytes
+                        maxUsableBytes = usableBytes;
+                        bestPath = nodePath;
+                    }
                 }
             }
 

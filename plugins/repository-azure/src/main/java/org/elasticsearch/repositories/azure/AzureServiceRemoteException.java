@@ -17,30 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.blobstore;
+package org.elasticsearch.repositories.azure;
 
-import java.io.IOException;
-import java.io.OutputStream;
-
-public class AzureOutputStream extends OutputStream {
-
-    private final OutputStream blobOutputStream;
-
-    public AzureOutputStream(OutputStream blobOutputStream) {
-        this.blobOutputStream = blobOutputStream;
+public class AzureServiceRemoteException extends IllegalStateException {
+    public AzureServiceRemoteException(String msg) {
+        super(msg);
     }
 
-    @Override
-    public void write(int b) throws IOException {
-        blobOutputStream.write(b);
-    }
-
-    @Override
-    public void close() throws IOException {
-        try {
-            blobOutputStream.close();
-        } catch (IOException e) {
-            // Azure is sending a "java.io.IOException: Stream is already closed."
-        }
+    public AzureServiceRemoteException(String msg, Throwable cause) {
+        super(msg, cause);
     }
 }

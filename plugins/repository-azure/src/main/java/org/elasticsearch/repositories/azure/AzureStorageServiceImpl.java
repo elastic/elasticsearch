@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.storage;
+package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.LocationMode;
@@ -34,7 +34,9 @@ import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
 import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.cloud.azure.blobstore.util.SocketAccess;
+import org.elasticsearch.repositories.azure.AzureStorageService;
+import org.elasticsearch.repositories.azure.AzureStorageSettings;
+import org.elasticsearch.repositories.azure.SocketAccess;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -218,7 +220,8 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     }
 
     @Override
-    public boolean blobExists(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException {
+    public boolean blobExists(String account, LocationMode mode, String container, String blob)
+        throws URISyntaxException, StorageException {
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
@@ -246,7 +249,8 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     }
 
     @Override
-    public InputStream getInputStream(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException {
+    public InputStream getInputStream(String account, LocationMode mode, String container, String blob)
+        throws URISyntaxException, StorageException {
         logger.trace("reading container [{}], blob [{}]", container, blob);
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlockBlob blockBlobReference = client.getContainerReference(container).getBlockBlobReference(blob);
@@ -254,7 +258,8 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     }
 
     @Override
-    public OutputStream getOutputStream(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException {
+    public OutputStream getOutputStream(String account, LocationMode mode, String container, String blob)
+        throws URISyntaxException, StorageException {
         logger.trace("writing container [{}], blob [{}]", container, blob);
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlockBlob blockBlobReference = client.getContainerReference(container).getBlockBlobReference(blob);
@@ -262,7 +267,8 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix) throws URISyntaxException, StorageException {
+    public Map<String, BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix)
+        throws URISyntaxException, StorageException {
         // NOTE: this should be here: if (prefix == null) prefix = "";
         // however, this is really inefficient since deleteBlobsByPrefix enumerates everything and
         // then does a prefix match on the result; it should just call listBlobsByPrefix with the prefix!
@@ -293,7 +299,8 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     }
 
     @Override
-    public void moveBlob(String account, LocationMode mode, String container, String sourceBlob, String targetBlob) throws URISyntaxException, StorageException {
+    public void moveBlob(String account, LocationMode mode, String container, String sourceBlob, String targetBlob)
+        throws URISyntaxException, StorageException {
         logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}]", container, sourceBlob, targetBlob);
 
         CloudBlobClient client = this.getSelectedClient(account, mode);

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure;
+package org.elasticsearch.repositories.azure;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;

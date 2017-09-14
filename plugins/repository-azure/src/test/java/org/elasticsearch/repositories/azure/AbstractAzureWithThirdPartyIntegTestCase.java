@@ -17,22 +17,37 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure;
+package org.elasticsearch.repositories.azure;
 
-import org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
 
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.elasticsearch.repositories.azure.AzureTestUtils.readSettingsFromFile;
+
 /**
- * Base class for Azure tests.
+ * Base class for Azure tests that require credentials.
+ * <p>
+ * You must specify {@code -Dtests.thirdparty=true -Dtests.config=/path/to/config}
+ * in order to run these tests.
  */
-public abstract class AbstractAzureIntegTestCase extends ESIntegTestCase {
+@ThirdParty
+public abstract class AbstractAzureWithThirdPartyIntegTestCase extends AbstractAzureIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(readSettingsFromFile())
+                .build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(AzureRepositoryPlugin.class);
     }
+
 }

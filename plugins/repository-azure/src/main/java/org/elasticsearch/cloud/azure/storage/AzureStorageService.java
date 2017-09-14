@@ -41,7 +41,7 @@ import java.util.Map;
 public interface AzureStorageService {
 
     ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
-    ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
+    ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(256, ByteSizeUnit.MB);
 
     boolean doesContainerExist(String account, LocationMode mode, String container);
 

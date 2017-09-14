@@ -52,6 +52,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class BootstrapChecksTests extends ESTestCase {
+
     private static final BootstrapContext defaultContext = new BootstrapContext(Settings.EMPTY, MetaData.EMPTY_META_DATA);
 
     public void testNonProductionMode() throws NodeValidationException {
@@ -126,29 +127,8 @@ public class BootstrapChecksTests extends ESTestCase {
 
     public void testExceptionAggregation() {
         final List<BootstrapCheck> checks = Arrays.asList(
-                new BootstrapCheck() {
-                    @Override
-                    public boolean check(BootstrapContext context) {
-                        return true;
-                    }
-
-                    @Override
-                    public String errorMessage() {
-                        return "first";
-                    }
-                },
-                new BootstrapCheck() {
-                    @Override
-                    public boolean check(BootstrapContext context) {
-                        return true;
-                    }
-
-                    @Override
-                    public String errorMessage() {
-                        return "second";
-                    }
-                }
-        );
+                context -> BootstrapCheck.BootstrapCheckResult.failure("first"),
+                context -> BootstrapCheck.BootstrapCheckResult.failure("second"));
 
         final NodeValidationException e =
                 expectThrows(NodeValidationException.class,
@@ -497,7 +477,7 @@ public class BootstrapChecksTests extends ESTestCase {
             }
 
             @Override
-            public String errorMessage() {
+            String message(BootstrapContext context) {
                 return "error";
             }
         };
@@ -713,13 +693,8 @@ public class BootstrapChecksTests extends ESTestCase {
     public void testAlwaysEnforcedChecks() {
         final BootstrapCheck check = new BootstrapCheck() {
             @Override
-            public boolean check(BootstrapContext context) {
-                return true;
-            }
-
-            @Override
-            public String errorMessage() {
-                return "error";
+            public BootstrapCheckResult check(BootstrapContext context) {
+                return BootstrapCheckResult.failure("error");
             }
 
             @Override

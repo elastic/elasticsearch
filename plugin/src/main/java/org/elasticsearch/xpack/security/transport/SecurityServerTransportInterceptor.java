@@ -171,10 +171,12 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
         Map<String, ServerTransportFilter> profileFilters = new HashMap<>(profileSettingsMap.size() + 1);
 
         final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
+        final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
             Settings profileSettings = entry.getValue();
             final Settings profileSslSettings = SecurityNetty4Transport.profileSslSettings(profileSettings);
-            final boolean extractClientCert = sslService.isSSLClientAuthEnabled(profileSslSettings, transportSSLSettings);
+            final boolean extractClientCert = transportSSLEnabled &&
+                    sslService.isSSLClientAuthEnabled(profileSslSettings, transportSSLSettings);
             String type = TRANSPORT_TYPE_SETTING_TEMPLATE.apply(TRANSPORT_TYPE_SETTING_KEY).get(entry.getValue());
             switch (type) {
                 case "client":
@@ -193,7 +195,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
         }
 
         if (!profileFilters.containsKey(TcpTransport.DEFAULT_PROFILE)) {
-            final boolean extractClientCert = sslService.isSSLClientAuthEnabled(transportSSLSettings);
+            final boolean extractClientCert = transportSSLEnabled && sslService.isSSLClientAuthEnabled(transportSSLSettings);
             profileFilters.put(TcpTransport.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService,
                     threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled, securityContext));
         }

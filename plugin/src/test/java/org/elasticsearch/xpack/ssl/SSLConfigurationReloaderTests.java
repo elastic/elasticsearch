@@ -219,15 +219,12 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);
-        final X500Principal expectedPrincipal = new X500Principal("CN=xpack public development ca");
 
         final SetOnce<Integer> trustedCount = new SetOnce<>();
         final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPreChecks = (trustManager, config) -> {
             // trust manager checks
             Certificate[] certificates = trustManager.getAcceptedIssuers();
             trustedCount.set(certificates.length);
-            assertTrue(Arrays.stream(trustManager.getAcceptedIssuers())
-                    .anyMatch((cert) -> expectedPrincipal.equals(cert.getSubjectX500Principal())));
         };
 
 
@@ -247,8 +244,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPostChecks = (updatedTrustManager, config) -> {
             assertThat(trustedCount.get() - updatedTrustManager.getAcceptedIssuers().length, is(5));
-            assertTrue(Arrays.stream(updatedTrustManager.getAcceptedIssuers())
-                    .anyMatch((cert) -> expectedPrincipal.equals(cert.getSubjectX500Principal())));
         };
 
         validateTrustConfigurationIsReloaded(settings, env, trustManagerPreChecks, modifier, trustManagerPostChecks);
@@ -267,15 +262,12 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);
-        final X500Principal expectedPrincipal = new X500Principal("CN=xpack public development ca");
 
         final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPreChecks = (trustManager, config) -> {
             // trust manager checks
             Certificate[] certificates = trustManager.getAcceptedIssuers();
-            assertThat(certificates.length, is(2));
+            assertThat(certificates.length, is(1));
             assertThat(((X509Certificate)certificates[0]).getSubjectX500Principal().getName(), containsString("Test Client"));
-            assertTrue(Arrays.stream(trustManager.getAcceptedIssuers())
-                    .anyMatch((cert) -> expectedPrincipal.equals(cert.getSubjectX500Principal())));
         };
 
         final Runnable modifier = () -> {
@@ -291,10 +283,8 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPostChecks = (updatedTrustManager, config) -> {
             Certificate[] updatedCerts = updatedTrustManager.getAcceptedIssuers();
-            assertThat(updatedCerts.length, is(2));
+            assertThat(updatedCerts.length, is(1));
             assertThat(((X509Certificate)updatedCerts[0]).getSubjectX500Principal().getName(), containsString("Test Node"));
-            assertTrue(Arrays.stream(updatedTrustManager.getAcceptedIssuers())
-                    .anyMatch((cert) -> expectedPrincipal.equals(cert.getSubjectX500Principal())));
         };
 
         validateTrustConfigurationIsReloaded(settings, env, trustManagerPreChecks, modifier, trustManagerPostChecks);

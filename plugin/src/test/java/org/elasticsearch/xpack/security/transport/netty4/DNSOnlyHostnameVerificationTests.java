@@ -87,8 +87,8 @@ public class DNSOnlyHostnameVerificationTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public boolean useGeneratedSSLConfig() {
-        return false;
+    public boolean transportSSLEnabled() {
+        return true;
     }
 
     @Override

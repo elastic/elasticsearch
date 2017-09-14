@@ -165,7 +165,6 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
-import org.elasticsearch.xpack.ssl.SSLBootstrapCheck;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.ssl.TLSLicenseBootstrapCheck;
@@ -246,7 +245,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
             // fetched
             final List<BootstrapCheck> checks = new ArrayList<>();
             checks.addAll(Arrays.asList(
-                    new SSLBootstrapCheck(sslService, env),
                     new TokenSSLBootstrapCheck(),
                     new PkiRealmBootstrapCheck(sslService),
                     new TLSLicenseBootstrapCheck()));

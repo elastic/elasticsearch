@@ -134,8 +134,8 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected boolean useGeneratedSSLConfig() {
-        return false;
+    protected boolean transportSSLEnabled() {
+        return true;
     }
 
     public void testCertificateWithTrustedNameIsAccepted() throws Exception {

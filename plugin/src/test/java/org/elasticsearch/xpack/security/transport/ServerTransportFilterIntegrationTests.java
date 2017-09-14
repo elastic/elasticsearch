@@ -13,8 +13,6 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
@@ -42,7 +40,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForStore;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -57,10 +54,9 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         randomClientPort = randomIntBetween(49000, 65500); // ephemeral port
     }
 
-    // don't use it here to simplify the settings we need
     @Override
-    public boolean useGeneratedSSLConfig() {
-        return false;
+    public boolean transportSSLEnabled() {
+        return true;
     }
 
     @Override

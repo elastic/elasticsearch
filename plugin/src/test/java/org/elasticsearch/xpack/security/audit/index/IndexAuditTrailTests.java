@@ -84,6 +84,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public static final String SECOND_CLUSTER_NODE_PREFIX = "remote_" + SUITE_CLUSTER_NODE_PREFIX;
 
     private static boolean remoteIndexing;
+    private static boolean useSSL;
     private static InternalTestCluster remoteCluster;
     private static Settings remoteSettings;
 
@@ -99,6 +100,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
     @BeforeClass
     public static void configureBeforeClass() {
+        useSSL = randomBoolean();
         remoteIndexing = randomBoolean();
         if (remoteIndexing == false) {
             remoteSettings = Settings.EMPTY;
@@ -112,6 +114,11 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             remoteCluster = null;
         }
         remoteSettings = null;
+    }
+
+    @Override
+    protected boolean transportSSLEnabled() {
+        return useSSL;
     }
 
     @Before
@@ -131,11 +138,11 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         // Setup a second test cluster with randomization for number of nodes, security enabled, and SSL
         final int numNodes = randomIntBetween(1, 2);
         final boolean useSecurity = randomBoolean();
-        final boolean useGeneratedSSL = useSecurity && randomBoolean();
-        logger.info("--> remote indexing enabled. security enabled: [{}], SSL enabled: [{}], nodes: [{}]", useSecurity, useGeneratedSSL,
+        final boolean remoteUseSSL = useSecurity && useSSL;
+        logger.info("--> remote indexing enabled. security enabled: [{}], SSL enabled: [{}], nodes: [{}]", useSecurity, useSSL,
                 numNodes);
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(numNodes, useGeneratedSSL, createTempDir(), Scope.SUITE) {
+                new SecuritySettingsSource(numNodes, useSSL, createTempDir(), Scope.SUITE) {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
@@ -192,8 +199,9 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                 .put("xpack.security.audit.index.client.xpack.security.user", SecuritySettingsSource.TEST_USER_NAME + ":" +
                         SecuritySettingsSource.TEST_PASSWORD);
 
-        if (useGeneratedSSL == false) {
+        if (remoteUseSSL) {
             cluster2SettingsSource.addClientSSLSettings(builder, "xpack.security.audit.index.client.");
+            builder.put("xpack.security.audit.index.client.xpack.security.transport.ssl.enabled", true);
         }
         if (useSecurity == false && builder.get(NetworkModule.TRANSPORT_TYPE_KEY) == null) {
             builder.put("xpack.security.audit.index.client." + NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());

@@ -51,8 +51,8 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected boolean useGeneratedSSLConfig() {
-        return false;
+    protected boolean transportSSLEnabled() {
+        return true;
     }
 
     // no SSL exception as this is the exception is returned when connecting

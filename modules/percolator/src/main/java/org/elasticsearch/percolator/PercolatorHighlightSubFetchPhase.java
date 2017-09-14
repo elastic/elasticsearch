@@ -53,12 +53,12 @@ import java.util.Map;
  * Highlighting in the case of the percolate query is a bit different, because the PercolateQuery itself doesn't get highlighted,
  * but the source of the PercolateQuery gets highlighted by each hit containing a query.
  */
-final class PercolatorHighlightSubFetchPhase extends HighlightPhase {
+final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
+    private final HighlightPhase highlightPhase;
 
     PercolatorHighlightSubFetchPhase(Settings settings, Map<String, Highlighter> highlighters) {
-        super(settings, highlighters);
+        this.highlightPhase = new HighlightPhase(settings, highlighters);
     }
-
 
     boolean hitsExecutionNeeded(SearchContext context) { // for testing
         return context.highlight() != null && locatePercolatorQuery(context.query()).isEmpty() == false;
@@ -109,7 +109,7 @@ final class PercolatorHighlightSubFetchPhase extends HighlightPhase {
                             percolatorLeafReaderContext, slot, percolatorIndexSearcher
                         );
                         hitContext.cache().clear();
-                        super.hitExecute(subSearchContext, hitContext);
+                        highlightPhase.hitExecute(subSearchContext, hitContext);
                         for (Map.Entry<String, HighlightField> entry : hitContext.hit().getHighlightFields().entrySet()) {
                             if (percolateQuery.getDocuments().size() == 1) {
                                 String hlFieldName;

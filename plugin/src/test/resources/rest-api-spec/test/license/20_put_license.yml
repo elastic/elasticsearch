@@ -97,7 +97,7 @@ teardown:
 "Should fail gracefully when body content is not provided":
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.license.post:
         acknowledge: true
 

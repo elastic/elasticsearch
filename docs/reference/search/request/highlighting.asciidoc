@@ -515,7 +515,7 @@ Response:
                 },
                 "highlight": {
                     "message": [
-                        "some message with the <em>number</em> <em>1</em>"
+                        " with the <em>number</em> <em>1</em>"
                     ]
                 }
             }

@@ -163,12 +163,17 @@ be caught and tested.  For instance:
 The argument to `catch` can be any of:
 
 [horizontal]
-`missing`::     a 404 response from ES
-`conflict`::    a 409 response from ES
-`request`::     a generic error response from ES
-`param`::       a client-side error indicating an unknown parameter has been passed
-                to the method
-`/foo bar/`::   the text of the error message matches this regular expression
+`unauthorized`::    a 401 response from ES
+`forbidden`::       a 403 response from ES
+`missing`::         a 404 response from ES
+`request_timeout`:: a 408 response from ES
+`conflict`::        a 409 response from ES
+`request`::         a 4xx-5xx error response from ES, not equal to any named response
+                    above
+`unavailable`::     a 503 response from ES
+`param`::           a client-side error indicating an unknown parameter has been passed
+                    to the method
+`/foo bar/`::       the text of the error message matches this regular expression
 
 If `catch` is specified, then the `response` var must be cleared, and the test
 should fail if no error is thrown.

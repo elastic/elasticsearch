@@ -17,21 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.storage;
+package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.Proxy;
 import java.net.URISyntaxException;
-import java.util.Locale;
 import java.util.Map;
 
 /**

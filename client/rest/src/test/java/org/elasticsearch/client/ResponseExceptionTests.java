@@ -36,6 +36,7 @@ import org.apache.http.util.EntityUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -74,8 +75,14 @@ public class ResponseExceptionTests extends RestClientTestCase {
             assertNull(responseException.getResponse().getEntity());
         }
 
-        String message = response.getRequestLine().getMethod() + " " + response.getHost() + response.getRequestLine().getUri()
-                + ": " + response.getStatusLine().toString();
+        String message = String.format(Locale.ROOT,
+            "method [%s], host [%s], URI [%s], status line [%s]",
+            response.getRequestLine().getMethod(),
+            response.getHost(),
+            response.getRequestLine().getUri(),
+            response.getStatusLine().toString()
+        );
+
         if (hasBody) {
             message += "\n" + responseBody;
         }

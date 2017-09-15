@@ -142,7 +142,7 @@ teardown:
 ---
 "Test invalid processor config":
   - do:
-      catch: request
+      catch: bad_request
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >

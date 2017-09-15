@@ -17,14 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure;
+package org.elasticsearch.repositories.azure;
 
-public class AzureServiceDisableException extends IllegalStateException {
-    public AzureServiceDisableException(String msg) {
-        super(msg);
-    }
+import org.elasticsearch.repositories.azure.AzureRepositoryPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
 
-    public AzureServiceDisableException(String msg, Throwable cause) {
-        super(msg, cause);
+import java.util.Arrays;
+import java.util.Collection;
+
+/**
+ * Base class for Azure tests.
+ */
+public abstract class AbstractAzureIntegTestCase extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(AzureRepositoryPlugin.class);
     }
 }

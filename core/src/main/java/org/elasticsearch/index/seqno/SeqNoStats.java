@@ -22,7 +22,6 @@ package org.elasticsearch.index.seqno;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -42,7 +41,7 @@ public class SeqNoStats implements ToXContentFragment, Writeable {
     public SeqNoStats(long maxSeqNo, long localCheckpoint, long globalCheckpoint) {
         assert localCheckpoint <= maxSeqNo:
             "local checkpoint [" + localCheckpoint + "] is above maximum seq no [" + maxSeqNo + "]";
-        // note that the the global checkpoint can be higher from both maxSeqNo and localCheckpoint
+        // note that the global checkpoint can be higher from both maxSeqNo and localCheckpoint
         // as we use this stats object to describe lucene commits as well as live statistic.
         this.maxSeqNo = maxSeqNo;
         this.localCheckpoint = localCheckpoint;

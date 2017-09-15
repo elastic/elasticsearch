@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.storage;
+package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
-import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -36,7 +35,7 @@ import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.Map;
 
-import static org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl.blobNameFromUri;
+import static org.elasticsearch.repositories.azure.AzureStorageServiceImpl.blobNameFromUri;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -78,7 +77,7 @@ public class AzureStorageServiceTests extends ESTestCase {
 
     public void testGetSelectedClientWithNoPrimaryAndSecondary() {
         try {
-            new AzureStorageServiceMock(Settings.EMPTY);
+            new AzureStorageServiceMockForSettings(Settings.EMPTY);
             fail("we should have raised an IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("If you want to use an azure repository, you need to define a client configuration."));
@@ -86,7 +85,7 @@ public class AzureStorageServiceTests extends ESTestCase {
     }
 
     public void testGetSelectedClientNonExisting() {
-        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(buildSettings());
+        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMockForSettings(buildSettings());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             azureStorageService.getSelectedClient("azure4", LocationMode.PRIMARY_ONLY);
         });
@@ -98,7 +97,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             .setSecureSettings(buildSecureSettings())
             .put("azure.client.azure3.timeout", "30s")
             .build();
-        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(timeoutSettings);
+        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMockForSettings(timeoutSettings);
         CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
         assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), nullValue());
         CloudBlobClient client3 = azureStorageService.getSelectedClient("azure3", LocationMode.PRIMARY_ONLY);
@@ -106,13 +105,13 @@ public class AzureStorageServiceTests extends ESTestCase {
     }
 
     public void testGetSelectedClientNoTimeout() {
-        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(buildSettings());
+        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMockForSettings(buildSettings());
         CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
         assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(nullValue()));
     }
 
     public void testGetSelectedClientBackoffPolicy() {
-        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(buildSettings());
+        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMockForSettings(buildSettings());
         CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
         assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), is(notNullValue()));
         assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), instanceOf(RetryExponentialRetry.class));
@@ -124,7 +123,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             .put("azure.client.azure1.max_retries", 7)
             .build();
 
-        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(timeoutSettings);
+        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMockForSettings(timeoutSettings);
         CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
         assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), is(notNullValue()));
         assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), instanceOf(RetryExponentialRetry.class));
@@ -134,7 +133,7 @@ public class AzureStorageServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .setSecureSettings(buildSecureSettings())
             .build();
-        AzureStorageServiceMock mock = new AzureStorageServiceMock(settings);
+        AzureStorageServiceMockForSettings mock = new AzureStorageServiceMockForSettings(settings);
         assertThat(mock.storageSettings.get("azure1").getProxy(), nullValue());
         assertThat(mock.storageSettings.get("azure2").getProxy(), nullValue());
         assertThat(mock.storageSettings.get("azure3").getProxy(), nullValue());
@@ -147,7 +146,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             .put("azure.client.azure1.proxy.port", 8080)
             .put("azure.client.azure1.proxy.type", "http")
             .build();
-        AzureStorageServiceMock mock = new AzureStorageServiceMock(settings);
+        AzureStorageServiceMockForSettings mock = new AzureStorageServiceMockForSettings(settings);
         Proxy azure1Proxy = mock.storageSettings.get("azure1").getProxy();
 
         assertThat(azure1Proxy, notNullValue());
@@ -167,7 +166,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             .put("azure.client.azure2.proxy.port", 8081)
             .put("azure.client.azure2.proxy.type", "http")
             .build();
-        AzureStorageServiceMock mock = new AzureStorageServiceMock(settings);
+        AzureStorageServiceMockForSettings mock = new AzureStorageServiceMockForSettings(settings);
         Proxy azure1Proxy = mock.storageSettings.get("azure1").getProxy();
         assertThat(azure1Proxy, notNullValue());
         assertThat(azure1Proxy.type(), is(Proxy.Type.HTTP));
@@ -186,7 +185,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             .put("azure.client.azure1.proxy.port", 8080)
             .put("azure.client.azure1.proxy.type", "socks")
             .build();
-        AzureStorageServiceMock mock = new AzureStorageServiceMock(settings);
+        AzureStorageServiceMockForSettings mock = new AzureStorageServiceMockForSettings(settings);
         Proxy azure1Proxy = mock.storageSettings.get("azure1").getProxy();
         assertThat(azure1Proxy, notNullValue());
         assertThat(azure1Proxy.type(), is(Proxy.Type.SOCKS));
@@ -202,7 +201,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             .put("azure.client.azure1.proxy.type", randomFrom("socks", "http"))
             .build();
 
-        SettingsException e = expectThrows(SettingsException.class, () -> new AzureStorageServiceMock(settings));
+        SettingsException e = expectThrows(SettingsException.class, () -> new AzureStorageServiceMockForSettings(settings));
         assertEquals("Azure Proxy type has been set but proxy host or port is not defined.", e.getMessage());
     }
 
@@ -213,7 +212,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             .put("azure.client.azure1.proxy.type", randomFrom("socks", "http"))
             .build();
 
-        SettingsException e = expectThrows(SettingsException.class, () -> new AzureStorageServiceMock(settings));
+        SettingsException e = expectThrows(SettingsException.class, () -> new AzureStorageServiceMockForSettings(settings));
         assertEquals("Azure Proxy type has been set but proxy host or port is not defined.", e.getMessage());
     }
 
@@ -224,7 +223,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             .put("azure.client.azure1.proxy.port", 8080)
             .build();
 
-        SettingsException e = expectThrows(SettingsException.class, () -> new AzureStorageServiceMock(settings));
+        SettingsException e = expectThrows(SettingsException.class, () -> new AzureStorageServiceMockForSettings(settings));
         assertEquals("Azure Proxy port or host have been set but proxy type is not defined.", e.getMessage());
     }
 
@@ -236,15 +235,15 @@ public class AzureStorageServiceTests extends ESTestCase {
             .put("azure.client.azure1.proxy.port", 8080)
             .build();
 
-        SettingsException e = expectThrows(SettingsException.class, () -> new AzureStorageServiceMock(settings));
+        SettingsException e = expectThrows(SettingsException.class, () -> new AzureStorageServiceMockForSettings(settings));
         assertEquals("Azure proxy host is unknown.", e.getMessage());
     }
 
     /**
      * This internal class just overload createClient method which is called by AzureStorageServiceImpl.doStart()
      */
-    class AzureStorageServiceMock extends AzureStorageServiceImpl {
-        AzureStorageServiceMock(Settings settings) {
+    class AzureStorageServiceMockForSettings extends AzureStorageServiceImpl {
+        AzureStorageServiceMockForSettings(Settings settings) {
             super(settings, AzureStorageSettings.load(settings));
         }
 

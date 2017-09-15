@@ -655,7 +655,10 @@ The number of requests per second effectively executed during the reindex.
 
 `throttled_until_millis`::
 
-Ask Nik. He knows, as always.
+This field should always be equal to zero in a delete by query response. It only
+has meaning when using the <<docs-reindex-task-api, Task API>>, where it
+indicates the next time (in milliseconds since epoch) a throttled request will be
+executed again in order to conform to `requests_per_second`.
 
 `failures`::
 

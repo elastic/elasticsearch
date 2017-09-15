@@ -302,7 +302,7 @@
       indices.refresh: {}
 
   - do:
-      catch: request
+      catch: bad_request
       update_by_query:
         refresh: true
         index:   twitter

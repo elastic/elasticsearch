@@ -92,6 +92,9 @@ public class Version implements Comparable<Version> {
     public static final Version V_5_5_3 = new Version(V_5_5_3_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
     public static final int V_5_6_0_ID = 5060099;
     public static final Version V_5_6_0 = new Version(V_5_6_0_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_6_1_ID = 5060199;
+    // use proper Lucene constant once we are on a Lucene snapshot that knows about 6.6.1
+    public static final Version V_5_6_1 = new Version(V_5_6_1_ID, org.apache.lucene.util.Version.fromBits(6, 6, 1));
     public static final int V_6_0_0_alpha1_ID = 6000001;
     public static final Version V_6_0_0_alpha1 =
             new Version(V_6_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
@@ -104,6 +107,9 @@ public class Version implements Comparable<Version> {
     public static final int V_6_0_0_beta2_ID = 6000027;
     public static final Version V_6_0_0_beta2 =
         new Version(V_6_0_0_beta2_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final int V_6_0_0_rc1_ID = 6000051;
+    public static final Version V_6_0_0_rc1 =
+        new Version(V_6_0_0_rc1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
     public static final int V_6_1_0_ID = 6010099;
     public static final Version V_6_1_0 =
         new Version(V_6_1_0_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
@@ -131,12 +137,16 @@ public class Version implements Comparable<Version> {
                 return V_6_1_0;
             case V_6_0_0_beta2_ID:
                 return V_6_0_0_beta2;
+            case V_6_0_0_rc1_ID:
+                return V_6_0_0_rc1;
             case V_6_0_0_beta1_ID:
                 return V_6_0_0_beta1;
             case V_6_0_0_alpha2_ID:
                 return V_6_0_0_alpha2;
             case V_6_0_0_alpha1_ID:
                 return V_6_0_0_alpha1;
+            case V_5_6_1_ID:
+                return V_5_6_1;
             case V_5_6_0_ID:
                 return V_5_6_0;
             case V_5_5_3_ID:

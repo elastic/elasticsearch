@@ -34,7 +34,7 @@ class VersionValue implements Accountable {
 
     /** the seq number of the operation that last changed the associated uuid */
     final long seqNo;
-    /** the the term of the operation that last changed the associated uuid */
+    /** the term of the operation that last changed the associated uuid */
     final long term;
 
     VersionValue(long version, long seqNo, long term) {

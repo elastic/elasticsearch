@@ -42,7 +42,8 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
             final GroupShardsIterator<SearchShardIterator> shardsIts, final TransportSearchAction.SearchTimeProvider timeProvider,
             long clusterStateVersion, SearchTask task) {
         super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor, request, listener,
-            shardsIts, timeProvider, clusterStateVersion, task, searchPhaseController.newSearchPhaseResults(request, shardsIts.size()));
+            shardsIts, timeProvider, clusterStateVersion, task, searchPhaseController.newSearchPhaseResults(request, shardsIts.size()),
+                request.getMaxConcurrentShardRequests());
         this.searchPhaseController = searchPhaseController;
     }
 

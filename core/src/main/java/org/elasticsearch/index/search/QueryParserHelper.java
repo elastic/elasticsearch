@@ -28,21 +28,22 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ScaledFloatFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Helpers to extract and expand field names from a mapping
+ * Helpers to extract and expand field names and boosts
  */
 public final class QueryParserHelper {
     // Mapping types the "all-ish" query can be executed against
+    // TODO: Fix the API so that we don't need a hardcoded list of types
     private static final Set<String> ALLOWED_QUERY_MAPPER_TYPES;
 
     static {
@@ -53,11 +54,34 @@ public final class QueryParserHelper {
         for (NumberFieldMapper.NumberType nt : NumberFieldMapper.NumberType.values()) {
             ALLOWED_QUERY_MAPPER_TYPES.add(nt.typeName());
         }
-        ALLOWED_QUERY_MAPPER_TYPES.add(ScaledFloatFieldMapper.CONTENT_TYPE);
+        ALLOWED_QUERY_MAPPER_TYPES.add("scaled_float");
         ALLOWED_QUERY_MAPPER_TYPES.add(TextFieldMapper.CONTENT_TYPE);
     }
 
     private QueryParserHelper() {}
+
+    /**
+     * Convert a list of field names encoded with optional boosts to a map that associates
+     * the field name and its boost.
+     * @param fields The list of fields encoded with optional boosts (e.g. ^0.35).
+     * @return The converted map with field names and associated boosts.
+     */
+    public static Map<String, Float> parseFieldsAndWeights(List<String> fields) {
+        final Map<String, Float> fieldsAndWeights = new HashMap<>();
+        for (String field : fields) {
+            int boostIndex = field.indexOf('^');
+            String fieldName;
+            float boost = 1.0f;
+            if (boostIndex != -1) {
+                fieldName = field.substring(0, boostIndex);
+                boost = Float.parseFloat(field.substring(boostIndex+1, field.length()));
+            } else {
+                fieldName = field;
+            }
+            fieldsAndWeights.put(fieldName, boost);
+        }
+        return fieldsAndWeights;
+    }
 
     /**
      * Get a {@link FieldMapper} associated with a field name or null.
@@ -100,6 +124,7 @@ public final class QueryParserHelper {
                 !multiField, !allField, fieldSuffix);
             resolvedFields.putAll(fieldMap);
         }
+        checkForTooManyFields(resolvedFields);
         return resolvedFields;
     }
 
@@ -160,6 +185,13 @@ public final class QueryParserHelper {
             }
             fields.put(fieldName, weight);
         }
+        checkForTooManyFields(fields);
         return fields;
+    }
+
+    private static void checkForTooManyFields(Map<String, Float> fields) {
+        if (fields.size() > 1024) {
+            throw new IllegalArgumentException("field expansion matches too many fields, limit: 1024, got: " + fields.size());
+        }
     }
 }

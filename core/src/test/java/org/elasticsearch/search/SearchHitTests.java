@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class SearchHitTests extends ESTestCase {
 
-    private static Set<String> META_FIELDS = Sets.newHashSet("_uid", "_all", "_parent", "_routing", "_size", "_timestamp", "_ttl");
+    private static Set<String> META_FIELDS = Sets.newHashSet("_uid", "_parent", "_routing", "_size", "_timestamp", "_ttl");
 
     public static SearchHit createTestItem(boolean withOptionalInnerHits) {
         int internalId = randomInt();

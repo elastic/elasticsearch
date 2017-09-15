@@ -32,7 +32,7 @@ public class GalicianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Gali
     public GalicianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         analyzer = new GalicianAnalyzer(
-            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, GalicianAnalyzer.getDefaultStopSet()),
+            Analysis.parseStopWords(env, settings, GalicianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);

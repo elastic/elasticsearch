@@ -103,6 +103,9 @@ The above request will yield the following response:
               "message": "bonsai tree"
             }
           }
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0] <2>
         }
       }
     ]
@@ -112,6 +115,8 @@ The above request will yield the following response:
 // TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
 
 <1> The query with id `1` matches our document.
+<2> The `_percolator_document_slot` field indicates which document has matched with this query.
+    Useful when percolating multiple document simultaneously.
 
 [float]
 ==== Parameters
@@ -120,7 +125,10 @@ The following parameters are required when percolating a document:
 
 [horizontal]
 `field`:: The field of type `percolator` that holds the indexed queries. This is a required parameter.
+`name`:: The suffix to be used for the `_percolator_document_slot` field in case multiple `percolate` queries have been specified.
+         This is an optional parameter.
 `document`:: The source of the document being percolated.
+`documents`:: Like the `document` parameter, but accepts multiple documents via a json array.
 `document_type`:: The type / mapping of the document being percolated. This setting is deprecated and only required for indices created before 6.0
 
 Instead of specifying the source of the document being percolated, the source can also be retrieved from an already
@@ -135,6 +143,87 @@ In that case the `document` parameter can be substituted with the following para
 `routing`:: Optionally, routing to be used to fetch document to percolate.
 `preference`:: Optionally, preference to be used to fetch document to percolate.
 `version`:: Optionally, the expected version of the document to be fetched.
+
+[float]
+==== Percolating multiple documents
+
+The `percolate` query can match multiple documents simultaneously with the indexed percolator queries.
+Percolating multiple documents in a single request can improve performance as queries only need to be parsed and
+matched once instead of multiple times.
+
+The `_percolator_document_slot` field that is being returned with each matched percolator query is important when percolating
+multiple documents simultaneously. It indicates which documents matched with a particular percolator query. The numbers
+correlate with the slot in the `documents` array specified in the `percolate` query.
+
+[source,js]
+--------------------------------------------------
+GET /my-index/_search
+{
+    "query" : {
+        "percolate" : {
+            "field" : "query",
+            "documents" : [ <1>
+                {
+                    "message" : "bonsai tree"
+                },
+                {
+                    "message" : "new tree"
+                },
+                {
+                    "message" : "the office"
+                },
+                {
+                    "message" : "office tree"
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> The documents array contains 4 documents that are going to be percolated at the same time.
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 13,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "skipped" : 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 1.5606477,
+    "hits": [
+      {
+        "_index": "my-index",
+        "_type": "doc",
+        "_id": "1",
+        "_score": 1.5606477,
+        "_source": {
+          "query": {
+            "match": {
+              "message": "bonsai tree"
+            }
+          }
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0, 1, 3] <1>
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
+
+<1> The `_percolator_document_slot` indicates that the first, second and last documents specified in the `percolate` query
+    are matching with this query.
 
 [float]
 ==== Percolating an Existing Document
@@ -202,7 +291,7 @@ GET /my-index/_search
 
 <1> The version is optional, but useful in certain cases. We can ensure that we are trying to percolate
 the document we just have indexed. A change may be made after we have indexed, and if that is the
-case the then the search request would fail with a version conflict error.
+case the search request would fail with a version conflict error.
 
 The search response returned is identical as in the previous example.
 
@@ -307,6 +396,9 @@ This will yield the following response.
           "message": [
             "The quick brown fox jumps over the <em>lazy</em> <em>dog</em>" <1>
           ]
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0]
         }
       },
       {
@@ -325,6 +417,9 @@ This will yield the following response.
           "message": [
             "The quick <em>brown</em> <em>fox</em> jumps over the lazy dog" <1>
           ]
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0]
         }
       }
     ]
@@ -337,6 +432,179 @@ This will yield the following response.
 
 Instead of the query in the search request highlighting the percolator hits, the percolator queries are highlighting
 the document defined in the `percolate` query.
+
+When percolating multiple documents at the same time like the request below then the highlight response is different:
+
+[source,js]
+--------------------------------------------------
+GET /my-index/_search
+{
+    "query" : {
+        "percolate" : {
+            "field": "query",
+            "documents" : [
+                {
+                    "message" : "bonsai tree"
+                },
+                {
+                    "message" : "new tree"
+                },
+                {
+                    "message" : "the office"
+                },
+                {
+                    "message" : "office tree"
+                }
+            ]
+        }
+    },
+    "highlight": {
+      "fields": {
+        "message": {}
+      }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The slightly different response:
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 13,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "skipped" : 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 1.5606477,
+    "hits": [
+      {
+        "_index": "my-index",
+        "_type": "doc",
+        "_id": "1",
+        "_score": 1.5606477,
+        "_source": {
+          "query": {
+            "match": {
+              "message": "bonsai tree"
+            }
+          }
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0, 1, 3]
+        },
+        "highlight" : { <1>
+          "0_message" : [
+              "<em>bonsai</em> <em>tree</em>"
+          ],
+          "3_message" : [
+              "office <em>tree</em>"
+          ],
+          "1_message" : [
+              "new <em>tree</em>"
+          ]
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
+
+<1> The highlight fields have been prefixed with the document slot they belong to,
+    in order to know which highlight field belongs to what document.
+
+[float]
+==== Specifying multiple percolate queries
+
+It is possible to specify multiple `percolate` queries in a single search request:
+
+[source,js]
+--------------------------------------------------
+GET /my-index/_search
+{
+    "query" : {
+        "bool" : {
+            "should" : [
+                {
+                    "percolate" : {
+                        "field" : "query",
+                        "document" : {
+                            "message" : "bonsai tree"
+                        },
+                        "name": "query1" <1>
+                    }
+                },
+                {
+                    "percolate" : {
+                        "field" : "query",
+                        "document" : {
+                            "message" : "tulip flower"
+                        },
+                        "name": "query2" <1>
+                    }
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> The `name` parameter will be used to identify which percolator document slots belong to what `percolate` query.
+
+The `_percolator_document_slot` field name will be suffixed with what is specified in the `_name` parameter.
+If that isn't specified then the `field` parameter will be used, which in this case will result in ambiguity.
+
+The above search request returns a response similar to this:
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 13,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "skipped" : 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 0.5753642,
+    "hits": [
+      {
+        "_index": "my-index",
+        "_type": "doc",
+        "_id": "1",
+        "_score": 0.5753642,
+        "_source": {
+          "query": {
+            "match": {
+              "message": "bonsai tree"
+            }
+          }
+        },
+        "fields" : {
+          "_percolator_document_slot_query1" : [0] <1>
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
+
+<1> The `_percolator_document_slot_query1` percolator slot field indicates that these matched slots are from the `percolate`
+    query with `_name` parameter set to `query1`.
 
 [float]
 ==== How it Works Under the Hood

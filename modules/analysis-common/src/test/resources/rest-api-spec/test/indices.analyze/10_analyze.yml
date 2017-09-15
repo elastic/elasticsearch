@@ -6,7 +6,7 @@
         version: " - 5.99.99"
         reason:  normalizer support in 6.0.0
     - do:
-        catch: request
+        catch: bad_request
         indices.analyze:
           body:
             text: ABc

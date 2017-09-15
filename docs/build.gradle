@@ -19,38 +19,7 @@
 
 apply plugin: 'elasticsearch.docs-test'
 
-/* List of files that have snippets that probably should be converted to
- * `// CONSOLE` and `// TESTRESPONSE` but have yet to be converted. Try and
- * only remove entries from this list. When it is empty we'll remove it
- * entirely and have a party! There will be cake and everything.... */
-buildRestTests.expectedUnconvertedCandidates = [
-  'reference/aggregations/bucket/nested-aggregation.asciidoc',
-  'reference/aggregations/bucket/range-aggregation.asciidoc',
-  'reference/aggregations/bucket/reverse-nested-aggregation.asciidoc',
-  'reference/aggregations/bucket/significantterms-aggregation.asciidoc',
-  'reference/aggregations/bucket/terms-aggregation.asciidoc',
-  'reference/aggregations/matrix/stats-aggregation.asciidoc',
-  'reference/aggregations/metrics/tophits-aggregation.asciidoc',
-  'reference/cluster/allocation-explain.asciidoc',
-  'reference/cluster/nodes-info.asciidoc',
-  'reference/cluster/pending.asciidoc',
-  'reference/cluster/state.asciidoc',
-  'reference/cluster/stats.asciidoc',
-  'reference/cluster/tasks.asciidoc',
-  'reference/docs/delete-by-query.asciidoc',
-  'reference/docs/reindex.asciidoc',
-  'reference/docs/update-by-query.asciidoc',
-  'reference/index-modules/similarity.asciidoc',
-  'reference/index-modules/store.asciidoc',
-  'reference/index-modules/translog.asciidoc',
-  'reference/indices/recovery.asciidoc',
-  'reference/indices/segments.asciidoc',
-  'reference/indices/shard-stores.asciidoc',
-  'reference/search/profile.asciidoc',
-]
-
 integTestCluster {
-  setting 'script.max_compilations_per_minute', '1000'
   /* Enable regexes in painless so our tests don't complain about example
    * snippets that use them. */
   setting 'script.painless.regex.enabled', 'true'

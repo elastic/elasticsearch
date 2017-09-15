@@ -104,7 +104,7 @@ If you compile too many unique scripts within a small amount of time,
 Elasticsearch will reject the new dynamic scripts with a
 `circuit_breaking_exception` error. By default, up to 15 inline scripts per
 minute will be compiled. You can change this setting dynamically by setting
-`script.max_compilations_per_minute`.
+`script.max_compilations_rate`.
 
 ========================================
 
@@ -178,14 +178,12 @@ DELETE _scripts/calculate-score
 === Script Caching
 
 All scripts are cached by default so that they only need to be recompiled
-when updates occur. File scripts keep a static cache and will always reside
-in memory. Both inline and stored scripts are stored in a cache that can evict
-residing scripts. By default, scripts do not have a time-based expiration, but
+when updates occur. By default, scripts do not have a time-based expiration, but
 you can change this behavior by using the `script.cache.expire` setting.
 You can configure the size of this cache by using the `script.cache.max_size` setting.
 By default, the cache size is `100`.
 
 NOTE: The size of stored scripts is limited to 65,535 bytes. This can be
 changed by setting `script.max_size_in_bytes` setting to increase that soft
-limit, but if scripts are really large then alternatives like
-<<modules-scripting-native,native>> scripts should be considered instead.
+limit, but if scripts are really large then a
+<<modules-scripting-engine,native script engine>> should be considered.

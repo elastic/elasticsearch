@@ -69,8 +69,32 @@ public class KeyStoreWrapperTests extends ESTestCase {
         }
     }
 
-    public void testKeystoreSeed() throws Exception {
+    public void testCreate() throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.create(new char[0]);
         assertTrue(keystore.getSettingNames().contains(KeyStoreWrapper.SEED_SETTING.getKey()));
+    }
+
+    public void testUpgradeNoop() throws Exception {
+        KeyStoreWrapper keystore = KeyStoreWrapper.create(new char[0]);
+        SecureString seed = keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey());
+        keystore.save(env.configFile());
+        // upgrade does not overwrite seed
+        KeyStoreWrapper.upgrade(keystore, env.configFile());
+        assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
+        keystore = KeyStoreWrapper.load(env.configFile());
+        keystore.decrypt(new char[0]);
+        assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
+    }
+
+    public void testUpgradeAddsSeed() throws Exception {
+        KeyStoreWrapper keystore = KeyStoreWrapper.create(new char[0]);
+        keystore.remove(KeyStoreWrapper.SEED_SETTING.getKey());
+        keystore.save(env.configFile());
+        KeyStoreWrapper.upgrade(keystore, env.configFile());
+        SecureString seed = keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey());
+        assertNotNull(seed);
+        keystore = KeyStoreWrapper.load(env.configFile());
+        keystore.decrypt(new char[0]);
+        assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
     }
 }

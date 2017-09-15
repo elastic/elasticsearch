@@ -54,10 +54,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -120,8 +119,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final IndexMetaData metaData = primary.indexSettings().getIndexMetaData();
         Translog.Location location = null;
         for (int requestIndex = 0; requestIndex < request.items().length; requestIndex++) {
-            location = executeBulkItemRequest(metaData, primary, request, location, requestIndex,
+            if (isAborted(request.items()[requestIndex].getPrimaryResponse()) == false) {
+                location = executeBulkItemRequest(metaData, primary, request, location, requestIndex,
                     updateHelper, nowInMillisSupplier, mappingUpdater);
+            }
         }
         BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
         BulkItemRequest[] items = request.items();
@@ -260,6 +261,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return calculateTranslogLocation(location, responseHolder);
     }
 
+    private static boolean isAborted(BulkItemResponse response) {
+        return response != null && response.isFailed() && response.getFailure().isAborted();
+    }
+
     private static boolean isConflictException(final Exception e) {
         return ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException;
     }
@@ -270,7 +275,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     static BulkItemResultHolder processUpdateResponse(final UpdateRequest updateRequest, final String concreteIndex,
                                                       final Engine.Result result, final UpdateHelper.Result translate,
                                                       final IndexShard primary, final int bulkReqId) throws Exception {
-        assert result.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO : "failed result should not have a sequence number";
+        assert result.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "failed result should not have a sequence number";
 
         Engine.Operation.TYPE opType = result.getOperationType();
 
@@ -339,7 +344,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } catch (Exception failure) {
             // we may fail translating a update to index or delete operation
             // we use index result to communicate failure while translating update request
-            final Engine.Result result = new Engine.IndexResult(failure, updateRequest.version(), SequenceNumbersService.UNASSIGNED_SEQ_NO);
+            final Engine.Result result = new Engine.IndexResult(failure, updateRequest.version(), SequenceNumbers.UNASSIGNED_SEQ_NO);
             return new BulkItemResultHolder(null, result, primaryItemRequest);
         }
 
@@ -441,7 +446,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final BulkItemResponse primaryResponse = request.getPrimaryResponse();
         assert primaryResponse != null : "expected primary response to be set for item [" + index + "] request [" + request.request() + "]";
         if (primaryResponse.isFailed()) {
-            return primaryResponse.getFailure().getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO
+            return primaryResponse.getFailure().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
                     ? ReplicaItemExecutionMode.FAILURE // we have a seq no generated with the failure, replicate as no-op
                     : ReplicaItemExecutionMode.NOOP; // no seq no generated, ignore replication
         } else {
@@ -480,7 +485,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         break;
                     case FAILURE:
                         final BulkItemResponse.Failure failure = item.getPrimaryResponse().getFailure();
-                        assert failure.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO : "seq no must be assigned";
+                        assert failure.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "seq no must be assigned";
                         operationResult = replica.markSeqNoAsNoop(failure.getSeqNo(), failure.getMessage());
                         assert operationResult != null : "operation result must never be null when primary response has no failure";
                         location = syncOperationResultOrThrow(operationResult, location);

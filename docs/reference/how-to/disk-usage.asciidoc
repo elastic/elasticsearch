@@ -143,13 +143,6 @@ Larger shards are going to be more efficient at storing data. To increase the si
 Keep in mind that large shard sizes come with drawbacks, such as long full recovery times.
 
 [float]
-=== Disable `_all`
-
-The <<mapping-all-field,`_all`>> field indexes the value of all fields of a
-document and can use significant space. If you never need to search against all
-fields at the same time, it can be disabled.
-
-[float]
 === Disable `_source`
 
 The <<mapping-source-field,`_source`>> field stores the original JSON body of the document. If you don’t need access to it you can disable it. However, APIs that needs access to `_source` such as update and reindex won’t work.

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.entity.ByteArrayEntity;
-import org.elasticsearch.client.http.util.EntityUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -278,7 +278,7 @@ public class RequestTests extends ESTestCase {
 
         HttpEntity entity = request.entity;
         assertTrue(entity instanceof ByteArrayEntity);
-        assertEquals(indexRequest.getContentType().mediaType(), entity.getContentType().getValue());
+        assertEquals(indexRequest.getContentType().mediaTypeWithoutParameters(), entity.getContentType().getValue());
         try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
             assertEquals(nbFields, parser.map().size());
         }
@@ -488,7 +488,7 @@ public class RequestTests extends ESTestCase {
         assertEquals("/_bulk", request.endpoint);
         assertEquals(expectedParams, request.params);
         assertEquals("POST", request.method);
-        assertEquals(xContentType.mediaType(), request.entity.getContentType().getValue());
+        assertEquals(xContentType.mediaTypeWithoutParameters(), request.entity.getContentType().getValue());
         byte[] content = new byte[(int) request.entity.getContentLength()];
         try (InputStream inputStream = request.entity.getContent()) {
             Streams.readFully(inputStream, content);
@@ -541,7 +541,7 @@ public class RequestTests extends ESTestCase {
             bulkRequest.add(new DeleteRequest("index", "type", "2"));
 
             Request request = Request.bulk(bulkRequest);
-            assertEquals(XContentType.JSON.mediaType(), request.entity.getContentType().getValue());
+            assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), request.entity.getContentType().getValue());
         }
         {
             XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
@@ -551,7 +551,7 @@ public class RequestTests extends ESTestCase {
             bulkRequest.add(new DeleteRequest("index", "type", "2"));
 
             Request request = Request.bulk(bulkRequest);
-            assertEquals(xContentType.mediaType(), request.entity.getContentType().getValue());
+            assertEquals(xContentType.mediaTypeWithoutParameters(), request.entity.getContentType().getValue());
         }
         {
             XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
@@ -563,7 +563,7 @@ public class RequestTests extends ESTestCase {
             }
 
             Request request = Request.bulk(new BulkRequest().add(updateRequest));
-            assertEquals(xContentType.mediaType(), request.entity.getContentType().getValue());
+            assertEquals(xContentType.mediaTypeWithoutParameters(), request.entity.getContentType().getValue());
         }
         {
             BulkRequest bulkRequest = new BulkRequest();
@@ -732,7 +732,7 @@ public class RequestTests extends ESTestCase {
         assertEquals("/_search/scroll", request.endpoint);
         assertEquals(0, request.params.size());
         assertToXContentBody(searchScrollRequest, request.entity);
-        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaType(), request.entity.getContentType().getValue());
+        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.entity.getContentType().getValue());
     }
 
     public void testClearScroll() throws IOException {
@@ -746,12 +746,12 @@ public class RequestTests extends ESTestCase {
         assertEquals("/_search/scroll", request.endpoint);
         assertEquals(0, request.params.size());
         assertToXContentBody(clearScrollRequest, request.entity);
-        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaType(), request.entity.getContentType().getValue());
+        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.entity.getContentType().getValue());
     }
 
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
         BytesReference expectedBytes = XContentHelper.toXContent(expectedBody, Request.REQUEST_BODY_CONTENT_TYPE, false);
-        assertEquals(XContentType.JSON.mediaType(), actualEntity.getContentType().getValue());
+        assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
         assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(actualEntity)));
     }
 
@@ -791,6 +791,11 @@ public class RequestTests extends ESTestCase {
         assertEquals("/a/b/_create", Request.endpoint("a", "b", "_create"));
         assertEquals("/a/b/c/_create", Request.endpoint("a", "b", "c", "_create"));
         assertEquals("/a/_create", Request.endpoint("a", null, null, "_create"));
+    }
+
+    public void testCreateContentType() {
+        final XContentType xContentType = randomFrom(XContentType.values());
+        assertEquals(xContentType.mediaTypeWithoutParameters(), Request.createContentType(xContentType).getMimeType());
     }
 
     public void testEnforceSameContentType() {

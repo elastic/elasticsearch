@@ -61,8 +61,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             shardSearchTransportRequest.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                ShardSearchTransportRequest deserializedRequest = new ShardSearchTransportRequest();
-                deserializedRequest.readFrom(in);
+                ShardSearchTransportRequest deserializedRequest = new ShardSearchTransportRequest(in);
                 assertEquals(deserializedRequest.scroll(), shardSearchTransportRequest.scroll());
                 assertEquals(deserializedRequest.getAliasFilter(), shardSearchTransportRequest.getAliasFilter());
                 assertArrayEquals(deserializedRequest.indices(), shardSearchTransportRequest.indices());

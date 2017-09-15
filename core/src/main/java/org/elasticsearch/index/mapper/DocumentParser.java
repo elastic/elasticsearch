@@ -175,14 +175,21 @@ final class DocumentParser {
     }
 
     private static String[] splitAndValidatePath(String fullFieldPath) {
-        String[] parts = fullFieldPath.split("\\.");
-        for (String part : parts) {
-            if (Strings.hasText(part) == false) {
-                throw new IllegalArgumentException(
-                    "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]");
+        if (fullFieldPath.contains(".")) {
+            String[] parts = fullFieldPath.split("\\.");
+            for (String part : parts) {
+                if (Strings.hasText(part) == false) {
+                    throw new IllegalArgumentException(
+                            "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]");
+                }
             }
+            return parts;
+        } else {
+            if (Strings.isEmpty(fullFieldPath)) {
+                throw new IllegalArgumentException("field name cannot be an empty string");
+            }
+            return new String[] {fullFieldPath};
         }
-        return parts;
     }
 
     /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
@@ -351,12 +358,6 @@ final class DocumentParser {
         ObjectMapper.Nested nested = mapper.nested();
         if (nested.isNested()) {
             context = nestedContext(context, mapper);
-        }
-
-        // update the default value of include_in_all if necessary
-        Boolean includeInAll = mapper.includeInAll();
-        if (includeInAll != null) {
-            context = context.setIncludeInAllDefault(includeInAll);
         }
 
         // if we are at the end of the previous object, advance

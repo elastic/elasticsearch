@@ -28,7 +28,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -105,8 +105,8 @@ final class Checkpoint {
 
     static Checkpoint emptyTranslogCheckpoint(final long offset, final long generation, final long globalCheckpoint,
                                               long minTranslogGeneration) {
-        final long minSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
-        final long maxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
+        final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+        final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         return new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration);
     }
 
@@ -116,9 +116,9 @@ final class Checkpoint {
 
     // reads a checksummed checkpoint introduced in ES 5.0.0
     static Checkpoint readCheckpointV5_0_0(final DataInput in) throws IOException {
-        final long minSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
-        final long maxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
-        final long globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+        final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+        final long globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
         final long minTranslogGeneration = -1L;
         return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration);
     }

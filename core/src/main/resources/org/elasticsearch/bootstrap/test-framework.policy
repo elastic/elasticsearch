@@ -33,7 +33,7 @@ grant codeBase "${codebase.securemock-1.2.jar}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${codebase.lucene-test-framework-7.0.0-snapshot-a128fcb.jar}" {
+grant codeBase "${codebase.lucene-test-framework-7.0.0-snapshot-d94a5f0.jar}" {
   // needed by RamUsageTester
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed for testing hardlinks in StoreRecoveryTests since we install MockFS
@@ -63,18 +63,11 @@ grant codeBase "${codebase.mocksocket-1.2.jar}" {
   permission java.net.SocketPermission "*", "accept,connect";
 };
 
-grant codeBase "${codebase.elasticsearch-rest-client-7.0.0-alpha1-SNAPSHOT.jar}" {
+grant codeBase "${codebase.elasticsearch-rest-client}" {
   // rest makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
   // rest client uses system properties which gets the default proxy
   permission java.net.NetPermission "getProxySelector";
-};
-
-// IDEs need this because they do not play nicely with removing artifacts on projects,
-// so we keep it in here for IDE test support
-grant codeBase "${codebase.elasticsearch-rest-client-7.0.0-alpha1-SNAPSHOT-deps.jar}" {
-  // rest makes socket connections for rest tests
-  permission java.net.SocketPermission "*", "connect";
 };
 
 grant codeBase "${codebase.httpcore-nio-4.4.5.jar}" {

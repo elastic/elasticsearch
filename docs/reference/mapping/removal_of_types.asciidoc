@@ -41,7 +41,7 @@ field, so documents of different types with the same `_id` could exist in a
 single index.
 
 Mapping types were also used to establish a
-/guide/en/elasticsearch/reference/5.4/mapping-parent-field.html[parent-child relationship]
+<<mapping-parent-field,parent-child relationship>>
 between documents, so documents of type `question` could be parents to
 documents of type `answer`.
 
@@ -103,7 +103,7 @@ larger number of primary shards for `tweets`.
 ==== Custom type field
 
 Of course, there is a limit to how many primary shards can exist in a cluster
-so you many not want to waste an entire shard for a collection of only a few
+so you may not want to waste an entire shard for a collection of only a few
 thousand documents.  In this case, you can implement your own custom `type`
 field which will work in a similar way to the old `_type`.
 

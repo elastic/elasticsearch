@@ -20,29 +20,39 @@ settings.
 
 [source,js]
 --------------------------------------------------
-"similarity" : {
-  "my_similarity" : {
-    "type" : "DFR",
-    "basic_model" : "g",
-    "after_effect" : "l",
-    "normalization" : "h2",
-    "normalization.h2.c" : "3.0"
-  }
+PUT /index
+{
+    "settings" : {
+        "index" : {
+            "similarity" : {
+              "my_similarity" : {
+                "type" : "DFR",
+                "basic_model" : "g",
+                "after_effect" : "l",
+                "normalization" : "h2",
+                "normalization.h2.c" : "3.0"
+              }
+            }
+        }
+    }
 }
 --------------------------------------------------
+// CONSOLE
 
 Here we configure the DFRSimilarity so it can be referenced as
 `my_similarity` in mappings as is illustrate in the below example:
 
 [source,js]
 --------------------------------------------------
+PUT /index/_mapping/book
 {
-  "book" : {
-    "properties" : {
-      "title" : { "type" : "text", "similarity" : "my_similarity" }
-    }
+  "properties" : {
+    "title" : { "type" : "text", "similarity" : "my_similarity" }
+  }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 === Available similarities
@@ -173,7 +183,7 @@ TF-IDF:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT /index
 {
   "settings": {
     "number_of_shards": 1, 
@@ -198,19 +208,19 @@ PUT index
   }
 }
 
-PUT index/doc/1
+PUT /index/doc/1
 {
   "field": "foo bar foo"
 }
 
-PUT index/doc/2
+PUT /index/doc/2
 {
   "field": "bar baz"
 }
 
-POST index/_refresh
+POST /index/_refresh
 
-GET index/_search?explain=true
+GET /index/_search?explain=true
 {
   "query": {
     "query_string": {
@@ -328,7 +338,7 @@ more efficient:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT /index
 {
   "settings": {
     "number_of_shards": 1, 
@@ -362,19 +372,19 @@ PUT index
 
 [source,js]
 --------------------------------------------------
-PUT index/doc/1
+PUT /index/doc/1
 {
   "field": "foo bar foo"
 }
 
-PUT index/doc/2
+PUT /index/doc/2
 {
   "field": "bar baz"
 }
 
-POST index/_refresh
+POST /index/_refresh
 
-GET index/_search?explain=true
+GET /index/_search?explain=true
 {
   "query": {
     "query_string": {
@@ -494,36 +504,41 @@ it is <<indices-create-index,created>>:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index
+PUT /index
 {
   "settings": {
     "index": {
       "similarity": {
         "default": {
-          "type": "boolean"
+          "type": "classic"
         }
       }
     }
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 If you want to change the default similarity after creating the index
-you must <<indices-open-close,close>> your index, send the follwing
+you must <<indices-open-close,close>> your index, send the following
 request and <<indices-open-close,open>> it again afterwards:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index/_settings
+POST /index/_close
+
+PUT /index/_settings
 {
-  "settings": {
-    "index": {
-      "similarity": {
-        "default": {
-          "type": "boolean"
-        }
+  "index": {
+    "similarity": {
+      "default": {
+        "type": "classic"
       }
     }
   }
 }
+
+POST /index/_open
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]

@@ -315,7 +315,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return routingTable.build();
         }
 
-        synchronized boolean removeReplica(IndexShard replica) throws IOException {
+        public synchronized boolean removeReplica(IndexShard replica) throws IOException {
             final boolean removed = replicas.remove(replica);
             if (removed) {
                 updateAllocationIDsOnPrimary();

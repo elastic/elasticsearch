@@ -19,21 +19,21 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.elasticsearch.client.http.Header;
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.HttpHost;
-import org.elasticsearch.client.http.RequestLine;
-import org.elasticsearch.client.http.auth.AuthScope;
-import org.elasticsearch.client.http.auth.UsernamePasswordCredentials;
-import org.elasticsearch.client.http.client.CredentialsProvider;
-import org.elasticsearch.client.http.client.config.RequestConfig;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.impl.client.BasicCredentialsProvider;
-import org.elasticsearch.client.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.elasticsearch.client.http.impl.nio.reactor.IOReactorConfig;
-import org.elasticsearch.client.http.message.BasicHeader;
-import org.elasticsearch.client.http.nio.entity.NStringEntity;
-import org.elasticsearch.client.http.util.EntityUtils;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.RequestLine;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.entity.ContentType;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.apache.http.impl.nio.reactor.IOReactorConfig;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.entity.NStringEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;

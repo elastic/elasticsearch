@@ -336,7 +336,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
 
         @Override
-        public void build(SearchContext parentSearchContext,
+        protected void doBuild(SearchContext parentSearchContext,
                           InnerHitsContext innerHitsContext) throws IOException {
             QueryShardContext queryShardContext = parentSearchContext.getQueryShardContext();
             ObjectMapper nestedObjectMapper = queryShardContext.getObjectMapper(path);

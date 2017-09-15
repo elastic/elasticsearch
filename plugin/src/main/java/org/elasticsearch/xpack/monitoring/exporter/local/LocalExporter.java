@@ -74,6 +74,7 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
+import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.loadPipeline;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
 
@@ -505,11 +506,9 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             if (clusterState != null) {
                 long expirationTime = expiration.getMillis();
 
-                // Get the list of monitoring index patterns
-                String[] patterns = StreamSupport.stream(getResolvers().spliterator(), false)
-                                                .map(MonitoringIndexNameResolver::indexPattern)
-                                                .distinct()
-                                                .toArray(String[]::new);
+                // TODO: remove .marvel-* handling in 7.0
+                // Get the list of monitoring index patterns (note: this will include any unaliased .marvel-* indices)
+                final String[] monitoringIndexPatterns = new String[] { ".monitoring-*", ".marvel-*" };
 
                 MonitoringDoc monitoringDoc = new MonitoringDoc(null, null, null, null, null,
                         System.currentTimeMillis(), (MonitoringDoc.Node) null);
@@ -519,13 +518,15 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                                                     .map(r -> r.index(monitoringDoc))
                                                     .collect(Collectors.toSet());
 
+                // avoid deleting the current alerts index, but feel free to delete older ones
+                currents.add(".monitoring-alerts-" + TEMPLATE_VERSION);
+
                 Set<String> indices = new HashSet<>();
                 for (ObjectObjectCursor<String, IndexMetaData> index : clusterState.getMetaData().indices()) {
                     String indexName =  index.key;
 
-                    if (Regex.simpleMatch(patterns, indexName)) {
-
-                        // Never delete the data index or a current index
+                    if (Regex.simpleMatch(monitoringIndexPatterns, indexName)) {
+                        // Never delete any "current" index (e.g., today's index or the most recent version no timestamp, like alerts)
                         if (currents.contains(indexName)) {
                             continue;
                         }

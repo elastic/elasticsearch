@@ -25,8 +25,6 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 public class MonitoringSettings extends AbstractComponent {
 
-    public static final String LEGACY_DATA_INDEX_NAME = ".marvel-es-data";
-
     public static final String HISTORY_DURATION_SETTING_NAME = "history.duration";
     /**
      * The minimum amount of time allowed for the history duration.

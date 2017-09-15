@@ -53,14 +53,15 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         assertIndicesCount(0);
     }
 
-    public void testIgnoreCurrentDataIndex() throws Exception {
+    public void testIgnoreCurrentAlertsIndex() throws Exception {
         internalCluster().startNode();
 
         // Will be deleted
         createTimestampedIndex(now().minusDays(10));
 
         // Won't be deleted
-        createDataIndex(now().minusDays(10));
+        createAlertsIndex(now().minusYears(1));
+
         assertIndicesCount(2);
 
         CleanerService.Listener listener = getListener();
@@ -68,20 +69,34 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         assertIndicesCount(1);
     }
 
-    public void testIgnoreDataIndicesInOtherVersions() throws Exception {
+    public void testDoesNotIgnoreIndicesInOtherVersions() throws Exception {
         internalCluster().startNode();
 
         // Will be deleted
         createTimestampedIndex(now().minusDays(10));
+        createIndex(".marvel-es-data", now().minusYears(1));
+        createIndex(".marvel-es-data-2", now().minusYears(1));
+        createIndex(".monitoring-data-2", now().minusDays(10));
+        createAlertsIndex(now().minusYears(1), MonitoringTemplateUtils.OLD_TEMPLATE_VERSION);
+        createIndex(".marvel-es-2016.05.03");
+        createIndex(".marvel-es-2-2016.05.03");
+        createTimestampedIndex(now().minusDays(10), "0");
+        createTimestampedIndex(now().minusDays(10), "1");
+        createTimestampedIndex(now().minusYears(1), MonitoringTemplateUtils.OLD_TEMPLATE_VERSION);
+        // In the past, this index would not be deleted, but starting in 6.x the monitoring cluster
+        // will be required to be a newer template version than the production cluster, so the index
+        // pushed to it will never be "unknown" in terms of their version (relates to the
+        // _xpack/monitoring/_setup API)
+        createTimestampedIndex(now().minusDays(10), String.valueOf(Integer.MAX_VALUE));
 
         // Won't be deleted
-        createIndex(MonitoringSettings.LEGACY_DATA_INDEX_NAME, now().minusYears(1));
-        createDataIndex(now().minusDays(10));
-        assertIndicesCount(3);
+        createAlertsIndex(now().minusYears(1));
+
+        assertIndicesCount(12);
 
         CleanerService.Listener listener = getListener();
         listener.onCleanUpIndices(days(0));
-        assertIndicesCount(2);
+        assertIndicesCount(1);
     }
 
     public void testIgnoreCurrentTimestampedIndex() throws Exception {
@@ -92,28 +107,12 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
 
         // Won't be deleted
         createTimestampedIndex(now());
+
         assertIndicesCount(2);
 
         CleanerService.Listener listener = getListener();
         listener.onCleanUpIndices(days(0));
         assertIndicesCount(1);
-    }
-
-    public void testIgnoreTimestampedIndicesInOtherVersions() throws Exception {
-        internalCluster().startNode();
-
-        // Will be deleted
-        createTimestampedIndex(now().minusDays(10));
-
-        // Won't be deleted
-        createTimestampedIndex(now().minusDays(10), "0");
-        createTimestampedIndex(now().minusDays(10), "1");
-        createTimestampedIndex(now().minusDays(10), String.valueOf(Integer.MAX_VALUE));
-        assertIndicesCount(4);
-
-        CleanerService.Listener listener = getListener();
-        listener.onCleanUpIndices(days(0));
-        assertIndicesCount(3);
     }
 
     public void testDeleteIndices() throws Exception {
@@ -183,10 +182,17 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
     }
 
     /**
-     * Creates a monitoring data index from an earlier version (from when we used to have them).
+     * Creates a monitoring alerts index from the current version.
      */
-    protected void createDataIndex(DateTime creationDate) {
-        createIndex(".monitoring-data-2", creationDate);
+    protected void createAlertsIndex(final DateTime creationDate) {
+        createAlertsIndex(creationDate, MonitoringTemplateUtils.TEMPLATE_VERSION);
+    }
+
+    /**
+     * Creates a monitoring alerts index from the current version.
+     */
+    protected void createAlertsIndex(final DateTime creationDate, final String version) {
+        createIndex(".monitoring-alerts-" + version, creationDate);
     }
 
     /**

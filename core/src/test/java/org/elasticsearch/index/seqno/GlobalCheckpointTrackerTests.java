@@ -741,6 +741,19 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         newPrimaryCheckpointsCopy.remove(oldPrimary.allocationId);
         newPrimaryCheckpointsCopy.remove(newPrimary.allocationId);
         assertThat(newPrimaryCheckpointsCopy, equalTo(oldPrimaryCheckpointsCopy));
+        // we can however assert that shared knowledge of the local checkpoint and in-sync status is equal
+        assertThat(
+                oldPrimary.checkpoints.get(oldPrimary.allocationId).localCheckpoint,
+                equalTo(newPrimary.checkpoints.get(oldPrimary.allocationId).localCheckpoint));
+        assertThat(
+                oldPrimary.checkpoints.get(newPrimary.allocationId).localCheckpoint,
+                equalTo(newPrimary.checkpoints.get(newPrimary.allocationId).localCheckpoint));
+        assertThat(
+                oldPrimary.checkpoints.get(oldPrimary.allocationId).inSync,
+                equalTo(newPrimary.checkpoints.get(oldPrimary.allocationId).inSync));
+        assertThat(
+                oldPrimary.checkpoints.get(newPrimary.allocationId).inSync,
+                equalTo(newPrimary.checkpoints.get(newPrimary.allocationId).inSync));
         assertThat(newPrimary.getGlobalCheckpoint(), equalTo(oldPrimary.getGlobalCheckpoint()));
         assertThat(newPrimary.routingTable, equalTo(oldPrimary.routingTable));
         assertThat(newPrimary.replicationGroup, equalTo(oldPrimary.replicationGroup));

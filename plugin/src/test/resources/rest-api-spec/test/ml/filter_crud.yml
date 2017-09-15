@@ -89,19 +89,19 @@ setup:
 "Test invalid param combinations":
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_filters:
         filter_id: "filter-foo"
         from: 0
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_filters:
         filter_id: "filter-foo"
         size: 1
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_filters:
         filter_id: "filter-foo"
         from: 0

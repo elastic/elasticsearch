@@ -56,7 +56,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     public void testTokenServiceBootstrapOnNodeJoin() throws Exception {
-        final Client client = internalClient();
+        final Client client = internalSecurityClient();
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse response = securityClient.prepareCreateToken()
                 .setGrantType("password")
@@ -84,7 +84,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
 
     public void testTokenServiceCanRotateKeys() throws Exception {
-        final Client client = internalClient();
+        final Client client = internalSecurityClient();
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse response = securityClient.prepareCreateToken()
                 .setGrantType("password")
@@ -116,7 +116,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {
-        final Client client = internalClient();
+        final Client client = internalSecurityClient();
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse response = securityClient.prepareCreateToken()
                 .setGrantType("password")

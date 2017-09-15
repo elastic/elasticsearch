@@ -6,20 +6,45 @@ The execute watch API forces the execution of a stored watch. It can be used to
 force execution of the watch outside of its triggering logic, or to simulate the
 watch execution for debugging purposes.
 
-The following example executes the `my_watch` watch:
+[float]
+==== Request
 
-[source,js]
---------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_execute
---------------------------------------------------
-// CONSOLE
-// TEST[setup:my_active_watch]
+`POST _xpack/watcher/watch/<watch_id>/_execute` +
 
-For testing and debugging purposes, you also have fine-grained control on how the
-watch is executed--execute the watch without executing all of its actions or
-alternatively by simulating them. You can also force execution by ignoring the
-watch condition and control whether a watch record would be written to the watch
-history after execution.
+`POST _xpack/watcher/watch/_execute`
+
+[float]
+==== Description
+
+For testing and debugging purposes, you also have fine-grained control on how
+the watch runs. You can execute the watch without executing all of its actions
+or alternatively by simulating them. You can also force execution by ignoring
+the watch condition and control whether a watch record would be written to the
+watch history after execution.
+
+[float]
+[[watcher-api-execute-inline-watch]]
+===== Inline Watch Execution
+
+You can use the Execute API to execute watches that are not yet registered by
+specifying the watch definition inline. This serves as great tool for testing
+and debugging your watches prior to adding them to {watcher}.
+
+[float]
+==== Path Parameters
+
+`watch_id`::
+  (string) Identifier for the watch.
+
+[float]
+==== Query Parameters
+
+`debug`::
+  (boolean) Defines whether the watch runs in debug mode. The default value is
+  `false`.
+
+[float]
+==== Request Body
 
 This API supports the following fields:
 
@@ -53,6 +78,58 @@ This API supports the following fields:
                                               not persisted to the index and record_execution cannot be set.
 |======
 
+[float]
+[[watcher-api-execute-watch-action-mode]]
+===== Action Execution Modes
+
+Action modes define how actions are handled during the watch execution. There
+are five possible modes an action can be associated with:
+
+[options="header"]
+|======
+| Name              | Description
+
+| `simulate`        | The action execution is simulated. Each action type
+                      define its own simulation operation mode. For example, the
+                      {xpack-ref}/actions-email.html[email] action creates
+                      the email that would have been sent but does not actually
+                      send it. In this mode, the action might be throttled if the
+                      current state of the watch indicates it should be.
+
+| `force_simulate`  | Similar to the the `simulate` mode, except the action is
+                      not be throttled even if the current state of the watch
+                      indicates it should be.
+
+| `execute`         | Executes the action as it would have been executed if the
+                      watch would have been triggered by its own trigger. The
+                      execution might be throttled if the current state of the
+                      watch indicates it should be.
+
+| `force_execute`   | Similar to the `execute` mode, except the action is not
+                      throttled even if the current state of the watch indicates
+                      it should be.
+
+| `skip`            | The action is skipped and is not executed or simulated.
+                      Effectively forces the action to be throttled.
+|======
+
+[float]
+==== Authorization
+You must have `manage_watcher` cluster privileges to use this API. For more
+information, see {xpack-ref}/security-privileges.html[Security Privileges].
+
+[float]
+==== Examples
+
+The following example executes the `my_watch` watch:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/watcher/watch/my_watch/_execute
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:my_active_watch]
+
 The following example shows a comprehensive example of executing the `my-watch` watch:
 
 [source,js]
@@ -77,14 +154,14 @@ POST _xpack/watcher/watch/my_watch/_execute
 // TEST[setup:my_active_watch]
 <1> The triggered and schedule times are provided.
 <2> The input as defined by the watch is ignored and instead the provided input
-    will be used as the execution payload.
-<3> The condition as defined by the watch will be ignored and will be assumed to
+    is used as the execution payload.
+<3> The condition as defined by the watch is ignored and is assumed to
     evaluate to `true`.
 <4> Forces the simulation of `my-action`. Forcing the simulation means that
     throttling is ignored and the watch is simulated by {watcher} instead of
     being executed normally.
-<5> The execution of the watch will create a watch record in the watch history,
-    and the throttling state of the watch will potentially be updated accordingly.
+<5> The execution of the watch creates a watch record in the watch history,
+    and the throttling state of the watch is potentially updated accordingly.
 
 This is an example of the output:
 
@@ -192,40 +269,6 @@ This is an example of the output:
 <2> The watch record document as it would be stored in the `.watcher-history` index.
 <3> The watch execution results.
 
-[[watcher-api-execute-watch-action-mode]]
-==== Action Execution Modes
-
-Action modes define how actions are handled during the watch execution. There
-are five possible modes an action can be associated with:
-
-[options="header"]
-|======
-| Name              | Description
-
-| `simulate`        | The action execution will be simulated. Each action type
-                      define its own simulation operation mode. For example, the
-                      {xpack-ref}/actions-email.html[email] action will create
-                      the email that would have been sent but will not actually
-                      send it. In this mode, the action may be throttled if the
-                      current state of the watch indicates it should be.
-
-| `force_simulate`  | Similar to the the `simulate` mode, except the action will
-                      not be throttled even if the current state of the watch
-                      indicates it should be.
-
-| `execute`         | Executes the action as it would have been executed if the
-                      watch would have been triggered by its own trigger. The
-                      execution may be throttled if the current state of the
-                      watch indicates it should be.
-
-| `force_execute`   | Similar to the `execute` mode, except the action will not
-                      be throttled even if the current state of the watch
-                      indicates it should be.
-
-| `skip`            | The action will be skipped and won't be executed nor
-                      simulated. Effectively forcing the action to be throttled.
-|======
-
 You can set a different execution mode for every action by associating the mode
 name with the action id:
 
@@ -256,14 +299,6 @@ POST _xpack/watcher/watch/my_watch/_execute
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:my_active_watch]
-
-[float]
-[[watcher-api-execute-inline-watch]]
-==== Inline Watch Execution
-
-You can use the Execute API to execute watches that are not yet registered by
-specifying the watch definition inline. This serves as great tool for testing
-and debugging your watches prior to adding them to {watcher}.
 
 The following example shows how to execute a watch inline:
 

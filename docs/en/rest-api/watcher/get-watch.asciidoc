@@ -2,7 +2,28 @@
 [[watcher-api-get-watch]]
 === Get Watch API
 
-This API retrieves a watch by its id.
+This API retrieves a watch by its ID.
+
+[float]
+==== Request
+
+`GET _xpack/watcher/watch/<watch_id>`
+
+[float]
+==== Path Parameters
+
+`watch_id` (required)::
+  (string) Identifier for the watch.
+
+[float]
+==== Authorization
+
+You must have `manage_watcher` or `monitor_watcher` cluster privileges to use
+this API. For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+
+[float]
+==== Examples
 
 The following example gets a watch with `my-watch` id:
 

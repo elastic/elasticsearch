@@ -303,7 +303,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         when(nodes.isLocalNodeElectedMaster()).thenReturn(true);
         threadPool = new TestThreadPool("index audit trail tests");
         enqueuedMessage = new SetOnce<>();
-        auditor = new IndexAuditTrail(settings, internalClient(), threadPool, clusterService) {
+        auditor = new IndexAuditTrail(settings, internalSecurityClient(), threadPool, clusterService) {
             @Override
             void enqueue(Message message, String type) {
                 enqueuedMessage.set(message);

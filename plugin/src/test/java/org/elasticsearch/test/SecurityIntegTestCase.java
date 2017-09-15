@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.AfterClass;
@@ -434,6 +435,11 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     protected InternalClient internalClient() {
         return internalCluster().getInstance(InternalClient.class);
+    }
+
+    protected InternalSecurityClient internalSecurityClient() {
+        Client client = client();
+        return new InternalSecurityClient(client.settings(), client.threadPool(), client);
     }
 
     protected SecurityClient securityClient() {

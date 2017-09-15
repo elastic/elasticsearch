@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.security.user.XPackUser;
 import org.junit.Before;
 
@@ -1191,20 +1192,27 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         }
     }
 
-    public void testXPackUserHasAccessToSecurityIndex() {
+    public void testXPackSecurityUserHasAccessToSecurityIndex() {
         SearchRequest request = new SearchRequest();
         {
-            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackUser.INSTANCE, SearchAction.NAME);
+            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackSecurityUser.INSTANCE, SearchAction.NAME);
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
             assertThat(indices, hasItem(SecurityLifecycleService.SECURITY_INDEX_NAME));
         }
         {
             IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
             aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias").index(SecurityLifecycleService.SECURITY_INDEX_NAME));
-            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackUser.INSTANCE, IndicesAliasesAction.NAME);
+            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackSecurityUser.INSTANCE, IndicesAliasesAction.NAME);
             List<String> indices = resolveIndices(aliasesRequest, authorizedIndices).getLocal();
             assertThat(indices, hasItem(SecurityLifecycleService.SECURITY_INDEX_NAME));
         }
+    }
+
+    public void testXPackUserDoesNotHaveAccessToSecurityIndex() {
+        SearchRequest request = new SearchRequest();
+        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackUser.INSTANCE, SearchAction.NAME);
+        List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
+        assertThat(indices, not(hasItem(SecurityLifecycleService.SECURITY_INDEX_NAME)));
     }
 
     public void testNonXPackUserAccessingSecurityIndex() {

@@ -23,7 +23,7 @@ teardown:
 ---
 "Test creating a user without password":
   - do:
-      catch: request
+      catch: bad_request
       xpack.security.put_user:
         username: "no_password_user"
         body:  >

@@ -50,7 +50,7 @@ public class IndexAuditTrailUpdateMappingTests extends SecurityIntegTestCase {
         when(localNode.getHostAddress()).thenReturn(buildNewFakeTransportAddress().toString());
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
-        auditor = new IndexAuditTrail(settings, internalClient(), threadPool, clusterService);
+        auditor = new IndexAuditTrail(settings, internalSecurityClient(), threadPool, clusterService);
 
         // before starting we add an event
         auditor.authenticationFailed(new FakeRestRequest());

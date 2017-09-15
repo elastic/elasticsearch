@@ -14,13 +14,13 @@ is mostly useful in situations where all users locked themselves out of the syst
 realm is your only way out - you can define a new `admin` user in the `file` realm
 and use it to log in and reset the credentials of all other users.
 
-IMPORTANT: When you configure realms in `elasticsearch.yml`, only the 
-realms you specify are used for authentication. To use the 
-`file` realm as a fallback, you must include it in the realm chain. 
+IMPORTANT: When you configure realms in `elasticsearch.yml`, only the
+realms you specify are used for authentication. To use the
+`file` realm as a fallback, you must include it in the realm chain.
 
-To define users, {security} provides the <<managing-file-users, users>> command-line
-tool. This tool enables you to add and remove users, assign user roles and manage
-user passwords.
+To define users, {security} provides the {ref}/users-command.html[users]
+command-line tool. This tool enables you to add and remove users, assign user
+roles and manage user passwords.
 
 ==== Configuring a File Realm
 
@@ -84,152 +84,6 @@ xpack:
                                         (Expert Setting).
 |=======================
 
-[[managing-file-users]]
-==== Managing Users
-
-The `users` command-line tool is located in `ES_HOME/bin/x-pack` and enables
-several administrative tasks for managing users:
-
-* <<file-realm-add-user, Adding users>>
-* <<file-realm-list-users, Listing users and roles>>
-* <<file-realm-manage-passwd, Managing user passwords>>
-* <<file-realm-manage-roles, Managing users' roles>>
-* <<file-realm-remove-user, Removing users>>
-
-[[file-realm-add-user]]
-===== Adding Users
-
-Use the `useradd` sub-command to add a user to your local node.
-
-NOTE: To ensure that Elasticsearch can read the user and role information at
-      startup, run `users useradd` as the same user you use to run Elasticsearch.
-      Running the command as root or some other user will update the permissions
-      for the `users` and `users_roles` files and prevent Elasticsearch from
-      accessing them.
-
-[source,shell]
-----------------------------------------
-bin/x-pack/users useradd <username>
-----------------------------------------
-
-Usernames must be at least 1 and no more than 1024 characters. They can 
-contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), spaces, punctuation, and 
-printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block]. 
-Leading or trailing whitespace is not allowed.
-
-You can specify the user's password at the command-line with the `-p` option.
-When this option is absent, the command prompts you for the password. Omit the
-`-p` option to keep plaintext passwords out of the terminal session's command
-history.
-
-[source,shell]
-----------------------------------------------------
-bin/x-pack/users useradd <username> -p <secret>
-----------------------------------------------------
-
-Passwords must be at least 6 characters long.
-
-You can define a user's roles with the `-r` option. This option accepts a
-comma-separated list of role names to assign to the user.
-
-[source,shell]
--------------------------------------------------------------------
-bin/x-pack/users useradd <username> -r <comma-separated list of role names>
--------------------------------------------------------------------
-
-The following example adds a new user named `jacknich` to the `file` realm. The
-password for this user is `theshining`, and this user is associated with the
-`network` and `monitoring` roles.
-
-[source,shell]
--------------------------------------------------------------------
-bin/x-pack/users useradd jacknich -p theshining -r network,monitoring
--------------------------------------------------------------------
-
-For valid role names please see <<valid-role-name, Role Definitions>>.
-
-[[file-realm-list-users]]
-===== Listing Users
-
-Use the `list` sub-command to list the users registered with the `file` realm
-on the local node.
-
-[source, shell]
-----------------------------------
-bin/x-pack/users list
-rdeniro        : admin
-alpacino       : power_user
-jacknich       : monitoring,network
-----------------------------------
-
-Users are in the left-hand column and their corresponding roles are listed in
-the right-hand column.
-
-The `list <username>` sub-command lists a specific user. Use this command to
-verify that a user was successfully added to the local `file` realm.
-
-[source,shell]
------------------------------------
-bin/x-pack/users list jacknich
-jacknich       : monitoring,network
------------------------------------
-
-[[file-realm-manage-passwd]]
-===== Managing User Passwords
-
-Use the `passwd` sub-command to reset a user's password. You can specify the new
-password directly with the `-p` option. When `-p` option is omitted, the tool
-will prompt you to enter and confirm a password in interactive mode.
-
-[source,shell]
---------------------------------------------------
-bin/x-pack/users passwd <username>
---------------------------------------------------
-
-[source,shell]
---------------------------------------------------
-bin/x-pack/users passwd <username> -p <password>
---------------------------------------------------
-
-[[file-realm-manage-roles]]
-===== Assigning Users to Roles
-
-Use the `roles` sub-command to manage the roles of a particular user. The `-a`
-option adds a comma-separated list of roles to a user. The `-r` option removes
-a comma-separated list of roles from a user. You can combine adding and removing
-roles within the same command to change a user's roles.
-
-[source,shell]
-------------------------------------------------------------------------------------------------------------
-bin/x-pack/users roles <username> -a <commma-separate list of roles> -r <comma-separated list of roles>
-------------------------------------------------------------------------------------------------------------
-
-The following command removes the `network` and `monitoring` roles from user
-`jacknich` and adds the `user` role:
-
-[source,shell]
-------------------------------------------------------------
-bin/x-pack/users roles jacknich -r network,monitoring -a user
-------------------------------------------------------------
-
-Listing the user displays the new role assignment:
-
-[source,shell]
----------------------------------
-bin/x-pack/users list jacknich
-jacknich       : user
----------------------------------
-
-[[file-realm-remove-user]]
-===== Deleting Users
-
-Use the `userdel` sub-command to delete a user.
-
-[source,shell]
---------------------------------------------------
-bin/x-pack/users userdel <username>
---------------------------------------------------
-
 ==== A Look Under the Hood
 
 All the data about the users for the `file` realm is stored in two files, `users`
@@ -255,8 +109,8 @@ Puppet or Chef).
 ==============================
 
 While it is possible to modify these files directly using any standard text
-editor, we strongly recommend using the `bin/x-pack/users` command-line tool
-to apply the required changes.
+editor, we strongly recommend using the {ref}/users-command.html[`bin/x-pack/users`]
+command-line tool to apply the required changes.
 
 [float]
 [[users-file]]

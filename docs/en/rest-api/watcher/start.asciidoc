@@ -3,7 +3,20 @@
 === Start API
 
 The `start` API starts the {watcher} service if the service is not already
-running, as in the following example:
+running.
+
+[float]
+==== Request
+
+`POST _xpack/watcher/_start`
+
+==== Authorization
+
+You must have `manage_watcher` cluster privileges to use this API. For more
+information, see {xpack-ref}/security-privileges.html[Security Privileges].
+
+[float]
+==== Examples
 
 [source,js]
 --------------------------------------------------

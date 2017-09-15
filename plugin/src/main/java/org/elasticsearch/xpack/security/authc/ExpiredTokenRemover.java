@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 
 import java.time.Instant;
@@ -30,12 +31,12 @@ import static org.elasticsearch.action.support.TransportActions.isShardNotAvaila
  */
 final class ExpiredTokenRemover extends AbstractRunnable {
 
-    private final InternalClient client;
+    private final InternalSecurityClient client;
     private final AtomicBoolean inProgress = new AtomicBoolean(false);
     private final Logger logger;
     private final TimeValue timeout;
 
-    ExpiredTokenRemover(Settings settings, InternalClient internalClient) {
+    ExpiredTokenRemover(Settings settings, InternalSecurityClient internalClient) {
         this.client = internalClient;
         this.logger = Loggers.getLogger(getClass(), settings);
         this.timeout = TokenService.DELETE_TIMEOUT.get(settings);

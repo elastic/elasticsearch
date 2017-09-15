@@ -286,7 +286,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.add(licenseState);
 
         try {
-            components.addAll(security.createComponents(internalClient, threadPool, clusterService, resourceWatcherService,
+            components.addAll(security.createComponents(client, threadPool, clusterService, resourceWatcherService,
                     extensionsService.getExtensions()));
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -322,7 +322,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
         components.addAll(logstash.createComponents(internalClient, clusterService));
 
-        components.addAll(upgrade.createComponents(internalClient, clusterService, threadPool, resourceWatcherService,
+        components.addAll(upgrade.createComponents(client, clusterService, threadPool, resourceWatcherService,
                 scriptService, xContentRegistry));
 
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them

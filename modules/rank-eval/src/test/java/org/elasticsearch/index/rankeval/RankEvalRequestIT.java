@@ -21,7 +21,7 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.rankeval.PrecisionTests.Rating;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -54,12 +54,12 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         ensureGreen();
 
         client().prepareIndex("test", "testtype").setId("1")
-                .setSource("text", "berlin", "title", "Berlin, Germany").get();
-        client().prepareIndex("test", "testtype").setId("2").setSource("text", "amsterdam").get();
-        client().prepareIndex("test", "testtype").setId("3").setSource("text", "amsterdam").get();
-        client().prepareIndex("test", "testtype").setId("4").setSource("text", "amsterdam").get();
-        client().prepareIndex("test", "testtype").setId("5").setSource("text", "amsterdam").get();
-        client().prepareIndex("test", "testtype").setId("6").setSource("text", "amsterdam").get();
+                .setSource("text", "berlin", "title", "Berlin, Germany", "population", 3670622).get();
+        client().prepareIndex("test", "testtype").setId("2").setSource("text", "amsterdam", "population", 851573).get();
+        client().prepareIndex("test", "testtype").setId("3").setSource("text", "amsterdam", "population", 851573).get();
+        client().prepareIndex("test", "testtype").setId("4").setSource("text", "amsterdam", "population", 851573).get();
+        client().prepareIndex("test", "testtype").setId("5").setSource("text", "amsterdam", "population", 851573).get();
+        client().prepareIndex("test", "testtype").setId("6").setSource("text", "amsterdam", "population", 851573).get();
         refresh();
     }
 
@@ -147,8 +147,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         specifications.add(amsterdamRequest);
 
         SearchSourceBuilder brokenQuery = new SearchSourceBuilder();
-        RangeQueryBuilder brokenRangeQuery = new RangeQueryBuilder("text").timeZone("CET").from("Basel").to("Zehlendorf");
-        brokenQuery.query(brokenRangeQuery);
+        brokenQuery.query(QueryBuilders.termQuery("population", "noStringOnNumericFields"));
         RatedRequest brokenRequest = new RatedRequest("broken_query", createRelevant("1"),
                 brokenQuery);
         brokenRequest.setIndices(indices);
@@ -166,8 +165,8 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         assertEquals(1, response.getFailures().size());
         ElasticsearchException[] rootCauses = ElasticsearchException
                 .guessRootCauses(response.getFailures().get("broken_query"));
-        assertEquals("[range] time_zone can not be applied to non date field [text]",
-                rootCauses[0].getMessage());
+        assertEquals("java.lang.NumberFormatException: For input string: \"noStringOnNumericFields\"",
+                rootCauses[0].getCause().toString());
 
     }
 

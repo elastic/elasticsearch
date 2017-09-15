@@ -6,11 +6,12 @@
         body:
           transient:
             search.max_keep_alive: null
+            search.default_keep_alive: null
 
 ---
 "Max keep alive":
   - skip:
-      version: " - 7.0.0"
+      version: " - 6.99.99"
       reason: search.max_keep_alive was added in 7.0.0
 
   - do:

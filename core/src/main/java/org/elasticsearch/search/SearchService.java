@@ -43,7 +43,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -771,6 +770,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.fetchSourceContext(source.fetchSource());
         }
         if (source.docValueFields() != null) {
+            int maxAllowedDocvalueFields = context.mapperService().getIndexSettings().getMaxDocvalueFields();
+            if (source.docValueFields().size() > maxAllowedDocvalueFields) {
+                throw new IllegalArgumentException(
+                        "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields
+                                + "] but was [" + source.docValueFields().size() + "]. This limit can be set by changing the ["
+                                + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
+            }
             context.docValueFieldsContext(new DocValueFieldsContext(source.docValueFields()));
         }
         if (source.highlighter() != null) {
@@ -782,6 +788,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         if (source.scriptFields() != null) {
+            int maxAllowedScriptFields = context.mapperService().getIndexSettings().getMaxScriptFields();
+            if (source.scriptFields().size() > maxAllowedScriptFields) {
+                throw new IllegalArgumentException(
+                        "Trying to retrieve too many script_fields. Must be less than or equal to: [" + maxAllowedScriptFields
+                                + "] but was [" + source.scriptFields().size() + "]. This limit can be set by changing the ["
+                                + IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey() + "] index level setting.");
+            }
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
                 SearchScript.Factory factory = scriptService.compile(field.script(), SearchScript.CONTEXT);
                 SearchScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), context.lookup());

@@ -135,11 +135,11 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         TermRangeQuery expected = new TermRangeQuery("field", new BytesRef(aKey.bytes, 0, aKey.size),
             new BytesRef(bKey.bytes, 0, bKey.size), false, false);
 
-        assertEquals(expected, ft.rangeQuery("a", "b", false, false, null));
+        assertEquals(expected, ft.rangeQuery("a", "b", false, false, null, null, null, null));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> ft.rangeQuery("a", "b", false, false, null));
+            () -> ft.rangeQuery("a", "b", false, false, null, null, null, null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 }

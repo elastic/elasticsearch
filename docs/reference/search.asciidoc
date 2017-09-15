@@ -11,10 +11,11 @@ exception of the <<search-explain>> endpoints.
 [[search-routing]]
 == Routing
 
-When executing a search, it will be broadcast to all the index/indices
-shards (round robin between replicas). Which shards will be searched on
-can be controlled by providing the `routing` parameter. For example,
-when indexing tweets, the routing value can be the user name:
+When executing a search, Elasticsearch will pick the "best" copy of the data
+based on the <<search-adaptive-replica,adaptive replica selection>> formula.
+Which shards will be searched on can also be controlled by providing the
+`routing` parameter. For example, when indexing tweets, the routing value can be
+the user name:
 
 [source,js]
 --------------------------------------------------
@@ -60,29 +61,32 @@ the routing values match to.
 [[search-adaptive-replica]]
 == Adaptive Replica Selection
 
-As an alternative to requests being sent to copies of the data in a round robin
-fashion, you may enable adaptive replica selection. This allows the coordinating
-node to send the request to the copy deemed "best" based on a number of
-criteria:
+By default, Elasticsearch will use what is called adaptive replica selection.
+This allows the coordinating node to send the request to the copy deemed "best"
+based on a number of criteria:
 
 - Response time of past requests between the coordinating node and the node
   containing the copy of the data
 - Time past search requests took to execute on the node containing the data
 - The queue size of the search threadpool on the node containing the data
 
-This can be turned on by changing the dynamic cluster setting
-`cluster.routing.use_adaptive_replica_selection` from `false` to `true`:
+This can be turned off by changing the dynamic cluster setting
+`cluster.routing.use_adaptive_replica_selection` from `true` to `false`:
 
 [source,js]
 --------------------------------------------------
 PUT /_cluster/settings
 {
     "transient": {
-        "cluster.routing.use_adaptive_replica_selection": true
+        "cluster.routing.use_adaptive_replica_selection": false
     }
 }
 --------------------------------------------------
 // CONSOLE
+
+If adaptive replica selection is turned off, searches are sent to the
+index/indices shards in a round robin fashion between all copies of the data
+(primaries and replicas).
 
 [float]
 [[stats-groups]]

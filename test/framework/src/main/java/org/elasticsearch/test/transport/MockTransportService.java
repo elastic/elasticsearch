@@ -20,6 +20,7 @@
 package org.elasticsearch.test.transport;
 
 import com.carrotsearch.randomizedtesting.SysGlobals;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -126,7 +127,7 @@ public final class MockTransportService extends TransportService {
     /**
      * Build the service.
      *
-     * @param clusterSettings if non null the the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
+     * @param clusterSettings if non null the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
      *                        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
      */
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
@@ -139,7 +140,7 @@ public final class MockTransportService extends TransportService {
     /**
      * Build the service.
      *
-     * @param clusterSettings if non null the the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
+     * @param clusterSettings if non null the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
      *                        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
      */
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
@@ -345,7 +346,7 @@ public final class MockTransportService extends TransportService {
         final long startTime = System.currentTimeMillis();
 
         addDelegate(transportAddress, new ClearableTransport(original) {
-            private final Queue<Runnable> requestsToSendWhenCleared = new LinkedBlockingDeque<Runnable>();
+            private final Queue<Runnable> requestsToSendWhenCleared = new LinkedBlockingDeque<>();
             private boolean cleared = false;
 
             TimeValue getDelay() {

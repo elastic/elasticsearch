@@ -24,11 +24,15 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -494,8 +498,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("1.5")).get();
         assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("12.23")).get();
-        assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("127.0.0.1")).get();
         assertHits(resp.getHits(), "1");
         // binary doesn't match
@@ -538,6 +540,38 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                         simpleQueryStringQuery("foo123").lenient(false)).get());
         assertThat(ExceptionsHelper.detailedMessage(e),
                 containsString("NumberFormatException[For input string: \"foo123\"]"));
+    }
+
+
+    public void testLimitOnExpandedFields() throws Exception {
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        builder.startObject("type1");
+        builder.startObject("properties");
+        for (int i = 0; i < 1025; i++) {
+            builder.startObject("field" + i).field("type", "text").endObject();
+        }
+        builder.endObject(); // properties
+        builder.endObject(); // type1
+        builder.endObject();
+
+        assertAcked(prepareCreate("toomanyfields")
+                .setSettings(Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1200))
+                .addMapping("type1", builder));
+
+        client().prepareIndex("toomanyfields", "type1", "1").setSource("field171", "foo bar baz").get();
+        refresh();
+
+        Exception e = expectThrows(Exception.class, () -> {
+                SimpleQueryStringBuilder qb = simpleQueryStringQuery("bar");
+                if (randomBoolean()) {
+                    qb.useAllFields(true);
+                }
+                logger.info("--> using {}", qb);
+                client().prepareSearch("toomanyfields").setQuery(qb).get();
+                });
+        assertThat(ExceptionsHelper.detailedMessage(e),
+                containsString("field expansion matches too many fields, limit: 1024, got: 1025"));
     }
 
     private void assertHits(SearchHits hits, String... ids) {

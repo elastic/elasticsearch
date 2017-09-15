@@ -392,8 +392,8 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
 
     private void updateGlobalCheckpoint(final String allocationId, final long globalCheckpoint, LongConsumer ifUpdated) {
         final CheckpointState cps = checkpoints.get(allocationId);
-        assert cps != null;
-        if (globalCheckpoint > cps.globalCheckpoint) {
+        assert !this.allocationId.equals(allocationId) || cps != null;
+        if (cps != null && globalCheckpoint > cps.globalCheckpoint) {
             ifUpdated.accept(cps.globalCheckpoint);
             cps.globalCheckpoint = globalCheckpoint;
         }

@@ -622,10 +622,11 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         final ShardId shardId = new ShardId("test", "_na_", 0);
 
         FakeClusterState clusterState = initialState();
+        final AllocationId primaryAllocationId = clusterState.routingTable.primaryShard().allocationId();
         GlobalCheckpointTracker oldPrimary =
-                new GlobalCheckpointTracker(shardId, clusterState.routingTable.primaryShard().allocationId().getId(), indexSettings, UNASSIGNED_SEQ_NO);
+                new GlobalCheckpointTracker(shardId, primaryAllocationId.getId(), indexSettings, UNASSIGNED_SEQ_NO);
         GlobalCheckpointTracker newPrimary =
-                new GlobalCheckpointTracker(shardId, clusterState.routingTable.primaryShard().allocationId().getRelocationId(), indexSettings, UNASSIGNED_SEQ_NO);
+                new GlobalCheckpointTracker(shardId, primaryAllocationId.getRelocationId(), indexSettings, UNASSIGNED_SEQ_NO);
 
         Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.allocationId, newPrimary.allocationId));
 
@@ -650,7 +651,10 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         }
 
         // simulate transferring the global checkpoint to the new primary after finalizing recovery before the handoff
-        markAllocationIdAsInSyncQuietly(oldPrimary, newPrimary.allocationId, Math.max(SequenceNumbers.NO_OPS_PERFORMED, oldPrimary.getGlobalCheckpoint() + randomInt(5)));
+        markAllocationIdAsInSyncQuietly(
+                oldPrimary,
+                newPrimary.allocationId,
+                Math.max(SequenceNumbers.NO_OPS_PERFORMED, oldPrimary.getGlobalCheckpoint() + randomInt(5)));
         oldPrimary.updateGlobalCheckpointForShard(newPrimary.allocationId, oldPrimary.getGlobalCheckpoint());
         GlobalCheckpointTracker.PrimaryContext primaryContext = oldPrimary.startRelocationHandoff();
 
@@ -796,7 +800,8 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         activeAllocationIds.add(relocatingId);
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final ShardRouting primaryShard =
-                TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(10), randomAlphaOfLength(10), true, ShardRoutingState.RELOCATING, relocatingId);
+                TestShardRouting.newShardRouting(
+                        shardId, randomAlphaOfLength(10), randomAlphaOfLength(10), true, ShardRoutingState.RELOCATING, relocatingId);
 
         return new FakeClusterState(
                 initialClusterStateVersion,

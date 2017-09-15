@@ -40,6 +40,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
@@ -356,15 +357,37 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         /*
          * The global checkpoint here is a local knowledge which is updated under the mandate of the primary. It can happen that the primary
          * information is lagging compared to a replica (e.g., if a replica is promoted to primary but has stale info relative to other
-         * replica shards). In these cases, the local knowledge of the global checkpoint could be higher than sync from the lagging primary.
+         * replica shards). In these cases, the local knowledge of the global checkpoint could be higher than the sync from the lagging
+         * primary.
          */
+        updateGlobalCheckpoint(
+                allocationId,
+                globalCheckpoint,
+                current -> logger.trace("updating global checkpoint from [{}] to [{}] due to [{}]", current, globalCheckpoint, reason));
+        assert invariant();
+    }
+
+    /**
+     * Update the local knowledge of the global checkpoint for the specified allocation ID.
+     *
+     * @param allocationId     the allocation ID to update the global checkpoint for
+     * @param globalCheckpoint the global checkpoint
+     */
+    public synchronized void updateGlobalCheckpointForShard(final String allocationId, final long globalCheckpoint) {
+        assert primaryMode;
+        assert handoffInProgress == false;
+        assert invariant();
+        updateGlobalCheckpoint(allocationId, globalCheckpoint, current -> {});
+        assert invariant();
+    }
+
+    private void updateGlobalCheckpoint(final String allocationId, final long globalCheckpoint, LongConsumer ifUpdated) {
         final CheckpointState cps = checkpoints.get(allocationId);
         assert cps != null;
-        if (cps.globalCheckpoint <= globalCheckpoint) {
-            logger.trace("updating global checkpoint from [{}] to [{}] due to [{}]", cps.globalCheckpoint, globalCheckpoint, reason);
+        if (globalCheckpoint > cps.globalCheckpoint) {
+            ifUpdated.accept(cps.globalCheckpoint);
             cps.globalCheckpoint = globalCheckpoint;
         }
-        assert invariant();
     }
 
     /**
@@ -532,23 +555,6 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
                 cps.localCheckpoint, localCheckpoint);
             return false;
         }
-    }
-
-    /**
-     * Update the local knowledge of the global checkpoint for the specified allocation ID.
-     *
-     * @param allocationId     the allocation ID to update the global checkpoint for
-     * @param globalCheckpoint the global checkpoint
-     */
-    public synchronized void updateGlobalCheckpointForShard(final String allocationId, final long globalCheckpoint) {
-        assert primaryMode;
-        assert handoffInProgress == false;
-        assert invariant();
-        final CheckpointState cps = checkpoints.get(allocationId);
-        if (cps != null && globalCheckpoint > cps.globalCheckpoint) {
-            cps.globalCheckpoint = globalCheckpoint;
-        }
-        assert invariant();
     }
 
     /**

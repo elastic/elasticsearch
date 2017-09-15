@@ -38,19 +38,6 @@ transport.profiles.client.bind_host: 1.1.1.1 <2>
 If separate networks are not available, then <<ip-filtering, IP Filtering>> can
 be enabled to limit access to the profiles.
 
-The TCP transport profiles also allow for enabling SSL on a per profile basis.
-This is useful if you have a secured network for the node-to-node communication,
-but the client is on an unsecured network. To enable SSL on a client profile when
-SSL is disabled for node-to-node communication, add the following to
-`elasticsearch.yml`:
-
-[source, yaml]
---------------------------------------------------
-transport.profiles.client.xpack.security.ssl.enabled: true <1>
---------------------------------------------------
-<1> This enables SSL on the client profile. The default value for this setting
-    is the value of `xpack.security.transport.ssl.enabled`.
-
 When using SSL for transport, a different set of certificates can also be used
 for the client traffic by adding the following to `elasticsearch.yml`:
 

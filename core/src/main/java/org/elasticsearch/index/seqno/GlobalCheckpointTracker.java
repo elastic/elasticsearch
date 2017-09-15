@@ -358,12 +358,10 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
          * information is lagging compared to a replica (e.g., if a replica is promoted to primary but has stale info relative to other
          * replica shards). In these cases, the local knowledge of the global checkpoint could be higher than sync from the lagging primary.
          */
-        final long currentGlobalCheckpoint = getGlobalCheckpoint();
-        if (currentGlobalCheckpoint <= globalCheckpoint) {
-            logger.trace("updating global checkpoint from [{}] to [{}] due to [{}]", currentGlobalCheckpoint, globalCheckpoint, reason);
-            final long unassignedSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            final CheckpointState cps =
-                    checkpoints.computeIfAbsent(allocationId, k -> new CheckpointState(unassignedSeqNo, unassignedSeqNo, true));
+        final CheckpointState cps = checkpoints.get(allocationId);
+        assert cps != null;
+        if (cps.globalCheckpoint <= globalCheckpoint) {
+            logger.trace("updating global checkpoint from [{}] to [{}] due to [{}]", cps.globalCheckpoint, globalCheckpoint, reason);
             cps.globalCheckpoint = globalCheckpoint;
         }
         assert invariant();

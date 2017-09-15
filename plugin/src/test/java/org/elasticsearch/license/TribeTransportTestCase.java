@@ -9,6 +9,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -111,6 +112,7 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
         plugins.add(MockTribePlugin.class);
         plugins.add(TribeAwareTestZenDiscoveryPlugin.class);
         plugins.add(XPackPlugin.class);
+        plugins.add(CommonAnalysisPlugin.class);
         return plugins;
     }
 

@@ -66,6 +66,8 @@ import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -99,6 +101,14 @@ public class RequestTests extends ESTestCase {
         assertEquals(endpoint, request.getEndpoint());
         assertEquals(parameters, request.getParameters());
         assertEquals(entity, request.getEntity());
+
+        final Constructor<?>[] constructors = Request.class.getConstructors();
+        assertEquals("Expected only 1 constructor", 1, constructors.length);
+        assertTrue("Request constructor is not public", Modifier.isPublic(constructors[0].getModifiers()));
+    }
+
+    public void testClassVisibility() throws Exception {
+        assertTrue("Request class is not public", Modifier.isPublic(Request.class.getModifiers()));
     }
 
     public void testPing() {

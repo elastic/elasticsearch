@@ -92,10 +92,6 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
 
         builder.addShard(primaryShard);
 
-        if (primaryShard.relocating()) {
-           // builder.addShard(primaryShard.getTargetRelocatingShard());
-        }
-
         return builder.build();
     }
 

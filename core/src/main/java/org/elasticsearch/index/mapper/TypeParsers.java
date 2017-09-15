@@ -241,7 +241,13 @@ public class TypeParsers {
                 && parseNorms(builder, name, propName, propNode, parserContext)) {
                 iterator.remove();
             } else if (propName.equals("index_options")) {
-                builder.indexOptions(nodeIndexOptionValue(propNode));
+                if (builder.allowsIndexOptions()) {
+                    builder.indexOptions(nodeIndexOptionValue(propNode));
+                } else {
+                    DEPRECATION_LOGGER.deprecated(
+                            "index_options are deprecated for field [{}] of type [{}] and will be removed in the next major version.",
+                            name, builder.fieldType.typeName());
+                }
                 iterator.remove();
             } else if (propName.equals("include_in_all")) {
                 if (parserContext.isWithinMultiField()) {

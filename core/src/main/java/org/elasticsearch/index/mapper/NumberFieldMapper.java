@@ -85,6 +85,14 @@ public class NumberFieldMapper extends FieldMapper {
             return builder;
         }
 
+        /**
+         * Numeric field types no longer support `index_options`
+         */
+        @Override
+        protected boolean allowsIndexOptions() {
+            return false;
+        }
+
         protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
             if (ignoreMalformed != null) {
                 return new Explicit<>(ignoreMalformed, true);

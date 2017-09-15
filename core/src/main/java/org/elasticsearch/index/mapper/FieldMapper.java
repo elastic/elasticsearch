@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -101,6 +102,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         protected IndexOptions getDefaultIndexOption() {
             return defaultOptions;
+        }
+
+        /**
+         * @return if this {@link Builder} allows setting of `index_options`
+         */
+        protected boolean allowsIndexOptions() {
+            return true;
         }
 
         public T store(boolean store) {

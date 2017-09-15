@@ -164,7 +164,7 @@ setup:
 "Should return an exception when querying invalid indices":
 
  - do:
-     catch: /Invalid index name \[_foo\], must not start with '_'\./
+     catch: bad_request
      indices.get:
        index: _foo
 

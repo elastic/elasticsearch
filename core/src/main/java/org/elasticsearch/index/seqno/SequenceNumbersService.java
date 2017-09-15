@@ -211,7 +211,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * Activates the global checkpoint tracker in primary mode (see {@link GlobalCheckpointTracker#primaryMode}.
      * Called on primary activation or promotion.
      */
-    public void activatePrimaryMode(final String allocationId, final long localCheckpoint) {
+    public void activatePrimaryMode(final long localCheckpoint) {
         globalCheckpointTracker.activatePrimaryMode(localCheckpoint);
     }
 

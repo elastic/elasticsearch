@@ -256,11 +256,17 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
 
         // when in primary mode, the global checkpoint is at most the minimum local checkpoint on all in-sync shard copies
         assert !primaryMode
-                || getGlobalCheckpoint() <= inSyncCheckpointStates(checkpoints, CheckpointState::getLocalCheckpoint, LongStream::min);
+                || getGlobalCheckpoint() <= inSyncCheckpointStates(checkpoints, CheckpointState::getLocalCheckpoint, LongStream::min)
+                : "global checkpoint [" + getGlobalCheckpoint() + "] "
+                + "for primary mode allocation ID [" + allocationId + "] "
+                + "more than in-sync local checkpoints [" + checkpoints + "]";
 
         // when in primary mode, the local knowledge of the global checkpoints on shard copies is bounded by the global checkpoint
         assert !primaryMode
-                || getGlobalCheckpoint() >= inSyncCheckpointStates(checkpoints, CheckpointState::getGlobalCheckpoint, LongStream::max);
+                || getGlobalCheckpoint() >= inSyncCheckpointStates(checkpoints, CheckpointState::getGlobalCheckpoint, LongStream::max)
+                : "global checkpoint [" + getGlobalCheckpoint() + "] "
+                + "for primary mode allocation ID [" + allocationId + "] "
+                + "less than in-sync global checkpoints [" + checkpoints + "]";
 
         // we have a routing table iff we have a replication group
         assert (routingTable == null) == (replicationGroup == null) :

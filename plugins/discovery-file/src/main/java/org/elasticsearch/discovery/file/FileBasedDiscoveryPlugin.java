@@ -98,20 +98,4 @@ public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin 
             "file",
             () -> new FileBasedUnicastHostsProvider(settings, transportService, fileBasedDiscoveryExecutorService));
     }
-
-    @Override
-    public Settings additionalSettings() {
-        // For 5.0, the hosts provider was "zen", but this was before the discovery.zen.hosts_provider
-        // setting existed. This check looks for the legacy zen, and sets the file hosts provider if not set
-        String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
-        if (discoveryType.equals("zen")) {
-            deprecationLogger.deprecated("Using " + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
-                " setting to set hosts provider is deprecated. " +
-                "Set \"" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": file\" instead");
-            if (DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings) == false) {
-                return Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file").build();
-            }
-        }
-        return Settings.EMPTY;
-    }
 }

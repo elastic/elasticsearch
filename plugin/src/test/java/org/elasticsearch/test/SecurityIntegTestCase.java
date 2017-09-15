@@ -518,4 +518,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
         return null;
     }
+
+    protected boolean isTransportSSLEnabled() {
+        return customSecuritySettingsSource.isSslEnabled();
+    }
 }

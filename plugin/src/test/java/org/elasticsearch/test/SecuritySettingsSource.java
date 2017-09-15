@@ -339,4 +339,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
             throw new ElasticsearchException("exception while reading the store", e);
         }
     }
+
+    public boolean isSslEnabled() {
+        return sslEnabled;
+    }
 }

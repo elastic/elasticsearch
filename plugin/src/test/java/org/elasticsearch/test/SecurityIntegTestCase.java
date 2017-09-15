@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
@@ -83,7 +84,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     @BeforeClass
     public static void generateBootstrapPassword() {
-        BOOTSTRAP_PASSWORD = new SecureString("FOOBAR".toCharArray());
+        BOOTSTRAP_PASSWORD = TEST_PASSWORD_SECURE_STRING.clone();
     }
 
     //UnicastZen requires the number of nodes in a cluster to generate the unicast configuration.

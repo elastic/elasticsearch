@@ -30,6 +30,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 
 import java.time.Clock;
@@ -207,20 +208,31 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                     }
                 }
             }
-            clusterService.submitStateUpdateTask("register license [" + newLicense.uid() + "]", new
-                    AckedClusterStateUpdateTask<PutLicenseResponse>(request, listener) {
-                        @Override
-                        protected PutLicenseResponse newResponse(boolean acknowledged) {
-                            return new PutLicenseResponse(acknowledged, LicensesStatus.VALID);
-                        }
 
-                        @Override
-                        public ClusterState execute(ClusterState currentState) throws Exception {
-                            MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                            mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(newLicense));
-                            return ClusterState.builder(currentState).metaData(mdBuilder).build();
-                        }
-                    });
+            if (newLicense.isProductionLicense()
+                    && XPackSettings.SECURITY_ENABLED.get(settings)
+                    && XPackSettings.TRANSPORT_SSL_ENABLED.get(settings) == false) {
+                // security is on but TLS is not configured we gonna fail the entire request and throw an exception
+                throw new IllegalStateException("Can not upgrade to a production license unless TLS is configured or " +
+                        "security is disabled");
+                // TODO we should really validate that all nodes have xpack in stalled and are consistently configured but this
+                // should happen on a different level and not in this code
+            } else {
+                clusterService.submitStateUpdateTask("register license [" + newLicense.uid() + "]", new
+                        AckedClusterStateUpdateTask<PutLicenseResponse>(request, listener) {
+                            @Override
+                            protected PutLicenseResponse newResponse(boolean acknowledged) {
+                                return new PutLicenseResponse(acknowledged, LicensesStatus.VALID);
+                            }
+
+                            @Override
+                            public ClusterState execute(ClusterState currentState) throws Exception {
+                                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+                                mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(newLicense));
+                                return ClusterState.builder(currentState).metaData(mdBuilder).build();
+                            }
+                        });
+            }
         }
     }
 
@@ -271,7 +283,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     }
 
     public License getLicense() {
-        final License license = getLicense(clusterService.state().metaData().custom(LicensesMetaData.TYPE));
+        final License license = getLicense(clusterService.state().metaData());
         return license == LicensesMetaData.LICENSE_TOMBSTONE ? null : license;
     }
 
@@ -469,7 +481,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         };
     }
 
-    License getLicense(final LicensesMetaData metaData) {
+    public static License getLicense(final MetaData metaData) {
+        final LicensesMetaData licensesMetaData = metaData.custom(LicensesMetaData.TYPE);
+        return getLicense(licensesMetaData);
+    }
+
+    static License getLicense(final LicensesMetaData metaData) {
         if (metaData != null) {
             License license = metaData.getLicense();
             if (license == LicensesMetaData.LICENSE_TOMBSTONE) {

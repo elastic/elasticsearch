@@ -15,7 +15,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
@@ -73,8 +72,8 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected boolean useGeneratedSSLConfig() {
-        return false;
+    protected boolean transportSSLEnabled() {
+        return true;
     }
 
     public void testTransportClientCanAuthenticateViaPki() {

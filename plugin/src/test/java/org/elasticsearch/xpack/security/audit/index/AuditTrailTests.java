@@ -35,7 +35,6 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -79,7 +78,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public boolean useGeneratedSSLConfig() {
+    public boolean transportSSLEnabled() {
         return true;
     }
 

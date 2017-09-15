@@ -69,14 +69,14 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
 
     private static final String SECOND_CLUSTER_NODE_PREFIX = "node_cluster2_";
     private static InternalTestCluster cluster2;
-    private static boolean useGeneratedSSL;
+    private static boolean useSSL;
 
     private Node tribeNode;
     private Client tribeClient;
 
     @BeforeClass
     public static void setupSSL() {
-        useGeneratedSSL = randomBoolean();
+        useSSL = randomBoolean();
     }
 
     @Override
@@ -84,7 +84,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         super.setUp();
         if (cluster2 == null) {
             SecuritySettingsSource cluster2SettingsSource =
-                    new SecuritySettingsSource(defaultMaxNumberOfNodes(), useGeneratedSSL, createTempDir(), Scope.SUITE) {
+                    new SecuritySettingsSource(defaultMaxNumberOfNodes(), useSSL, createTempDir(), Scope.SUITE) {
                         @Override
                         public Settings nodeSettings(int nodeOrdinal) {
                             Settings.Builder builder = Settings.builder()
@@ -118,8 +118,8 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
     }
 
     @Override
-    public boolean useGeneratedSSLConfig() {
-        return useGeneratedSSL;
+    public boolean transportSSLEnabled() {
+        return useSSL;
     }
 
     @AfterClass
@@ -216,7 +216,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
 
     private void setupTribeNode(Settings settings) throws Exception {
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(1, useGeneratedSSL, createTempDir(), Scope.TEST) {
+                new SecuritySettingsSource(1, useSSL, createTempDir(), Scope.TEST) {
                     @Override
                     public Settings nodeSettings(int nodeOrdinal) {
                         return Settings.builder()

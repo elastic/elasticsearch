@@ -7,6 +7,7 @@ package org.elasticsearch.license;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -344,5 +345,9 @@ public class TestUtils {
         public void update(License.OperationMode mode, boolean active) {
             super.update(mode, active);
         }
+    }
+
+    public static void putLicense(MetaData.Builder builder, License license) {
+        builder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license));
     }
 }

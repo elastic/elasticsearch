@@ -73,8 +73,8 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected boolean useGeneratedSSLConfig() {
-        return false;
+    protected boolean transportSSLEnabled() {
+        return true;
     }
 
     private TransportClient createTransportClient(Settings additionalSettings) {
@@ -82,6 +82,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
                 .put(transportClientSettings().filter(s -> s.startsWith("xpack.ssl") == false))
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put(additionalSettings)
                 .build();
         return new TestXPackTransportClient(settings);
@@ -105,6 +106,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
     public void testThatStandardTransportClientCanConnectToNoClientAuthProfile() throws Exception {
         try(TransportClient transportClient = new TestXPackTransportClient(Settings.builder()
                 .put(transportClientSettings())
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
                 .build())) {
@@ -247,6 +249,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder()
                 .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.ssl.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
                 .put("xpack.ssl.truststore.password", "truststore-testnode-only")
@@ -254,7 +257,6 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
         try (TransportClient transportClient = new TestXPackTransportClient(settings)) {
             transportClient.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(),
                     getProfilePort("no_client_auth")));
-            assertGreenClusterState(transportClient);
         }
     }
 
@@ -268,6 +270,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder()
                 .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
                 .put("xpack.ssl.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
@@ -292,6 +295,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder()
                 .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
                 .put("xpack.ssl.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
@@ -316,6 +320,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
                 .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
+                .put("xpack.security.transport.ssl.enabled", true)
                 .build();
         try (TransportClient transportClient = new TestXPackTransportClient(settings)) {
             transportClient.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
@@ -336,6 +341,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
                 .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
+                .put("xpack.security.transport.ssl.enabled", true)
                 .build();
         try (TransportClient transportClient = new TestXPackTransportClient(settings)) {
             transportClient.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("client")));
@@ -356,6 +362,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
                 .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
+                .put("xpack.security.transport.ssl.enabled", true)
                 .build();
         try (TransportClient transportClient = new TestXPackTransportClient(settings)) {
             transportClient.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(),

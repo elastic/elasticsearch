@@ -23,8 +23,8 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
     Path keystore;
 
     @Override
-    protected boolean useGeneratedSSLConfig() {
-        return false;
+    protected boolean transportSSLEnabled() {
+        return true;
     }
 
     @Override

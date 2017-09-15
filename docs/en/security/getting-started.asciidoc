@@ -98,7 +98,8 @@ IMPORTANT:  Once you get these basic security measures in place, we strongly
             recommend that you secure communications to and from nodes by
             configuring your cluster to use {xpack-ref}/ssl-tls.html[SSL/TLS encryption].
             Nodes that do not have encryption enabled send passwords in plain
-            text!
+            text and will not be able to install a non-trial license that enables the use
+            of {security}.
 
 Depending on your security requirements, you might also want to:
 

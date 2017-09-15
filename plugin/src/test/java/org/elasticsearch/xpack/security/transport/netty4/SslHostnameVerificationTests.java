@@ -27,8 +27,8 @@ import static org.hamcrest.Matchers.containsString;
 public class SslHostnameVerificationTests extends SecurityIntegTestCase {
 
     @Override
-    protected boolean useGeneratedSSLConfig() {
-        return false;
+    protected boolean transportSSLEnabled() {
+        return true;
     }
 
     @Override

@@ -8,18 +8,28 @@ package org.elasticsearch.xpack.security;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -190,5 +200,39 @@ public class SecurityTests extends ESTestCase {
         assertThat(filter, hasItem(Security.setting("authc.realms.*.ssl.truststore.password")));
         assertThat(filter, hasItem(Security.setting("authc.realms.*.ssl.truststore.path")));
         assertThat(filter, hasItem(Security.setting("authc.realms.*.ssl.truststore.algorithm")));
+    }
+
+    public void testTLSJoinValidatorOnDisabledSecurity() throws Exception {
+        Settings disabledSettings = Settings.builder().put("xpack.security.enabled", false).build();
+        createComponents(disabledSettings);
+        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
+        assertNull(joinValidator);
+    }
+
+    public void testTLSJoinValidator() throws Exception {
+        createComponents(Settings.EMPTY);
+        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
+        assertNotNull(joinValidator);
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        joinValidator.accept(node, ClusterState.builder(ClusterName.DEFAULT).build());
+        assertTrue(joinValidator instanceof Security.ValidateTLSOnJoin);
+        int numIters = randomIntBetween(1,10);
+        for (int i = 0; i < numIters; i++) {
+            boolean tlsOn = randomBoolean();
+            Security.ValidateTLSOnJoin validator = new Security.ValidateTLSOnJoin(tlsOn);
+            MetaData.Builder builder = MetaData.builder();
+            License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
+            TestUtils.putLicense(builder, license);
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
+            EnumSet<License.OperationMode> productionModes = EnumSet.of(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
+                    License.OperationMode.STANDARD);
+            if (productionModes.contains(license.operationMode()) && tlsOn == false) {
+                IllegalStateException ise = expectThrows(IllegalStateException.class, () -> validator.accept(node, state));
+                assertEquals("TLS setup is required for license type [" + license.operationMode().name() + "]", ise.getMessage());
+            } else {
+                validator.accept(node, state);
+            }
+            validator.accept(node, ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder().build()).build());
+        }
     }
 }

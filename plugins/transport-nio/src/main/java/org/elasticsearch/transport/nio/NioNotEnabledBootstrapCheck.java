@@ -20,17 +20,13 @@
 package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 
 public class NioNotEnabledBootstrapCheck implements BootstrapCheck {
 
     @Override
-    public boolean check() {
-        return true;
-    }
-
-    @Override
-    public String errorMessage() {
-        return "The transport-nio plugin is experimental and not ready for production usage. It should not " +
-            "be enabled in production.";
+    public BootstrapCheckResult check(BootstrapContext context) {
+        return BootstrapCheckResult.failure("The transport-nio plugin is experimental and not ready for production usage. It should " +
+            "not be enabled in production.");
     }
 }

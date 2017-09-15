@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -52,7 +53,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, ReindexPlugin.class, CustomScriptPlugin.class);
+        return Arrays.asList(XPackPlugin.class, ReindexPlugin.class, CustomScriptPlugin.class, CommonAnalysisPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

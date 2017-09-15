@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.license;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -37,7 +39,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.<Class<? extends Plugin>>singletonList(XPackPlugin.class);
+        return Arrays.asList(XPackPlugin.class, CommonAnalysisPlugin.class);
     }
 
     @Override

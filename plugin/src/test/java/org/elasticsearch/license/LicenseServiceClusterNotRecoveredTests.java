@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -36,7 +37,7 @@ public class LicenseServiceClusterNotRecoveredTests extends AbstractLicensesInte
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(XPackPlugin.class, CommonAnalysisPlugin.class, Netty4Plugin.class);
     }
 
     @Override

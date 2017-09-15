@@ -18,6 +18,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -72,7 +73,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, ParentJoinPlugin.class,
+        return Arrays.asList(XPackPlugin.class, CommonAnalysisPlugin.class, ParentJoinPlugin.class,
                 InternalSettingsPlugin.class);
     }
 

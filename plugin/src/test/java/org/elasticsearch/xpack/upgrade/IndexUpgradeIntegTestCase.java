@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.upgrade;
 
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.reindex.ReindexPlugin;
@@ -52,7 +53,8 @@ public abstract class IndexUpgradeIntegTestCase extends AbstractLicensesIntegrat
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, ReindexPlugin.class, MockPainlessScriptEngine.TestPlugin.class);
+        return Arrays.asList(XPackPlugin.class, ReindexPlugin.class, MockPainlessScriptEngine.TestPlugin.class,
+                CommonAnalysisPlugin.class);
     }
 
     @Override

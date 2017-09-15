@@ -72,6 +72,7 @@ integTestCluster {
     setting 'tribe.cluster2.discovery.zen.ping.unicast.hosts', "'${-> cluster2Nodes.get(0).transportUri()}'"
     setting 'tribe.cluster2.http.enabled', 'true'
     setting 'tribe.cluster2.xpack.ml.enabled', 'false'
+    keystoreSetting 'bootstrap.password', 'x-pack-test-password'
     waitCondition = { node, ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
         // 5 nodes: tribe + clusterOne (1 node + tribe internal node) + clusterTwo (1 node + tribe internal node)

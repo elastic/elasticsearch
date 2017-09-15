@@ -106,15 +106,13 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
         return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportClientPlugins(), transportAddresses);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1996")
     public void testThatTribeCanAuthenticateElasticUser() throws Exception {
         ClusterHealthResponse response = tribeNode.client().filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue("elastic", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)))
+                UsernamePasswordToken.basicAuthHeaderValue("elastic", BOOTSTRAP_PASSWORD)))
                 .admin().cluster().prepareHealth().get();
         assertNoTimeout(response);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1996")
     public void testThatTribeCanAuthenticateElasticUserWithChangedPassword() throws Exception {
         securityClient(client()).prepareChangePassword("elastic", "password".toCharArray()).get();
 
@@ -125,7 +123,6 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
         assertNoTimeout(response);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1996")
     public void testThatTribeClustersHaveDifferentPasswords() throws Exception {
         securityClient().prepareChangePassword("elastic", "password".toCharArray()).get();
         securityClient(cluster2.client()).prepareChangePassword("elastic", "password2".toCharArray()).get();

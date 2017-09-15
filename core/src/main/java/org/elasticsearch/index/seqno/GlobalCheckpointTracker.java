@@ -673,7 +673,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         assert handoffInProgress;
         primaryMode = false;
         handoffInProgress = false;
-        // forget all checkpoint information except for current shard (should we forget local checkpoint for current shard as well?)
+        // forget all checkpoint information except for global checkpoint of current shard
         checkpoints.entrySet().stream().forEach(e -> {
             final CheckpointState cps = e.getValue();
             if (cps.localCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO &&

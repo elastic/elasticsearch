@@ -292,7 +292,14 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
             final Map<String, CheckpointState> checkpoints,
             ToLongFunction<CheckpointState> function,
             Function<LongStream, OptionalLong> reducer) {
-        final OptionalLong value = reducer.apply(checkpoints.values().stream().filter(cps -> cps.inSync).mapToLong(function));
+        final OptionalLong value =
+                reducer.apply(
+                        checkpoints
+                                .values()
+                                .stream()
+                                .filter(cps -> cps.inSync)
+                                .mapToLong(function)
+                                .filter(v -> v != SequenceNumbers.UNASSIGNED_SEQ_NO));
         assert value.isPresent();
         return value.getAsLong();
     }

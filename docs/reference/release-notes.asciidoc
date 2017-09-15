@@ -17,25 +17,33 @@ include::release-notes/6.0.0-rc1.asciidoc[]
 include::release-notes/6.0.0-beta2.asciidoc[]
 
 ifdef::include-xpack[]
+:edit_url!:
 include::{xes-repo-dir}/release-notes/6.0.0-beta2.asciidoc[]
 endif::include-xpack[]
 
+:edit_url:
 include::release-notes/6.0.0-beta1.asciidoc[]
 
 ifdef::include-xpack[]
+:edit_url!:
 include::{xes-repo-dir}/release-notes/6.0.0-beta1.asciidoc[]
 endif::include-xpack[]
 
+:edit_url:
 include::release-notes/6.0.0-alpha2.asciidoc[]
 
 ifdef::include-xpack[]
+:edit_url!:
 include::{xes-repo-dir}/release-notes/6.0.0-alpha2.asciidoc[]
 endif::include-xpack[]
 
+:edit_url:
 include::release-notes/6.0.0-alpha1.asciidoc[]
 
 ifdef::include-xpack[]
+:edit_url!:
 include::{xes-repo-dir}/release-notes/6.0.0-alpha1.asciidoc[]
 endif::include-xpack[]
 
+:edit_url:
 include::release-notes/6.0.0-alpha1-5x.asciidoc[]

@@ -95,6 +95,21 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
     }
 
+    public void testPartOfSpeechFilter() throws IOException {
+        TestAnalysis analysis = createTestAnalysis();
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("kuromoji_part_of_speech");
+
+        assertThat(tokenFilter, instanceOf(KuromojiPartOfSpeechFilterFactory.class));
+
+        String source = "寿司がおいしいね";
+        String[] expected_tokens = new String[]{"寿司", "おいしい"};
+
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens);
+    }
+
     public void testReadingFormFilterFactory() throws IOException {
         TestAnalysis analysis = createTestAnalysis();
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("kuromoji_rf");
@@ -210,7 +225,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         int i = 0;
         while (stream.incrementToken()) {
             assertThat(expected.length, greaterThan(i));
-            assertThat( "expected different term at index " + i, expected[i++], equalTo(termAttr.toString()));
+            assertThat("expected different term at index " + i, termAttr.toString(), equalTo(expected[i++]));
         }
         assertThat("not all tokens produced", i, equalTo(expected.length));
     }

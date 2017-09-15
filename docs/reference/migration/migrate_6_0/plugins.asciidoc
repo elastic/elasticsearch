@@ -42,6 +42,8 @@ the region of the configured bucket.
  `repositories.s3.secret_key`, `repositories.s3.endpoint` and `repositories.s3.protocol`.
 Instead, use the new named client settings under `s3.client.CLIENT_NAME.*`.
 
+* The `path_style_access` setting has been removed. The repository will use the appropriate path style access based on the configured endpoint.
+
 ==== Azure Repository plugin
 
 * The container an azure repository is configured with will no longer be created automatically.

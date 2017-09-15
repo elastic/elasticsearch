@@ -60,7 +60,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     private static final String FORCED_REFRESH = "forced_refresh";
 
     /**
-     * An enum that represents the the results of CRUD operations, primarily used to communicate the type of
+     * An enum that represents the results of CRUD operations, primarily used to communicate the type of
      * operation that occurred.
      */
     public enum Result implements Writeable {

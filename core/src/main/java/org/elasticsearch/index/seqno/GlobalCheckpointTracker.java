@@ -300,8 +300,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
                                 .filter(cps -> cps.inSync)
                                 .mapToLong(function)
                                 .filter(v -> v != SequenceNumbers.UNASSIGNED_SEQ_NO));
-        assert value.isPresent();
-        return value.getAsLong();
+        return value.isPresent() ? value.getAsLong() : SequenceNumbers.UNASSIGNED_SEQ_NO;
     }
 
     /**

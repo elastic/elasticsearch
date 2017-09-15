@@ -74,12 +74,8 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
 
         // Will be deleted
         createTimestampedIndex(now().minusDays(10));
-        createIndex(".marvel-es-data", now().minusYears(1));
-        createIndex(".marvel-es-data-2", now().minusYears(1));
         createIndex(".monitoring-data-2", now().minusDays(10));
         createAlertsIndex(now().minusYears(1), MonitoringTemplateUtils.OLD_TEMPLATE_VERSION);
-        createIndex(".marvel-es-2016.05.03");
-        createIndex(".marvel-es-2-2016.05.03");
         createTimestampedIndex(now().minusDays(10), "0");
         createTimestampedIndex(now().minusDays(10), "1");
         createTimestampedIndex(now().minusYears(1), MonitoringTemplateUtils.OLD_TEMPLATE_VERSION);
@@ -92,7 +88,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         // Won't be deleted
         createAlertsIndex(now().minusYears(1));
 
-        assertIndicesCount(12);
+        assertIndicesCount(8);
 
         CleanerService.Listener listener = getListener();
         listener.onCleanUpIndices(days(0));

@@ -506,9 +506,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             if (clusterState != null) {
                 long expirationTime = expiration.getMillis();
 
-                // TODO: remove .marvel-* handling in 7.0
-                // Get the list of monitoring index patterns (note: this will include any unaliased .marvel-* indices)
-                final String[] monitoringIndexPatterns = new String[] { ".monitoring-*", ".marvel-*" };
+                // list of index patterns that we clean up; we may add watcher history in the future
+                final String[] indexPatterns = new String[] { ".monitoring-*" };
 
                 MonitoringDoc monitoringDoc = new MonitoringDoc(null, null, null, null, null,
                         System.currentTimeMillis(), (MonitoringDoc.Node) null);
@@ -525,7 +524,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 for (ObjectObjectCursor<String, IndexMetaData> index : clusterState.getMetaData().indices()) {
                     String indexName =  index.key;
 
-                    if (Regex.simpleMatch(monitoringIndexPatterns, indexName)) {
+                    if (Regex.simpleMatch(indexPatterns, indexName)) {
                         // Never delete any "current" index (e.g., today's index or the most recent version no timestamp, like alerts)
                         if (currents.contains(indexName)) {
                             continue;

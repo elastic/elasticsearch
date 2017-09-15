@@ -34,8 +34,9 @@ public class TLSLicenseBootstrapCheckTests extends ESTestCase {
             } else {
                 assertTrue(new TLSLicenseBootstrapCheck().check(new BootstrapContext(
                         Settings.builder().put("xpack.security.transport.ssl.enabled", false).build(), build)).isFailure());
-                assertEquals("Transport SSL must be enabled for setups with production licenses." +
-                        " Please set [xpack.security.transport.ssl.enabled] or disables security via [xpack.security.enabled]",
+                assertEquals("Transport SSL must be enabled for setups with production licenses. Please set " +
+                                "[xpack.security.transport.ssl.enabled] to [true] or disable security by setting " +
+                                "[xpack.security.enabled] to [false]",
                         new TLSLicenseBootstrapCheck().check(new BootstrapContext(
                                 Settings.builder().put("xpack.security.transport.ssl.enabled", false).build(), build)).getMessage());
             }

@@ -160,3 +160,11 @@ setup:
   - is_true: test_index_2.settings
   - is_true: test_index_3.settings
 
+---
+"Should return an exception when querying invalid indices":
+
+ - do:
+     catch: bad_request
+     indices.get:
+       index: _foo
+

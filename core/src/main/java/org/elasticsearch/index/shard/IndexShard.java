@@ -1791,9 +1791,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void activateWithPrimaryContext(final GlobalCheckpointTracker.PrimaryContext primaryContext) {
         verifyPrimary();
         assert shardRouting.isRelocationTarget() : "only relocation target can update allocation IDs from primary context: " + shardRouting;
-        assert primaryContext.getLocalCheckpoints().containsKey(routingEntry().allocationId().getId()) &&
+        assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) &&
             getEngine().seqNoService().getLocalCheckpoint() ==
-                primaryContext.getLocalCheckpoints().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
+                primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
         getEngine().seqNoService().activateWithPrimaryContext(primaryContext);
     }
 

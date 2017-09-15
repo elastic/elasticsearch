@@ -797,7 +797,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
             return clusterStateVersion;
         }
 
-        public Map<String, CheckpointState> getLocalCheckpoints() {
+        public Map<String, CheckpointState> getCheckpointStates() {
             return localCheckpoints;
         }
 

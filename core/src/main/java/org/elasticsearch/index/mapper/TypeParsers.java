@@ -209,7 +209,12 @@ public class TypeParsers {
                 builder.boost(nodeFloatValue(propNode));
                 iterator.remove();
             } else if (propName.equals("index_options")) {
-                builder.indexOptions(nodeIndexOptionValue(propNode));
+                if (builder.allowsIndexOptions()) {
+                    builder.indexOptions(nodeIndexOptionValue(propNode));
+                } else {
+                    throw new MapperParsingException(
+                            "index_options not allowed in field [" + name + "] of type [" + builder.fieldType().typeName() + "]");
+                }
                 iterator.remove();
             } else if (propName.equals("similarity")) {
                 SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());

@@ -48,11 +48,11 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         environment = mock(Environment.class);
     }
 
-    protected void setInitialState(License license, XPackLicenseState licenseState) {
+    protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings) {
         Path tempDir = createTempDir();
         when(environment.configFile()).thenReturn(tempDir);
         licenseType = randomBoolean() ? "trial" : "basic";
-        Settings settings = Settings.builder().put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), licenseType).build();
+        settings = Settings.builder().put(settings).put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), licenseType).build();
         licenseService = new LicenseService(settings, clusterService, clock, environment, resourceWatcherService, licenseState);
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();

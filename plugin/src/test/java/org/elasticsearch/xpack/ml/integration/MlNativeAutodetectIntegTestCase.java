@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -60,6 +61,8 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.TokenMetaData;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -80,10 +83,20 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
 
     @Override
     protected Settings externalClusterClientSettings() {
+        Path keyStore;
+        try {
+            keyStore = PathUtils.get(getClass().getResource("/test-node.jks").toURI());
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException("error trying to get keystore path", e);
+        }
         Settings.Builder builder = Settings.builder();
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
         builder.put(Security.USER_SETTING.getKey(), "x_pack_rest_user:" + SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
+        builder.put("xpack.security.transport.ssl.enabled", true);
+        builder.put("xpack.security.transport.ssl.keystore.path", keyStore.toAbsolutePath().toString());
+        builder.put("xpack.security.transport.ssl.keystore.password", "keypass");
+        builder.put("xpack.security.transport.ssl.verification_mode", "certificate");
         return builder.build();
     }
 

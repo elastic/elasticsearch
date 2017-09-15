@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.junit.After;
 import org.junit.Before;
@@ -33,7 +34,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
     @Before
     public void setup() {
         licenseState = new TestUtils.AssertingLicenseState();
-        setInitialState(null, licenseState);
+        setInitialState(null, licenseState, Settings.EMPTY);
         licenseService.start();
     }
 

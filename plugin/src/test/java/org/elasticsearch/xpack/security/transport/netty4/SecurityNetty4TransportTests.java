@@ -42,6 +42,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.ssl.keystore.path", testnodeStore)
                 .setSecureSettings(secureSettings)
                 .put("path.home", createTempDir())
@@ -51,12 +52,13 @@ public class SecurityNetty4TransportTests extends ESTestCase {
     }
 
     private SecurityNetty4Transport createTransport() {
-        return createTransport(Settings.EMPTY);
+        return createTransport(Settings.builder().put("xpack.security.transport.ssl.enabled", true).build());
     }
 
     private SecurityNetty4Transport createTransport(Settings additionalSettings) {
         final Settings settings =
                 Settings.builder()
+                        .put("xpack.security.transport.ssl.enabled", true)
                         .put(additionalSettings)
                         .build();
         return new SecurityNetty4Transport(
@@ -185,6 +187,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         secureSettings.setString("xpack.ssl.truststore.secure_password", "truststore-testnode-only");
         Settings.Builder builder = Settings.builder()
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.security.transport.ssl.keystore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
                 .put("xpack.security.transport.ssl.client_authentication", "none")

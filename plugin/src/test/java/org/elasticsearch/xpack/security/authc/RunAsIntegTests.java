@@ -83,8 +83,8 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public boolean useGeneratedSSLConfig() {
-        return true;
+    protected boolean transportSSLEnabled() {
+        return false;
     }
 
     public void testUserImpersonation() throws Exception {

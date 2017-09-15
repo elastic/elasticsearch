@@ -154,6 +154,8 @@ processTestResources.dependsOn(
         importNodeCertificateInClientKeyStore, importClientCertificateInNodeKeyStore
 )
 
+integTestCluster.dependsOn(importClientCertificateInNodeKeyStore)
+
 ext.pluginsCount = 1 // we install xpack explicitly
 project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
   // need to get a non-decorated project object, so must re-lookup the project by path

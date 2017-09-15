@@ -56,8 +56,8 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected boolean useGeneratedSSLConfig() {
-        return false;
+    protected boolean transportSSLEnabled() {
+        return true;
     }
 
     public void testThatHttpFailsWithoutSslClientAuth() throws IOException {
@@ -93,6 +93,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testclient-client-profile");
         Settings settings = Settings.builder()
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.ssl.client_authentication", SSLClientAuth.NONE)
                 .put("xpack.ssl.keystore.path", store)
                 .setSecureSettings(secureSettings)

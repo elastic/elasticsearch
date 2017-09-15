@@ -16,10 +16,10 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
@@ -52,9 +52,12 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
+import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.rest.RestController;
@@ -163,9 +166,9 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
-import org.elasticsearch.xpack.ssl.SSLBootstrapCheck;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.TLSLicenseBootstrapCheck;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -195,7 +198,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
 
-public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin {
+public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin, DiscoveryPlugin {
 
     private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
 
@@ -243,10 +246,10 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
             // fetched
             final List<BootstrapCheck> checks = new ArrayList<>();
             checks.addAll(Arrays.asList(
-                    new SSLBootstrapCheck(sslService, env),
                     new TokenPassphraseBootstrapCheck(settings),
                     new TokenSSLBootstrapCheck(),
-                    new PkiRealmBootstrapCheck(sslService)));
+                    new PkiRealmBootstrapCheck(sslService),
+                    new TLSLicenseBootstrapCheck()));
             checks.addAll(InternalRealms.getBootstrapChecks(settings));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
         } else {
@@ -902,6 +905,27 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
             return Collections.singletonMap(TokenMetaData.TYPE, () -> tokenService.get().getTokenMetaData());
         } else {
             return Collections.emptyMap();
+        }
+    }
+
+    @Override
+    public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
+        return enabled ? new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings)) : null;
+    }
+
+    static final class ValidateTLSOnJoin implements BiConsumer<DiscoveryNode, ClusterState> {
+        private final boolean isTLSEnabled;
+
+        ValidateTLSOnJoin(boolean isTLSEnabled) {
+            this.isTLSEnabled = isTLSEnabled;
+        }
+
+        @Override
+        public void accept(DiscoveryNode node, ClusterState state) {
+            License license = LicenseService.getLicense(state.metaData());
+            if (license != null && license.isProductionLicense() && isTLSEnabled == false) {
+                throw new IllegalStateException("TLS setup is required for license type [" + license.operationMode().name() + "]");
+            }
         }
     }
 }

@@ -159,6 +159,7 @@ subprojects {
       unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
       dataDir = { nodeNumber -> oldClusterTest.nodes[1].dataDir }
       waitCondition = waitWithAuth
+      setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
       if (version.onOrAfter('6.0.0') == false) {
@@ -194,6 +195,7 @@ subprojects {
       unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
       dataDir = { nodeNumber -> oldClusterTest.nodes[0].dataDir }
       waitCondition = waitWithAuth
+      setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
       if (version.onOrAfter('6.0.0') == false) {

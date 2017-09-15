@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.NodeInfo
 
@@ -198,7 +199,39 @@ integTestRunner {
   systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*'
 }
 
+// location of generated keystores and certificates
+File keystoreDir = new File(project.buildDir, 'keystore')
+
+// Generate the node's keystore
+File nodeKeystore = new File(keystoreDir, 'test-node.jks')
+task createNodeKeyStore(type: LoggedExec) {
+  doFirst {
+    if (nodeKeystore.parentFile.exists() == false) {
+      nodeKeystore.parentFile.mkdirs()
+    }
+    if (nodeKeystore.exists()) {
+      delete nodeKeystore
+    }
+  }
+  executable = new File(project.javaHome, 'bin/keytool')
+  standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
+  args '-genkey',
+          '-alias', 'test-node',
+          '-keystore', nodeKeystore,
+          '-keyalg', 'RSA',
+          '-keysize', '2048',
+          '-validity', '712',
+          '-dname', 'CN=smoke-test-plugins-ssl',
+          '-keypass', 'keypass',
+          '-storepass', 'keypass'
+}
+
+// Add keystores to test classpath: it expects it there
+sourceSets.test.resources.srcDir(keystoreDir)
+processTestResources.dependsOn(createNodeKeyStore)
+
 integTestCluster {
+  dependsOn createNodeKeyStore
   setting 'xpack.ml.enabled', 'true'
   setting 'logger.org.elasticsearch.xpack.ml.datafeed', 'TRACE'
   // Integration tests are supposed to enable/disable exporters before/after each test
@@ -206,11 +239,17 @@ integTestCluster {
   setting 'xpack.monitoring.exporters._local.enabled', 'false'
   setting 'xpack.monitoring.collection.interval', '-1'
   setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.keystore.path', nodeKeystore.name
+  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
   keystoreSetting 'bootstrap.password', 'x-pack-test-password'
   keystoreSetting 'xpack.security.authc.token.passphrase', 'x-pack-token-service-password'
+  keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'keypass'
   distribution = 'zip' // this is important since we use the reindex module in ML
 
   setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+
+  extraConfigFile nodeKeystore.name, nodeKeystore
 
   waitCondition = { NodeInfo node, AntBuilder ant ->
       File tmpFile = new File(node.cwd, 'wait.success')

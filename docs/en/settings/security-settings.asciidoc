@@ -722,11 +722,11 @@ are also available for each transport profile. By default, the settings for a
 transport profile will be the same as the default transport unless they
 are specified.
 
-As an example, lets look at the enabled setting. For the default transport
-this is `xpack.security.transport.ssl.enabled`. In order to use this setting in a
+As an example, lets look at the key setting. For the default transport
+this is `xpack.security.transport.ssl.key`. In order to use this setting in a
 transport profile, use the prefix `transport.profiles.$PROFILE.xpack.security.` and
-append the portion of the setting after `xpack.security.transport.`. For the enabled
-setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.enabled`.
+append the portion of the setting after `xpack.security.transport.`. For the key
+setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.key`.
 
 [float]
 [[ip-filtering-settings]]

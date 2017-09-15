@@ -17,7 +17,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 public class SslNullCipherTests extends SecurityIntegTestCase {
 
     @Override
-    public boolean useGeneratedSSLConfig() {
+    public boolean transportSSLEnabled() {
         return true;
     }
 
@@ -25,7 +25,7 @@ public class SslNullCipherTests extends SecurityIntegTestCase {
     public Settings nodeSettings(int nodeOrdinal) {
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder()
-                .put(settings.filter((s) -> s.startsWith("xpack.ssl") == false));
+                .put(settings);
         builder.put("xpack.security.transport.ssl.cipher_suites", "TLS_RSA_WITH_NULL_SHA256");
         return builder.build();
     }
@@ -34,7 +34,7 @@ public class SslNullCipherTests extends SecurityIntegTestCase {
     public Settings transportClientSettings() {
         Settings settings = super.transportClientSettings();
         Settings.Builder builder = Settings.builder()
-                .put(settings.filter((s) -> s.startsWith("xpack.ssl") == false));
+                .put(settings);
 
         builder.put("xpack.security.transport.ssl.cipher_suites", "TLS_RSA_WITH_NULL_SHA256");
         return builder.build();

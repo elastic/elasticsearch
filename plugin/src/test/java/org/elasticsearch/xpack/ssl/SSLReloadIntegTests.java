@@ -85,8 +85,8 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected boolean useGeneratedSSLConfig() {
-        return false;
+    protected boolean transportSSLEnabled() {
+        return true;
     }
 
     public void testThatSSLConfigurationReloadsOnModification() throws Exception {

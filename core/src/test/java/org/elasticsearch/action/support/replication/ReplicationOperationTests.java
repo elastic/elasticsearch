@@ -131,6 +131,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         assertThat(primary.knownLocalCheckpoints.remove(primaryShard.allocationId().getId()), equalTo(primary.localCheckpoint));
         assertThat(primary.knownLocalCheckpoints, equalTo(replicasProxy.generatedLocalCheckpoints));
+        assertThat(primary.knownGlobalCheckpoints, equalTo(replicasProxy.generatedGlobalCheckpoints));
     }
 
     public void testDemotedPrimary() throws Exception {
@@ -437,7 +438,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         @Override
         public void updateGlobalCheckpointForShard(String allocationId, long globalCheckpoint) {
-            knownGlobalCheckpoints.compute(allocationId, (k, v) -> v == null || globalCheckpoint > v ? globalCheckpoint : v);
+            knownGlobalCheckpoints.put(allocationId, globalCheckpoint);
         }
 
         @Override
@@ -488,6 +489,8 @@ public class ReplicationOperationTests extends ESTestCase {
 
         final Map<String, Long> generatedLocalCheckpoints = ConcurrentCollections.newConcurrentMap();
 
+        final Map<String, Long> generatedGlobalCheckpoints = ConcurrentCollections.newConcurrentMap();
+
         final Set<String> markedAsStaleCopies = ConcurrentCollections.newConcurrentSet();
 
         final long primaryTerm;
@@ -511,11 +514,12 @@ public class ReplicationOperationTests extends ESTestCase {
             if (opFailures.containsKey(replica)) {
                 listener.onFailure(opFailures.get(replica));
             } else {
-                final long checkpoint = random().nextLong();
+                final long generatedLocalCheckpoint = random().nextLong();
+                final long generatedGlobalCheckpoint = random().nextLong();
                 final String allocationId = replica.allocationId().getId();
-                Long existing = generatedLocalCheckpoints.put(allocationId, checkpoint);
-                assertNull(existing);
-                listener.onResponse(new ReplicaResponse(checkpoint, randomNonNegativeLong()));
+                assertNull(generatedLocalCheckpoints.put(allocationId, generatedLocalCheckpoint));
+                assertNull(generatedGlobalCheckpoints.put(allocationId, generatedGlobalCheckpoint));
+                listener.onResponse(new ReplicaResponse(generatedLocalCheckpoint, generatedGlobalCheckpoint));
             }
         }
 

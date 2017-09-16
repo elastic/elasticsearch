@@ -115,8 +115,18 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             String relationString = in.readOptionalString();
             if (relationString != null) {
                 relation = ShapeRelation.getRelationByName(relationString);
+                if (relation != null && !isRelationAllowed(relation)) {
+                    throw new IllegalArgumentException(
+                        "[range] query does not support relation [" + relationString + "]");
+                }
             }
         }
+    }
+
+    private boolean isRelationAllowed(ShapeRelation relation) {
+        return relation == ShapeRelation.INTERSECTS
+            || relation == ShapeRelation.CONTAINS
+            || relation == ShapeRelation.WITHIN;
     }
 
     @Override
@@ -316,6 +326,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         this.relation = ShapeRelation.getRelationByName(relation);
         if (this.relation == null) {
             throw new IllegalArgumentException(relation + " is not a valid relation");
+        }
+        if (!isRelationAllowed(this.relation)) {
+            throw new IllegalArgumentException("[range] query does not support relation [" + relation + "]");
         }
         return this;
     }

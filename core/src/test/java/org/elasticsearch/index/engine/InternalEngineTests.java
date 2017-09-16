@@ -2809,6 +2809,44 @@ public class InternalEngineTests extends ESTestCase {
         assertVisibleCount(engine, numDocs, false);
     }
 
+    public void testRecoverFromStoreSetsHistoryUUIDIfNeeded() throws IOException {
+        final int numDocs = randomIntBetween(0, 3);
+        for (int i = 0; i < numDocs; i++) {
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
+            Engine.Index firstIndexRequest = new Engine.Index(newUid(doc), doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
+            Engine.IndexResult index = engine.index(firstIndexRequest);
+            assertThat(index.getVersion(), equalTo(1L));
+        }
+        assertVisibleCount(engine, numDocs);
+        engine.close();
+
+        IndexWriterConfig iwc = new IndexWriterConfig(null)
+            .setCommitOnClose(false)
+            // we don't want merges to happen here - we call maybe merge on the engine
+            // later once we stared it up otherwise we would need to wait for it here
+            // we also don't specify a codec here and merges should use the engines for this index
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        try (IndexWriter writer = new IndexWriter(store.directory(), iwc)) {
+            Map<String, String> newCommitData = new HashMap<>();
+            for (Map.Entry<String, String> entry: writer.getLiveCommitData()) {
+                if (entry.getKey().equals(Engine.HISTORY_UUID_KEY) == false)  {
+                    newCommitData.put(entry.getKey(), entry.getValue());
+                }
+            }
+            writer.setLiveCommitData(newCommitData.entrySet());
+            writer.commit();
+        }
+
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_0_0_beta1)
+            .build());
+        engine = createEngine(indexSettings, store, primaryTranslogDir, newMergePolicy(), null);
+        assertVisibleCount(engine, numDocs, false);
+        assertThat(engine.getHistoryUUID(), notNullValue());
+    }
+
     public void testShardNotAvailableExceptionWhenEngineClosedConcurrently() throws IOException, InterruptedException {
         AtomicReference<Exception> exception = new AtomicReference<>();
         String operation = randomFrom("optimize", "refresh", "flush");

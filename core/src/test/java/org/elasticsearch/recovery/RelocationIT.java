@@ -139,7 +139,7 @@ public class RelocationIT extends ESIntegTestCase {
                             seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
                         assertThat(shardStats.getShardRouting() + " max seq no mismatch",
                             seqNoStats.getMaxSeqNo(), equalTo(primarySeqNoStats.getMaxSeqNo()));
-                        // the local knowledge on the primary of the global checkpoint equals the global checkpoints on the shard
+                        // the local knowledge on the primary of the global checkpoint equals the global checkpoint on the shard
                         assertThat(
                                 seqNoStats.getGlobalCheckpoint(),
                                 equalTo(globalCheckpoints.get(shardStats.getShardRouting().allocationId().getId())));

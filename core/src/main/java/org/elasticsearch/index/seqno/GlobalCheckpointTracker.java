@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.seqno;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -207,6 +209,16 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         }
     }
 
+    synchronized ObjectLongMap<String> getGlobalCheckpoints() {
+        assert primaryMode;
+        assert handoffInProgress == false;
+        final ObjectLongMap<String> globalCheckpoints = new ObjectLongHashMap<>(checkpoints.size());
+        for (final Map.Entry<String, CheckpointState> cps : checkpoints.entrySet()) {
+            globalCheckpoints.put(cps.getKey(), cps.getValue().globalCheckpoint);
+        }
+        return globalCheckpoints;
+    }
+
     /**
      * Class invariant that should hold before and after every invocation of public methods on this class. As Java lacks implication
      * as a logical operator, many of the invariants are written under the form (!A || B), they should be read as (A implies B) however.
@@ -221,10 +233,15 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
                 lcps.localCheckpoint == SequenceNumbersService.PRE_60_NODE_CHECKPOINT);
 
         // global checkpoints for other shards only set during primary mode
-        assert primaryMode || checkpoints.entrySet().stream().filter(e -> e.getKey().equals(shardAllocationId) == false).map(Map.Entry::getValue)
-            .allMatch(cps ->
-                (cps.globalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO ||
-                    cps.globalCheckpoint == SequenceNumbersService.PRE_60_NODE_CHECKPOINT));
+        assert primaryMode
+                || checkpoints
+                .entrySet()
+                .stream()
+                .filter(e -> e.getKey().equals(shardAllocationId) == false)
+                .map(Map.Entry::getValue)
+                .allMatch(cps ->
+                        (cps.globalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO
+                                || cps.globalCheckpoint == SequenceNumbersService.PRE_60_NODE_CHECKPOINT));
 
         // relocation handoff can only occur in primary mode
         assert !handoffInProgress || primaryMode;
@@ -717,7 +734,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         // capture current state to possibly replay missed cluster state update
         appliedClusterStateVersion = primaryContext.clusterStateVersion();
         checkpoints.clear();
-        for (Map.Entry<String, CheckpointState> entry : primaryContext.localCheckpoints.entrySet()) {
+        for (Map.Entry<String, CheckpointState> entry : primaryContext.checkpoints.entrySet()) {
             checkpoints.put(entry.getKey(), entry.getValue().copy());
         }
         routingTable = primaryContext.getRoutingTable();
@@ -789,19 +806,19 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     public static class PrimaryContext implements Writeable {
 
         private final long clusterStateVersion;
-        private final Map<String, CheckpointState> localCheckpoints;
+        private final Map<String, CheckpointState> checkpoints;
         private final IndexShardRoutingTable routingTable;
 
-        public PrimaryContext(long clusterStateVersion, Map<String, CheckpointState> localCheckpoints,
+        public PrimaryContext(long clusterStateVersion, Map<String, CheckpointState> checkpoints,
                               IndexShardRoutingTable routingTable) {
             this.clusterStateVersion = clusterStateVersion;
-            this.localCheckpoints = localCheckpoints;
+            this.checkpoints = checkpoints;
             this.routingTable = routingTable;
         }
 
         public PrimaryContext(StreamInput in) throws IOException {
             clusterStateVersion = in.readVLong();
-            localCheckpoints = in.readMap(StreamInput::readString, CheckpointState::new);
+            checkpoints = in.readMap(StreamInput::readString, CheckpointState::new);
             routingTable = IndexShardRoutingTable.Builder.readFrom(in);
         }
 
@@ -810,7 +827,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         }
 
         public Map<String, CheckpointState> getCheckpointStates() {
-            return localCheckpoints;
+            return checkpoints;
         }
 
         public IndexShardRoutingTable getRoutingTable() {
@@ -820,7 +837,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(clusterStateVersion);
-            out.writeMap(localCheckpoints, (streamOutput, s) -> out.writeString(s), (streamOutput, cps) -> cps.writeTo(out));
+            out.writeMap(checkpoints, (streamOutput, s) -> out.writeString(s), (streamOutput, cps) -> cps.writeTo(out));
             IndexShardRoutingTable.Builder.writeTo(routingTable, out);
         }
 
@@ -828,7 +845,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         public String toString() {
             return "PrimaryContext{" +
                     "clusterStateVersion=" + clusterStateVersion +
-                    ", checkpoints=" + localCheckpoints +
+                    ", checkpoints=" + checkpoints +
                     ", routingTable=" + routingTable +
                     '}';
         }
@@ -848,7 +865,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         @Override
         public int hashCode() {
             int result = (int) (clusterStateVersion ^ (clusterStateVersion >>> 32));
-            result = 31 * result + localCheckpoints.hashCode();
+            result = 31 * result + checkpoints.hashCode();
             result = 31 * result + routingTable.hashCode();
             return result;
         }

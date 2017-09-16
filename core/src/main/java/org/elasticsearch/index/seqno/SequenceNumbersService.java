@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.seqno;
 
+import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -140,6 +141,10 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public void updateGlobalCheckpointForShard(final String allocationId, final long globalCheckpoint) {
         globalCheckpointTracker.updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
+    }
+
+    public ObjectLongMap<String> getGlobalCheckpoints() {
+        return globalCheckpointTracker.getGlobalCheckpoints();
     }
 
     /**

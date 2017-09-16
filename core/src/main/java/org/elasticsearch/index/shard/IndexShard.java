@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
+import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
@@ -1745,6 +1746,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public long getGlobalCheckpoint() {
         return getEngine().seqNoService().getGlobalCheckpoint();
+    }
+
+    public ObjectLongMap<String> getGlobalCheckpoints() {
+        verifyPrimary();
+        verifyNotClosed();
+        return getEngine().seqNoService().getGlobalCheckpoints();
     }
 
     /**

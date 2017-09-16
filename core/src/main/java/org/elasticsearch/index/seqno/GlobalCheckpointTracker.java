@@ -864,7 +864,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
 
         @Override
         public int hashCode() {
-            int result = (int) (clusterStateVersion ^ (clusterStateVersion >>> 32));
+            int result = Long.hashCode(clusterStateVersion);
             result = 31 * result + checkpoints.hashCode();
             result = 31 * result + routingTable.hashCode();
             return result;

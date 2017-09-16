@@ -35,6 +35,7 @@ import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.elasticsearch.repositories.azure.AzureStorageServiceImpl.blobNameFromUri;
@@ -87,9 +88,9 @@ public class AzureStorageServiceTests extends ESTestCase {
     public void testCreateClientWithEndpointSuffix() {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("azure.client.azure1.account", "myaccount1");
-        secureSettings.setString("azure.client.azure1.key", Base64.encode("mykey1".getBytes()));
+        secureSettings.setString("azure.client.azure1.key", Base64.encode("mykey1".getBytes(StandardCharsets.UTF_8)));
         secureSettings.setString("azure.client.azure2.account", "myaccount2");
-        secureSettings.setString("azure.client.azure2.key", Base64.encode("mykey2".getBytes()));
+        secureSettings.setString("azure.client.azure2.key", Base64.encode("mykey2".getBytes(StandardCharsets.UTF_8)));
         Settings settings = Settings.builder().setSecureSettings(secureSettings)
             .put("azure.client.azure1.endpoint_suffix", "my_endpoint_suffix").build();
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceImpl(settings, AzureStorageSettings.load(settings));

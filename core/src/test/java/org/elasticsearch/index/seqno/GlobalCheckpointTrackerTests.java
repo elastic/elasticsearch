@@ -624,7 +624,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         GlobalCheckpointTracker newPrimary =
                 new GlobalCheckpointTracker(shardId, primaryAllocationId.getRelocationId(), indexSettings, UNASSIGNED_SEQ_NO);
 
-        Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.allocationId, newPrimary.allocationId));
+        Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.shardAllocationId, newPrimary.shardAllocationId));
 
         clusterState.apply(oldPrimary);
         clusterState.apply(newPrimary);
@@ -649,9 +649,9 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         // simulate transferring the global checkpoint to the new primary after finalizing recovery before the handoff
         markAllocationIdAsInSyncQuietly(
                 oldPrimary,
-                newPrimary.allocationId,
+                newPrimary.shardAllocationId,
                 Math.max(SequenceNumbers.NO_OPS_PERFORMED, oldPrimary.getGlobalCheckpoint() + randomInt(5)));
-        oldPrimary.updateGlobalCheckpointForShard(newPrimary.allocationId, oldPrimary.getGlobalCheckpoint());
+        oldPrimary.updateGlobalCheckpointForShard(newPrimary.shardAllocationId, oldPrimary.getGlobalCheckpoint());
         GlobalCheckpointTracker.PrimaryContext primaryContext = oldPrimary.startRelocationHandoff();
 
         if (randomBoolean()) {
@@ -731,25 +731,25 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
          * global checkpoint state after the primary context was transferred.
          */
         Map<String, GlobalCheckpointTracker.CheckpointState> oldPrimaryCheckpointsCopy = new HashMap<>(oldPrimary.checkpoints);
-        oldPrimaryCheckpointsCopy.remove(oldPrimary.allocationId);
-        oldPrimaryCheckpointsCopy.remove(newPrimary.allocationId);
+        oldPrimaryCheckpointsCopy.remove(oldPrimary.shardAllocationId);
+        oldPrimaryCheckpointsCopy.remove(newPrimary.shardAllocationId);
         Map<String, GlobalCheckpointTracker.CheckpointState> newPrimaryCheckpointsCopy = new HashMap<>(newPrimary.checkpoints);
-        newPrimaryCheckpointsCopy.remove(oldPrimary.allocationId);
-        newPrimaryCheckpointsCopy.remove(newPrimary.allocationId);
+        newPrimaryCheckpointsCopy.remove(oldPrimary.shardAllocationId);
+        newPrimaryCheckpointsCopy.remove(newPrimary.shardAllocationId);
         assertThat(newPrimaryCheckpointsCopy, equalTo(oldPrimaryCheckpointsCopy));
         // we can however assert that shared knowledge of the local checkpoint and in-sync status is equal
         assertThat(
-                oldPrimary.checkpoints.get(oldPrimary.allocationId).localCheckpoint,
-                equalTo(newPrimary.checkpoints.get(oldPrimary.allocationId).localCheckpoint));
+                oldPrimary.checkpoints.get(oldPrimary.shardAllocationId).localCheckpoint,
+                equalTo(newPrimary.checkpoints.get(oldPrimary.shardAllocationId).localCheckpoint));
         assertThat(
-                oldPrimary.checkpoints.get(newPrimary.allocationId).localCheckpoint,
-                equalTo(newPrimary.checkpoints.get(newPrimary.allocationId).localCheckpoint));
+                oldPrimary.checkpoints.get(newPrimary.shardAllocationId).localCheckpoint,
+                equalTo(newPrimary.checkpoints.get(newPrimary.shardAllocationId).localCheckpoint));
         assertThat(
-                oldPrimary.checkpoints.get(oldPrimary.allocationId).inSync,
-                equalTo(newPrimary.checkpoints.get(oldPrimary.allocationId).inSync));
+                oldPrimary.checkpoints.get(oldPrimary.shardAllocationId).inSync,
+                equalTo(newPrimary.checkpoints.get(oldPrimary.shardAllocationId).inSync));
         assertThat(
-                oldPrimary.checkpoints.get(newPrimary.allocationId).inSync,
-                equalTo(newPrimary.checkpoints.get(newPrimary.allocationId).inSync));
+                oldPrimary.checkpoints.get(newPrimary.shardAllocationId).inSync,
+                equalTo(newPrimary.checkpoints.get(newPrimary.shardAllocationId).inSync));
         assertThat(newPrimary.getGlobalCheckpoint(), equalTo(oldPrimary.getGlobalCheckpoint()));
         assertThat(newPrimary.routingTable, equalTo(oldPrimary.routingTable));
         assertThat(newPrimary.replicationGroup, equalTo(oldPrimary.replicationGroup));

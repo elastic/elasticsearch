@@ -71,6 +71,7 @@ public final class EngineConfig {
     private final List<ReferenceManager.RefreshListener> refreshListeners;
     @Nullable
     private final Sort indexSort;
+    private final boolean forceNewHistoryUUID;
     private final TranslogRecoveryRunner translogRecoveryRunner;
 
     /**
@@ -115,8 +116,9 @@ public final class EngineConfig {
                         MergePolicy mergePolicy, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        TranslogConfig translogConfig, TimeValue flushMergesAfter, List<ReferenceManager.RefreshListener> refreshListeners,
-                        Sort indexSort, TranslogRecoveryRunner translogRecoveryRunner) {
+                        boolean forceNewHistoryUUID, TranslogConfig translogConfig, TimeValue flushMergesAfter,
+                        List<ReferenceManager.RefreshListener> refreshListeners, Sort indexSort,
+                        TranslogRecoveryRunner translogRecoveryRunner) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
         }
@@ -141,6 +143,7 @@ public final class EngineConfig {
         this.translogConfig = translogConfig;
         this.flushMergesAfter = flushMergesAfter;
         this.openMode = openMode;
+        this.forceNewHistoryUUID = forceNewHistoryUUID;
         this.refreshListeners = refreshListeners;
         this.indexSort = indexSort;
         this.translogRecoveryRunner = translogRecoveryRunner;
@@ -298,6 +301,15 @@ public final class EngineConfig {
      */
     public OpenMode getOpenMode() {
         return openMode;
+    }
+
+
+    /**
+     * Returns true if a new history uuid must be generated. If false, a new uuid will only be generated if no existing
+     * one is found.
+     */
+    public boolean getForceNewHistoryUUID() {
+        return forceNewHistoryUUID;
     }
 
     @FunctionalInterface

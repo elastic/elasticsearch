@@ -16,28 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.open;
-
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
+package org.elasticsearch.cluster.ack;
 
 /**
- * Cluster state update request that allows to open one or more indices
+ * A cluster state update response with specific fields for index opening.
  */
-public class OpenIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<OpenIndexClusterStateUpdateRequest> {
+public class OpenIndexClusterStateUpdateResponse extends ClusterStateUpdateResponse {
 
-    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+    private final boolean shardsAcknowledged;
 
-    OpenIndexClusterStateUpdateRequest() {
-
+    public OpenIndexClusterStateUpdateResponse(boolean acknowledged, boolean shardsAcknowledged) {
+        super(acknowledged);
+        this.shardsAcknowledged = shardsAcknowledged;
     }
 
-    public ActiveShardCount waitForActiveShards() {
-        return waitForActiveShards;
-    }
-
-    public OpenIndexClusterStateUpdateRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
-        this.waitForActiveShards = waitForActiveShards;
-        return this;
+    /**
+     * Returns whether the requisite number of shard copies started before the completion of the operation.
+     */
+    public boolean isShardsAcknowledged() {
+        return shardsAcknowledged;
     }
 }

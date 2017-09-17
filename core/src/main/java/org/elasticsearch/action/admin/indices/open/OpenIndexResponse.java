@@ -30,22 +30,37 @@ import java.io.IOException;
  */
 public class OpenIndexResponse extends AcknowledgedResponse {
 
+    private boolean shardsAcknowledged;
+
     OpenIndexResponse() {
     }
 
-    OpenIndexResponse(boolean acknowledged) {
+    OpenIndexResponse(boolean acknowledged, boolean shardsAcknowledged) {
         super(acknowledged);
+        assert acknowledged || shardsAcknowledged == false; // if its not acknowledged, then shards acked should be false too
+        this.shardsAcknowledged = shardsAcknowledged;
+    }
+
+    /**
+     * Returns true if the requisite number of shards were started before
+     * returning from the indices opening operation.  If {@link #isAcknowledged()}
+     * is false, then this also returns false.
+     */
+    public boolean isShardsAcknowledged() {
+        return shardsAcknowledged;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         readAcknowledged(in);
+        shardsAcknowledged = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
+        out.writeBoolean(shardsAcknowledged);
     }
 }

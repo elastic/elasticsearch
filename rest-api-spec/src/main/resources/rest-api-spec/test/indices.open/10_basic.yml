@@ -36,3 +36,23 @@
       search:
         index: test_index
 
+---
+"Open index with wait_for_active_shards set to all":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: test_index
+
+  - do:
+      indices.open:
+        index: test_index
+        wait_for_active_shards: all
+
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }

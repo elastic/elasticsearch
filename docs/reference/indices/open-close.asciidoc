@@ -32,3 +32,25 @@ This setting can also be changed via the cluster update settings api.
 
 Closed indices consume a significant amount of disk-space which can cause problems in managed environments. Closing indices can be disabled via the cluster settings
 API by setting `cluster.indices.close.enable` to `false`. The default is `true`.
+
+[float]
+[[open-index-wait-for-active-shards]]
+=== Wait For Active Shards
+
+By default, index opening will only return a response to the client when the primary copies of
+each shard have been started, or the request times out. The index opening response will indicate
+what happened:
+
+[source,js]
+--------------------------------------------------
+{
+    "acknowledged": true,
+    "shards_acknowledged": true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+We can change the default of only waiting for the primary shards
+to start through the request parameter `wait_for_active_shards`.
+A detailed explanation of `wait_for_active_shards` and its possible values
+can be found <<index-wait-for-active-shards,here>>.

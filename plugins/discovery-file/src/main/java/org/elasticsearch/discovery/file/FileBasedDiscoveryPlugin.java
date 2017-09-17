@@ -42,6 +42,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -61,10 +62,12 @@ public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final Settings settings;
+    private final Path configPath;
     private ExecutorService fileBasedDiscoveryExecutorService;
 
-    public FileBasedDiscoveryPlugin(Settings settings) {
+    public FileBasedDiscoveryPlugin(Settings settings, Path configPath) {
         this.settings = settings;
+        this.configPath = configPath;
     }
 
     @Override
@@ -96,6 +99,7 @@ public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin 
                                                                             NetworkService networkService) {
         return Collections.singletonMap(
             "file",
-            () -> new FileBasedUnicastHostsProvider(settings, transportService, fileBasedDiscoveryExecutorService));
+            () -> new FileBasedUnicastHostsProvider(
+                    new Environment(settings, configPath), transportService, fileBasedDiscoveryExecutorService));
     }
 }

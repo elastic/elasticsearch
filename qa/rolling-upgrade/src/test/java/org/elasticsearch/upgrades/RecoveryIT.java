@@ -40,6 +40,11 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class RecoveryIT extends ESRestTestCase {
 
+    @Override
+    protected boolean preserveIndicesUponCompletion() {
+        return true;
+    }
+
     private enum CLUSTER_TYPE {
         OLD,
         MIXED,
@@ -85,7 +90,6 @@ public class RecoveryIT extends ESRestTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
             createIndex(index, settings.build());
-
         } else if (clusterType == CLUSTER_TYPE.UPGRADED) {
             ensureGreen();
             Response response = client().performRequest("GET", index + "/_stats", Collections.singletonMap("level", "shards"));

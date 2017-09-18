@@ -477,7 +477,7 @@ public class RecoverySourceHandler {
         runUnderPrimaryPermit(() -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint));
         final long globalCheckpoint = shard.getGlobalCheckpoint();
         cancellableThreads.execute(() -> recoveryTarget.finalizeRecovery(globalCheckpoint));
-        shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint);
+        runUnderPrimaryPermit(() -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint));
 
         if (request.isPrimaryRelocation()) {
             logger.trace("performing relocation hand-off");

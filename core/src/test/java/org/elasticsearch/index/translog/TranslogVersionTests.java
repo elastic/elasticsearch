@@ -89,7 +89,7 @@ public class TranslogVersionTests extends ESTestCase {
             final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
             final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
             final Checkpoint checkpoint =
-                    new Checkpoint(Files.size(path), 1, id, minSeqNo, maxSeqNo, SequenceNumbers.UNASSIGNED_SEQ_NO, id);
+                new Checkpoint(Files.size(path), 1, id, minSeqNo, maxSeqNo, SequenceNumbers.UNASSIGNED_SEQ_NO, id);
             return TranslogReader.open(channel, path, checkpoint, null);
         }
     }

@@ -24,11 +24,12 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.file.Path;
 
 public class FileBasedDiscoveryPluginTests extends ESTestCase {
 
     public void testHostsProviderBwc() {
-        FileBasedDiscoveryPlugin plugin = new FileBasedDiscoveryPlugin(Settings.EMPTY);
+        FileBasedDiscoveryPlugin plugin = new FileBasedDiscoveryPlugin(Settings.EMPTY, createTempDir());
         Settings additionalSettings = plugin.additionalSettings();
         assertEquals("file", additionalSettings.get(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()));
         assertWarnings("Using discovery.type setting to set hosts provider is deprecated. " +
@@ -37,9 +38,10 @@ public class FileBasedDiscoveryPluginTests extends ESTestCase {
 
     public void testHostsProviderExplicit() {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "foo").build();
-        FileBasedDiscoveryPlugin plugin = new FileBasedDiscoveryPlugin(settings);
+        FileBasedDiscoveryPlugin plugin = new FileBasedDiscoveryPlugin(settings, createTempDir());
         assertEquals(Settings.EMPTY, plugin.additionalSettings());
         assertWarnings("Using discovery.type setting to set hosts provider is deprecated. " +
                 "Set \"discovery.zen.hosts_provider: file\" instead");
     }
+
 }

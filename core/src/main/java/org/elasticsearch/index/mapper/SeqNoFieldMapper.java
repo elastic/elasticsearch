@@ -126,7 +126,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class SeqNoFieldType extends MappedFieldType {
+    static final class SeqNoFieldType extends SimpleMappedFieldType {
 
         SeqNoFieldType() {
         }

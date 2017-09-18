@@ -498,8 +498,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("1.5")).get();
         assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("12.23")).get();
-        assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("127.0.0.1")).get();
         assertHits(resp.getHits(), "1");
         // binary doesn't match

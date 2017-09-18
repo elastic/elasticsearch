@@ -19,7 +19,7 @@ setup:
 "Test search_type=query_and_fetch not supported from REST layer":
 
   - do:
-      catch: request
+      catch: bad_request
       search:
           index: test
           type:  test
@@ -33,7 +33,7 @@ setup:
 "Test search_type=dfs_query_and_fetch not supported from REST layer":
 
   - do:
-      catch: request
+      catch: bad_request
       search:
           index: test
           type:  test

@@ -75,6 +75,8 @@ public class StartRecoveryRequest extends TransportRequest {
         this.metadataSnapshot = metadataSnapshot;
         this.primaryRelocation = primaryRelocation;
         this.startingSeqNo = startingSeqNo;
+        assert startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || metadataSnapshot.getHistoryUUID() != null :
+                        "starting seq no is set but not history uuid";
     }
 
     public long recoveryId() {

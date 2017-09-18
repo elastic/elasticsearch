@@ -497,14 +497,14 @@ public final class Definition {
 
     public static boolean isConstantType(Type constant) {
         return constant.clazz == boolean.class ||
-            constant.clazz == byte.class    ||
-            constant.clazz == short.class   ||
-            constant.clazz == char.class    ||
-            constant.clazz == int.class     ||
-            constant.clazz == long.class    ||
-            constant.clazz == float.class   ||
-            constant.clazz == double.class  ||
-            constant.clazz == String.class;
+               constant.clazz == byte.class    ||
+               constant.clazz == short.class   ||
+               constant.clazz == char.class    ||
+               constant.clazz == int.class     ||
+               constant.clazz == long.class    ||
+               constant.clazz == float.class   ||
+               constant.clazz == double.class  ||
+               constant.clazz == String.class;
     }
 
     public RuntimeClass getRuntimeClass(Class<?> clazz) {
@@ -530,19 +530,32 @@ public final class Definition {
         Map<Class<?>, Struct> javaClassesToPainlessStructs = new HashMap<>();
         String origin = null;
 
+        // add the universal def type
         structsMap.put("def", new Struct("def", Object.class, org.objectweb.asm.Type.getType(Object.class)));
 
         try {
+            // first iteration collects all the Painless type names that
+            // are used for validation during the second iteration
             for (Whitelist whitelist : whitelists) {
                 for (Whitelist.Struct whitelistStruct : whitelist.whitelistStructs) {
+                    Struct painlessStruct = structsMap.get(whitelistStruct.painlessTypeName);
+
+                    if (painlessStruct != null && painlessStruct.clazz.getName().equals(whitelistStruct.javaClassName) == false) {
+                        throw new IllegalArgumentException("struct [" + painlessStruct.name + "] cannot represent multiple classes " +
+                            "[" + painlessStruct.clazz.getName() + "] and [" + whitelistStruct.javaClassName + "]");
+                    }
+
                     origin = whitelistStruct.origin;
                     addStruct(whitelist.javaClassLoader, whitelistStruct);
 
-                    Struct painlessStruct = structsMap.get(whitelistStruct.painlessTypeName);
+                    painlessStruct = structsMap.get(whitelistStruct.painlessTypeName);
                     javaClassesToPainlessStructs.put(painlessStruct.clazz, painlessStruct);
                 }
             }
 
+            // second iteration adds all the constructors, methods, and fields that will
+            // be available in Painless along with validating they exist and all their types have
+            // been white-listed during the first iteration
             for (Whitelist whitelist : whitelists) {
                 for (Whitelist.Struct whitelistStruct : whitelist.whitelistStructs) {
                     for (Whitelist.Constructor whitelistConstructor : whitelistStruct.whitelistConstructors) {
@@ -565,6 +578,8 @@ public final class Definition {
             throw new IllegalArgumentException("error loading whitelist(s) " + origin, exception);
         }
 
+        // goes through each Painless struct and determines the inheritance list,
+        // and then adds all inherited types to the Painless struct's whitelist
         for (Struct painlessStruct : structsMap.values()) {
             List<String> painlessSuperStructs = new ArrayList<>();
             Class<?> javaSuperClass = painlessStruct.clazz.getSuperclass();
@@ -572,6 +587,7 @@ public final class Definition {
             Stack<Class<?>> javaInteraceLookups = new Stack<>();
             javaInteraceLookups.push(painlessStruct.clazz);
 
+            // adds super classes to the inheritance list
             if (javaSuperClass != null && javaSuperClass.isInterface() == false) {
                 while (javaSuperClass != null) {
                     Struct painlessSuperStruct = javaClassesToPainlessStructs.get(javaSuperClass);
@@ -585,6 +601,7 @@ public final class Definition {
                 }
             }
 
+            // adds all super interfaces to the inheritance list
             while (javaInteraceLookups.isEmpty() == false) {
                 Class<?> javaInterfaceLookup = javaInteraceLookups.pop();
 
@@ -605,8 +622,10 @@ public final class Definition {
                 }
             }
 
+            // copies methods and fields from super structs to the parent struct
             copyStruct(painlessStruct.name, painlessSuperStructs);
 
+            // copies methods and fields from Object into interface types
             if (painlessStruct.clazz.isInterface() || ("def").equals(painlessStruct.name)) {
                 Struct painlessObjectStruct = javaClassesToPainlessStructs.get(Object.class);
 
@@ -702,7 +721,7 @@ public final class Definition {
             javaConstructor = ownerStruct.clazz.getConstructor(javaClassParameters);
         } catch (NoSuchMethodException exception) {
             throw new IllegalArgumentException("constructor not defined for owner struct [" + ownerStructName + "] " +
-                    " with constructor parameters " + whitelistConstructor.painlessParameterTypeNames);
+                    " with constructor parameters " + whitelistConstructor.painlessParameterTypeNames, exception);
         }
 
         MethodKey painlessMethodKey = new MethodKey("<init>", whitelistConstructor.painlessParameterTypeNames.size());

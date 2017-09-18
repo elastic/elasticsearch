@@ -18,7 +18,7 @@ public class ClientException extends RuntimeException {
         super(message);
     }
 
-    public ClientException(String message, Object... args) { // NOCOMMIT these are not popular in core any more....
+    public ClientException(String message, Object... args) { // TODO remove these ctors
         super(format(Locale.ROOT, message, args));
     }
 

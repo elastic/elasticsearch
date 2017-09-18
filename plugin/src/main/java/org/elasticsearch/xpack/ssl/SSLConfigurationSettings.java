@@ -7,21 +7,20 @@ package org.elasticsearch.xpack.ssl;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
-
 import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
 
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * Bridges {@link SSLConfiguration} into the {@link Settings} framework, using {@link Setting} objects.
@@ -33,12 +32,12 @@ public class SSLConfigurationSettings {
     public final Setting<Optional<String>> keystorePath;
     public final Setting<SecureString> keystorePassword;
     public final Setting<String> keystoreAlgorithm;
-    public final Setting<String> keystoreType;
+    public final Setting<Optional<String>> keystoreType;
     public final Setting<SecureString> keystoreKeyPassword;
     public final Setting<Optional<String>> truststorePath;
     public final Setting<SecureString> truststorePassword;
     public final Setting<String> truststoreAlgorithm;
-    public final Setting<String> truststoreType;
+    public final Setting<Optional<String>> truststoreType;
     public final Setting<Optional<String>> trustRestrictionsPath;
     public final Setting<Optional<String>> keyPath;
     public final Setting<SecureString> keyPassword;
@@ -62,6 +61,7 @@ public class SSLConfigurationSettings {
      * Older versions of X-Pack only supported JKS and never looked at the JVM's configured default.
      */
     private static final String DEFAULT_KEYSTORE_TYPE = "jks";
+    private static final String PKCS12_KEYSTORE_TYPE = "PKCS12";
 
     private static final Function<String, Setting<List<String>>> CIPHERS_SETTING_TEMPLATE = key -> Setting.listSetting(key, Collections
             .emptyList(), Function.identity(), Property.NodeScope, Property.Filtered);
@@ -132,14 +132,13 @@ public class SSLConfigurationSettings {
     public static final Setting<String> TRUST_STORE_ALGORITHM_PROFILES = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.truststore.algorithm", TRUST_STORE_ALGORITHM_TEMPLATE);
 
-    private static final Function<String, Setting<String>> KEY_STORE_TYPE_TEMPLATE  = key ->
-            new Setting<>(key, DEFAULT_KEYSTORE_TYPE, Function.identity(), Property.NodeScope, Property.Filtered);
-    public static final Setting<String> KEY_STORE_TYPE_PROFILES = Setting.affixKeySetting("transport.profiles.",
+    private static final Function<String, Setting<Optional<String>>> KEY_STORE_TYPE_TEMPLATE = key ->
+            new Setting<>(key, s -> null, Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    public static final Setting<Optional<String>> KEY_STORE_TYPE_PROFILES = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.keystore.type", KEY_STORE_TYPE_TEMPLATE);
 
-    private static final Function<String, Setting<String>> TRUST_STORE_TYPE_TEMPLATE  =  key ->
-            new Setting<>(key, DEFAULT_KEYSTORE_TYPE, Function.identity(), Property.NodeScope, Property.Filtered);
-    public static final Setting<String> TRUST_STORE_TYPE_PROFILES = Setting.affixKeySetting("transport.profiles.",
+    private static final Function<String, Setting<Optional<String>>> TRUST_STORE_TYPE_TEMPLATE = KEY_STORE_TYPE_TEMPLATE;
+    public static final Setting<Optional<String>> TRUST_STORE_TYPE_PROFILES = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.truststore.type", TRUST_STORE_TYPE_TEMPLATE);
 
     private static final Function<String, Setting<Optional<String>>> TRUST_RESTRICTIONS_TEMPLATE = key -> new Setting<>(key, s -> null,
@@ -201,7 +200,7 @@ public class SSLConfigurationSettings {
         keystoreAlgorithm = KEY_STORE_ALGORITHM_TEMPLATE.apply(prefix + "keystore.algorithm");
         truststoreAlgorithm = TRUST_STORE_ALGORITHM_TEMPLATE.apply(prefix + "truststore.algorithm");
         keystoreType = KEY_STORE_TYPE_TEMPLATE.apply(prefix + "keystore.type");
-        truststoreType = KEY_STORE_TYPE_TEMPLATE.apply(prefix + "truststore.type");
+        truststoreType = TRUST_STORE_TYPE_TEMPLATE.apply(prefix + "truststore.type");
         trustRestrictionsPath = TRUST_RESTRICTIONS_TEMPLATE.apply(prefix + "trust_restrictions.path");
         keyPath = KEY_PATH_TEMPLATE.apply(prefix + "key");
         legacyKeyPassword = LEGACY_KEY_PASSWORD_TEMPLATE.apply(prefix + "key_passphrase");
@@ -216,6 +215,19 @@ public class SSLConfigurationSettings {
                 truststorePath, truststorePassword, truststoreAlgorithm, truststoreType, trustRestrictionsPath,
                 keyPath, keyPassword, cert, caPaths, clientAuth, verificationMode,
                 legacyKeystorePassword, legacyKeystoreKeyPassword, legacyKeyPassword, legacyTruststorePassword);
+    }
+
+    public static String getKeyStoreType(Setting<Optional<String>> setting, Settings settings, String path) {
+        return setting.get(settings).orElseGet(() -> inferKeyStoreType(path));
+    }
+
+    private static String inferKeyStoreType(String path) {
+        String name = path == null ? "" : path.toLowerCase(Locale.ROOT);
+        if (name.endsWith(".p12") || name.endsWith(".pfx") || name.endsWith(".pkcs12")) {
+            return PKCS12_KEYSTORE_TYPE;
+        } else {
+            return DEFAULT_KEYSTORE_TYPE;
+        }
     }
 
     public List<Setting<?>> getAllSettings() {

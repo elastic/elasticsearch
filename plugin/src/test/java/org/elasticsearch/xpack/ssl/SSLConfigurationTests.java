@@ -5,6 +5,12 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManager;
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
+
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -12,17 +18,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ssl.TrustConfig.CombiningTrustConfig;
 
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManager;
-import java.security.cert.X509Certificate;
-import java.util.Arrays;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -58,6 +58,7 @@ public class SSLConfigurationTests extends ESTestCase {
 
             assertThat(ksKeyInfo.keyStorePath, is(equalTo(path)));
             assertThat(ksKeyInfo.keyStorePassword, is(equalTo("testnode")));
+            assertThat(ksKeyInfo.keyStoreType, is(equalTo("jks")));
             assertThat(ksKeyInfo.keyPassword, is(equalTo(ksKeyInfo.keyStorePassword)));
             assertThat(ksKeyInfo.keyStoreAlgorithm, is(KeyManagerFactory.getDefaultAlgorithm()));
             assertThat(sslConfiguration.trustConfig(), is(instanceOf(CombiningTrustConfig.class)));
@@ -121,6 +122,66 @@ public class SSLConfigurationTests extends ESTestCase {
         assertThat(ksKeyInfo.keyPassword, is(equalTo("keypass")));
         assertSettingDeprecationsAndWarnings(new Setting<?>[] {
             SSLConfiguration.SETTINGS_PARSER.legacyKeystorePassword, SSLConfiguration.SETTINGS_PARSER.legacyKeystoreKeyPassword});
+    }
+
+    public void testInferKeystoreTypeFromJksFile() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("keystore.secure_password", "password");
+        secureSettings.setString("keystore.secure_key_password", "keypass");
+        Settings settings = Settings.builder()
+                .put("keystore.path", "xpack/tls/path.jks")
+                .setSecureSettings(secureSettings)
+                .build();
+        SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
+        assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
+        StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
+        assertThat(ksKeyInfo.keyStoreType, is(equalTo("jks")));
+    }
+
+    public void testInferKeystoreTypeFromPkcs12File() {
+        final String ext = randomFrom("p12", "pfx", "pkcs12");
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("keystore.secure_password", "password");
+        secureSettings.setString("keystore.secure_key_password", "keypass");
+        Settings settings = Settings.builder()
+                .put("keystore.path", "xpack/tls/path." + ext)
+                .setSecureSettings(secureSettings)
+                .build();
+        SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
+        assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
+        StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
+        assertThat(ksKeyInfo.keyStoreType, is(equalTo("PKCS12")));
+    }
+
+    public void testInferKeystoreTypeFromUnrecognised() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("keystore.secure_password", "password");
+        secureSettings.setString("keystore.secure_key_password", "keypass");
+        Settings settings = Settings.builder()
+                .put("keystore.path", "xpack/tls/path.foo")
+                .setSecureSettings(secureSettings)
+                .build();
+        SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
+        assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
+        StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
+        assertThat(ksKeyInfo.keyStoreType, is(equalTo("jks")));
+    }
+
+    public void testExplicitKeystoreType() {
+        final String ext = randomFrom("p12", "jks");
+        final String type = randomAlphaOfLengthBetween(2, 8);
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("keystore.secure_password", "password");
+        secureSettings.setString("keystore.secure_key_password", "keypass");
+        Settings settings = Settings.builder()
+                .put("keystore.path", "xpack/tls/path." + ext)
+                .put("keystore.type", type)
+                .setSecureSettings(secureSettings)
+                .build();
+        SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
+        assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
+        StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
+        assertThat(ksKeyInfo.keyStoreType, is(equalTo(type)));
     }
 
     public void testThatProfileSettingsOverrideServiceSettings() {

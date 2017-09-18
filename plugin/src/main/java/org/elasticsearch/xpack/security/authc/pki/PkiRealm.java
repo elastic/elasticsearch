@@ -180,7 +180,7 @@ public class PkiRealm extends Realm {
         }
         try (SecureString password = SSL_SETTINGS.truststorePassword.get(settings)) {
             String trustStoreAlgorithm = SSL_SETTINGS.truststoreAlgorithm.get(settings);
-            String trustStoreType = SSL_SETTINGS.truststoreType.get(settings);
+            String trustStoreType = SSLConfigurationSettings.getKeyStoreType(SSL_SETTINGS.truststoreType, settings, truststorePath);
             try {
                 return CertUtils.trustManager(truststorePath, trustStoreType, password.getChars(), trustStoreAlgorithm, realmConfig.env());
             } catch (Exception e) {

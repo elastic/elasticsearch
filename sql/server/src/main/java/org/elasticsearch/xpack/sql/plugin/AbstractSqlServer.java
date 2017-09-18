@@ -57,9 +57,9 @@ public abstract class AbstractSqlServer {
     }
 
     protected abstract void innerHandle(Request req, ActionListener<Response> listener);
-    protected abstract AbstractExceptionResponse<?> buildExceptionResponse(Request request, String message, String cause,
+    protected abstract AbstractExceptionResponse buildExceptionResponse(Request request, String message, String cause,
             SqlExceptionType exceptionType);
-    protected abstract AbstractErrorResponse<?> buildErrorResponse(Request request, String message, String cause, String stack);
+    protected abstract AbstractErrorResponse buildErrorResponse(Request request, String message, String cause, String stack);
 
     public static BytesReference write(int clientVersion, Response response) throws IOException {
         try (BytesStreamOutput array = new BytesStreamOutput();

@@ -17,7 +17,7 @@ import java.io.IOException;
 /**
  * Response sent when there is a client side error.
  */
-public class ExceptionResponse extends AbstractExceptionResponse<RequestType> {
+public class ExceptionResponse extends AbstractExceptionResponse {
     public ExceptionResponse(RequestType requestType, String message, String cause, SqlExceptionType exceptionType) {
         super(requestType, message, cause, exceptionType);
     }

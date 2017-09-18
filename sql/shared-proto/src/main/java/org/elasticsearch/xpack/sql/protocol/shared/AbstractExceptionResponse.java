@@ -17,12 +17,12 @@ import java.util.Objects;
 /**
  * Response sent when there is a client side error.
  */
-public abstract class AbstractExceptionResponse<RequestTypeT extends RequestType> extends Response {
-    private final RequestTypeT requestType;
+public abstract class AbstractExceptionResponse extends Response {
+    private final RequestType requestType;
     public final String message, cause;
     private SqlExceptionType exceptionType;
 
-    protected AbstractExceptionResponse(RequestTypeT requestType, String message, String cause, SqlExceptionType exceptionType) {
+    protected AbstractExceptionResponse(RequestType requestType, String message, String cause, SqlExceptionType exceptionType) {
         if (requestType == null) {
             throw new IllegalArgumentException("[requestType] cannot be null");
         }
@@ -41,7 +41,7 @@ public abstract class AbstractExceptionResponse<RequestTypeT extends RequestType
         this.exceptionType = exceptionType;
     }
 
-    protected AbstractExceptionResponse(RequestTypeT requestType, DataInput in) throws IOException {
+    protected AbstractExceptionResponse(RequestType requestType, DataInput in) throws IOException {
         this.requestType = requestType;
         message = in.readUTF();
         cause = in.readUTF();
@@ -56,7 +56,7 @@ public abstract class AbstractExceptionResponse<RequestTypeT extends RequestType
     }
 
     @Override
-    public RequestTypeT requestType() {
+    public RequestType requestType() {
         return requestType;
     }
 
@@ -73,7 +73,7 @@ public abstract class AbstractExceptionResponse<RequestTypeT extends RequestType
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        AbstractExceptionResponse<?> other = (AbstractExceptionResponse<?>) obj;
+        AbstractExceptionResponse other = (AbstractExceptionResponse) obj;
         return Objects.equals(requestType, other.requestType)
                 && Objects.equals(message, other.message)
                 && Objects.equals(cause, other.cause)

@@ -16,7 +16,7 @@ import java.io.IOException;
 /**
  * Response sent when there is a server side error.
  */
-public class ErrorResponse extends AbstractErrorResponse<RequestType> {
+public class ErrorResponse extends AbstractErrorResponse {
     public ErrorResponse(RequestType requestType, String message, String cause, String stack) {
         super(requestType, message, cause, stack);
     }

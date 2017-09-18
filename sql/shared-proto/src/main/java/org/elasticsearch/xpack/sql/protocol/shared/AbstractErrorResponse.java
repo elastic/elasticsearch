@@ -15,18 +15,18 @@ import java.util.Objects;
 /**
  * Response sent when there is a server side error.
  */
-public abstract class AbstractErrorResponse<RequestTypeT extends RequestType> extends Response {
-    private final RequestTypeT requestType;
+public abstract class AbstractErrorResponse extends Response {
+    private final RequestType requestType;
     public final String message, cause, stack;
 
-    protected AbstractErrorResponse(RequestTypeT requestType, String message, String cause, String stack) {
+    protected AbstractErrorResponse(RequestType requestType, String message, String cause, String stack) {
         this.requestType = requestType;
         this.message = message;
         this.cause = cause;
         this.stack = stack;
     }
 
-    protected AbstractErrorResponse(RequestTypeT requestType, DataInput in) throws IOException {
+    protected AbstractErrorResponse(RequestType requestType, DataInput in) throws IOException {
         this.requestType = requestType;
         message = in.readUTF();
         cause = in.readUTF();
@@ -41,7 +41,7 @@ public abstract class AbstractErrorResponse<RequestTypeT extends RequestType> ex
     }
 
     @Override
-    public RequestTypeT requestType() { // NOCOMMIT do I need the T?
+    public RequestType requestType() {
         return requestType;
     }
 
@@ -58,7 +58,7 @@ public abstract class AbstractErrorResponse<RequestTypeT extends RequestType> ex
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        AbstractErrorResponse<?> other = (AbstractErrorResponse<?>) obj;
+        AbstractErrorResponse other = (AbstractErrorResponse) obj;
         return Objects.equals(requestType, other.requestType)
                 && Objects.equals(message, other.message)
                 && Objects.equals(cause, other.cause)

@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -40,13 +42,16 @@ import java.util.TreeMap;
  */
 class AggregationToJsonProcessor {
 
+    private static final Logger LOGGER = Loggers.getLogger(AggregationToJsonProcessor.class);
+
     private final String timeField;
     private final Set<String> fields;
     private final boolean includeDocCount;
     private final LinkedHashMap<String, Object> keyValuePairs;
     private long keyValueWrittenCount;
-    private SortedMap<Long, List<Map<String, Object>>> docsByBucketTimestamp;
-    private long startTime;
+    private final SortedMap<Long, List<Map<String, Object>>> docsByBucketTimestamp;
+    private final long startTime;
+    private final long histogramInterval;
 
     /**
      * Constructs a processor that processes aggregations into JSON
@@ -55,8 +60,9 @@ class AggregationToJsonProcessor {
      * @param fields the fields to convert into JSON
      * @param includeDocCount whether to include the doc_count
      * @param startTime buckets with a timestamp before this time are discarded
+     * @param histogramInterval the histogram interval
      */
-    AggregationToJsonProcessor(String timeField, Set<String> fields, boolean includeDocCount, long startTime)
+    AggregationToJsonProcessor(String timeField, Set<String> fields, boolean includeDocCount, long startTime, long histogramInterval)
             throws IOException {
         this.timeField = Objects.requireNonNull(timeField);
         this.fields = Objects.requireNonNull(fields);
@@ -65,6 +71,7 @@ class AggregationToJsonProcessor {
         docsByBucketTimestamp = new TreeMap<>();
         keyValueWrittenCount = 0;
         this.startTime = startTime;
+        this.histogramInterval = histogramInterval;
     }
 
     public void process(Aggregations aggs) throws IOException {
@@ -154,8 +161,10 @@ class AggregationToJsonProcessor {
         boolean checkBucketTime = true;
         for (Histogram.Bucket bucket : agg.getBuckets()) {
             if (checkBucketTime) {
-                if (toHistogramKeyToEpoch(bucket.getKey()) < startTime) {
+                long bucketTime = toHistogramKeyToEpoch(bucket.getKey());
+                if (bucketTime + histogramInterval <= startTime) {
                     // skip buckets outside the required time range
+                    LOGGER.debug("Skipping bucket at [" + bucketTime + "], startTime is [" + startTime + "]");
                     continue;
                 } else {
                     checkBucketTime = false;

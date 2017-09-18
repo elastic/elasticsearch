@@ -87,7 +87,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         types = Arrays.asList("type-1", "type-2");
         query = QueryBuilders.matchAllQuery();
         aggs = new AggregatorFactories.Builder()
-                .addAggregator(AggregationBuilders.histogram("time").field("time").subAggregation(
+                .addAggregator(AggregationBuilders.histogram("time").field("time").interval(1000).subAggregation(
                         AggregationBuilders.terms("airline").field("airline").subAggregation(
                                 AggregationBuilders.avg("responsetime").field("responsetime"))));
     }
@@ -122,7 +122,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"size\":0"));
         assertThat(searchRequest, containsString("\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}}," +
-                "{\"range\":{\"time\":{\"from\":1000,\"to\":4000,\"include_lower\":true,\"include_upper\":false," +
+                "{\"range\":{\"time\":{\"from\":0,\"to\":4000,\"include_lower\":true,\"include_upper\":false," +
                 "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
         assertThat(searchRequest,
                 stringContainsInOrder(Arrays.asList("aggregations", "histogram", "time", "terms", "airline", "avg", "responsetime")));

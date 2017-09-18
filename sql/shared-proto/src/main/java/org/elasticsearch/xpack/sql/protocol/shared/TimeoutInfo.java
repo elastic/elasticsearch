@@ -11,7 +11,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class TimeoutInfo {
-    // NOCOMMIT javadoc on each of these would be nice because I don't know from reading how "timeout" is different from requestTimeout
     public final long clientTime, timeout, requestTimeout;
 
     public TimeoutInfo(long clientTime, long timeout, long requestTimeout) {

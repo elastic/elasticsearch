@@ -55,7 +55,7 @@ public abstract class AbstractProto {
             throw new IOException("Response version [" + version + "] does not match client version ["
                     + CURRENT_VERSION + "]. Server is busted.");
         }
-        // NOCOMMIT why do I need the response type at all? Just a byte for err/exception/normal, then get response type from request.
+        // TODO why do I need the response type at all? Just a byte for err/exception/normal, then get response type from request.
         Response response = readResponseType(in).reader().read(request, in);
         if (response.requestType() != request.requestType()) {
             throw new IOException("Expected request type to be [" + request.requestType()

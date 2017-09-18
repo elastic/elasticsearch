@@ -162,6 +162,9 @@ setup:
 
 ---
 "Should return an exception when querying invalid indices":
+ - skip:
+     version: " - 5.99.99"
+     reason: "bad request logic added in 6.0.0"
 
  - do:
      catch: bad_request

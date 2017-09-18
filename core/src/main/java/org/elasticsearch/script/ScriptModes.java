@@ -44,9 +44,9 @@ public class ScriptModes {
 
     private static final String NONE = "none";
 
-    private static final Setting<List<String>> TYPES_ALLOWED_SETTING =
+    public static final Setting<List<String>> TYPES_ALLOWED_SETTING =
         Setting.listSetting("script.allowed_types", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
-    private static final Setting<List<String>> CONTEXTS_ALLOWED_SETTING =
+    public static final Setting<List<String>> CONTEXTS_ALLOWED_SETTING =
         Setting.listSetting("script.allowed_contexts", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
 
     private final Set<String> typesAllowed;

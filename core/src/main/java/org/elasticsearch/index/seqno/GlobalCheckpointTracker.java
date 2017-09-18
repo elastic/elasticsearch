@@ -316,7 +316,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
                                 .stream()
                                 .filter(cps -> cps.inSync)
                                 .mapToLong(function)
-                                .filter(v -> v != SequenceNumbers.UNASSIGNED_SEQ_NO));
+                                .filter(v -> v != SequenceNumbersService.PRE_60_NODE_CHECKPOINT && v != SequenceNumbers.UNASSIGNED_SEQ_NO));
         return value.isPresent() ? value.getAsLong() : SequenceNumbers.UNASSIGNED_SEQ_NO;
     }
 

@@ -432,7 +432,7 @@ public class InternalEngine extends Engine {
         String uuid = commitDataAsMap(writer).get(HISTORY_UUID_KEY);
         if (uuid == null || forceNew) {
             assert
-                uuid != null ||
+                forceNew || // recovery from a local store creates an index that doesn't have yet a history_uuid
                 openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG ||
                 config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
                 "existing index was created after 6_0_0_rc1 but has no history uuid";

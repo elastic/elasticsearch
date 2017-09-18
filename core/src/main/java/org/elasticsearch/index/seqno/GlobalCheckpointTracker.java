@@ -406,7 +406,14 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         assert primaryMode;
         assert handoffInProgress == false;
         assert invariant();
-        updateGlobalCheckpoint(allocationId, globalCheckpoint, current -> {});
+        updateGlobalCheckpoint(
+                allocationId,
+                globalCheckpoint,
+                current -> logger.trace(
+                        "updating local knowledge for [{}] on the primary of the global checkpoint from [{}] to [{}]",
+                        allocationId,
+                        current,
+                        globalCheckpoint));
         assert invariant();
     }
 

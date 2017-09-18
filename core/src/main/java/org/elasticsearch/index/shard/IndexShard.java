@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
+import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
@@ -401,7 +402,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     final DiscoveryNode recoverySourceNode = recoveryState.getSourceNode();
                     if (currentRouting.isRelocationTarget() == false || recoverySourceNode.getVersion().before(Version.V_6_0_0_alpha1)) {
                         // there was no primary context hand-off in < 6.0.0, need to manually activate the shard
-                        getEngine().seqNoService().activatePrimaryMode(currentRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
+                        getEngine().seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
                     }
                 }
 
@@ -498,7 +499,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             }
                         },
                         e -> failShard("exception during primary term transition", e));
-                    getEngine().seqNoService().activatePrimaryMode(currentRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
+                    getEngine().seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
                     primaryTerm = newPrimaryTerm;
                     latch.countDown();
                 }
@@ -609,6 +610,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    @Override
     public IndexShardState state() {
         return state;
     }
@@ -1346,6 +1348,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns the current {@link RecoveryState} if this shard is recovering or has been recovering.
      * Returns null if the recovery has not yet started or shard was not recovered (created via an API).
      */
+    @Override
     public RecoveryState recoveryState() {
         return this.recoveryState;
     }
@@ -1583,6 +1586,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().getTranslog();
     }
 
+    public String getHistoryUUID() {
+        return getEngine().getHistoryUUID();
+    }
+
     public IndexEventListener getIndexEventListener() {
         return indexEventListener;
     }
@@ -1668,6 +1675,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Update the local knowledge of the global checkpoint for the specified allocation ID.
+     *
+     * @param allocationId     the allocation ID to update the global checkpoint for
+     * @param globalCheckpoint the global checkpoint
+     */
+    public void updateGlobalCheckpointForShard(final String allocationId, final long globalCheckpoint) {
+        verifyPrimary();
+        verifyNotClosed();
+        getEngine().seqNoService().updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
+    }
+
+    /**
      * Waits for all operations up to the provided sequence number to complete.
      *
      * @param seqNo the sequence number that the checkpoint must advance to before this method returns
@@ -1729,6 +1748,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().seqNoService().getGlobalCheckpoint();
     }
 
+    public ObjectLongMap<String> getGlobalCheckpoints() {
+        verifyPrimary();
+        verifyNotClosed();
+        return getEngine().seqNoService().getGlobalCheckpoints();
+    }
+
     /**
      * Returns the current replication group for the shard.
      *
@@ -1757,7 +1782,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              * case that the global checkpoint update from the primary is ahead of the local checkpoint on this shard. In this case, we
              * ignore the global checkpoint update. This can happen if we are in the translog stage of recovery. Prior to this, the engine
              * is not opened and this shard will not receive global checkpoint updates, and after this the shard will be contributing to
-             * calculations of the the global checkpoint. However, we can not assert that we are in the translog stage of recovery here as
+             * calculations of the global checkpoint. However, we can not assert that we are in the translog stage of recovery here as
              * while the global checkpoint update may have emanated from the primary when we were in that state, we could subsequently move
              * to recovery finalization, or even finished recovery before the update arrives here.
              */
@@ -1777,9 +1802,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void activateWithPrimaryContext(final GlobalCheckpointTracker.PrimaryContext primaryContext) {
         verifyPrimary();
         assert shardRouting.isRelocationTarget() : "only relocation target can update allocation IDs from primary context: " + shardRouting;
-        assert primaryContext.getLocalCheckpoints().containsKey(routingEntry().allocationId().getId()) &&
+        assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) &&
             getEngine().seqNoService().getLocalCheckpoint() ==
-                primaryContext.getLocalCheckpoints().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
+                primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
         getEngine().seqNoService().activateWithPrimaryContext(primaryContext);
     }
 
@@ -2074,7 +2099,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode) {
         Sort indexSort = indexSortSupplier.get();
-        return new EngineConfig(openMode, shardId,
+        return new EngineConfig(openMode, shardId, shardRouting.allocationId().getId(),
             threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,
             indexCache.query(), cachingPolicy, translogConfig,

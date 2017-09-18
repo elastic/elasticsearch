@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin;
 
 import java.io.IOException;
 import java.util.Collections;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.seqno;
 
+import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -35,7 +36,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     /**
      * Represents a local checkpoint coming from a pre-6.0 node
      */
-    public static final long PRE_60_NODE_LOCAL_CHECKPOINT = -3L;
+    public static final long PRE_60_NODE_CHECKPOINT = -3L;
 
     private final LocalCheckpointTracker localCheckpointTracker;
     private final GlobalCheckpointTracker globalCheckpointTracker;
@@ -54,13 +55,14 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public SequenceNumbersService(
         final ShardId shardId,
+        final String allocationId,
         final IndexSettings indexSettings,
         final long maxSeqNo,
         final long localCheckpoint,
         final long globalCheckpoint) {
         super(shardId, indexSettings);
         localCheckpointTracker = new LocalCheckpointTracker(indexSettings, maxSeqNo, localCheckpoint);
-        globalCheckpointTracker = new GlobalCheckpointTracker(shardId, indexSettings, globalCheckpoint);
+        globalCheckpointTracker = new GlobalCheckpointTracker(shardId, allocationId, indexSettings, globalCheckpoint);
     }
 
     /**
@@ -132,6 +134,20 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
+     * Update the local knowledge of the global checkpoint for the specified allocation ID.
+     *
+     * @param allocationId     the allocation ID to update the global checkpoint for
+     * @param globalCheckpoint the global checkpoint
+     */
+    public void updateGlobalCheckpointForShard(final String allocationId, final long globalCheckpoint) {
+        globalCheckpointTracker.updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
+    }
+
+    public ObjectLongMap<String> getGlobalCheckpoints() {
+        return globalCheckpointTracker.getGlobalCheckpoints();
+    }
+
+    /**
      * Called when the recovery process for a shard is ready to open the engine on the target shard.
      * See {@link GlobalCheckpointTracker#initiateTracking(String)} for details.
      *
@@ -200,8 +216,8 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * Activates the global checkpoint tracker in primary mode (see {@link GlobalCheckpointTracker#primaryMode}.
      * Called on primary activation or promotion.
      */
-    public void activatePrimaryMode(final String allocationId, final long localCheckpoint) {
-        globalCheckpointTracker.activatePrimaryMode(allocationId, localCheckpoint);
+    public void activatePrimaryMode(final long localCheckpoint) {
+        globalCheckpointTracker.activatePrimaryMode(localCheckpoint);
     }
 
     /**

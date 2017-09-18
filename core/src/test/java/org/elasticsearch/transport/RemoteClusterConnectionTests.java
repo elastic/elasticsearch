@@ -110,12 +110,12 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(s);
         MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, null);
         try {
-            newService.registerRequestHandler(ClusterSearchShardsAction.NAME, ClusterSearchShardsRequest::new, ThreadPool.Names.SAME,
+            newService.registerRequestHandler(ClusterSearchShardsAction.NAME,ThreadPool.Names.SAME, ClusterSearchShardsRequest::new,
                     (request, channel) -> {
                         channel.sendResponse(new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
                                 knownNodes.toArray(new DiscoveryNode[0]), Collections.emptyMap()));
                     });
-            newService.registerRequestHandler(ClusterStateAction.NAME, ClusterStateRequest::new, ThreadPool.Names.SAME,
+            newService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,
                     (request, channel) -> {
                         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
                         for (DiscoveryNode node : knownNodes) {

@@ -48,6 +48,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -142,6 +143,8 @@ public class InternalEngine extends Engine {
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
 
+    @Nullable
+    private final String historyUUID;
 
     public InternalEngine(EngineConfig engineConfig) throws EngineException {
         super(engineConfig);
@@ -174,15 +177,23 @@ public class InternalEngine extends Engine {
                 switch (openMode) {
                     case OPEN_INDEX_AND_TRANSLOG:
                         writer = createWriter(false);
+                        String existingHistoryUUID = loadHistoryUUIDFromCommit(writer);
+                        if (existingHistoryUUID == null) {
+                            historyUUID = UUIDs.randomBase64UUID();
+                        } else {
+                            historyUUID = existingHistoryUUID;
+                        }
                         final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
                         seqNoStats = store.loadSeqNoStats(globalCheckpoint);
                         break;
                     case OPEN_INDEX_CREATE_TRANSLOG:
                         writer = createWriter(false);
+                        historyUUID = loadHistoryUUIDFromCommit(writer);
                         seqNoStats = store.loadSeqNoStats(SequenceNumbers.UNASSIGNED_SEQ_NO);
                         break;
                     case CREATE_INDEX_AND_TRANSLOG:
                         writer = createWriter(true);
+                        historyUUID = UUIDs.randomBase64UUID();
                         seqNoStats = new SeqNoStats(
                             SequenceNumbers.NO_OPS_PERFORMED,
                             SequenceNumbers.NO_OPS_PERFORMED,
@@ -192,7 +203,7 @@ public class InternalEngine extends Engine {
                         throw new IllegalArgumentException(openMode.toString());
                 }
                 logger.trace("recovered [{}]", seqNoStats);
-                seqNoService = sequenceNumberService(shardId, engineConfig.getIndexSettings(), seqNoStats);
+                seqNoService = sequenceNumberService(shardId, allocationId, engineConfig.getIndexSettings(), seqNoStats);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
                 indexWriter = writer;
                 translog = openTranslog(engineConfig, writer, translogDeletionPolicy, () -> seqNoService().getGlobalCheckpoint());
@@ -283,10 +294,12 @@ public class InternalEngine extends Engine {
 
     private static SequenceNumbersService sequenceNumberService(
         final ShardId shardId,
+        final String allocationId,
         final IndexSettings indexSettings,
         final SeqNoStats seqNoStats) {
         return new SequenceNumbersService(
             shardId,
+            allocationId,
             indexSettings,
             seqNoStats.getMaxSeqNo(),
             seqNoStats.getLocalCheckpoint(),
@@ -340,6 +353,12 @@ public class InternalEngine extends Engine {
             flush(true, true);
         } else if (translog.isCurrent(translogGeneration) == false) {
             commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
+            refreshLastCommittedSegmentInfos();
+        } else if (lastCommittedSegmentInfos.getUserData().containsKey(HISTORY_UUID_KEY) == false)  {
+            assert historyUUID != null;
+            // put the history uuid into the index
+            commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
+            refreshLastCommittedSegmentInfos();
         }
         // clean up what's not needed
         translog.trimUnreferencedReaders();
@@ -380,6 +399,11 @@ public class InternalEngine extends Engine {
         return translog;
     }
 
+    @Override
+    public String getHistoryUUID() {
+        return historyUUID;
+    }
+
     /**
      * Reads the current stored translog ID from the IW commit data. If the id is not found, recommits the current
      * translog id into lucene and returns null.
@@ -397,6 +421,19 @@ public class InternalEngine extends Engine {
         } else {
             return null;
         }
+    }
+
+    /**
+     * Reads the current stored history ID from the IW commit data. If the id is not found, returns null.
+     */
+    @Nullable
+    private String loadHistoryUUIDFromCommit(final IndexWriter writer) throws IOException {
+        String uuid = commitDataAsMap(writer).get(HISTORY_UUID_KEY);
+        if (uuid == null) {
+            assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
+                "index was created after 6_0_0_rc1 but has no history uuid";
+        }
+        return uuid;
     }
 
     private SearcherManager createSearcherManager() throws EngineException {
@@ -1310,30 +1347,8 @@ public class InternalEngine extends Engine {
                     } catch (Exception e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
-                    /*
-                     * we have to inc-ref the store here since if the engine is closed by a tragic event
-                     * we don't acquire the write lock and wait until we have exclusive access. This might also
-                     * dec the store reference which can essentially close the store and unless we can inc the reference
-                     * we can't use it.
-                     */
-                    store.incRef();
-                    try {
-                        // reread the last committed segment infos
-                        lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-                    } catch (Exception e) {
-                        if (isClosed.get() == false) {
-                            try {
-                                logger.warn("failed to read latest segment infos on flush", e);
-                            } catch (Exception inner) {
-                                e.addSuppressed(inner);
-                            }
-                            if (Lucene.isCorruptionException(e)) {
-                                throw new FlushFailedEngineException(shardId, e);
-                            }
-                        }
-                    } finally {
-                        store.decRef();
-                    }
+                    refreshLastCommittedSegmentInfos();
+
                 }
                 newCommitId = lastCommittedSegmentInfos.getId();
             } catch (FlushFailedEngineException ex) {
@@ -1349,6 +1364,33 @@ public class InternalEngine extends Engine {
             pruneDeletedTombstones();
         }
         return new CommitId(newCommitId);
+    }
+
+    private void refreshLastCommittedSegmentInfos() {
+    /*
+     * we have to inc-ref the store here since if the engine is closed by a tragic event
+     * we don't acquire the write lock and wait until we have exclusive access. This might also
+     * dec the store reference which can essentially close the store and unless we can inc the reference
+     * we can't use it.
+     */
+        store.incRef();
+        try {
+            // reread the last committed segment infos
+            lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+        } catch (Exception e) {
+            if (isClosed.get() == false) {
+                try {
+                    logger.warn("failed to read latest segment infos on flush", e);
+                } catch (Exception inner) {
+                    e.addSuppressed(inner);
+                }
+                if (Lucene.isCorruptionException(e)) {
+                    throw new FlushFailedEngineException(shardId, e);
+                }
+            }
+        } finally {
+            store.decRef();
+        }
     }
 
     @Override
@@ -1872,7 +1914,7 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> commitData = new HashMap<>(5);
+                final Map<String, String> commitData = new HashMap<>(6);
                 commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGeneration);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpointValue);
@@ -1881,6 +1923,9 @@ public class InternalEngine extends Engine {
                 }
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
+                if (historyUUID != null) {
+                    commitData.put(HISTORY_UUID_KEY, historyUUID);
+                }
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });
@@ -1990,7 +2035,7 @@ public class InternalEngine extends Engine {
      * Gets the commit data from {@link IndexWriter} as a map.
      */
     private static Map<String, String> commitDataAsMap(final IndexWriter indexWriter) {
-        Map<String, String> commitData = new HashMap<>(5);
+        Map<String, String> commitData = new HashMap<>(6);
         for (Map.Entry<String, String> entry : indexWriter.getLiveCommitData()) {
             commitData.put(entry.getKey(), entry.getValue());
         }

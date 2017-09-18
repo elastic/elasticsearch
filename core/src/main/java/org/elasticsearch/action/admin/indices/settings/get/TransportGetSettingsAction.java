@@ -48,7 +48,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
     public TransportGetSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, SettingsFilter settingsFilter, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetSettingsRequest::new);
+        super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetSettingsRequest::new, indexNameExpressionResolver);
         this.settingsFilter = settingsFilter;
     }
 

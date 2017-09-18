@@ -28,7 +28,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ScaledFloatFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -44,6 +43,7 @@ import java.util.Set;
  */
 public final class QueryParserHelper {
     // Mapping types the "all-ish" query can be executed against
+    // TODO: Fix the API so that we don't need a hardcoded list of types
     private static final Set<String> ALLOWED_QUERY_MAPPER_TYPES;
 
     static {
@@ -54,7 +54,7 @@ public final class QueryParserHelper {
         for (NumberFieldMapper.NumberType nt : NumberFieldMapper.NumberType.values()) {
             ALLOWED_QUERY_MAPPER_TYPES.add(nt.typeName());
         }
-        ALLOWED_QUERY_MAPPER_TYPES.add(ScaledFloatFieldMapper.CONTENT_TYPE);
+        ALLOWED_QUERY_MAPPER_TYPES.add("scaled_float");
         ALLOWED_QUERY_MAPPER_TYPES.add(TextFieldMapper.CONTENT_TYPE);
     }
 

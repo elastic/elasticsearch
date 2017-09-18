@@ -340,7 +340,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         Settings remoteSettings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "remote").build();
         try (MockTransportService remoteService = createNewService(remoteSettings, Version.CURRENT, threadPool, null)) {
             final MockHandler handler = new MockHandler(remoteService);
-            remoteService.registerRequestHandler(ClusterStateAction.NAME, ClusterStateRequest::new, ThreadPool.Names.SAME, handler);
+            remoteService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,  handler);
             remoteService.start();
             remoteService.acceptIncomingRequests();
 

@@ -96,7 +96,9 @@ information that concern the file system:
   Total number of unallocated bytes in all file stores
 
 `fs.total.available_in_bytes`::
-  Total number of bytes available to this Java virtual machine on all file stores
+  Total number of bytes available to this Java virtual machine on all file stores.
+  Depending on OS or process level restrictions, this might appear less than `fs.total.free_in_bytes`.
+  This is the actual amount of free disk space the Elasticsearch node can utilise.
 
 `fs.data`::
   List of all file stores

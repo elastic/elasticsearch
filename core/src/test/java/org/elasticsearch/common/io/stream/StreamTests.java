@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -190,6 +192,22 @@ public class StreamTests extends ESTestCase {
         final int bytesToRead = randomIntBetween(1, length);
         streamInput.readBytes(new byte[bytesToRead], 0, bytesToRead);
         assertEquals(streamInput.available(), length - bytesToRead);
+    }
+
+    public void testReadArraySize() throws IOException {
+        BytesStreamOutput stream = new BytesStreamOutput();
+        byte[] array = new byte[randomIntBetween(1, 10)];
+        for (int i = 0; i < array.length; i++) {
+            array[i] = randomByte();
+        }
+        stream.writeByteArray(array);
+        InputStreamStreamInput streamInput = new InputStreamStreamInput(StreamInput.wrap(BytesReference.toBytes(stream.bytes())), array
+            .length-1);
+        expectThrows(EOFException.class, streamInput::readByteArray);
+        streamInput = new InputStreamStreamInput(StreamInput.wrap(BytesReference.toBytes(stream.bytes())), BytesReference.toBytes(stream
+            .bytes()).length);
+
+        assertArrayEquals(array, streamInput.readByteArray());
     }
 
     public void testWritableArrays() throws IOException {

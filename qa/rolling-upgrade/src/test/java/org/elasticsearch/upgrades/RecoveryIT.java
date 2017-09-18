@@ -95,12 +95,12 @@ public class RecoveryIT extends ESRestTestCase {
             Response response = client().performRequest("GET", index + "/_stats", Collections.singletonMap("level", "shards"));
             assertOK(response);
             ObjectPath objectPath = ObjectPath.createFromResponse(response);
-            List<Object> shardStats = objectPath.evaluate(index + ".shards.0");
+            List<Object> shardStats = objectPath.evaluate("indices." + index + ".shards.0");
             assertThat(shardStats, hasSize(2));
             String expectHistoryUUID = null;
             for (int shard = 0; shard < 2; shard++) {
-                String nodeID = objectPath.evaluate(index + ".shard." + shard + ".routing.node");
-                String historyUUID = objectPath.evaluate(index + ".shard." + shard + ".commit.user_data.history_uuid");
+                String nodeID = objectPath.evaluate("indices." + index + ".shards.0." + shard + ".routing.node");
+                String historyUUID = objectPath.evaluate("indices." + index + ".shards.0." + shard + ".commit.user_data.history_uuid");
                 assertThat("no history uuid found for shard on " + nodeID, historyUUID, notNullValue());
                 if (expectHistoryUUID == null) {
                     expectHistoryUUID = historyUUID;

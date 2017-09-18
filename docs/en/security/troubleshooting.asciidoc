@@ -7,7 +7,7 @@
 Some settings are not returned via the nodes settings API::
 +
 --
-This is intentional. Some of the settings are considered to be highly 
+This is intentional. Some of the settings are considered to be highly
 sensitive: all `ssl` settings, ldap `bind_dn`, `bind_password`).
 For this reason, we filter these  settings and do not expose them via
 the nodes info API rest endpoint. You can also define additional
@@ -136,7 +136,7 @@ common exceptions are shown below with tips on how to resolve these issues.
 +
 --
 Indicates that a client connection was made to `node01.example.com` but the certificate returned did not contain the name `node01.example.com`.
-In most cases, the issue can be resolved by ensuring the name is specified during <<generating-signed-certificates, certificate creation>>.
+In most cases, the issue can be resolved by ensuring the name is specified during certificate creation. For more information, see <<ssl-tls>>.
 Another scenario is when the environment does not wish to use DNS names in certificates at all. In this scenario, all settings
 in `elasticsearch.yml` should only use IP addresses including the `network.publish_host` setting.
 --
@@ -145,9 +145,8 @@ in `elasticsearch.yml` should only use IP addresses including the `network.publi
 +
 --
 Indicates that a client connection was made to an IP address but the returned certificate did not contain any `SubjectAlternativeName` entries.
-IP addresses are only used for hostname verification if they are specified as a `SubjectAlternativeName` during
-<<generating-signed-certificates, certificate creation>>. If the intent was to use IP addresses for hostname verification, then the certificate
-will need to be regenerated with the appropriate IP address.
+IP addresses are only used for hostname verification if they are specified as a `SubjectAlternativeName` during certificate creation. If the intent was to use IP addresses for hostname verification, then the certificate
+will need to be regenerated with the appropriate IP address. See <<ssl-tls>>.
 --
 
 `javax.net.ssl.SSLHandshakeException: null cert chain` and `javax.net.ssl.SSLException: Received fatal alert: bad_certificate`::
@@ -224,6 +223,6 @@ when running on an Oracle JDK. In this case, you will need to install the <<ciph
 ==== Internal Server Error in Kibana
 
 If the Security plugin is enabled in Elasticsearch but disabled in Kibana, you must
-still set `elasticsearch.username` and `elasticsearch.password` in `kibana.yml`. 
+still set `elasticsearch.username` and `elasticsearch.password` in `kibana.yml`.
 Otherwise, Kibana cannot connect to Elasticsearch. In 5.1.1, this results in an
 `UnhandledPromiseRejectionWarning` and Kibana displays an Internal Server Error.

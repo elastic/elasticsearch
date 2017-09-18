@@ -93,7 +93,7 @@ public class WatchRequestValidationTests extends ESTestCase {
     }
 
     public void testGetWatchNullId() {
-        ActionRequestValidationException e = new GetWatchRequest(null).validate();
+        ActionRequestValidationException e = new GetWatchRequest((String) null).validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(), hasItem("watch id is missing"));
     }
@@ -105,7 +105,7 @@ public class WatchRequestValidationTests extends ESTestCase {
     }
 
     public void testExecuteWatchMissingWatchIdNoSource() {
-        ActionRequestValidationException e = new ExecuteWatchRequest(null).validate();
+        ActionRequestValidationException e = new ExecuteWatchRequest((String) null).validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(),
                 hasItem("a watch execution request must either have a watch id or an inline watch source, but both are missing"));

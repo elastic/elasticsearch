@@ -31,6 +31,17 @@ public class GetWatchRequest extends ActionRequest {
         this.id = id;
     }
 
+    public GetWatchRequest(StreamInput in) throws IOException {
+        super(in);
+        id = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(id);
+    }
+
     GetWatchRequest setId(String id) {
         this.id = id;
         return this;
@@ -58,14 +69,7 @@ public class GetWatchRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readString();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(id);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

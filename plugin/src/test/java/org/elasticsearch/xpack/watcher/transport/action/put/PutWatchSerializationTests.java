@@ -29,8 +29,7 @@ public class PutWatchSerializationTests extends ESTestCase {
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         request.writeTo(streamOutput);
 
-        PutWatchRequest readRequest = new PutWatchRequest();
-        readRequest.readFrom(streamOutput.bytes().streamInput());
+        PutWatchRequest readRequest = new PutWatchRequest(streamOutput.bytes().streamInput());
         assertThat(readRequest.isActive(), is(request.isActive()));
         assertThat(readRequest.getId(), is(request.getId()));
         assertThat(readRequest.getSource(), is(request.getSource()));
@@ -49,9 +48,7 @@ public class PutWatchSerializationTests extends ESTestCase {
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         request.writeTo(streamOutput);
 
-        PutWatchRequest readRequest = new PutWatchRequest();
-        StreamInput input = streamOutput.bytes().streamInput();
-        readRequest.readFrom(input);
+        PutWatchRequest readRequest = new PutWatchRequest(streamOutput.bytes().streamInput());
         assertThat(readRequest.isActive(), is(request.isActive()));
         assertThat(readRequest.getId(), is(request.getId()));
         assertThat(readRequest.getSource(), is(request.getSource()));

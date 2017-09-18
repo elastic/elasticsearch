@@ -79,6 +79,23 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
             local(true);
         }
 
+        Request(StreamInput in) throws IOException {
+            super(in);
+            datafeedId = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoDatafeeds = in.readBoolean();
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(datafeedId);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeBoolean(allowNoDatafeeds);
+            }
+        }
+
         public String getDatafeedId() {
             return datafeedId;
         }
@@ -98,20 +115,7 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeedId = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoDatafeeds = in.readBoolean();
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(datafeedId);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoDatafeeds);
-            }
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -202,7 +206,7 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                 ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, GetDatafeedsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                Request::new, indexNameExpressionResolver);
         }
 
         @Override

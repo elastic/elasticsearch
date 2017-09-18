@@ -42,6 +42,23 @@ public class PutWatchRequest extends ActionRequest {
         this.xContentType = xContentType;
     }
 
+    public PutWatchRequest(StreamInput in) throws IOException {
+        super(in);
+        id = in.readString();
+        source = in.readBytesReference();
+        active = in.readBoolean();
+        xContentType = XContentType.readFrom(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(id);
+        out.writeBytesReference(source);
+        out.writeBoolean(active);
+        xContentType.writeTo(out);
+    }
+
     /**
      * @return The name that will be the ID of the indexed document
      */
@@ -115,19 +132,6 @@ public class PutWatchRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readString();
-        source = in.readBytesReference();
-        active = in.readBoolean();
-        xContentType = XContentType.readFrom(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(id);
-        out.writeBytesReference(source);
-        out.writeBoolean(active);
-        xContentType.writeTo(out);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

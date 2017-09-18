@@ -27,8 +27,8 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
     public TransportGetLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                      LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                GetLicenseRequest::new);
+        super(settings, GetLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            GetLicenseRequest::new, indexNameExpressionResolver);
         this.licenseService = licenseService;
     }
 

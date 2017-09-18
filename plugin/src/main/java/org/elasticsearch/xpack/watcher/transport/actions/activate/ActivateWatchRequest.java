@@ -31,6 +31,19 @@ public class ActivateWatchRequest extends ActionRequest {
         this.activate = activate;
     }
 
+    public ActivateWatchRequest(StreamInput in) throws IOException {
+        super(in);
+        watchId = in.readString();
+        activate = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(watchId);
+        out.writeBoolean(activate);
+    }
+
     /**
      * @return The id of the watch to be acked
      */
@@ -59,16 +72,7 @@ public class ActivateWatchRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        watchId = in.readString();
-        activate = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(watchId);
-        out.writeBoolean(activate);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

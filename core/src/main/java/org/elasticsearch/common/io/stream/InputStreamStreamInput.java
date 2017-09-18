@@ -30,6 +30,10 @@ public class InputStreamStreamInput extends StreamInput {
     private final InputStream is;
     private final long sizeLimit;
 
+    /**
+     * Creates a new InputStreamStreamInput with unlimited size
+     * @param is the input stream to wrap
+     */
     public InputStreamStreamInput(InputStream is) {
         this(is, Long.MAX_VALUE);
     }

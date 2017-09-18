@@ -25,8 +25,7 @@ public class ExecuteWatchRequestTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-        ExecuteWatchRequest serialized = new ExecuteWatchRequest();
-        serialized.readFrom(in);
+        ExecuteWatchRequest serialized = new ExecuteWatchRequest(in);
         assertEquals(XContentType.JSON, serialized.getXContentType());
         assertEquals("{}", serialized.getWatchSource().utf8ToString());
     }

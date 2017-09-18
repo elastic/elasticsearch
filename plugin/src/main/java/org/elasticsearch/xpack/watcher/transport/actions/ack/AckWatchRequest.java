@@ -25,12 +25,25 @@ public class AckWatchRequest extends ActionRequest {
     private String[] actionIds = Strings.EMPTY_ARRAY;
 
     public AckWatchRequest() {
-        this(null);
+        this(null, (String[]) null);
     }
 
     public AckWatchRequest(String watchId, String... actionIds) {
         this.watchId = watchId;
         this.actionIds = actionIds;
+    }
+
+    public AckWatchRequest(StreamInput in) throws IOException {
+        super(in);
+        watchId = in.readString();
+        actionIds = in.readStringArray();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(watchId);
+        out.writeStringArray(actionIds);
     }
 
     /**
@@ -78,16 +91,7 @@ public class AckWatchRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        watchId = in.readString();
-        actionIds = in.readStringArray();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(watchId);
-        out.writeStringArray(actionIds);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

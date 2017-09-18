@@ -6,10 +6,11 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsAction.Request;
 
-public class GetDatafeedsActionRequestTests extends AbstractStreamableTestCase<Request> {
+public class GetDatafeedsActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -19,8 +20,7 @@ public class GetDatafeedsActionRequestTests extends AbstractStreamableTestCase<R
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
-
 }

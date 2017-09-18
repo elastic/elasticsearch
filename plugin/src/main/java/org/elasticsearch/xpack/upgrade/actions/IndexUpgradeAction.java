@@ -76,6 +76,17 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
             this.index = index;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            index = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(index);
+        }
+
         public String index() {
             return index;
         }
@@ -123,14 +134,7 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            index = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(index);
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -179,7 +183,7 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
                                IndexUpgradeService indexUpgradeService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, IndexUpgradeAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                Request::new, indexNameExpressionResolver);
             this.indexUpgradeService = indexUpgradeService;
         }
 

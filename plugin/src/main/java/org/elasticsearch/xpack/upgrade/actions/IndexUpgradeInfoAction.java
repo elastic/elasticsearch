@@ -135,6 +135,19 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
             this.indices = indices;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            indices = in.readStringArray();
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeStringArray(indices);
+            indicesOptions.writeIndicesOptions(out);
+        }
+
         @Override
         public String[] indices() {
             return indices;
@@ -166,16 +179,7 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            indices = in.readStringArray();
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeStringArray(indices);
-            indicesOptions.writeIndicesOptions(out);
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -223,7 +227,7 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
                                IndexNameExpressionResolver indexNameExpressionResolver,
                                XPackLicenseState licenseState) {
             super(settings, IndexUpgradeInfoAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                Request::new, indexNameExpressionResolver);
             this.indexUpgradeService = indexUpgradeService;
             this.licenseState = licenseState;
         }

@@ -210,6 +210,17 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
             this.indices = indices;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            indices = in.readStringArray();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeStringArray(indices);
+        }
+
         @Override
         public String[] indices() {
             return indices;
@@ -237,14 +248,7 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            indices = in.readStringArray();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeStringArray(indices);
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -286,7 +290,7 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
                                IndexNameExpressionResolver indexNameExpressionResolver,
                                XPackLicenseState licenseState, InternalClient client) {
             super(settings, DeprecationInfoAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, Request::new);
+                Request::new, indexNameExpressionResolver);
             this.licenseState = licenseState;
             this.client = client;
             this.indexNameExpressionResolver = indexNameExpressionResolver;

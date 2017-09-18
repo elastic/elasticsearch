@@ -30,9 +30,6 @@
             }
           }
         },
-        "version":{
-          "type":"keyword"
-        },
         "pipeline":{
           "type":"text"
         },

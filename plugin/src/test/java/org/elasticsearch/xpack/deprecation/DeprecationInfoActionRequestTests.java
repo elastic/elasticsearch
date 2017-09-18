@@ -5,9 +5,10 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class DeprecationInfoActionRequestTests extends AbstractStreamableTestCase<DeprecationInfoAction.Request> {
+public class DeprecationInfoActionRequestTests extends AbstractWireSerializingTestCase<DeprecationInfoAction.Request> {
 
     @Override
     protected DeprecationInfoAction.Request createTestInstance() {
@@ -15,7 +16,7 @@ public class DeprecationInfoActionRequestTests extends AbstractStreamableTestCas
     }
 
     @Override
-    protected DeprecationInfoAction.Request createBlankInstance() {
-        return new DeprecationInfoAction.Request();
+    protected Writeable.Reader<DeprecationInfoAction.Request> instanceReader() {
+        return DeprecationInfoAction.Request::new;
     }
 }

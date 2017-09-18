@@ -51,6 +51,56 @@ public class ExecuteWatchRequest extends ActionRequest {
         this.id = id;
     }
 
+    public ExecuteWatchRequest(StreamInput in) throws IOException {
+        super(in);
+        id = in.readOptionalString();
+        ignoreCondition = in.readBoolean();
+        recordExecution = in.readBoolean();
+        if (in.readBoolean()){
+            alternativeInput = in.readMap();
+        }
+        if (in.readBoolean()) {
+            triggerData = in.readMap();
+        }
+        long actionModesCount = in.readLong();
+        actionModes = new HashMap<>();
+        for (int i = 0; i < actionModesCount; i++) {
+            actionModes.put(in.readString(), ActionExecutionMode.resolve(in.readByte()));
+        }
+        if (in.readBoolean()) {
+            watchSource = in.readBytesReference();
+            xContentType = XContentType.readFrom(in);
+        }
+        debug = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(id);
+        out.writeBoolean(ignoreCondition);
+        out.writeBoolean(recordExecution);
+        out.writeBoolean(alternativeInput != null);
+        if (alternativeInput != null) {
+            out.writeMap(alternativeInput);
+        }
+        out.writeBoolean(triggerData != null);
+        if (triggerData != null) {
+            out.writeMap(triggerData);
+        }
+        out.writeLong(actionModes.size());
+        for (Map.Entry<String, ActionExecutionMode> entry : actionModes.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeByte(entry.getValue().id());
+        }
+        out.writeBoolean(watchSource != null);
+        if (watchSource != null) {
+            out.writeBytesReference(watchSource);
+            xContentType.writeTo(out);
+        }
+        out.writeBoolean(debug);
+    }
+
     /**
      * @return The id of the watch to be executed
      */
@@ -221,54 +271,7 @@ public class ExecuteWatchRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readOptionalString();
-        ignoreCondition = in.readBoolean();
-        recordExecution = in.readBoolean();
-        if (in.readBoolean()){
-            alternativeInput = in.readMap();
-        }
-        if (in.readBoolean()) {
-            triggerData = in.readMap();
-        }
-        long actionModesCount = in.readLong();
-        actionModes = new HashMap<>();
-        for (int i = 0; i < actionModesCount; i++) {
-            actionModes.put(in.readString(), ActionExecutionMode.resolve(in.readByte()));
-        }
-        if (in.readBoolean()) {
-            watchSource = in.readBytesReference();
-            xContentType = XContentType.readFrom(in);
-        }
-        debug = in.readBoolean();
-    }
-
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalString(id);
-        out.writeBoolean(ignoreCondition);
-        out.writeBoolean(recordExecution);
-        out.writeBoolean(alternativeInput != null);
-        if (alternativeInput != null) {
-            out.writeMap(alternativeInput);
-        }
-        out.writeBoolean(triggerData != null);
-        if (triggerData != null) {
-            out.writeMap(triggerData);
-        }
-        out.writeLong(actionModes.size());
-        for (Map.Entry<String, ActionExecutionMode> entry : actionModes.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeByte(entry.getValue().id());
-        }
-        out.writeBoolean(watchSource != null);
-        if (watchSource != null) {
-            out.writeBytesReference(watchSource);
-            xContentType.writeTo(out);
-        }
-        out.writeBoolean(debug);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

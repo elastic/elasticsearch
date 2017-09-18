@@ -6,10 +6,11 @@
 package org.elasticsearch.xpack.upgrade.actions;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction.Request;
 
-public class IndexUpgradeInfoActionRequestTests extends AbstractStreamableTestCase<Request> {
+public class IndexUpgradeInfoActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override
     protected Request createTestInstance() {
         int indexCount = randomInt(4);
@@ -25,7 +26,7 @@ public class IndexUpgradeInfoActionRequestTests extends AbstractStreamableTestCa
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 }

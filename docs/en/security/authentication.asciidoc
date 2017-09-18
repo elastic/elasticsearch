@@ -154,11 +154,11 @@ be set before the user can be used.
 [[internal-users]]
 === Internal Users
 
-{security} has two _internal_ users (`_system` and `_xpack`) that are
-responsible for the operations that take place inside an Elasticsearch cluster.
+{security} has three _internal_ users (`_system`, `_xpack`, and `_xpack_security`)
+that are responsible for the operations that take place inside an {es} cluster.
 
 These users are only used by requests that originate from within the cluster.
-For this reason, they cannot be used to authenticate against the API, and there
+For this reason, they cannot be used to authenticate against the API and there
 is no password to manage or reset.
 
 From time-to-time you may find a reference to one of these users inside your

@@ -91,10 +91,6 @@ public class TopHitsAggregator extends MetricsAggregator {
     public LeafBucketCollector getLeafCollector(final LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
 
-        for (LongObjectPagedHashMap.Cursor<TopDocsAndLeafCollector> cursor : topDocsCollectors) {
-            cursor.value.leafCollector = cursor.value.topLevelCollector.getLeafCollector(ctx);
-        }
-
         return new LeafBucketCollectorBase(sub, null) {
 
             Scorer scorer;
@@ -103,6 +99,11 @@ public class TopHitsAggregator extends MetricsAggregator {
             public void setScorer(Scorer scorer) throws IOException {
                 this.scorer = scorer;
                 for (LongObjectPagedHashMap.Cursor<TopDocsAndLeafCollector> cursor : topDocsCollectors) {
+                    // Instantiate the leaf collector not in the getLeafCollector(...) method or in the constructor of this
+                    // anonymous class. Otherwise in the case this leaf bucket collector gets invoked with post collection
+                    // then we already have moved on to the next reader and then we may encounter assertion errors or
+                    // incorrect results.
+                    cursor.value.leafCollector = cursor.value.topLevelCollector.getLeafCollector(ctx);
                     cursor.value.leafCollector.setScorer(scorer);
                 }
                 super.setScorer(scorer);

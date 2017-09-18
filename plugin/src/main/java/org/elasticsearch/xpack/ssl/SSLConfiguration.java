@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.XPackSettings;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import java.nio.file.Path;
-import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -205,8 +204,8 @@ public final class SSLConfiguration {
         } else {
             SecureString keyStorePassword = SETTINGS_PARSER.keystorePassword.get(settings);
             String keyStoreAlgorithm = SETTINGS_PARSER.keystoreAlgorithm.get(settings);
-            String keyStoreType = SETTINGS_PARSER.keystoreType.get(settings);
-            SecureString keyStoreKeyPassword = SETTINGS_PARSER.keystoreKeyPassword.get(settings);;
+            String keyStoreType = SSLConfigurationSettings.getKeyStoreType(SETTINGS_PARSER.keystoreType, settings, keyStorePath);
+            SecureString keyStoreKeyPassword = SETTINGS_PARSER.keystoreKeyPassword.get(settings);
             if (keyStoreKeyPassword.length() == 0) {
                 keyStoreKeyPassword = keyStorePassword;
             }
@@ -244,7 +243,7 @@ public final class SSLConfiguration {
         } else if (trustStorePath != null) {
             SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
-            String trustStoreType = SETTINGS_PARSER.truststoreType.get(settings);
+            String trustStoreType = SSLConfigurationSettings.getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
             return new StoreTrustConfig(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);
         } else if (global == null && System.getProperty("javax.net.ssl.trustStore") != null) {
             try (SecureString truststorePassword = new SecureString(System.getProperty("javax.net.ssl.trustStorePassword", ""))) {

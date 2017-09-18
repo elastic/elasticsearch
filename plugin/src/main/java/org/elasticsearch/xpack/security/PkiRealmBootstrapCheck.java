@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
@@ -46,16 +47,18 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
             }
 
             // Default Transport
+            final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
             final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
             final boolean clientAuthEnabled = sslService.isSSLClientAuthEnabled(transportSSLSettings);
-            if (clientAuthEnabled) {
+            if (transportSSLEnabled && clientAuthEnabled) {
                 return BootstrapCheckResult.success();
             }
 
             // Transport Profiles
             Map<String, Settings> groupedSettings = settings.getGroups("transport.profiles.");
             for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
-                if (sslService.isSSLClientAuthEnabled(SecurityNetty4Transport.profileSslSettings(entry.getValue()), transportSSLSettings)) {
+                if (transportSSLEnabled && sslService.isSSLClientAuthEnabled(
+                        SecurityNetty4Transport.profileSslSettings(entry.getValue()), transportSSLSettings)) {
                     return BootstrapCheckResult.success();
                 }
             }

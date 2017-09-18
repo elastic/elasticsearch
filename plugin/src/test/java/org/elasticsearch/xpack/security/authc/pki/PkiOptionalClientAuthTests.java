@@ -66,8 +66,8 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected boolean useGeneratedSSLConfig() {
-        return false;
+    protected boolean transportSSLEnabled() {
+        return true;
     }
 
     public void testRestClientWithoutClientCertificate() throws Exception {

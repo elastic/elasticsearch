@@ -125,7 +125,7 @@
 
   # Missing a system_id causes it to fail
   - do:
-      catch: request
+      catch: bad_request
       xpack.monitoring.bulk:
         system_api_version: "6"
         interval:           "10s"
@@ -136,7 +136,7 @@
 
   # Missing a system_api_version causes it to fail
   - do:
-      catch: request
+      catch: bad_request
       xpack.monitoring.bulk:
         system_id:          "kibana"
         interval:           "10s"
@@ -147,7 +147,7 @@
 
   # Missing an interval causes it to fail
   - do:
-      catch: request
+      catch: bad_request
       xpack.monitoring.bulk:
         system_id:          "kibana"
         system_api_version: "6"

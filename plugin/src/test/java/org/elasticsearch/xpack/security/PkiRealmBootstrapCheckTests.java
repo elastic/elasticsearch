@@ -26,6 +26,12 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         Environment env = new Environment(settings);
+        assertTrue(new PkiRealmBootstrapCheck(new SSLService(settings, env)).check(new BootstrapContext(settings, null)).isFailure());
+
+        // enable transport tls
+        settings = Settings.builder().put(settings)
+                .put("xpack.security.transport.ssl.enabled", true)
+                .build();
         assertFalse(new PkiRealmBootstrapCheck(new SSLService(settings, env)).check(new BootstrapContext(settings, null)).isFailure());
 
         // disable client auth default

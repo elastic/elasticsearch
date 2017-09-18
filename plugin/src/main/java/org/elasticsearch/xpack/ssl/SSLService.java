@@ -10,7 +10,6 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.lucene.util.SetOnce;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -33,7 +32,6 @@ import javax.security.auth.DestroyFailedException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.nio.file.Path;
 import java.security.KeyManagementException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -447,72 +445,10 @@ public class SSLService extends AbstractComponent {
         final SSLConfiguration transportSSLConfiguration = new SSLConfiguration(transportSSLSettings, globalSSLConfiguration);
         this.transportSSLConfiguration.set(transportSSLConfiguration);
         List<Settings> profileSettings = getTransportProfileSSLSettings(settings);
-
-        // if no key is provided for transport we can auto-generate a key with a signed certificate for development use only. There is a
-        // bootstrap check that prevents this configuration from being use in production (SSLBootstrapCheck)
-        if (transportSSLConfiguration.keyConfig() == KeyConfig.NONE) {
-            createDevelopmentTLSConfiguration(sslConfigurations, transportSSLConfiguration, profileSettings);
-
-        } else {
-            sslConfigurations.computeIfAbsent(transportSSLConfiguration, this::createSslContext);
-            profileSettings.forEach((profileSetting) ->
-                sslConfigurations.computeIfAbsent(new SSLConfiguration(profileSetting, transportSSLConfiguration), this::createSslContext));
-        }
+        sslConfigurations.computeIfAbsent(transportSSLConfiguration, this::createSslContext);
+        profileSettings.forEach((profileSetting) ->
+            sslConfigurations.computeIfAbsent(new SSLConfiguration(profileSetting, transportSSLConfiguration), this::createSslContext));
         return Collections.unmodifiableMap(sslConfigurations);
-    }
-
-    private void createDevelopmentTLSConfiguration(Map<SSLConfiguration, SSLContextHolder> sslConfigurations,
-                                                   SSLConfiguration transportSSLConfiguration, List<Settings> profileSettings)
-            throws NoSuchAlgorithmException, IOException, CertificateException, OperatorCreationException, UnrecoverableKeyException,
-            KeyStoreException {
-        // lazily generate key to avoid slowing down startup where we do not need it
-        final GeneratedKeyConfig generatedKeyConfig = new GeneratedKeyConfig(settings);
-        final TrustConfig trustConfig =
-                new TrustConfig.CombiningTrustConfig(Arrays.asList(transportSSLConfiguration.trustConfig(), new TrustConfig() {
-                    @Override
-                    X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
-                        return generatedKeyConfig.createTrustManager(environment);
-                    }
-
-                    @Override
-                    List<Path> filesToMonitor(@Nullable Environment environment) {
-                        return Collections.emptyList();
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "Generated Trust Config. DO NOT USE IN PRODUCTION";
-                    }
-
-                    @Override
-                    public boolean equals(Object o) {
-                        return this == o;
-                    }
-
-                    @Override
-                    public int hashCode() {
-                        return System.identityHashCode(this);
-                    }
-        }));
-        X509ExtendedTrustManager extendedTrustManager = trustConfig.createTrustManager(env);
-        ReloadableTrustManager trustManager = new ReloadableTrustManager(extendedTrustManager, trustConfig);
-        ReloadableX509KeyManager keyManager =
-                new ReloadableX509KeyManager(generatedKeyConfig.createKeyManager(env), generatedKeyConfig);
-        sslConfigurations.put(transportSSLConfiguration, createSslContext(keyManager, trustManager, transportSSLConfiguration));
-        profileSettings.forEach((profileSetting) -> {
-            SSLConfiguration configuration = new SSLConfiguration(profileSetting, transportSSLConfiguration);
-            if (configuration.keyConfig() == KeyConfig.NONE) {
-                sslConfigurations.compute(configuration, (conf, holder) -> {
-                    if (holder != null && holder.keyManager == keyManager && holder.trustManager == trustManager) {
-                        return holder;
-                    } else {
-                        return createSslContext(keyManager, trustManager, configuration);
-                    }
-                });
-            } else {
-                sslConfigurations.computeIfAbsent(configuration, this::createSslContext);
-            }
-        });
     }
 
     /**

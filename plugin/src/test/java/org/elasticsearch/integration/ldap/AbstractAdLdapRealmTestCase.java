@@ -34,7 +34,6 @@ import org.junit.BeforeClass;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -221,8 +220,8 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     }
 
     @Override
-    protected boolean useGeneratedSSLConfig() {
-        return useGlobalSSL == false;
+    protected boolean transportSSLEnabled() {
+        return useGlobalSSL;
     }
 
     protected final void configureFileRoleMappings(Settings.Builder builder, List<RoleMappingEntry> mappings) {

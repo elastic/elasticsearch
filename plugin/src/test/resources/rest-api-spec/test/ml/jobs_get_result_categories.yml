@@ -118,21 +118,21 @@ setup:
 ---
 "Test with invalid param combinations":
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_categories:
         job_id: "jobs-get-result-categories"
         category_id: 1
         from: 0
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_categories:
         job_id: "jobs-get-result-categories"
         category_id: 1
         size: 1
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_categories:
         job_id: "jobs-get-result-categories"
         category_id: 1
@@ -142,7 +142,7 @@ setup:
 ---
 "Test with invalid param combinations via body":
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_categories:
         job_id: "jobs-get-result-categories"
         category_id: 1
@@ -150,7 +150,7 @@ setup:
           from: 0
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_categories:
         job_id: "jobs-get-result-categories"
         category_id: 1
@@ -158,7 +158,7 @@ setup:
           size: 1
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.ml.get_categories:
         job_id: "jobs-get-result-categories"
         category_id: 1

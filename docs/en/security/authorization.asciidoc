@@ -156,19 +156,17 @@ A role is defined by the following JSON structure:
 [source,js]
 -----
 {
-  "name": "...", <1>
-  "run_as": [ ... ] <2>
-  "cluster": [ ... ], <3>
-  "indices": [ ... ] <4>
+  "run_as": [ ... ], <1>
+  "cluster": [ ... ], <2>
+  "indices": [ ... ] <3>
 }
 -----
-<1> The role name, also used as the role ID.
-<2> A list of usernames the owners of this role can <<run-as-privilege, impersonate>>.
-<3> A list of cluster privileges. These privileges define the
+<1> A list of usernames the owners of this role can <<run-as-privilege, impersonate>>.
+<2> A list of cluster privileges. These privileges define the
     cluster level actions users with this role are able to execute. This field
     is optional (missing `cluster` privileges effectively mean no cluster level
     permissions).
-<4> A list of indices permissions entries. This field is optional (missing `indices`
+<3> A list of indices permissions entries. This field is optional (missing `indices`
     privileges effectively mean no index level permissions).
 
 [[valid-role-name]]

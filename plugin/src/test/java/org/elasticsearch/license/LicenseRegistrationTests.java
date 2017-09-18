@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.common.settings.Settings;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -19,7 +20,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
 
     public void testTrialLicenseRequestOnEmptyLicenseState() throws Exception {
         XPackLicenseState licenseState = new XPackLicenseState();
-        setInitialState(null, licenseState);
+        setInitialState(null, licenseState, Settings.EMPTY);
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         licenseService.start();
 

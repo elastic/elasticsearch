@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.StreamSupport;
@@ -50,13 +49,13 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
 
     private InternalTestCluster remoteCluster;
 
-    private final boolean useGeneratedSSL = randomBoolean();
+    private final boolean sslEnabled = randomBoolean();
     private final boolean localAudit = randomBoolean();
     private final String outputs = randomFrom("index", "logfile", "index,logfile");
 
     @Override
-    public boolean useGeneratedSSLConfig() {
-        return useGeneratedSSL;
+    public boolean transportSSLEnabled() {
+        return sslEnabled;
     }
 
     @Override
@@ -90,7 +89,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
         // Setup a second test cluster with a single node, security enabled, and SSL
         final int numNodes = 1;
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(numNodes, useGeneratedSSL, createTempDir(), Scope.TEST) {
+                new SecuritySettingsSource(numNodes, sslEnabled, createTempDir(), Scope.TEST) {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
@@ -104,6 +103,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
                         .put("xpack.security.audit.index.client.xpack.security.user", TEST_USER_NAME + ":" + TEST_PASSWORD);
 
                 addClientSSLSettings(builder, "xpack.security.audit.index.client.");
+                builder.put("xpack.security.audit.index.client.xpack.security.transport.ssl.enabled", sslEnabled);
                 return builder.build();
             }
         };

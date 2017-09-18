@@ -44,17 +44,16 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
@@ -85,7 +84,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     @BeforeClass
     public static void generateBootstrapPassword() {
-        BOOTSTRAP_PASSWORD = new SecureString("FOOBAR".toCharArray());
+        BOOTSTRAP_PASSWORD = TEST_PASSWORD_SECURE_STRING.clone();
     }
 
     //UnicastZen requires the number of nodes in a cluster to generate the unicast configuration.
@@ -170,12 +169,12 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 case SUITE:
                     if (customSecuritySettingsSource == null) {
                         customSecuritySettingsSource =
-                                new CustomSecuritySettingsSource(useGeneratedSSLConfig(), createTempDir(), currentClusterScope);
+                                new CustomSecuritySettingsSource(transportSSLEnabled(), createTempDir(), currentClusterScope);
                     }
                     break;
                 case TEST:
                     customSecuritySettingsSource =
-                            new CustomSecuritySettingsSource(useGeneratedSSLConfig(), createTempDir(), currentClusterScope);
+                            new CustomSecuritySettingsSource(transportSSLEnabled(), createTempDir(), currentClusterScope);
                     break;
             }
         }
@@ -326,7 +325,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     /**
      * Allows to control whether ssl key information is auto generated or not on the transport layer
      */
-    protected boolean useGeneratedSSLConfig() {
+    protected boolean transportSSLEnabled() {
         return randomBoolean();
     }
 
@@ -340,8 +339,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     private class CustomSecuritySettingsSource extends SecuritySettingsSource {
 
-        private CustomSecuritySettingsSource(boolean useGeneratedSSLConfig, Path configDir, Scope scope) {
-            super(maxNumberOfNodes(), useGeneratedSSLConfig, configDir, scope);
+        private CustomSecuritySettingsSource(boolean sslEnabled, Path configDir, Scope scope) {
+            super(maxNumberOfNodes(), sslEnabled, configDir, scope);
         }
 
         @Override
@@ -519,5 +518,9 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             return aliasOrIndex.getIndices().get(0).getIndex();
         }
         return null;
+    }
+
+    protected boolean isTransportSSLEnabled() {
+        return customSecuritySettingsSource.isSslEnabled();
     }
 }

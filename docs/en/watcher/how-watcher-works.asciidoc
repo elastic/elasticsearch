@@ -228,9 +228,10 @@ You can also set a watch to the _inactive_ state. Inactive watches are not
 registered with a trigger engine and can never be triggered.
 
 To set a watch to the inactive state when you create it, set the
-{ref}/watcher-api-put-watch.html#watcher-api-put-watch-active-state[`active`]
-parameter to _inactive_. To deactivate an existing watch, use the
-{ref}/watcher-api-deactivate-watch.html[Deactivate Watch API]. To reactivate an inactive watch, use the
+{ref}/watcher-api-put-watch.html[`active`] parameter to _inactive_. To
+deactivate an existing watch, use the
+{ref}/watcher-api-deactivate-watch.html[Deactivate Watch API]. To reactivate an
+inactive watch, use the
 {ref}/watcher-api-activate-watch.html[Activate Watch API].
 
 NOTE:   You can use the {ref}/watcher-api-execute-watch.html[Execute Watch API]

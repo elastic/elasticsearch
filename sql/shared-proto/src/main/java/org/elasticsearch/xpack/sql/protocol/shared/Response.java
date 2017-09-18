@@ -23,7 +23,7 @@ public abstract class Response {
      *      the message. This should be used to send a response compatible
      *      with the client.
      */
-    protected abstract void write(int clientVersion, DataOutput out) throws IOException;
+    protected abstract void writeTo(int clientVersion, DataOutput out) throws IOException;
 
     /**
      * Body to go into the {@link #toString()} result.

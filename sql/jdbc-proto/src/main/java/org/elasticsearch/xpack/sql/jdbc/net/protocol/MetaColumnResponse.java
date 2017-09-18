@@ -40,10 +40,10 @@ public class MetaColumnResponse extends Response {
     }
 
     @Override
-    protected void write(int clientVersion, DataOutput out) throws IOException {
+    protected void writeTo(int clientVersion, DataOutput out) throws IOException {
         out.writeInt(columns.size());
         for (MetaColumnInfo info : columns) {
-            info.write(out);
+            info.writeTo(out);
         }
     }
 

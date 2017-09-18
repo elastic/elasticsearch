@@ -41,7 +41,7 @@ public class MetaColumnInfo {
         position = in.readInt();
     }
 
-    void write(DataOutput out) throws IOException {
+    void writeTo(DataOutput out) throws IOException {
         out.writeUTF(table);
         out.writeUTF(name);
         out.writeInt(type.getVendorTypeNumber());

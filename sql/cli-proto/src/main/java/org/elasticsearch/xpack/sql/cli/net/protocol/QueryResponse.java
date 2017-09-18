@@ -30,8 +30,8 @@ public abstract class QueryResponse extends AbstractQueryResponse {
     }
 
     @Override
-    protected void write(int clientVersion, DataOutput out) throws IOException {
-        super.write(clientVersion, out);
+    protected void writeTo(int clientVersion, DataOutput out) throws IOException {
+        super.writeTo(clientVersion, out);
         out.writeUTF(data);
     }
 

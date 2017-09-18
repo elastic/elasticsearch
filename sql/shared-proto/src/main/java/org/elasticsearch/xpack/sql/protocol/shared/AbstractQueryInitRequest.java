@@ -37,11 +37,11 @@ public abstract class AbstractQueryInitRequest extends Request {
     }
 
     @Override
-    public void write(DataOutput out) throws IOException {
+    public void writeTo(DataOutput out) throws IOException {
         out.writeUTF(query);
         out.writeInt(fetchSize);
         out.writeUTF(timeZone.getID());
-        timeout.write(out);
+        timeout.writeTo(out);
     }
 
     @Override

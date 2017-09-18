@@ -22,12 +22,12 @@ public final class Proto extends AbstractProto {
 
     @Override
     protected RequestType readRequestType(DataInput in) throws IOException {
-        return RequestType.read(in);
+        return RequestType.readFrom(in);
     }
 
     @Override
     protected ResponseType readResponseType(DataInput in) throws IOException {
-        return ResponseType.read(in);
+        return ResponseType.readFrom(in);
     }
 
     public enum RequestType implements AbstractProto.RequestType {
@@ -45,7 +45,7 @@ public final class Proto extends AbstractProto {
             this.reader = reader;
         }
 
-        static RequestType read(DataInput in) throws IOException {
+        static RequestType readFrom(DataInput in) throws IOException {
             byte b = in.readByte();
             try {
                 return values()[b];
@@ -55,7 +55,7 @@ public final class Proto extends AbstractProto {
         }
 
         @Override
-        public void write(DataOutput out) throws IOException {
+        public void writeTo(DataOutput out) throws IOException {
             out.writeByte(ordinal());
         }
 
@@ -82,7 +82,7 @@ public final class Proto extends AbstractProto {
             this.reader = reader;
         }
 
-        static ResponseType read(DataInput in) throws IOException {
+        static ResponseType readFrom(DataInput in) throws IOException {
             byte b = in.readByte();
             try {
                 return values()[b];
@@ -92,7 +92,7 @@ public final class Proto extends AbstractProto {
         }
 
         @Override
-        public void write(DataOutput out) throws IOException {
+        public void writeTo(DataOutput out) throws IOException {
             out.writeByte(ordinal());
         }
 

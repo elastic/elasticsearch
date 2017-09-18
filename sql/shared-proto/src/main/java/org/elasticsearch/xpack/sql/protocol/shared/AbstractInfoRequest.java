@@ -44,7 +44,7 @@ public abstract class AbstractInfoRequest extends Request {
     }
 
     @Override
-    public final void write(DataOutput out) throws IOException {
+    public final void writeTo(DataOutput out) throws IOException {
         out.writeUTF(jvmVersion);
         out.writeUTF(jvmVendor);
         out.writeUTF(jvmClassPath);

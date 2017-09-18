@@ -27,7 +27,7 @@ public class MetaColumnRequest extends Request {
     }
 
     @Override
-    protected void write(DataOutput out) throws IOException {
+    protected void writeTo(DataOutput out) throws IOException {
         out.writeUTF(tablePattern);
         out.writeUTF(columnPattern);
     }

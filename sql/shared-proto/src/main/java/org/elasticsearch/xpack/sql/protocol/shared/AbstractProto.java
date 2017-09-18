@@ -31,8 +31,8 @@ public abstract class AbstractProto {
 
     public void writeRequest(Request request, DataOutput out) throws IOException {
         writeHeader(CURRENT_VERSION, out);
-        request.requestType().write(out);
-        request.write(out);
+        request.requestType().writeTo(out);
+        request.writeTo(out);
     }
 
     public Request readRequest(DataInput in) throws IOException {
@@ -45,8 +45,8 @@ public abstract class AbstractProto {
 
     public void writeResponse(Response response, int clientVersion, DataOutput out) throws IOException {
         writeHeader(clientVersion, out);
-        response.responseType().write(out);
-        response.write(clientVersion, out);
+        response.responseType().writeTo(out);
+        response.writeTo(clientVersion, out);
     }
 
     public Response readResponse(Request request, DataInput in) throws IOException {
@@ -91,7 +91,7 @@ public abstract class AbstractProto {
             }
         }
 
-        public void write(DataOutput out) throws IOException {
+        public void writeTo(DataOutput out) throws IOException {
             out.writeByte(ordinal());
         }
 
@@ -110,7 +110,7 @@ public abstract class AbstractProto {
         Request read(int clientVersion, DataInput in) throws IOException;
     }
     protected interface RequestType {
-        void write(DataOutput out) throws IOException;
+        void writeTo(DataOutput out) throws IOException;
         RequestReader reader();
     }
     @FunctionalInterface
@@ -118,7 +118,7 @@ public abstract class AbstractProto {
         Response read(Request request, DataInput in) throws IOException;
     }
     protected interface ResponseType {
-        void write(DataOutput out) throws IOException;
+        void writeTo(DataOutput out) throws IOException;
         ResponseReader reader();
     }
 

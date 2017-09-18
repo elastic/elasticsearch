@@ -38,7 +38,7 @@ public class MetaTableResponse extends Response {
     }
 
     @Override
-    public void write(int clientVersion, DataOutput out) throws IOException {
+    public void writeTo(int clientVersion, DataOutput out) throws IOException {
         out.writeInt(tables.size());
         for (String t : tables) {
             out.writeUTF(t);

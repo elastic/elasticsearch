@@ -36,7 +36,7 @@ public class Page implements Payload {
     private int maxRows;
 
     /**
-     * Build empty, call {@link #read(DataInput)} after to fill it.
+     * Build empty, call {@link #readFrom(DataInput)} after to fill it.
      */
     Page(List<ColumnInfo> columnInfo) {
         this.columnInfo = columnInfo;
@@ -91,7 +91,7 @@ public class Page implements Payload {
     /**
      * Read a value from the stream
      */
-    public void read(DataInput in) throws IOException {
+    public void readFrom(DataInput in) throws IOException {
         int rows = in.readInt();
         // this.rows may be less than the number of rows we have space for
         if (rows > maxRows) {
@@ -106,7 +106,7 @@ public class Page implements Payload {
         }
     }
 
-    public void write(DataOutput out) throws IOException {
+    public void writeTo(DataOutput out) throws IOException {
         int rows = rows();
         out.writeInt(rows);
         for (int row = 0; row < rows; row++) {

@@ -27,7 +27,7 @@ public class MetaTableRequest extends Request {
     }
 
     @Override
-    public void write(DataOutput out) throws IOException {
+    public void writeTo(DataOutput out) throws IOException {
         out.writeUTF(pattern);
     }
 

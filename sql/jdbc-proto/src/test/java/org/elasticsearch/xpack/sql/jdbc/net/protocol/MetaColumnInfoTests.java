@@ -19,7 +19,7 @@ public class MetaColumnInfoTests extends ESTestCase {
     }
 
     public void testRoundTrip() throws IOException {
-        assertRoundTrip(randomMetaColumnInfo(), MetaColumnInfo::write, MetaColumnInfo::new);
+        assertRoundTrip(randomMetaColumnInfo(), MetaColumnInfo::writeTo, MetaColumnInfo::new);
     }
 
     public void testToString() {

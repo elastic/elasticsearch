@@ -41,7 +41,7 @@ public class ColumnInfoTests extends ESTestCase {
     }
 
     public void testRoundTrip() throws IOException {
-        assertRoundTrip(randomColumnInfo(), ColumnInfo::write, ColumnInfo::new);
+        assertRoundTrip(randomColumnInfo(), ColumnInfo::writeTo, ColumnInfo::new);
     }
 
     public void testToString() {

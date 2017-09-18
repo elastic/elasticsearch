@@ -49,10 +49,10 @@ public abstract class AbstractExceptionResponse extends Response {
     }
 
     @Override
-    protected final void write(int clientVersion, DataOutput out) throws IOException {
+    protected final void writeTo(int clientVersion, DataOutput out) throws IOException {
         out.writeUTF(message);
         out.writeUTF(cause);
-        exceptionType.write(out);
+        exceptionType.writeTo(out);
     }
 
     @Override

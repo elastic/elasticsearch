@@ -51,7 +51,7 @@ public class ColumnInfo {
         label = in.readUTF();
     }
 
-    void write(DataOutput out) throws IOException {
+    void writeTo(DataOutput out) throws IOException {
         out.writeUTF(name);
         out.writeInt(type.getVendorTypeNumber());
         out.writeUTF(table);

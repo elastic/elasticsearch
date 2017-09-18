@@ -25,7 +25,7 @@ public class TimeoutInfo {
         requestTimeout = in.readLong();
     }
 
-    void write(DataOutput out) throws IOException {
+    void writeTo(DataOutput out) throws IOException {
         out.writeLong(clientTime);
         out.writeLong(timeout);
         out.writeLong(requestTimeout);

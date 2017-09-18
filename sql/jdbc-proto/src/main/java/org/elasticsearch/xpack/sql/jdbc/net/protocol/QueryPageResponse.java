@@ -27,13 +27,13 @@ public class QueryPageResponse extends AbstractQueryResponse {
         super(request, in);
         QueryPageRequest queryPageRequest = (QueryPageRequest) request;
         data = queryPageRequest.data();
-        queryPageRequest.data().read(in);
+        queryPageRequest.data().readFrom(in);
     }
 
     @Override
-    public void write(int clientVersion, DataOutput out) throws IOException {
-        super.write(clientVersion, out);
-        data.write(out);
+    public void writeTo(int clientVersion, DataOutput out) throws IOException {
+        super.writeTo(clientVersion, out);
+        data.writeTo(out);
     }
 
     @Override

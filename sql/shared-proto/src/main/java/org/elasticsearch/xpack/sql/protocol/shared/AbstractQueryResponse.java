@@ -35,7 +35,7 @@ public abstract class AbstractQueryResponse extends Response {
     }
 
     @Override
-    protected void write(int clientVersion, DataOutput out) throws IOException {
+    protected void writeTo(int clientVersion, DataOutput out) throws IOException {
         out.writeLong(tookNanos);
         out.writeInt(cursor.length);
         out.write(cursor);

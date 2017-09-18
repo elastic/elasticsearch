@@ -25,12 +25,12 @@ public class RowSetPayload implements Payload {
     }
 
     @Override
-    public void read(DataInput in) throws IOException {
+    public void readFrom(DataInput in) throws IOException {
         throw new UnsupportedOperationException("This class can only be serialized");
     }
 
     @Override
-    public void write(DataOutput out) throws IOException {
+    public void writeTo(DataOutput out) throws IOException {
         out.writeInt(rowSet.size());
         List<DataType> types = rowSet.schema().types();
 

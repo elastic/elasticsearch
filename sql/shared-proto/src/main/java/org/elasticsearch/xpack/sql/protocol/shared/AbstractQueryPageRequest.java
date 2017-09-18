@@ -34,10 +34,10 @@ public abstract class AbstractQueryPageRequest extends Request {
     }
 
     @Override
-    public void write(DataOutput out) throws IOException {
+    public void writeTo(DataOutput out) throws IOException {
         out.writeInt(cursor.length);
         out.write(cursor);
-        timeout.write(out);
+        timeout.writeTo(out);
     }
 
     @Override

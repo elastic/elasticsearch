@@ -39,18 +39,18 @@ public class QueryInitResponse extends AbstractQueryResponse {
         this.columns = unmodifiableList(columns);
         // NOCOMMIT - Page is a client class, it shouldn't leak here
         Page data = new Page(columns);
-        data.read(in);
+        data.readFrom(in);
         this.data = data;
     }
 
     @Override
-    public void write(int clientVersion, DataOutput out) throws IOException {
-        super.write(clientVersion, out);
+    public void writeTo(int clientVersion, DataOutput out) throws IOException {
+        super.writeTo(clientVersion, out);
         out.writeInt(columns.size());
         for (ColumnInfo c : columns) {
-            c.write(out);
+            c.writeTo(out);
         }
-        data.write(out);
+        data.writeTo(out);
     }
 
     @Override

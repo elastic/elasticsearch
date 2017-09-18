@@ -11,7 +11,7 @@ import java.io.IOException;
 
 public interface Payload {
 
-    void read(DataInput in) throws IOException;
+    void readFrom(DataInput in) throws IOException;
 
-    void write(DataOutput out) throws IOException;
+    void writeTo(DataOutput out) throws IOException;
 }

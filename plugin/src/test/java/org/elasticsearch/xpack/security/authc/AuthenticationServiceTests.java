@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -840,6 +841,11 @@ public class AuthenticationServiceTests extends ESTestCase {
                 assertEquals(expected, result);
                 latch.countDown();
             }, this::logAndFail));
+        } catch (IllegalArgumentException ex) {
+            assertThat(ex.getMessage(), containsString("array length must be <= to " + ArrayUtil.MAX_ARRAY_LENGTH  + " but was: "));
+        } catch (NegativeArraySizeException ex) {
+            assertThat(ex.getMessage(), containsString("array size must be positive but was: "));
+
         }
 
         // we need to use a latch here because the key computation goes async on another thread!

@@ -128,8 +128,7 @@ public class RelocationIT extends ESIntegTestCase {
                     final DiscoveryNode node = clusterService().state().nodes().get(primaryShardRouting.currentNodeId());
                     final IndicesService indicesService =
                             internalCluster().getInstance(IndicesService.class, node.getName());
-                    final IndexService indexService = indicesService.indexService(primaryShardRouting.index());
-                    final IndexShard indexShard = indexService.getShardOrNull(primaryShardRouting.id());
+                    final IndexShard indexShard = indicesService.getShardOrNull(primaryShardRouting.shardId());
                     final ObjectLongMap<String> globalCheckpoints = indexShard.getGlobalCheckpoints();
                     for (ShardStats shardStats : indexShardStats) {
                         final SeqNoStats seqNoStats = shardStats.getSeqNoStats();

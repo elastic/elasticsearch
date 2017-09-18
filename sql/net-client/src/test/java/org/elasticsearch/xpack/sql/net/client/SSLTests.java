@@ -83,7 +83,6 @@ public class SSLTests extends ESTestCase {
     }
 
     public void testSslSetup() throws Exception {
-        // NOCOMMIT this test doesn't test anything, just logs. Probably should fix that.
         SSLContext context = SSLContext.getDefault();
         SSLSocketFactory factory = context.getSocketFactory();
         SSLSocket socket = (SSLSocket) factory.createSocket();

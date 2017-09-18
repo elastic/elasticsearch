@@ -230,8 +230,8 @@ public final class TokenService extends AbstractComponent {
 
     void decodeToken(String token, ActionListener<UserToken> listener) throws IOException {
         // We intentionally do not use try-with resources since we need to keep the stream open if we need to compute a key!
-        StreamInput in = new InputStreamStreamInput(
-                Base64.getDecoder().wrap(new ByteArrayInputStream(token.getBytes(StandardCharsets.UTF_8))));
+        byte[] bytes = token.getBytes(StandardCharsets.UTF_8);
+        StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length);
         if (in.available() < MINIMUM_BASE64_BYTES) {
             logger.debug("invalid token");
             listener.onResponse(null);

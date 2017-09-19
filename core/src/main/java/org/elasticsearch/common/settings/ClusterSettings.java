@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.script.ScriptModes;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -316,6 +317,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
                     IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
                     PrimaryShardAllocator.NODE_INITIAL_SHARDS_SETTING,
+                    ScriptModes.TYPES_ALLOWED_SETTING,
+                    ScriptModes.CONTEXTS_ALLOWED_SETTING,
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
                     ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
                     ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING,

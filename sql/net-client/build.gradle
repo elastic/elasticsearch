@@ -10,6 +10,10 @@ forbiddenApisTest {
   bundledSignatures += 'jdk-internal'
 }
 
+forbiddenPatterns {
+  exclude '**/*.keystore'
+}
+
 // Allow for com.sun.net.httpserver.* usage for testing
 eclipse {
   classpath.file {

@@ -53,8 +53,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
-    public static final ParseField LTE_FIELD = new ParseField("lte", "le");
-    public static final ParseField GTE_FIELD = new ParseField("gte", "ge");
+    public static final ParseField LTE_FIELD = new ParseField("lte");
+    public static final ParseField GTE_FIELD = new ParseField("gte");
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField TO_FIELD = new ParseField("to");
     private static final ParseField INCLUDE_LOWER_FIELD = new ParseField("include_lower");

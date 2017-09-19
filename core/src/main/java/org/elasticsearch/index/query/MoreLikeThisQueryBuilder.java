@@ -103,8 +103,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         ParseField MIN_TERM_FREQ = new ParseField("min_term_freq");
         ParseField MIN_DOC_FREQ = new ParseField("min_doc_freq");
         ParseField MAX_DOC_FREQ = new ParseField("max_doc_freq");
-        ParseField MIN_WORD_LENGTH = new ParseField("min_word_length", "min_word_len");
-        ParseField MAX_WORD_LENGTH = new ParseField("max_word_length", "max_word_len");
+        ParseField MIN_WORD_LENGTH = new ParseField("min_word_length");
+        ParseField MAX_WORD_LENGTH = new ParseField("max_word_length");
         ParseField STOP_WORDS = new ParseField("stop_words");
         ParseField ANALYZER = new ParseField("analyzer");
         ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");

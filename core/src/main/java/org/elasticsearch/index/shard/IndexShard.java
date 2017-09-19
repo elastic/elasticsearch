@@ -2082,11 +2082,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Sort indexSort = indexSortSupplier.get();
         final boolean forceNewHistoryUUID;
         switch (shardRouting.recoverySource().getType()) {
-            case EMPTY_STORE:
             case EXISTING_STORE:
             case PEER:
                 forceNewHistoryUUID = false;
                 break;
+            case EMPTY_STORE:
             case SNAPSHOT:
             case LOCAL_SHARDS:
                 forceNewHistoryUUID = true;

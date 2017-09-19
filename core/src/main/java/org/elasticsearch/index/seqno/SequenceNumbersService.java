@@ -33,11 +33,6 @@ import java.util.Set;
  */
 public class SequenceNumbersService extends AbstractIndexShardComponent {
 
-    /**
-     * Represents a local checkpoint coming from a pre-6.0 node
-     */
-    public static final long PRE_60_NODE_CHECKPOINT = -3L;
-
     private final LocalCheckpointTracker localCheckpointTracker;
     private final GlobalCheckpointTracker globalCheckpointTracker;
 

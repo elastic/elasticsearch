@@ -89,7 +89,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             super.sendReplicaRequest(replicaRequest, node, listener);
         } else {
-            final long pre60NodeCheckpoint = SequenceNumbersService.PRE_60_NODE_CHECKPOINT;
+            final long pre60NodeCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
             listener.onResponse(new ReplicaResponse(pre60NodeCheckpoint, pre60NodeCheckpoint));
         }
     }

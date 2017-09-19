@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.translog.Translog;
@@ -93,7 +93,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
         if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             super.sendReplicaRequest(replicaRequest, node, listener);
         } else {
-            final long pre60NodeCheckpoint = SequenceNumbersService.PRE_60_NODE_CHECKPOINT;
+            final long pre60NodeCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
             listener.onResponse(new ReplicaResponse(pre60NodeCheckpoint, pre60NodeCheckpoint));
         }
     }

@@ -54,7 +54,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ReplicationGroup;
@@ -1055,12 +1054,12 @@ public abstract class TransportReplicationAction<
                 localCheckpoint = in.readZLong();
             } else {
                 // 5.x used to read empty responses, which don't really read anything off the stream, so just do nothing.
-                localCheckpoint = SequenceNumbersService.PRE_60_NODE_CHECKPOINT;
+                localCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
             }
             if (in.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
                 globalCheckpoint = in.readZLong();
             } else {
-                globalCheckpoint = SequenceNumbersService.PRE_60_NODE_CHECKPOINT;
+                globalCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
             }
         }
 

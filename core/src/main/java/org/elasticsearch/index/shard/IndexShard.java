@@ -2099,10 +2099,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode) {
         Sort indexSort = indexSortSupplier.get();
+        final boolean forceNewHistoryUUID;
+        switch (shardRouting.recoverySource().getType()) {
+            case EXISTING_STORE:
+            case PEER:
+                forceNewHistoryUUID = false;
+                break;
+            case EMPTY_STORE:
+            case SNAPSHOT:
+            case LOCAL_SHARDS:
+                forceNewHistoryUUID = true;
+                break;
+            default:
+                throw new AssertionError("unknown recovery type: [" + shardRouting.recoverySource().getType() + "]");
+        }
         return new EngineConfig(openMode, shardId, shardRouting.allocationId().getId(),
             threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,
-            indexCache.query(), cachingPolicy, translogConfig,
+            indexCache.query(), cachingPolicy, forceNewHistoryUUID, translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Arrays.asList(refreshListeners, new RefreshMetricUpdater(refreshMetric)), indexSort,
             this::runTranslogRecovery);

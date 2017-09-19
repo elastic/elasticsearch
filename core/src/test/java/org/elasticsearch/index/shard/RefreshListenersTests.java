@@ -119,7 +119,7 @@ public class RefreshListenersTests extends ESTestCase {
         };
         EngineConfig config = new EngineConfig(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, shardId, allocationId, threadPool,
                 indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
-                eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
+                eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig,
                 TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), null, null);
         engine = new InternalEngine(config);
         listeners.setTranslog(engine.getTranslog());

@@ -1,4 +1,35 @@
 ---
+setup:
+  - do:
+      indices.create:
+        index: test_search_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_search_index", "_type": "doc"}}'
+          - '{"s1": "v1_old", "s2": 0}'
+          - '{"index": {"_index": "test_search_index", "_type": "doc"}}'
+          - '{"s1": "v2_old", "s2": 1}'
+          - '{"index": {"_index": "test_search_index", "_type": "doc"}}'
+          - '{"s1": "v3_old", "s2": 2}'
+          - '{"index": {"_index": "test_search_index", "_type": "doc"}}'
+          - '{"s1": "v4_old", "s2": 3}'
+          - '{"index": {"_index": "test_search_index", "_type": "doc"}}'
+          - '{"s1": "v5_old", "s2": 4}'
+
+---
+teardown:
+  - do:
+      indices.delete:
+          index: test_search_index
+
+---
 "Index data, search, and create things in the cluster state that we'll validate are there after the ugprade":
   - do:
       indices.create:
@@ -94,7 +125,7 @@
         body:
           query:
             match:
-              f1: "{{f1}}"
+              s1: "{{s1}}"
   - match: { acknowledged: true }
 
   - do:
@@ -102,8 +133,9 @@
         body:
           id: test_search_template
           params:
-            f1: v5_old
+            s1: v5_old
   - match: { hits.total: 1 }
+
 ---
 "Put a template 5.6.0 and beyond":
   - skip:
@@ -119,7 +151,7 @@
         body:
           query:
             match:
-              f1: "{{f1}}"
+              s1: "{{s1}}"
   - match: { acknowledged: true }
 
   - do:
@@ -127,5 +159,5 @@
         body:
           id: test_search_template
           params:
-            f1: v5_old
+            s1: v5_old
   - match: { hits.total: 1 }

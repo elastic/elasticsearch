@@ -589,15 +589,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    public Snapshot newSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
-        return newSnapshotBetweenMinAndMaxSeqNo(minSeqNo, Long.MAX_VALUE);
+    public Snapshot newSnapshotFrom(long minSeqNo) throws IOException {
+        return getSnapshotBetween(minSeqNo, Long.MAX_VALUE);
     }
 
     /**
      * Returns a snapshot with operations having a sequence number equal or greater than <code>minSeqNo</code> and
      * equal or lesser than <code>maxSeqNo</code>.
      */
-    public Snapshot newSnapshotBetweenMinAndMaxSeqNo(long minSeqNo, long maxSeqNo) throws IOException {
+    public Snapshot getSnapshotBetween(long minSeqNo, long maxSeqNo) throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             TranslogSnapshot[] snapshots = readersBetweenMinAndMaxSeqNo(minSeqNo, maxSeqNo)

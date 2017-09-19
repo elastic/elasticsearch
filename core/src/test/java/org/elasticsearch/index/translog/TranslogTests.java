@@ -890,7 +890,7 @@ public class TranslogTests extends ESTestCase {
                         // these are what we expect the snapshot to return (and potentially some more).
                         Set<Translog.Operation> expectedOps = new HashSet<>(writtenOps.keySet());
                         expectedOps.removeIf(op -> op.seqNo() <= committedLocalCheckpointAtView);
-                        try (Translog.Snapshot snapshot = translog.newSnapshotFromMinSeqNo(committedLocalCheckpointAtView + 1L)) {
+                        try (Translog.Snapshot snapshot = translog.newSnapshotFrom(committedLocalCheckpointAtView + 1L)) {
                             Translog.Operation op;
                             while ((op = snapshot.next()) != null) {
                                 expectedOps.remove(op);
@@ -2481,7 +2481,7 @@ public class TranslogTests extends ESTestCase {
             }
             assertThat(translog.estimateTotalOperationsFromMinSeq(seqNo), equalTo(expectedSnapshotOps));
             int readFromSnapshot = 0;
-            try (Translog.Snapshot snapshot = translog.newSnapshotFromMinSeqNo(seqNo)) {
+            try (Translog.Snapshot snapshot = translog.newSnapshotFrom(seqNo)) {
                 assertThat(snapshot.totalOperations(), equalTo(expectedSnapshotOps));
                 Translog.Operation op;
                 while ((op = snapshot.next()) != null) {
@@ -2497,7 +2497,7 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
-    public void testGetOperationsBetweenMinAndMaxSeqNoAPI() throws IOException {
+    public void testGetSnapshotBetweenAPI() throws IOException {
         final int operations = randomIntBetween(2, 8096);
         long seqNo = 0;
         for (int i = 0; i < operations; i++) {
@@ -2512,7 +2512,7 @@ public class TranslogTests extends ESTestCase {
         for (int iter = 0; iter < iters; iter++) {
             int min = randomIntBetween(0, operations - 1);
             int max = randomIntBetween(min, operations);
-            try (Translog.Snapshot snapshot = translog.newSnapshotBetweenMinAndMaxSeqNo(min, max)) {
+            try (Translog.Snapshot snapshot = translog.getSnapshotBetween(min, max)) {
                 Translog.Operation operation;
                 do {
                     operation = snapshot.next();

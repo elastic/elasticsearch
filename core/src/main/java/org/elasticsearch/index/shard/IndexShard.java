@@ -2424,14 +2424,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    /**
-     * Returns a snapshot with translog operations having a sequence number equal or greater than <code>minSeqNo</code> and
-     * equal or lesser than <code>maxSeqNo</code>.
-     */
-    public Translog.Snapshot getTranslogOperationsBetweenMinAndMaxSeqNo(long minSeqNo, long maxSeqNo) throws IOException {
-        return getEngine().getTranslog().newSnapshotBetweenMinAndMaxSeqNo(minSeqNo, maxSeqNo);
-    }
-
     private static class RefreshMetricUpdater implements ReferenceManager.RefreshListener {
 
         private final MeanMetric refreshMetric;

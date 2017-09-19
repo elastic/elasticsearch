@@ -87,7 +87,10 @@ public class ModelPlot implements ToXContentObject, Writeable {
     private double modelLower;
     private double modelUpper;
     private double modelMedian;
-    private double actual;
+    /**
+     * This can be <code>null</code> because buckets where no values were observed will still have a model, but no actual
+     */
+    private Double actual;
 
     public ModelPlot(String jobId, Date timestamp, long bucketSpan) {
         this.jobId = jobId;
@@ -121,7 +124,11 @@ public class ModelPlot implements ToXContentObject, Writeable {
         modelLower = in.readDouble();
         modelUpper = in.readDouble();
         modelMedian = in.readDouble();
-        actual = in.readDouble();
+        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
+            actual = in.readDouble();
+        } else {
+            actual = in.readOptionalDouble();
+        }
         if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
             bucketSpan = in.readLong();
         } else {
@@ -156,7 +163,17 @@ public class ModelPlot implements ToXContentObject, Writeable {
         out.writeDouble(modelLower);
         out.writeDouble(modelUpper);
         out.writeDouble(modelMedian);
-        out.writeDouble(actual);
+        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
+            if (actual == null) {
+                // older versions cannot accommodate null, so we have no choice but to propagate the bug of
+                // https://github.com/elastic/x-pack-elasticsearch/issues/2528
+                out.writeDouble(0.0);
+            } else {
+                out.writeDouble(actual);
+            }
+        } else {
+            out.writeOptionalDouble(actual);
+        }
         if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
             out.writeLong(bucketSpan);
         }
@@ -196,7 +213,9 @@ public class ModelPlot implements ToXContentObject, Writeable {
         builder.field(MODEL_LOWER.getPreferredName(), modelLower);
         builder.field(MODEL_UPPER.getPreferredName(), modelUpper);
         builder.field(MODEL_MEDIAN.getPreferredName(), modelMedian);
-        builder.field(ACTUAL.getPreferredName(), actual);
+        if (actual != null) {
+            builder.field(ACTUAL.getPreferredName(), actual);
+        }
         builder.endObject();
         return builder;
     }
@@ -302,11 +321,11 @@ public class ModelPlot implements ToXContentObject, Writeable {
         this.modelMedian = modelMedian;
     }
 
-    public double getActual() {
+    public Double getActual() {
         return actual;
     }
 
-    public void setActual(double actual) {
+    public void setActual(Double actual) {
         this.actual = actual;
     }
 
@@ -331,7 +350,7 @@ public class ModelPlot implements ToXContentObject, Writeable {
                 this.modelLower == that.modelLower &&
                 this.modelUpper == that.modelUpper &&
                 this.modelMedian == that.modelMedian &&
-                this.actual == that.actual &&
+                Objects.equals(this.actual, that.actual) &&
                 this.bucketSpan ==  that.bucketSpan;
     }
 

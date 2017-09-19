@@ -6,11 +6,18 @@
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
+import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
 
@@ -172,6 +179,15 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
         assertFalse(modelPlot2.equals(modelPlot1));
     }
 
+    public void testEquals_GivenDifferentOneNullActual() {
+        ModelPlot modelPlot1 = createFullyPopulated();
+        ModelPlot modelPlot2 = createFullyPopulated();
+        modelPlot2.setActual(null);
+
+        assertFalse(modelPlot1.equals(modelPlot2));
+        assertFalse(modelPlot2.equals(modelPlot1));
+    }
+
     public void testEquals_GivenEqualmodelPlots() {
         ModelPlot modelPlot1 = createFullyPopulated();
         ModelPlot modelPlot2 = createFullyPopulated();
@@ -179,6 +195,17 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
         assertTrue(modelPlot1.equals(modelPlot2));
         assertTrue(modelPlot2.equals(modelPlot1));
         assertEquals(modelPlot1.hashCode(), modelPlot2.hashCode());
+    }
+
+    public void testToXContent_GivenNullActual() throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+
+        ModelPlot modelPlot = createFullyPopulated();
+        modelPlot.setActual(null);
+        modelPlot.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String json = builder.string();
+        assertThat(json, not(containsString("actual")));
     }
 
     public void testId() {

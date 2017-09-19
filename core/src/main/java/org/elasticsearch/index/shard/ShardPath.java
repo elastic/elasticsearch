@@ -209,7 +209,7 @@ public final class ShardPath {
                     FileStore fileStore = nodePath.fileStore;
 
                     BigInteger usableBytes = BigInteger.valueOf(fileStore.getUsableSpace());
-                    assert usableBytes.compareTo(BigInteger.ZERO) >= 0;
+                    assert usableBytes.compareTo(BigInteger.ZERO) >= 0 : "usable bytes must be >= 0, got: " + usableBytes;
 
                     // Deduct estimated reserved bytes from usable space:
                     Integer count = dataPathToShardCount.get(nodePath.path);

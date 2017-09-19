@@ -6,8 +6,9 @@ the whole cluster.
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/_cluster/state'
+GET /_cluster/state
 --------------------------------------------------
+// CONSOLE
 
 The response provides the cluster name, the total compressed size
 of the cluster state (its size when serialized for transmission over
@@ -27,8 +28,9 @@ it is possible to filter the cluster state response specifying the parts in the 
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/_cluster/state/{metrics}/{indices}'
+GET /_cluster/state/{metrics}/{indices}
 --------------------------------------------------
+// CONSOLE
 
 `metrics` can be a comma-separated list of
 
@@ -50,17 +52,27 @@ $ curl -XGET 'http://localhost:9200/_cluster/state/{metrics}/{indices}'
 `blocks`::
     Shows the `blocks` part of the response
 
-A couple of example calls:
+The following example returns only `metadata` and `routing_table` data for the `foo` and `bar` indices:
 
 [source,js]
 --------------------------------------------------
-# return only metadata and routing_table data for specified indices
-$ curl -XGET 'http://localhost:9200/_cluster/state/metadata,routing_table/foo,bar'
-
-# return everything for these two indices
-$ curl -XGET 'http://localhost:9200/_cluster/state/_all/foo,bar'
-
-# Return only blocks data
-$ curl -XGET 'http://localhost:9200/_cluster/state/blocks'
+GET /_cluster/state/metadata,routing_table/foo,bar
 --------------------------------------------------
+// CONSOLE
+
+The next example returns everything for the `foo` and `bar` indices:
+
+[source,js]
+--------------------------------------------------
+GET /_cluster/state/_all/foo,bar
+--------------------------------------------------
+// CONSOLE
+
+And this example return only `blocks` data:
+[source,js]
+--------------------------------------------------
+GET /_cluster/state/blocks
+--------------------------------------------------
+// CONSOLE
+
 

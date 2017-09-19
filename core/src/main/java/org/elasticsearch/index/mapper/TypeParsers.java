@@ -35,11 +35,9 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
 public class TypeParsers {
@@ -158,37 +156,9 @@ public class TypeParsers {
         }
     }
 
-    public static boolean parseNorms(FieldMapper.Builder builder, String fieldName, String propName, Object propNode,
+    public static void parseNorms(FieldMapper.Builder builder, String fieldName, Object propNode,
                                      Mapper.TypeParser.ParserContext parserContext) {
-        if (propName.equals("norms")) {
-            if (propNode instanceof Map) {
-                final Map<String, Object> properties = nodeMapValue(propNode, "norms");
-                for (Iterator<Entry<String, Object>> propsIterator = properties.entrySet().iterator(); propsIterator.hasNext(); ) {
-                    Entry<String, Object> entry2 = propsIterator.next();
-                    final String propName2 = entry2.getKey();
-                    final Object propNode2 = entry2.getValue();
-                    if (propName2.equals("enabled")) {
-                        builder.omitNorms(nodeBooleanValue(fieldName, "enabled", propNode2, parserContext) == false);
-                        propsIterator.remove();
-                    } else if (propName2.equals("loading")) {
-                        // ignore for bw compat
-                        propsIterator.remove();
-                    }
-                }
-                DocumentMapperParser.checkNoRemainingFields(propName, properties, parserContext.indexVersionCreated());
-                DEPRECATION_LOGGER.deprecated("The [norms{enabled:true/false}] way of specifying norms is deprecated, please use " +
-                    "[norms:true/false] instead");
-            } else {
-                builder.omitNorms(nodeBooleanValue(fieldName,"norms", propNode, parserContext) == false);
-            }
-            return true;
-        } else if (propName.equals("omit_norms")) {
-            builder.omitNorms(nodeBooleanValue(fieldName,"norms", propNode, parserContext));
-            DEPRECATION_LOGGER.deprecated("[omit_norms] is deprecated, please use [norms] instead with the opposite boolean value");
-            return true;
-        } else {
-            return false;
-        }
+        builder.omitNorms(nodeBooleanValue(fieldName, "norms", propNode, parserContext) == false);
     }
 
     /**
@@ -203,7 +173,8 @@ public class TypeParsers {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = entry.getKey();
             final Object propNode = entry.getValue();
-            if (parseNorms(builder, name, propName, propNode, parserContext)) {
+            if ("norms".equals(propName)) {
+                parseNorms(builder, name, propNode, parserContext);
                 iterator.remove();
             }
         }
@@ -237,32 +208,12 @@ public class TypeParsers {
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
                 iterator.remove();
-            } else if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)
-                && parseNorms(builder, name, propName, propNode, parserContext)) {
-                iterator.remove();
             } else if (propName.equals("index_options")) {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
-                iterator.remove();
-            } else if (propName.equals("include_in_all")) {
-                if (parserContext.isWithinMultiField()) {
-                    throw new MapperParsingException("include_in_all in multi fields is not allowed. Found the include_in_all in field ["
-                        + name + "] which is within a multi field.");
-                } else if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
-                    throw new MapperParsingException("[include_in_all] is not allowed for indices created on or after version 6.0.0 as " +
-                                    "[_all] is deprecated. As a replacement, you can use an [copy_to] on mapping fields to create your " +
-                                    "own catch all field.");
-                } else {
-                    builder.includeInAll(nodeBooleanValue(name, "include_in_all", propNode, parserContext));
-                }
                 iterator.remove();
             } else if (propName.equals("similarity")) {
                 SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());
                 builder.similarity(similarityProvider);
-                iterator.remove();
-            } else if (propName.equals("fielddata")
-                    && propNode instanceof Map
-                    && parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)) {
-                // ignore for bw compat
                 iterator.remove();
             } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
                 iterator.remove();
@@ -387,10 +338,6 @@ public class TypeParsers {
     }
 
     private static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
-        if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1) && "default".equals(value)) {
-            // "default" similarity has been renamed into "classic" in 3.x.
-            value = "classic";
-        }
         SimilarityProvider similarityProvider = parserContext.getSimilarity(value);
         if (similarityProvider == null) {
             throw new MapperParsingException("Unknown Similarity type [" + value + "] for field [" + name + "]");

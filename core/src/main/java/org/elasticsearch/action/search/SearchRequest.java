@@ -109,12 +109,65 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         this.source = source;
     }
 
+    /**
+     * Constructs a new search request from reading the specified stream.
+     *
+     * @param in The stream the request is read from
+     * @throws IOException if there is an issue reading the stream
+     */
+    public SearchRequest(StreamInput in) throws IOException {
+        super(in);
+        searchType = SearchType.fromId(in.readByte());
+        indices = new String[in.readVInt()];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = in.readString();
+        }
+        routing = in.readOptionalString();
+        preference = in.readOptionalString();
+        scroll = in.readOptionalWriteable(Scroll::new);
+        source = in.readOptionalWriteable(SearchSourceBuilder::new);
+        types = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        requestCache = in.readOptionalBoolean();
+        batchedReduceSize = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
+            maxConcurrentShardRequests = in.readVInt();
+            preFilterShardSize = in.readVInt();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeByte(searchType.id());
+        out.writeVInt(indices.length);
+        for (String index : indices) {
+            out.writeString(index);
+        }
+        out.writeOptionalString(routing);
+        out.writeOptionalString(preference);
+        out.writeOptionalWriteable(scroll);
+        out.writeOptionalWriteable(source);
+        out.writeStringArray(types);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeOptionalBoolean(requestCache);
+        out.writeVInt(batchedReduceSize);
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
+            out.writeVInt(maxConcurrentShardRequests);
+            out.writeVInt(preFilterShardSize);
+        }
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (source != null && source.trackTotalHits() == false && scroll() != null) {
             validationException =
                 addValidationError("disabling [track_total_hits] is not allowed in a scroll context", validationException);
+        }
+        if (source != null && source.from() > 0 &&  scroll() != null) {
+            validationException =
+                addValidationError("using [from] is not allowed in a scroll context", validationException);
         }
         return validationException;
     }
@@ -381,6 +434,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 sb.append("], ");
                 sb.append("search_type[").append(searchType).append("], ");
                 if (source != null) {
+
                     sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
                 } else {
                     sb.append("source[]");
@@ -392,46 +446,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        searchType = SearchType.fromId(in.readByte());
-        indices = new String[in.readVInt()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readString();
-        }
-        routing = in.readOptionalString();
-        preference = in.readOptionalString();
-        scroll = in.readOptionalWriteable(Scroll::new);
-        source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        types = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        requestCache = in.readOptionalBoolean();
-        batchedReduceSize = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
-            maxConcurrentShardRequests = in.readVInt();
-            preFilterShardSize = in.readVInt();
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeByte(searchType.id());
-        out.writeVInt(indices.length);
-        for (String index : indices) {
-            out.writeString(index);
-        }
-        out.writeOptionalString(routing);
-        out.writeOptionalString(preference);
-        out.writeOptionalWriteable(scroll);
-        out.writeOptionalWriteable(source);
-        out.writeStringArray(types);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeOptionalBoolean(requestCache);
-        out.writeVInt(batchedReduceSize);
-        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
-            out.writeVInt(maxConcurrentShardRequests);
-            out.writeVInt(preFilterShardSize);
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

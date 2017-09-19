@@ -28,10 +28,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.node.ResponseCollectorService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,13 +45,24 @@ import java.util.stream.Collectors;
 
 public class OperationRouting extends AbstractComponent {
 
+    public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING =
+            Setting.boolSetting("cluster.routing.use_adaptive_replica_selection", true,
+                    Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     private String[] awarenessAttributes;
+    private boolean useAdaptiveReplicaSelection;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
+        this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
             this::setAwarenessAttributes);
+        clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
+    }
+
+    void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
+        this.useAdaptiveReplicaSelection = useAdaptiveReplicaSelection;
     }
 
     private void setAwarenessAttributes(String[] awarenessAttributes) {
@@ -61,19 +74,33 @@ public class OperationRouting extends AbstractComponent {
     }
 
     public ShardIterator getShards(ClusterState clusterState, String index, String id, @Nullable String routing, @Nullable String preference) {
-        return preferenceActiveShardIterator(shards(clusterState, index, id, routing), clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference);
+        return preferenceActiveShardIterator(shards(clusterState, index, id, routing), clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference, null, null);
     }
 
     public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
         final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
-        return preferenceActiveShardIterator(indexShard, clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference);
+        return preferenceActiveShardIterator(indexShard, clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference, null, null);
     }
 
-    public GroupShardsIterator<ShardIterator> searchShards(ClusterState clusterState, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) {
+    public GroupShardsIterator<ShardIterator> searchShards(ClusterState clusterState,
+                                                           String[] concreteIndices,
+                                                           @Nullable Map<String, Set<String>> routing,
+                                                           @Nullable String preference) {
+        return searchShards(clusterState, concreteIndices, routing, preference, null, null);
+    }
+
+
+    public GroupShardsIterator<ShardIterator> searchShards(ClusterState clusterState,
+                                                           String[] concreteIndices,
+                                                           @Nullable Map<String, Set<String>> routing,
+                                                           @Nullable String preference,
+                                                           @Nullable ResponseCollectorService collectorService,
+                                                           @Nullable Map<String, Long> nodeCounts) {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         final Set<ShardIterator> set = new HashSet<>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
-            ShardIterator iterator = preferenceActiveShardIterator(shard, clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference);
+            ShardIterator iterator = preferenceActiveShardIterator(shard,
+                    clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference, collectorService, nodeCounts);
             if (iterator != null) {
                 set.add(iterator);
             }
@@ -107,10 +134,17 @@ public class OperationRouting extends AbstractComponent {
         return set;
     }
 
-    private ShardIterator preferenceActiveShardIterator(IndexShardRoutingTable indexShard, String localNodeId, DiscoveryNodes nodes, @Nullable String preference) {
+    private ShardIterator preferenceActiveShardIterator(IndexShardRoutingTable indexShard, String localNodeId,
+                                                        DiscoveryNodes nodes, @Nullable String preference,
+                                                        @Nullable ResponseCollectorService collectorService,
+                                                        @Nullable Map<String, Long> nodeCounts) {
         if (preference == null || preference.isEmpty()) {
             if (awarenessAttributes.length == 0) {
-                return indexShard.activeInitializingShardsRandomIt();
+                if (useAdaptiveReplicaSelection) {
+                    return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
+                } else {
+                    return indexShard.activeInitializingShardsRandomIt();
+                }
             } else {
                 return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes);
             }
@@ -141,7 +175,11 @@ public class OperationRouting extends AbstractComponent {
                 // no more preference
                 if (index == -1 || index == preference.length() - 1) {
                     if (awarenessAttributes.length == 0) {
-                        return indexShard.activeInitializingShardsRandomIt();
+                        if (useAdaptiveReplicaSelection) {
+                            return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
+                        } else {
+                            return indexShard.activeInitializingShardsRandomIt();
+                        }
                     } else {
                         return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes);
                     }

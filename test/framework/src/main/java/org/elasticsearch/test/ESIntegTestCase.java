@@ -23,10 +23,10 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -63,7 +63,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.http.HttpHost;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -141,7 +140,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
@@ -151,7 +149,6 @@ import java.lang.annotation.Target;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URL;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -1084,14 +1081,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
-            final NamedWriteableRegistry namedWriteableRegistry;
-            if (isInternalCluster()) {
-                // If it's internal cluster - using existing registry in case plugin registered custom data
-                namedWriteableRegistry = internalCluster().getInstance(NamedWriteableRegistry.class);
-            } else {
-                // If it's external cluster - fall back to the standard set
-                namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-            }
+            final NamedWriteableRegistry namedWriteableRegistry = cluster().getNamedWriteableRegistry();
             ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
             // remove local node reference
@@ -1701,7 +1691,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b")
-            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 2048)
+            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "2048/1m")
             // by default we never cache below 10k docs in a segment,
             // bypass this limit so that caching gets some testing in
             // integration tests that usually create few documents
@@ -2120,48 +2110,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return internalCluster().routingKeyForShard(resolveIndex(index), shard, random());
     }
 
-    /**
-     * Return settings that could be used to start a node that has the given zipped home directory.
-     */
-    protected Settings prepareBackwardsDataDir(Path backwardsIndex, Object... settings) throws IOException {
-        Path indexDir = createTempDir();
-        Path dataDir = indexDir.resolve("data");
-        try (InputStream stream = Files.newInputStream(backwardsIndex)) {
-            TestUtil.unzip(stream, indexDir);
-        }
-        assertTrue(Files.exists(dataDir));
 
-        // list clusters in the datapath, ignoring anything from extrasfs
-        final Path[] list;
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataDir)) {
-            List<Path> dirs = new ArrayList<>();
-            for (Path p : stream) {
-                if (!p.getFileName().toString().startsWith("extra")) {
-                    dirs.add(p);
-                }
-            }
-            list = dirs.toArray(new Path[0]);
-        }
-
-        if (list.length != 1) {
-            StringBuilder builder = new StringBuilder("Backwards index must contain exactly one cluster\n");
-            for (Path line : list) {
-                builder.append(line.toString()).append('\n');
-            }
-            throw new IllegalStateException(builder.toString());
-        }
-        Path src = list[0].resolve(NodeEnvironment.NODES_FOLDER);
-        Path dest = dataDir.resolve(NodeEnvironment.NODES_FOLDER);
-        assertTrue(Files.exists(src));
-        Files.move(src, dest);
-        assertFalse(Files.exists(src));
-        assertTrue(Files.exists(dest));
-        Settings.Builder builder = Settings.builder()
-            .put(settings)
-            .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
-
-        return builder.build();
-    }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -2192,9 +2141,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
-        final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
-        final List<NodeInfo> nodes = nodeInfos.getNodes();
-        assertFalse(nodeInfos.hasFailures());
+        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        assertFalse(nodesInfoResponse.hasFailures());
+        return createRestClient(nodesInfoResponse.getNodes(), httpClientConfigCallback, protocol);
+    }
+
+    protected static RestClient createRestClient(final List<NodeInfo> nodes,
+                                                 RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
         List<HttpHost> hosts = new ArrayList<>();
         for (NodeInfo node : nodes) {
             if (node.getHttp() != null) {

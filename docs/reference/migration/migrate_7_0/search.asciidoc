@@ -1,0 +1,20 @@
+[[breaking_70_search_changes]]
+=== Search changes
+
+==== Adaptive replica selection enabled by default
+
+Adaptive replica selection has been enabled by default. If you wish to return to
+the older round robin of search requests, you can use the
+`cluster.routing.use_adaptive_replica_selection` setting:
+
+[source,js]
+--------------------------------------------------
+PUT /_cluster/settings
+{
+    "transient": {
+        "cluster.routing.use_adaptive_replica_selection": false
+    }
+}
+--------------------------------------------------
+// CONSOLE
+

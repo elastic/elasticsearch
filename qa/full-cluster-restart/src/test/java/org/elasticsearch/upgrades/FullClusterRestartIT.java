@@ -19,10 +19,10 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.entity.StringEntity;
-import org.elasticsearch.client.http.util.EntityUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Booleans;
@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -52,6 +53,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -165,7 +167,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertAllSearchWorks(count);
         assertBasicAggregationWorks();
         assertRealtimeGetWorks();
-        assertUpgradeWorks();
         assertStoredBinaryFields(count);
     }
 
@@ -531,75 +532,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
-    void assertUpgradeWorks() throws Exception {
-        if (runningAgainstOldCluster) {
-            Map<String, Object> rsp = toMap(client().performRequest("GET", "/_upgrade"));
-            Map<?, ?> indexUpgradeStatus = (Map<?, ?>) XContentMapValues.extractValue("indices." + index, rsp);
-            int totalBytes = (Integer) indexUpgradeStatus.get("size_in_bytes");
-            assertThat(totalBytes, greaterThan(0));
-            int toUpgradeBytes = (Integer) indexUpgradeStatus.get("size_to_upgrade_in_bytes");
-            assertEquals(0, toUpgradeBytes);
-        } else {
-            // Pre upgrade checks:
-            Map<String, Object> rsp = toMap(client().performRequest("GET", "/_upgrade"));
-            Map<?, ?> indexUpgradeStatus = (Map<?, ?>) XContentMapValues.extractValue("indices." + index, rsp);
-            int totalBytes = (Integer) indexUpgradeStatus.get("size_in_bytes");
-            assertThat(totalBytes, greaterThan(0));
-            int toUpgradeBytes = (Integer) indexUpgradeStatus.get("size_to_upgrade_in_bytes");
-            if (oldClusterVersion.luceneVersion.equals(Version.CURRENT.luceneVersion)) {
-                assertThat(toUpgradeBytes, equalTo(0));
-            } else {
-                assertThat(toUpgradeBytes, greaterThan(0));
-            }
-
-            Response r = client().performRequest("POST", "/" + index + "/_flush");
-            assertEquals(200, r.getStatusLine().getStatusCode());
-
-            // Upgrade segments:
-            r = client().performRequest("POST", "/" + index + "/_upgrade");
-            assertEquals(200, r.getStatusLine().getStatusCode());
-            rsp = toMap(r);
-            logger.info("upgrade api response: {}", rsp);
-            Map<?, ?>  versions = (Map<?, ?>) XContentMapValues.extractValue("upgraded_indices." + index, rsp);
-            assertNotNull(versions);
-            Version upgradeVersion = Version.fromString((String) versions.get("upgrade_version"));
-            assertEquals(Version.CURRENT, upgradeVersion);
-            org.apache.lucene.util.Version luceneVersion =
-                org.apache.lucene.util.Version.parse((String) versions.get("oldest_lucene_segment_version"));
-            assertEquals(Version.CURRENT.luceneVersion, luceneVersion);
-
-            r = client().performRequest("POST", "/" + index + "/_refresh");
-            assertEquals(200, r.getStatusLine().getStatusCode());
-
-            // Post upgrade checks:
-            rsp = toMap(client().performRequest("GET", "/_upgrade"));
-            logger.info("upgrade status api response: {}", rsp);
-            indexUpgradeStatus = (Map<?, ?>) XContentMapValues.extractValue("indices." + index, rsp);
-            assertNotNull(indexUpgradeStatus);
-            totalBytes = (Integer) indexUpgradeStatus.get("size_in_bytes");
-            assertThat(totalBytes, greaterThan(0));
-            toUpgradeBytes = (Integer) indexUpgradeStatus.get("size_to_upgrade_in_bytes");
-            assertEquals(0, toUpgradeBytes);
-
-            rsp = toMap(client().performRequest("GET", "/" + index + "/_segments"));
-            Map<?, ?> shards = (Map<?, ?>) XContentMapValues.extractValue("indices." + index + ".shards", rsp);
-            for (Object shard : shards.values()) {
-                List<?> shardSegments = (List<?>) shard;
-                for (Object shardSegment : shardSegments) {
-                    Map<?, ?> shardSegmentRsp = (Map<?, ?>) shardSegment;
-                    Map<?, ?> segments = (Map<?, ?>) shardSegmentRsp.get("segments");
-                    for (Object segment : segments.values()) {
-                        Map<?, ?> segmentRsp = (Map<?, ?>) segment;
-                        luceneVersion = org.apache.lucene.util.Version.parse((String) segmentRsp.get("version"));
-                        assertEquals("Un-upgraded segment " + segment, Version.CURRENT.luceneVersion.major, luceneVersion.major);
-                        assertEquals("Un-upgraded segment " + segment, Version.CURRENT.luceneVersion.minor, luceneVersion.minor);
-                        assertEquals("Un-upgraded segment " + segment, Version.CURRENT.luceneVersion.bugfix, luceneVersion.bugfix);
-                    }
-                }
-            }
-        }
-    }
-
     void assertStoredBinaryFields(int count) throws Exception {
         String requestBody = "{ \"query\": { \"match_all\" : {} }, \"size\": 100, \"stored_fields\": \"binary\"}";
         Map<String, Object> rsp = toMap(client().performRequest("GET", "/" + index + "/_search",
@@ -828,6 +760,39 @@ public class FullClusterRestartIT extends ESRestTestCase {
         checkSnapshot("old_snap", count, oldClusterVersion);
         if (false == runningAgainstOldCluster) {
             checkSnapshot("new_snap", count, Version.CURRENT);
+        }
+    }
+
+    public void testHistoryUUIDIsAdded() throws Exception {
+        if (runningAgainstOldCluster) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("settings");
+                mappingsAndSettings.field("number_of_shards", 1);
+                mappingsAndSettings.field("number_of_replicas", 1);
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
+                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+        } else {
+            Response response = client().performRequest("GET", index + "/_stats", singletonMap("level", "shards"));
+            List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
+            String globalHistoryUUID = null;
+            for (Object shard : shardStats) {
+                final String nodeId = ObjectPath.evaluate(shard, "routing.node");
+                final Boolean primary = ObjectPath.evaluate(shard, "routing.primary");
+                logger.info("evaluating: {} , {}", ObjectPath.evaluate(shard, "routing"), ObjectPath.evaluate(shard, "commit"));
+                String historyUUID = ObjectPath.evaluate(shard, "commit.user_data.history_uuid");
+                assertThat("no history uuid found on " + nodeId + " (primary: " + primary + ")", historyUUID, notNullValue());
+                if (globalHistoryUUID == null) {
+                    globalHistoryUUID = historyUUID;
+                } else {
+                    assertThat("history uuid mismatch on " + nodeId + " (primary: " + primary + ")", historyUUID,
+                        equalTo(globalHistoryUUID));
+                }
+            }
         }
     }
 

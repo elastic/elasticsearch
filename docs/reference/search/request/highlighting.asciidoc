@@ -11,9 +11,6 @@ Highlighting requires the actual content of a field. If the field is not
 stored (the mapping does not set `store` to `true`), the actual `_source` is
 loaded and the relevant field is extracted from `_source`.
 
-NOTE: The `_all` field cannot be extracted from `_source`, so it can only
-be used for highlighting if it is explicitly stored.
-
 For example, to get highlights for the `content` field in each search hit
 using the default highlighter, include a `highlight` object in
 the request body that specifies the `content` field:
@@ -267,7 +264,7 @@ GET /_search
         "number_of_fragments" : 3,
         "fragment_size" : 150,
         "fields" : {
-            "_all" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] },
+            "body" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] },
             "blog.title" : { "number_of_fragments" : 0 },
             "blog.author" : { "number_of_fragments" : 0 },
             "blog.comment" : { "number_of_fragments" : 5, "order" : "score" }
@@ -392,7 +389,7 @@ GET /_search
         "pre_tags" : ["<tag1>"],
         "post_tags" : ["</tag1>"],
         "fields" : {
-            "_all" : {}
+            "body" : {}
         }
     }
 }
@@ -414,7 +411,7 @@ GET /_search
         "pre_tags" : ["<tag1>", "<tag2>"],
         "post_tags" : ["</tag1>", "</tag2>"],
         "fields" : {
-            "_all" : {}
+            "body" : {}
         }
     }
 }
@@ -484,7 +481,7 @@ GET /_search
     "highlight" : {
         "require_field_match": false,
         "fields": {
-                "_all" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] }
+                "body" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] }
         }
     }
 }
@@ -719,7 +716,7 @@ GET /_search
     },
     "highlight" : {
         "fields" : {
-            "_all" : {},
+            "body" : {},
             "blog.title" : {"number_of_fragments" : 0}
         }
     }
@@ -912,7 +909,7 @@ Response:
                 },
                 "highlight": {
                     "message": [
-                        "some message with the <em>number</em> <em>1</em>"
+                        " with the <em>number</em> <em>1</em>"
                     ]
                 }
             }

@@ -35,6 +35,7 @@ List projects = [
   'modules:lang-expression',
   'modules:lang-mustache',
   'modules:lang-painless',
+  'modules:mapper-extras',
   'modules:parent-join',
   'modules:percolator',
   'modules:reindex',
@@ -65,6 +66,7 @@ List projects = [
   'qa:auto-create-index',
   'qa:evil-tests',
   'qa:full-cluster-restart',
+  'qa:integration-bwc',
   'qa:mixed-cluster',
   'qa:multi-cluster-search',
   'qa:no-bootstrap-tests',
@@ -98,7 +100,6 @@ if (isEclipse) {
   // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
   // for core-src and core-tests
   projects << 'core-tests'
-  projects << 'client:rest-tests'
 }
 
 include projects.toArray(new String[0])
@@ -122,11 +123,6 @@ if (isEclipse) {
   project(":core").buildFileName = 'eclipse-build.gradle'
   project(":core-tests").projectDir = new File(rootProject.projectDir, 'core/src/test')
   project(":core-tests").buildFileName = 'eclipse-build.gradle'
-
-  project(":client:rest").projectDir = new File(rootProject.projectDir, 'client/rest/src/main')
-  project(":client:rest").buildFileName = 'eclipse-build.gradle'
-  project(":client:rest-tests").projectDir = new File(rootProject.projectDir, 'client/rest/src/test')
-  project(":client:rest-tests").buildFileName = 'eclipse-build.gradle'
 }
 
 /**

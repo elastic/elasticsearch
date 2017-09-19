@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
@@ -61,12 +60,12 @@ final class PSubListShortcut extends AStoreable {
         getter = struct.methods.get(new Definition.MethodKey("get", 1));
         setter = struct.methods.get(new Definition.MethodKey("set", 2));
 
-        if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
-            getter.arguments.get(0).sort != Sort.INT)) {
+        if (getter != null && (getter.rtn.clazz == void.class || getter.arguments.size() != 1 ||
+            getter.arguments.get(0).clazz != int.class)) {
             throw createError(new IllegalArgumentException("Illegal list get shortcut for type [" + struct.name + "]."));
         }
 
-        if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0).sort != Sort.INT)) {
+        if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0).clazz != int.class)) {
             throw createError(new IllegalArgumentException("Illegal list set shortcut for type [" + struct.name + "]."));
         }
 
@@ -132,7 +131,7 @@ final class PSubListShortcut extends AStoreable {
 
         setter.write(writer);
 
-        writer.writePop(setter.rtn.sort.size);
+        writer.writePop(setter.rtn.type.getSize());
     }
 
     @Override

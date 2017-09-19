@@ -136,11 +136,16 @@ PUT index
 // CONSOLE
 
 [float]
-=== Disable `_all`
+=== Watch your shard size
 
-The <<mapping-all-field,`_all`>> field indexes the value of all fields of a
-document and can use significant space. If you never need to search against all
-fields at the same time, it can be disabled.
+Larger shards are going to be more efficient at storing data. To increase the size of your shards, you can decrease the number of primary shards in an index by <<indices-create-index,creating indices>> with less primary shards, creating less indices (e.g. by leveraging the <<indices-rollover-index,Rollover API>>), or modifying an existing index using the <<indices-shrink-index,Shrink API>>.
+
+Keep in mind that large shard sizes come with drawbacks, such as long full recovery times.
+
+[float]
+=== Disable `_source`
+
+The <<mapping-source-field,`_source`>> field stores the original JSON body of the document. If you don’t need access to it you can disable it. However, APIs that needs access to `_source` such as update and reindex won’t work.
 
 [float]
 === Use `best_compression`
@@ -148,6 +153,18 @@ fields at the same time, it can be disabled.
 The `_source` and stored fields can easily take a non negligible amount of disk
 space. They can be compressed more aggressively by using the `best_compression`
 <<index-codec,codec>>.
+
+[float]
+=== Force Merge
+
+Indices in Elasticsearch are stored in one or more shards. Each shard is a Lucene index and made up of one or more segments - the actual files on disk. Larger segments are more efficient for storing data.
+
+The <<indices-forcemerge,`_forcemerge` API>> can be used to reduce the number of segments per shard. In many cases, the number of segments can be reduced to one per shard by setting `max_num_segments=1`.
+
+[float]
+=== Shrink Index
+
+The <<indices-shrink-index,Shrink API>> allows you to reduce the number of shards in an index. Together with the Force Merge API above, this can significantly reduce the number of shards and segments of an index.
 
 [float]
 === Use the smallest numeric type that is sufficient

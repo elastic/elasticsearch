@@ -34,7 +34,7 @@ The result of the above index operation is:
     "_version" : 1,
     "_seq_no" : 0,
     "_primary_term" : 1,
-    "result" : created
+    "result" : "created"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"successful" : 2/"successful" : 1/]

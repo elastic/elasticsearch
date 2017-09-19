@@ -26,6 +26,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -58,6 +60,9 @@ import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.suggest.CustomSuggesterSearchIT.CustomSuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
@@ -87,8 +92,7 @@ public class SearchModuleTests extends ModuleTestCase {
                 return singletonMap("plain", new PlainHighlighter());
             }
         };
-        expectThrows(IllegalArgumentException.class,
-                () -> new SearchModule(Settings.EMPTY, false, singletonList(registersDupeHighlighter)));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeHighlighter));
 
         SearchPlugin registersDupeSuggester = new SearchPlugin() {
             @Override
@@ -96,8 +100,7 @@ public class SearchModuleTests extends ModuleTestCase {
                 return singletonList(new SuggesterSpec<>("term", TermSuggestionBuilder::new, TermSuggestionBuilder::fromXContent));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new NamedXContentRegistry(
-                new SearchModule(Settings.EMPTY, false, singletonList(registersDupeSuggester)).getNamedXContents()));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeSuggester));
 
         SearchPlugin registersDupeScoreFunction = new SearchPlugin() {
             @Override
@@ -106,8 +109,7 @@ public class SearchModuleTests extends ModuleTestCase {
                         GaussDecayFunctionBuilder.PARSER));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new NamedXContentRegistry(
-                new SearchModule(Settings.EMPTY, false, singletonList(registersDupeScoreFunction)).getNamedXContents()));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeScoreFunction));
 
         SearchPlugin registersDupeSignificanceHeuristic = new SearchPlugin() {
             @Override
@@ -115,8 +117,7 @@ public class SearchModuleTests extends ModuleTestCase {
                 return singletonList(new SearchExtensionSpec<>(ChiSquare.NAME, ChiSquare::new, ChiSquare.PARSER));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeSignificanceHeuristic)));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeSignificanceHeuristic));
 
         SearchPlugin registersDupeMovAvgModel = new SearchPlugin() {
             @Override
@@ -124,8 +125,7 @@ public class SearchModuleTests extends ModuleTestCase {
                 return singletonList(new SearchExtensionSpec<>(SimpleModel.NAME, SimpleModel::new, SimpleModel.PARSER));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeMovAvgModel)));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeMovAvgModel));
 
         SearchPlugin registersDupeFetchSubPhase = new SearchPlugin() {
             @Override
@@ -133,8 +133,7 @@ public class SearchModuleTests extends ModuleTestCase {
                 return singletonList(new ExplainFetchSubPhase());
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeFetchSubPhase)));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeFetchSubPhase));
 
         SearchPlugin registersDupeQuery = new SearchPlugin() {
             @Override
@@ -142,8 +141,7 @@ public class SearchModuleTests extends ModuleTestCase {
                 return singletonList(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new NamedXContentRegistry(
-                new SearchModule(Settings.EMPTY, false, singletonList(registersDupeQuery)).getNamedXContents()));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeQuery));
 
         SearchPlugin registersDupeAggregation = new SearchPlugin() {
             @Override
@@ -152,8 +150,7 @@ public class SearchModuleTests extends ModuleTestCase {
                         TermsAggregationBuilder::parse));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeAggregation)).getNamedXContents()));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeAggregation));
 
         SearchPlugin registersDupePipelineAggregation = new SearchPlugin() {
             @Override
@@ -166,8 +163,19 @@ public class SearchModuleTests extends ModuleTestCase {
                             .addResultReader(InternalDerivative::new));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupePipelineAggregation)).getNamedXContents()));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupePipelineAggregation));
+
+        SearchPlugin registersDupeRescorer = new SearchPlugin() {
+            public List<RescorerSpec<?>> getRescorers() {
+                return singletonList(
+                        new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
+            }
+        };
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeRescorer));
+    }
+
+    private ThrowingRunnable registryForPlugin(SearchPlugin plugin) {
+        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, singletonList(plugin)).getNamedXContents());
     }
 
     public void testRegisterSuggester() {
@@ -258,6 +266,20 @@ public class SearchModuleTests extends ModuleTestCase {
         assertThat(
                 module.getNamedXContents().stream()
                     .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) && entry.name.match("test"))
+                    .collect(toList()),
+                hasSize(1));
+    }
+
+    public void testRegisterRescorer() {
+        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+            @Override
+            public List<RescorerSpec<?>> getRescorers() {
+                return singletonList(new RescorerSpec<>("test", TestRescorerBuilder::new, TestRescorerBuilder::fromXContent));
+            }
+        }));
+        assertThat(
+                module.getNamedXContents().stream()
+                    .filter(entry -> entry.categoryClass.equals(RescorerBuilder.class) && entry.name.match("test"))
                     .collect(toList()),
                 hasSize(1));
     }
@@ -421,6 +443,39 @@ public class SearchModuleTests extends ModuleTestCase {
 
         @Override
         public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+            return null;
+        }
+    }
+
+    private static class TestRescorerBuilder extends RescorerBuilder<TestRescorerBuilder> {
+        public static TestRescorerBuilder fromXContent(XContentParser parser) {
+            return null;
+        }
+
+        TestRescorerBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "test";
+        }
+
+        @Override
+        public RescorerBuilder<TestRescorerBuilder> rewrite(QueryRewriteContext ctx) throws IOException {
+            return this;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+        }
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        }
+
+        @Override
+        public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
             return null;
         }
     }

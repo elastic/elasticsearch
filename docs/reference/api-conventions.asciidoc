@@ -202,7 +202,7 @@ one or more maths expressions:
 * `-1d` - subtract one day
 * `/d`  - round down to the nearest day
 
-The supported time units differ than those supported by <<time-units, time units>> for durations.
+The supported time units differ from those supported by <<time-units, time units>> for durations.
 The supported units are:
 
 [horizontal]
@@ -577,7 +577,9 @@ the maximum allowed Levenshtein Edit Distance (or number of edits)
 `AUTO`::
 +
 --
-generates an edit distance based on the length of the term. For lengths:
+generates an edit distance based on the length of the term.
+Low and high distance arguments may be optionally provided `AUTO:[low],[high]`, if not specified,
+the default values are 3 and 6, equivalent to `AUTO:3,6` that make for lengths:
 
 `0..2`:: must match exactly
 `3..5`:: one edit allowed
@@ -600,7 +602,7 @@ invalid `size` parameter to the `_search` API:
 POST /twitter/_search?size=surprise_me
 ----------------------------------------------------------------------
 // CONSOLE
-// TEST[s/surprise_me/surprise_me&error_trace=false/ catch:request]
+// TEST[s/surprise_me/surprise_me&error_trace=false/ catch:bad_request]
 // Since the test system sends error_trace=true by default we have to override
 
 The response looks like:
@@ -634,7 +636,7 @@ But if you set `error_trace=true`:
 POST /twitter/_search?size=surprise_me&error_trace=true
 ----------------------------------------------------------------------
 // CONSOLE
-// TEST[catch:request]
+// TEST[catch:bad_request]
 
 The response looks like:
 

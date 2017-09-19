@@ -23,6 +23,7 @@ import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.Version
 
@@ -59,6 +60,10 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
         }
       }
     }
+  }
+  plugins.withType(BuildPlugin).whenPluginAdded {
+    project.licenseFile = project.rootProject.file('LICENSE.txt')
+    project.noticeFile = project.rootProject.file('NOTICE.txt')
   }
 }
 
@@ -122,6 +127,16 @@ if (currentVersion.bugfix == 0) {
   }
 }
 
+// build metadata from previous build, contains eg hashes for bwc builds
+String buildMetadataValue = System.getenv('BUILD_METADATA')
+if (buildMetadataValue == null) {
+  buildMetadataValue = ''
+}
+Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectEntries {
+  def (String key, String value) = it.split('=')
+  return [key, value]
+}
+
 // injecting groovy property variables into all projects
 allprojects {
   project.ext {
@@ -131,6 +146,7 @@ allprojects {
     // for backcompat testing
     indexCompatVersions = versions
     wireCompatVersions = versions.subList(prevMinorIndex, versions.size())
+    buildMetadata = buildMetadataMap
   }
 }
 
@@ -188,33 +204,15 @@ task branchConsistency {
 }
 
 subprojects {
-  project.afterEvaluate {
-    // include license and notice in jars
-    tasks.withType(Jar) {
-      into('META-INF') {
-        from project.rootProject.rootDir
-        include 'LICENSE.txt'
-        include 'NOTICE.txt'
-      }
-    }
-    // ignore missing javadocs
-    tasks.withType(Javadoc) { Javadoc javadoc ->
-      // the -quiet here is because of a bug in gradle, in that adding a string option
-      // by itself is not added to the options. By adding quiet, both this option and
-      // the "value" -quiet is added, separated by a space. This is ok since the javadoc
-      // command already adds -quiet, so we are just duplicating it
-      // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
-      javadoc.options.encoding='UTF8'
-      javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
-      /*
-      TODO: building javadocs with java 9 b118 is currently broken with weird errors, so
-      for now this is commented out...try again with the next ea build...
-      javadoc.executable = new File(project.javaHome, 'bin/javadoc')
-      if (project.javaVersion == JavaVersion.VERSION_1_9) {
-        // TODO: remove this hack! gradle should be passing this...
-        javadoc.options.addStringOption('source', '8')
-      }*/
-    }
+  // ignore missing javadocs
+  tasks.withType(Javadoc) { Javadoc javadoc ->
+    // the -quiet here is because of a bug in gradle, in that adding a string option
+    // by itself is not added to the options. By adding quiet, both this option and
+    // the "value" -quiet is added, separated by a space. This is ok since the javadoc
+    // command already adds -quiet, so we are just duplicating it
+    // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
+    javadoc.options.encoding='UTF8'
+    javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
   }
 
   /* Sets up the dependencies that we build as part of this project but
@@ -272,6 +270,27 @@ subprojects {
         }
       }
     }
+
+    // Handle javadoc dependencies across projects. Order matters: the linksOffline for
+    // org.elasticsearch:elasticsearch must be the last one or all the links for the
+    // other packages (e.g org.elasticsearch.client) will point to core rather than
+    // their own artifacts.
+    if (project.plugins.hasPlugin(BuildPlugin)) {
+      String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
+      Closure sortClosure = { a, b -> b.group <=> a.group }
+      Closure depJavadocClosure = { dep ->
+        if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
+          String substitution = project.ext.projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
+          if (substitution != null) {
+            project.javadoc.dependsOn substitution + ':javadoc'
+            String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
+            project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${project.project(substitution).buildDir}/docs/javadoc/"
+          }
+        }
+      }
+      project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+      project.configurations.provided.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+    }
   }
 }
 
@@ -281,7 +300,7 @@ subprojects {
 // the dependency is added.
 gradle.projectsEvaluated {
   allprojects {
-    if (project.path == ':test:framework' || project.path == ':client:test') {
+    if (project.path == ':test:framework') {
       // :test:framework:test cannot run before and after :core:test
       return
     }

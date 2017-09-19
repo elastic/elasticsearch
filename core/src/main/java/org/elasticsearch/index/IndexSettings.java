@@ -30,11 +30,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.mapper.AllFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.node.Node;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -48,9 +48,9 @@ import java.util.function.Function;
  * be called for each settings update.
  */
 public final class IndexSettings {
-
-    public static final Setting<String> DEFAULT_FIELD_SETTING =
-        new Setting<>("index.query.default_field", AllFieldMapper.NAME, Function.identity(), Property.IndexScope);
+    public static final Setting<List<String>> DEFAULT_FIELD_SETTING =
+        Setting.listSetting("index.query.default_field", Collections.singletonList("*"),
+            Function.identity(), Property.IndexScope, Property.Dynamic);
     public static final Setting<Boolean> QUERY_STRING_LENIENT_SETTING =
         Setting.boolSetting("index.query_string.lenient", false, Property.IndexScope);
     public static final Setting<Boolean> QUERY_STRING_ANALYZE_WILDCARD =
@@ -91,6 +91,29 @@ public final class IndexSettings {
      */
     public static final Setting<Integer> MAX_RESULT_WINDOW_SETTING =
         Setting.intSetting("index.max_result_window", 10000, 1, Property.Dynamic, Property.IndexScope);
+    /**
+     * Index setting describing the maximum value of from + size on an individual inner hit definition or
+     * top hits aggregation. The default maximum of 100 is defensive for the reason that the number of inner hit responses
+     * and number of top hits buckets returned is unbounded. Profile your cluster when increasing this setting.
+     */
+    public static final Setting<Integer> MAX_INNER_RESULT_WINDOW_SETTING =
+        Setting.intSetting("index.max_inner_result_window", 100, 1, Property.Dynamic, Property.IndexScope);
+
+    /**
+     * Index setting describing the maximum value of allowed `script_fields`that can be retrieved
+     * per search request. The default maximum of 32 is defensive for the reason that retrieving
+     * script fields is a costly operation.
+     */
+    public static final Setting<Integer> MAX_SCRIPT_FIELDS_SETTING =
+        Setting.intSetting("index.max_script_fields", 32, 0, Property.Dynamic, Property.IndexScope);
+
+    /**
+     * Index setting describing the maximum value of allowed `docvalue_fields`that can be retrieved
+     * per search request. The default maximum of 100 is defensive for the reason that retrieving
+     * doc values might incur a per-field per-document seek.
+     */
+    public static final Setting<Integer> MAX_DOCVALUE_FIELDS_SEARCH_SETTING =
+        Setting.intSetting("index.max_docvalue_fields_search", 100, 0, Property.Dynamic, Property.IndexScope);
     /**
      * Index setting describing the maximum size of the rescore window. Defaults to {@link #MAX_RESULT_WINDOW_SETTING}
      * because they both do the same thing: control the size of the heap of hits.
@@ -192,7 +215,7 @@ public final class IndexSettings {
     // volatile fields are updated via #updateIndexMetaData(IndexMetaData) under lock
     private volatile Settings settings;
     private volatile IndexMetaData indexMetaData;
-    private final String defaultField;
+    private volatile List<String> defaultFields;
     private final boolean queryStringLenient;
     private final boolean queryStringAnalyzeWildcard;
     private final boolean queryStringAllowLeadingWildcard;
@@ -211,8 +234,11 @@ public final class IndexSettings {
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
+    private volatile int maxInnerResultWindow;
     private volatile int maxAdjacencyMatrixFilters;
     private volatile int maxRescoreWindow;
+    private volatile int maxDocvalueFields;
+    private volatile int maxScriptFields;
     private volatile boolean TTLPurgeDisabled;
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -228,10 +254,14 @@ public final class IndexSettings {
     private final boolean singleType;
 
     /**
-     * Returns the default search field for this index.
+     * Returns the default search fields for this index.
      */
-    public String getDefaultField() {
-        return defaultField;
+    public List<String> getDefaultFields() {
+        return defaultFields;
+    }
+
+    private void setDefaultFields(List<String> defaultFields) {
+        this.defaultFields = defaultFields;
     }
 
     /**
@@ -291,12 +321,12 @@ public final class IndexSettings {
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
 
-        this.defaultField = DEFAULT_FIELD_SETTING.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
         this.defaultAllowUnmappedFields = scopedSettings.get(ALLOW_UNMAPPED);
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
+        defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
@@ -307,8 +337,11 @@ public final class IndexSettings {
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
+        maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
         maxAdjacencyMatrixFilters = scopedSettings.get(MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
         maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
+        maxDocvalueFields = scopedSettings.get(MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
+        maxScriptFields = scopedSettings.get(MAX_SCRIPT_FIELDS_SETTING);
         TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
@@ -335,8 +368,11 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TTL_DISABLE_PURGE_SETTING, this::setTTLPurgeDisabled);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
+        scopedSettings.addSettingsUpdateConsumer(MAX_INNER_RESULT_WINDOW_SETTING, this::setMaxInnerResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_ADJACENCY_MATRIX_FILTERS_SETTING, this::setMaxAdjacencyMatrixFilters);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESCORE_WINDOW_SETTING, this::setMaxRescoreWindow);
+        scopedSettings.addSettingsUpdateConsumer(MAX_DOCVALUE_FIELDS_SEARCH_SETTING, this::setMaxDocvalueFields);
+        scopedSettings.addSettingsUpdateConsumer(MAX_SCRIPT_FIELDS_SETTING, this::setMaxScriptFields);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
@@ -348,6 +384,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
+        scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
     }
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
@@ -560,6 +597,17 @@ public final class IndexSettings {
     }
 
     /**
+     * Returns the max result window for an individual inner hit definition or top hits aggregation.
+     */
+    public int getMaxInnerResultWindow() {
+        return maxInnerResultWindow;
+    }
+
+    private void setMaxInnerResultWindow(int maxInnerResultWindow) {
+        this.maxInnerResultWindow = maxInnerResultWindow;
+    }
+
+    /**
      * Returns the max number of filters in adjacency_matrix aggregation search requests
      */
     public int getMaxAdjacencyMatrixFilters() {
@@ -579,6 +627,28 @@ public final class IndexSettings {
 
     private void setMaxRescoreWindow(int maxRescoreWindow) {
         this.maxRescoreWindow = maxRescoreWindow;
+    }
+
+    /**
+     * Returns the maximum number of allowed docvalue_fields to retrieve in a search request
+     */
+    public int getMaxDocvalueFields() {
+        return this.maxDocvalueFields;
+    }
+
+    private void setMaxDocvalueFields(int maxDocvalueFields) {
+        this.maxDocvalueFields = maxDocvalueFields;
+    }
+
+    /**
+     * Returns the maximum number of allowed script_fields to retrieve in a search request
+     */
+    public int getMaxScriptFields() {
+        return this.maxScriptFields;
+    }
+
+    private void setMaxScriptFields(int maxScriptFields) {
+        this.maxScriptFields = maxScriptFields;
     }
 
     /**

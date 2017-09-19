@@ -19,23 +19,24 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.HttpHost;
-import org.elasticsearch.client.http.HttpResponse;
-import org.elasticsearch.client.http.ProtocolVersion;
-import org.elasticsearch.client.http.RequestLine;
-import org.elasticsearch.client.http.StatusLine;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.entity.InputStreamEntity;
-import org.elasticsearch.client.http.entity.StringEntity;
-import org.elasticsearch.client.http.message.BasicHttpResponse;
-import org.elasticsearch.client.http.message.BasicRequestLine;
-import org.elasticsearch.client.http.message.BasicStatusLine;
-import org.elasticsearch.client.http.util.EntityUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.ProtocolVersion;
+import org.apache.http.RequestLine;
+import org.apache.http.StatusLine;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.InputStreamEntity;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHttpResponse;
+import org.apache.http.message.BasicRequestLine;
+import org.apache.http.message.BasicStatusLine;
+import org.apache.http.util.EntityUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -74,8 +75,14 @@ public class ResponseExceptionTests extends RestClientTestCase {
             assertNull(responseException.getResponse().getEntity());
         }
 
-        String message = response.getRequestLine().getMethod() + " " + response.getHost() + response.getRequestLine().getUri()
-                + ": " + response.getStatusLine().toString();
+        String message = String.format(Locale.ROOT,
+            "method [%s], host [%s], URI [%s], status line [%s]",
+            response.getRequestLine().getMethod(),
+            response.getHost(),
+            response.getRequestLine().getUri(),
+            response.getStatusLine().toString()
+        );
+
         if (hasBody) {
             message += "\n" + responseBody;
         }

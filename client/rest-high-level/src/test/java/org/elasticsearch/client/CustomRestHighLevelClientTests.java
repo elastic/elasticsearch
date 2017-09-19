@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.extension;
+package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;

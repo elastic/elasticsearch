@@ -2497,6 +2497,35 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    public void testGetOperationsBetweenMinAndMaxSeqNoAPI() throws IOException {
+        final int operations = randomIntBetween(2, 8096);
+        long seqNo = 0;
+        for (int i = 0; i < operations; i++) {
+            translog.add(new Translog.NoOp(seqNo++, 0, "test'"));
+            if (rarely()) {
+                translog.rollGeneration();
+            }
+        }
+        translog.rollGeneration();
+
+        int iters = randomIntBetween(8, 32);
+        for (int iter = 0; iter < iters; iter++) {
+            int min = randomIntBetween(0, operations - 1);
+            int max = randomIntBetween(min, operations);
+            try (Translog.Snapshot snapshot = translog.newSnapshotBetweenMinAndMaxSeqNo(min, max)) {
+                Translog.Operation operation;
+                do {
+                    operation = snapshot.next();
+                } while (operation.seqNo() < (min - 1));
+
+                for (long expectedSeqNo = min; expectedSeqNo < max; expectedSeqNo++) {
+                    operation = snapshot.next();
+                    assertThat(operation.seqNo(), equalTo(expectedSeqNo));
+                }
+            }
+        }
+    }
+
     public void testSimpleCommit() throws IOException {
         final int operations = randomIntBetween(1, 4096);
         long seqNo = 0;

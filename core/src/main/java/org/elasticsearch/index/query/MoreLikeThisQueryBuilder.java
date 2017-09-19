@@ -96,9 +96,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         ParseField FIELDS = new ParseField("fields");
         ParseField LIKE = new ParseField("like");
         ParseField UNLIKE = new ParseField("unlike");
-        ParseField LIKE_TEXT = new ParseField("like_text").withAllDeprecated("like");
-        ParseField IDS = new ParseField("ids").withAllDeprecated("like");
-        ParseField DOCS = new ParseField("docs").withAllDeprecated("like");
         ParseField MAX_QUERY_TERMS = new ParseField("max_query_terms");
         ParseField MIN_TERM_FREQ = new ParseField("min_term_freq");
         ParseField MIN_DOC_FREQ = new ParseField("min_doc_freq");
@@ -846,8 +843,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     parseLikeField(parser, likeTexts, likeItems);
                 } else if (Field.UNLIKE.match(currentFieldName)) {
                     parseLikeField(parser, unlikeTexts, unlikeItems);
-                } else if (Field.LIKE_TEXT.match(currentFieldName)) {
-                    likeTexts.add(parser.text());
                 } else if (Field.MAX_QUERY_TERMS.match(currentFieldName)) {
                     maxQueryTerms = parser.intValue();
                 } else if (Field.MIN_TERM_FREQ.match(currentFieldName)) {
@@ -890,20 +885,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 } else if (Field.UNLIKE.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         parseLikeField(parser, unlikeTexts, unlikeItems);
-                    }
-                } else if (Field.IDS.match(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (!token.isValue()) {
-                            throw new IllegalArgumentException("ids array element should only contain ids");
-                        }
-                        likeItems.add(new Item(null, null, parser.text()));
-                    }
-                } else if (Field.DOCS.match(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token != XContentParser.Token.START_OBJECT) {
-                            throw new IllegalArgumentException("docs array element should include an object");
-                        }
-                        likeItems.add(Item.parse(parser, new Item()));
                     }
                 } else if (Field.STOP_WORDS.match(currentFieldName)) {
                     stopWords = new ArrayList<>();

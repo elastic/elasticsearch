@@ -1,5 +1,5 @@
 ---
-setup:
+"Index data, search, and create things in the cluster state that we'll validate are there after the ugprade":
   - do:
       indices.create:
         index: test_index
@@ -49,18 +49,6 @@ setup:
   - do:
       indices.flush:
         index: test_index,index_with_replicas
-
----
-teardown:
-  - do:
-      indices.delete:
-          index: test_index
-  - do:
-      indices.delete:
-          index: index_with_replicas
-
----
-"Index data, search, and create things in the cluster state that we'll validate are there after the ugprade":
 
   - do:
       search:
@@ -116,7 +104,6 @@ teardown:
           params:
             f1: v5_old
   - match: { hits.total: 1 }
-
 ---
 "Put a template 5.6.0 and beyond":
   - skip:

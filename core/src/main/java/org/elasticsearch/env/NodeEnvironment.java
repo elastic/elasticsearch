@@ -19,7 +19,6 @@
 
 package org.elasticsearch.env;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -852,13 +851,13 @@ public final class NodeEnvironment  implements Closeable {
      * @return a map of NodePath to count of the shards for the index on that path
      * @throws IOException if an IOException occurs
      */
-    public ObjectLongHashMap<NodePath> shardCountPerPath(final Index index) throws IOException {
+    public Map<NodePath, Long> shardCountPerPath(final Index index) throws IOException {
         assert index != null;
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
         assertEnvIsLocked();
-        final ObjectLongHashMap<NodePath> shardCountPerPath = new ObjectLongHashMap<>();
+        final Map<NodePath, Long> shardCountPerPath = new HashMap<>();
         final String indexUniquePathId = index.getUUID();
         for (final NodePath nodePath : nodePaths) {
             Path location = nodePath.indicesPath;
@@ -866,7 +865,7 @@ public final class NodeEnvironment  implements Closeable {
                 try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(location)) {
                     for (Path indexPath : indexStream) {
                         if (indexUniquePathId.equals(indexPath.getFileName().toString())) {
-                            shardCountPerPath.put(nodePath, findAllShardsForIndex(indexPath, index).size());
+                            shardCountPerPath.put(nodePath, (long) findAllShardsForIndex(indexPath, index).size());
                         }
                     }
                 }

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.shard;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -203,7 +202,7 @@ public final class ShardPath {
                 // paths and an index with 9 primary shards, the maximum number of shards per path
                 // would be 3.
                 int maxShardsPerPath = Math.floorDiv(shardCount, paths.length) + ((shardCount % paths.length) == 0 ? 0 : 1);
-                ObjectLongHashMap<NodeEnvironment.NodePath> pathToShardCount = env.shardCountPerPath(shardId.getIndex());
+                Map<NodeEnvironment.NodePath, Long> pathToShardCount = env.shardCountPerPath(shardId.getIndex());
 
                 BigInteger maxUsableBytes = BigInteger.valueOf(Long.MIN_VALUE);
                 for (NodeEnvironment.NodePath nodePath : paths) {
@@ -217,7 +216,7 @@ public final class ShardPath {
                     if (count != null) {
                         usableBytes = usableBytes.subtract(estShardSizeInBytes.multiply(BigInteger.valueOf(count)));
                     }
-                    if (pathToShardCount.get(nodePath) >= maxShardsPerPath) {
+                    if (pathToShardCount.getOrDefault(nodePath, 0L) >= maxShardsPerPath) {
                         // Too many shards for this index on this path, skip this path
                         continue;
                     } else if (bestPath == null || usableBytes.compareTo(maxUsableBytes) > 0) {

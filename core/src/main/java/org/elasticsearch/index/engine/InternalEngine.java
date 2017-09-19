@@ -1928,9 +1928,7 @@ public class InternalEngine extends Engine {
                 }
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
-                if (historyUUID != null) {
-                    commitData.put(HISTORY_UUID_KEY, historyUUID);
-                }
+                commitData.put(HISTORY_UUID_KEY, historyUUID);
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });

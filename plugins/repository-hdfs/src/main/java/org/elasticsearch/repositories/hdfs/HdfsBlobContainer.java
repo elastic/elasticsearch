@@ -25,6 +25,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -47,12 +48,14 @@ import java.util.Map;
 
 final class HdfsBlobContainer extends AbstractBlobContainer {
     private final HdfsBlobStore store;
+    private final HdfsSecurityContext securityContext;
     private final Path path;
     private final int bufferSize;
 
-    HdfsBlobContainer(BlobPath blobPath, HdfsBlobStore store, Path path, int bufferSize) {
+    HdfsBlobContainer(BlobPath blobPath, HdfsBlobStore store, Path path, int bufferSize, HdfsSecurityContext hdfsSecurityContext) {
         super(blobPath);
         this.store = store;
+        this.securityContext = hdfsSecurityContext;
         this.path = path;
         this.bufferSize = bufferSize;
     }
@@ -108,7 +111,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                 // FSDataInputStream can open connections on read() or skip() so we wrap in
                 // HDFSPrivilegedInputSteam which will ensure that underlying methods will
                 // be called with the proper privileges.
-                return new HDFSPrivilegedInputSteam(fileContext.open(new Path(path, blobName), bufferSize));
+                return new HDFSPrivilegedInputSteam(fileContext.open(new Path(path, blobName), bufferSize), securityContext);
             }
         });
     }
@@ -170,14 +173,17 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     /**
-     * Exists to wrap underlying InputStream methods that might make socket connections in
-     * doPrivileged blocks. This is due to the way that hdfs client libraries might open
-     * socket connections when you are reading from an InputStream.
+     * Exists to wrap underlying InputStream methods that might need to make connections or
+     * perform actions within doPrivileged blocks. The HDFS Client performs a lot underneath
+     * the FSInputStream, including making connections and executing reflection based RPC calls.
      */
     private static class HDFSPrivilegedInputSteam extends FilterInputStream {
 
-        HDFSPrivilegedInputSteam(InputStream in) {
+        private final HdfsSecurityContext securityContext;
+
+        HDFSPrivilegedInputSteam(InputStream in, HdfsSecurityContext hdfsSecurityContext) {
             super(in);
+            this.securityContext = hdfsSecurityContext;
         }
 
         public int read() throws IOException {
@@ -207,9 +213,14 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             });
         }
 
-        private static  <T> T doPrivilegedOrThrow(PrivilegedExceptionAction<T> action) throws IOException {
+        private <T> T doPrivilegedOrThrow(PrivilegedExceptionAction<T> action) throws IOException {
+            SecurityManager sm = System.getSecurityManager();
+            if (sm != null) {
+                // unprivileged code such as scripts do not have SpecialPermission
+                sm.checkPermission(new SpecialPermission());
+            }
             try {
-                return AccessController.doPrivileged(action);
+                return AccessController.doPrivileged(action, null, securityContext.getRestrictedExecutionPermissions());
             } catch (PrivilegedActionException e) {
                 throw (IOException) e.getCause();
             }

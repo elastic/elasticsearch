@@ -161,7 +161,8 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         if (sessionFactory.supportsUnauthenticatedSession()) {
             // we submit to the threadpool because authentication using LDAP will execute blocking I/O for a bind request and we don't want
             // network threads stuck waiting for a socket to connect. After the bind, then all interaction with LDAP should be async
-            final ActionListener<AuthenticationResult> sessionListener = ActionListener.wrap(AuthenticationResult::getUser,
+            final ActionListener<AuthenticationResult> sessionListener = ActionListener.wrap(
+                    result -> userActionListener.onResponse(result.getUser()),
                     userActionListener::onFailure);
             final CancellableLdapRunnable<User> cancellableLdapRunnable = new CancellableLdapRunnable<>(userActionListener, e -> null,
                     () -> sessionFactory.unauthenticatedSession(username,

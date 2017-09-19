@@ -54,7 +54,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -235,6 +234,34 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         }
 
         verify(sessionFactory, times(2)).session(eq("CN=ironman"), any(SecureString.class), any(ActionListener.class));
+    }
+
+    public void testUnauthenticatedLookupWithConnectionPool() throws Exception {
+        doUnauthenticatedLookup(true);
+    }
+
+    public void testUnauthenticatedLookupWithoutConnectionPool() throws Exception {
+        doUnauthenticatedLookup(false);
+    }
+
+    private void doUnauthenticatedLookup(boolean pooled) throws Exception {
+        Settings settings = settings(Settings.builder()
+                .put(ActiveDirectorySessionFactory.POOL_ENABLED.getKey(), pooled)
+                .put(ActiveDirectorySessionFactory.BIND_DN.getKey(), "CN=ironman@ad.test.elasticsearch.com")
+                .put(ActiveDirectorySessionFactory.BIND_PASSWORD.getKey(), PASSWORD)
+                .build());
+        RealmConfig config = new RealmConfig("testUnauthenticatedLookupWithConnectionPool", settings, globalSettings,
+                new Environment(globalSettings), new ThreadContext(globalSettings));
+        try(ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService)) {
+            DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
+            LdapRealm realm = new LdapRealm(LdapRealm.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
+
+            PlainActionFuture<User> future = new PlainActionFuture<>();
+            realm.lookupUser("CN=Thor", future);
+            final User user = future.actionGet();
+            assertThat(user, notNullValue());
+            assertThat(user.principal(), equalTo("CN=Thor"));
+        }
     }
 
     public void testRealmMapsGroupsToRoles() throws Exception {

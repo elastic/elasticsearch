@@ -14,6 +14,7 @@
 load $BATS_UTILS/utils.bash
 load $BATS_UTILS/tar.bash
 load $BATS_UTILS/plugins.bash
+load $BATS_UTILS/xpack.bash
 
 setup() {
     skip_not_tar_gz
@@ -36,21 +37,7 @@ setup() {
 }
 
 @test "[X-PACK] verify x-pack installation" {
-    assert_file "$ESHOME/bin/x-pack" d elasticsearch elasticsearch 755
-    assert_file "$ESHOME/bin/x-pack/certgen" f elasticsearch elasticsearch 755
-    assert_file "$ESHOME/bin/x-pack/croneval" f elasticsearch elasticsearch 755
-    assert_file "$ESHOME/bin/x-pack/extension" f elasticsearch elasticsearch 755
-    assert_file "$ESHOME/bin/x-pack/migrate" f elasticsearch elasticsearch 755
-    assert_file "$ESHOME/bin/x-pack/setup-passwords" f elasticsearch elasticsearch 755
-    assert_file "$ESHOME/bin/x-pack/syskeygen" f elasticsearch elasticsearch 755
-    assert_file "$ESHOME/bin/x-pack/users" f elasticsearch elasticsearch 755
-    assert_file "$ESHOME/bin/x-pack/x-pack-env" f elasticsearch elasticsearch 755
-    assert_file "$ESCONFIG/x-pack" d elasticsearch elasticsearch 750
-    assert_file "$ESCONFIG/x-pack/users" f elasticsearch elasticsearch 660
-    assert_file "$ESCONFIG/x-pack/users_roles" f elasticsearch elasticsearch 660
-    assert_file "$ESCONFIG/x-pack/roles.yml" f elasticsearch elasticsearch 660
-    assert_file "$ESCONFIG/x-pack/role_mapping.yml" f elasticsearch elasticsearch 660
-    assert_file "$ESCONFIG/x-pack/log4j2.properties" f elasticsearch elasticsearch 660
+    verify_xpack_installation
 }
 
 @test "[X-PACK] verify croneval works" {

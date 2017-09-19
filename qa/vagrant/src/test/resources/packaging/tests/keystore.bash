@@ -6,6 +6,7 @@
 
 load $BATS_UTILS/utils.bash
 load $BATS_UTILS/plugins.bash
+load $BATS_UTILS/xpack.bash
 
 setup() {
     if [ $BATS_TEST_NUMBER == 1 ]; then
@@ -45,9 +46,5 @@ fi
 
 @test "[$GROUP] keystore exists after install" {
     install_and_check_plugin x pack x-pack-*.jar
-    if [[ "$BATS_TEST_FILENAME" =~ 20_tar_keystore.bats$ ]]; then
-        assert_file "$ESCONFIG/elasticsearch.keystore" f elasticsearch elasticsearch 660
-    else
-        assert_file "$ESCONFIG/elasticsearch.keystore" f root elasticsearch 660
-    fi
+    verify_xpack_installation
 }

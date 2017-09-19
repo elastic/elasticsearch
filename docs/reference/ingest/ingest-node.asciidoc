@@ -458,7 +458,7 @@ their name. For example:
 --------------------------------------------------
 {
   "set": {
-    "field": "my_field"
+    "field": "my_field",
     "value": 582.1
   }
 }
@@ -471,7 +471,7 @@ On top of this, fields from the source are always accessible via the `_source` p
 --------------------------------------------------
 {
   "set": {
-    "field": "_source.my_field"
+    "field": "_source.my_field",
     "value": 582.1
   }
 }
@@ -491,7 +491,7 @@ The following example sets the `_id` metadata field of a document to `1`:
 --------------------------------------------------
 {
   "set": {
-    "field": "_id"
+    "field": "_id",
     "value": "1"
   }
 }
@@ -517,7 +517,7 @@ The following example adds a field with the name `received`. The value is the in
 --------------------------------------------------
 {
   "set": {
-    "field": "received"
+    "field": "received",
     "value": "{{_ingest.timestamp}}"
   }
 }
@@ -542,7 +542,7 @@ the values of `field_a` and `field_b`.
 --------------------------------------------------
 {
   "set": {
-    "field": "field_c"
+    "field": "field_c",
     "value": "{{field_a}} {{field_b}}"
   }
 }
@@ -556,7 +556,7 @@ to set the index that the document will be indexed into:
 --------------------------------------------------
 {
   "set": {
-    "field": "_index"
+    "field": "_index",
     "value": "{{geoip.country_iso_code}}"
   }
 }

@@ -131,6 +131,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         assertThat(primary.knownLocalCheckpoints.remove(primaryShard.allocationId().getId()), equalTo(primary.localCheckpoint));
         assertThat(primary.knownLocalCheckpoints, equalTo(replicasProxy.generatedLocalCheckpoints));
+        assertThat(primary.knownGlobalCheckpoints, equalTo(replicasProxy.generatedGlobalCheckpoints));
     }
 
     public void testDemotedPrimary() throws Exception {
@@ -437,7 +438,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         @Override
         public void updateGlobalCheckpointForShard(String allocationId, long globalCheckpoint) {
-            knownGlobalCheckpoints.compute(allocationId, (k, v) -> v == null || globalCheckpoint > v ? globalCheckpoint : v);
+            knownGlobalCheckpoints.put(allocationId, globalCheckpoint);
         }
 
         @Override
@@ -461,15 +462,23 @@ public class ReplicationOperationTests extends ESTestCase {
 
     static class ReplicaResponse implements ReplicationOperation.ReplicaResponse {
         final long localCheckpoint;
+        final long globalCheckpoint;
 
-        ReplicaResponse(long localCheckpoint) {
+        ReplicaResponse(long localCheckpoint, long globalCheckpoint) {
             this.localCheckpoint = localCheckpoint;
+            this.globalCheckpoint = globalCheckpoint;
         }
 
         @Override
         public long localCheckpoint() {
             return localCheckpoint;
         }
+
+        @Override
+        public long globalCheckpoint() {
+            return globalCheckpoint;
+        }
+
     }
 
     static class TestReplicaProxy implements ReplicationOperation.Replicas<Request> {
@@ -479,6 +488,8 @@ public class ReplicationOperationTests extends ESTestCase {
         final Set<ShardRouting> failedReplicas = ConcurrentCollections.newConcurrentSet();
 
         final Map<String, Long> generatedLocalCheckpoints = ConcurrentCollections.newConcurrentMap();
+
+        final Map<String, Long> generatedGlobalCheckpoints = ConcurrentCollections.newConcurrentMap();
 
         final Set<String> markedAsStaleCopies = ConcurrentCollections.newConcurrentSet();
 
@@ -503,11 +514,12 @@ public class ReplicationOperationTests extends ESTestCase {
             if (opFailures.containsKey(replica)) {
                 listener.onFailure(opFailures.get(replica));
             } else {
-                final long checkpoint = random().nextLong();
+                final long generatedLocalCheckpoint = random().nextLong();
+                final long generatedGlobalCheckpoint = random().nextLong();
                 final String allocationId = replica.allocationId().getId();
-                Long existing = generatedLocalCheckpoints.put(allocationId, checkpoint);
-                assertNull(existing);
-                listener.onResponse(new ReplicaResponse(checkpoint));
+                assertNull(generatedLocalCheckpoints.put(allocationId, generatedLocalCheckpoint));
+                assertNull(generatedGlobalCheckpoints.put(allocationId, generatedGlobalCheckpoint));
+                listener.onResponse(new ReplicaResponse(generatedLocalCheckpoint, generatedGlobalCheckpoint));
             }
         }
 

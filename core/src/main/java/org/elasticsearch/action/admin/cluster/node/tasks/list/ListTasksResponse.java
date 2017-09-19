@@ -110,7 +110,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
                     // we found parent in the list of tasks - add it to the parent list
                     parentTask.addGroup(taskGroup);
                 } else {
-                    // we got zombie or the parent was filtered out - add it to the the top task list
+                    // we got zombie or the parent was filtered out - add it to the top task list
                     topLevelTasks.add(taskGroup);
                 }
             } else {

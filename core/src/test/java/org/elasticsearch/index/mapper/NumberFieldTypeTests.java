@@ -49,9 +49,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
@@ -499,5 +497,26 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             value = v;
             message = m;
         }
+    }
+
+    public void testDisplayValue() {
+        for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
+            NumberFieldMapper.NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType(type);
+            assertNull(fieldType.valueForDisplay(null));
+        }
+        assertEquals(Byte.valueOf((byte) 3),
+                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.BYTE).valueForDisplay(3));
+        assertEquals(Short.valueOf((short) 3),
+                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.SHORT).valueForDisplay(3));
+        assertEquals(Integer.valueOf(3),
+                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER).valueForDisplay(3));
+        assertEquals(Long.valueOf(3),
+                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG).valueForDisplay(3L));
+        assertEquals(Double.valueOf(1.2),
+                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.HALF_FLOAT).valueForDisplay(1.2));
+        assertEquals(Double.valueOf(1.2),
+                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.FLOAT).valueForDisplay(1.2));
+        assertEquals(Double.valueOf(1.2),
+                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE).valueForDisplay(1.2));
     }
 }

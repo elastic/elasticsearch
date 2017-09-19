@@ -21,7 +21,6 @@
 # Painless definition file. This defines the hierarchy of classes,
 # what methods and fields they have, etc.
 #
-
 #### Interfaces
 
 class BiConsumer -> java.util.function.BiConsumer {
@@ -34,7 +33,7 @@ class BiFunction -> java.util.function.BiFunction {
   def apply(def,def)
 }
 
-class BinaryOperator -> java.util.function.BinaryOperator extends BiFunction {
+class BinaryOperator -> java.util.function.BinaryOperator {
   BinaryOperator maxBy(Comparator)
   BinaryOperator minBy(Comparator)
 }
@@ -227,6 +226,6 @@ class ToLongFunction -> java.util.function.ToLongFunction {
   long applyAsLong(def)
 }
 
-class UnaryOperator -> java.util.function.UnaryOperator extends Function {
+class UnaryOperator -> java.util.function.UnaryOperator {
   UnaryOperator identity()
 }

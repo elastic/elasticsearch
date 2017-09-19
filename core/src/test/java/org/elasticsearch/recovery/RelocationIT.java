@@ -20,6 +20,7 @@
 package org.elasticsearch.recovery;
 
 import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.procedures.IntProcedure;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.util.English;
@@ -34,6 +35,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -44,12 +46,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.plugins.Plugin;
@@ -118,8 +122,14 @@ public class RelocationIT extends ESIntegTestCase {
                     }
                     ShardStats primary = maybePrimary.get();
                     final SeqNoStats primarySeqNoStats = primary.getSeqNoStats();
-                    assertThat(primary.getShardRouting() + " should have set the global checkpoint",
+                    final ShardRouting primaryShardRouting = primary.getShardRouting();
+                    assertThat(primaryShardRouting + " should have set the global checkpoint",
                         primarySeqNoStats.getGlobalCheckpoint(), not(equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO)));
+                    final DiscoveryNode node = clusterService().state().nodes().get(primaryShardRouting.currentNodeId());
+                    final IndicesService indicesService =
+                            internalCluster().getInstance(IndicesService.class, node.getName());
+                    final IndexShard indexShard = indicesService.getShardOrNull(primaryShardRouting.shardId());
+                    final ObjectLongMap<String> globalCheckpoints = indexShard.getGlobalCheckpoints();
                     for (ShardStats shardStats : indexShardStats) {
                         final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
                         assertThat(shardStats.getShardRouting() + " local checkpoint mismatch",
@@ -128,6 +138,10 @@ public class RelocationIT extends ESIntegTestCase {
                             seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
                         assertThat(shardStats.getShardRouting() + " max seq no mismatch",
                             seqNoStats.getMaxSeqNo(), equalTo(primarySeqNoStats.getMaxSeqNo()));
+                        // the local knowledge on the primary of the global checkpoint equals the global checkpoint on the shard
+                        assertThat(
+                                seqNoStats.getGlobalCheckpoint(),
+                                equalTo(globalCheckpoints.get(shardStats.getShardRouting().allocationId().getId())));
                     }
                 }
             }

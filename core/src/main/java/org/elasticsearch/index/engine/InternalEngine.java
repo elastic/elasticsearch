@@ -48,6 +48,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -142,6 +143,8 @@ public class InternalEngine extends Engine {
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
 
+    @Nullable
+    private final String historyUUID;
 
     public InternalEngine(EngineConfig engineConfig) throws EngineException {
         super(engineConfig);
@@ -192,11 +195,15 @@ public class InternalEngine extends Engine {
                         throw new IllegalArgumentException(openMode.toString());
                 }
                 logger.trace("recovered [{}]", seqNoStats);
-                seqNoService = sequenceNumberService(shardId, engineConfig.getIndexSettings(), seqNoStats);
+                seqNoService = sequenceNumberService(shardId, allocationId, engineConfig.getIndexSettings(), seqNoStats);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
+                historyUUID = loadOrGenerateHistoryUUID(writer, engineConfig.getForceNewHistoryUUID());
+                Objects.requireNonNull(historyUUID, "history uuid should not be null");
                 indexWriter = writer;
                 translog = openTranslog(engineConfig, writer, translogDeletionPolicy, () -> seqNoService().getGlobalCheckpoint());
                 assert translog.getGeneration() != null;
+                this.translog = translog;
+                updateWriterOnOpen();
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             } catch (AssertionError e) {
@@ -208,8 +215,6 @@ public class InternalEngine extends Engine {
                     throw e;
                 }
             }
-
-            this.translog = translog;
             manager = createSearcherManager();
             this.searcherManager = manager;
             this.versionMap.setManager(searcherManager);
@@ -283,10 +288,12 @@ public class InternalEngine extends Engine {
 
     private static SequenceNumbersService sequenceNumberService(
         final ShardId shardId,
+        final String allocationId,
         final IndexSettings indexSettings,
         final SeqNoStats seqNoStats) {
         return new SequenceNumbersService(
             shardId,
+            allocationId,
             indexSettings,
             seqNoStats.getMaxSeqNo(),
             seqNoStats.getLocalCheckpoint(),
@@ -340,6 +347,12 @@ public class InternalEngine extends Engine {
             flush(true, true);
         } else if (translog.isCurrent(translogGeneration) == false) {
             commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
+            refreshLastCommittedSegmentInfos();
+        } else if (lastCommittedSegmentInfos.getUserData().containsKey(HISTORY_UUID_KEY) == false)  {
+            assert historyUUID != null;
+            // put the history uuid into the index
+            commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
+            refreshLastCommittedSegmentInfos();
         }
         // clean up what's not needed
         translog.trimUnreferencedReaders();
@@ -356,28 +369,41 @@ public class InternalEngine extends Engine {
                 throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
             }
         }
-        final Translog translog = new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
-        if (translogUUID == null) {
-            assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OpenMode must not be "
-                + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
-            boolean success = false;
-            try {
-                commitIndexWriter(writer, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
-                    ? commitDataAsMap(writer).get(SYNC_COMMIT_ID) : null);
-                success = true;
-            } finally {
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(translog);
-                }
-            }
-        }
-        return translog;
+        return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
     }
+
+    /** If needed, updates the metadata in the index writer to match the potentially new translog and history uuid */
+    private void updateWriterOnOpen() throws IOException {
+        Objects.requireNonNull(historyUUID);
+        final Map<String, String> commitUserData = commitDataAsMap(indexWriter);
+        boolean needsCommit = false;
+        if (historyUUID.equals(commitUserData.get(HISTORY_UUID_KEY)) == false) {
+            needsCommit = true;
+        } else {
+            assert config().getForceNewHistoryUUID() == false : "config forced a new history uuid but it didn't change";
+            assert openMode != EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG : "new index but it already has an existing history uuid";
+        }
+        if (translog.getTranslogUUID().equals(commitUserData.get(Translog.TRANSLOG_UUID_KEY)) == false) {
+            needsCommit = true;
+        } else {
+            assert openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "translog uuid didn't change but open mode is " + openMode;
+        }
+        if (needsCommit) {
+            commitIndexWriter(indexWriter, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
+                ? commitUserData.get(SYNC_COMMIT_ID) : null);
+        }
+    }
+
 
     @Override
     public Translog getTranslog() {
         ensureOpen();
         return translog;
+    }
+
+    @Override
+    public String getHistoryUUID() {
+        return historyUUID;
     }
 
     /**
@@ -397,6 +423,22 @@ public class InternalEngine extends Engine {
         } else {
             return null;
         }
+    }
+
+    /**
+     * Reads the current stored history ID from the IW commit data. Generates a new UUID if not found or if generation is forced.
+     */
+    private String loadOrGenerateHistoryUUID(final IndexWriter writer, boolean forceNew) throws IOException {
+        String uuid = commitDataAsMap(writer).get(HISTORY_UUID_KEY);
+        if (uuid == null || forceNew) {
+            assert
+                forceNew || // recovery from a local store creates an index that doesn't have yet a history_uuid
+                openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG ||
+                config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
+                "existing index was created after 6_0_0_rc1 but has no history uuid";
+            uuid = UUIDs.randomBase64UUID();
+        }
+        return uuid;
     }
 
     private SearcherManager createSearcherManager() throws EngineException {
@@ -1310,30 +1352,8 @@ public class InternalEngine extends Engine {
                     } catch (Exception e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
-                    /*
-                     * we have to inc-ref the store here since if the engine is closed by a tragic event
-                     * we don't acquire the write lock and wait until we have exclusive access. This might also
-                     * dec the store reference which can essentially close the store and unless we can inc the reference
-                     * we can't use it.
-                     */
-                    store.incRef();
-                    try {
-                        // reread the last committed segment infos
-                        lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-                    } catch (Exception e) {
-                        if (isClosed.get() == false) {
-                            try {
-                                logger.warn("failed to read latest segment infos on flush", e);
-                            } catch (Exception inner) {
-                                e.addSuppressed(inner);
-                            }
-                            if (Lucene.isCorruptionException(e)) {
-                                throw new FlushFailedEngineException(shardId, e);
-                            }
-                        }
-                    } finally {
-                        store.decRef();
-                    }
+                    refreshLastCommittedSegmentInfos();
+
                 }
                 newCommitId = lastCommittedSegmentInfos.getId();
             } catch (FlushFailedEngineException ex) {
@@ -1349,6 +1369,33 @@ public class InternalEngine extends Engine {
             pruneDeletedTombstones();
         }
         return new CommitId(newCommitId);
+    }
+
+    private void refreshLastCommittedSegmentInfos() {
+    /*
+     * we have to inc-ref the store here since if the engine is closed by a tragic event
+     * we don't acquire the write lock and wait until we have exclusive access. This might also
+     * dec the store reference which can essentially close the store and unless we can inc the reference
+     * we can't use it.
+     */
+        store.incRef();
+        try {
+            // reread the last committed segment infos
+            lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+        } catch (Exception e) {
+            if (isClosed.get() == false) {
+                try {
+                    logger.warn("failed to read latest segment infos on flush", e);
+                } catch (Exception inner) {
+                    e.addSuppressed(inner);
+                }
+                if (Lucene.isCorruptionException(e)) {
+                    throw new FlushFailedEngineException(shardId, e);
+                }
+            }
+        } finally {
+            store.decRef();
+        }
     }
 
     @Override
@@ -1872,7 +1919,7 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> commitData = new HashMap<>(5);
+                final Map<String, String> commitData = new HashMap<>(6);
                 commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGeneration);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpointValue);
@@ -1881,6 +1928,7 @@ public class InternalEngine extends Engine {
                 }
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
+                commitData.put(HISTORY_UUID_KEY, historyUUID);
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });
@@ -1990,7 +2038,7 @@ public class InternalEngine extends Engine {
      * Gets the commit data from {@link IndexWriter} as a map.
      */
     private static Map<String, String> commitDataAsMap(final IndexWriter indexWriter) {
-        Map<String, String> commitData = new HashMap<>(5);
+        Map<String, String> commitData = new HashMap<>(6);
         for (Map.Entry<String, String> entry : indexWriter.getLiveCommitData()) {
             commitData.put(entry.getKey(), entry.getValue());
         }

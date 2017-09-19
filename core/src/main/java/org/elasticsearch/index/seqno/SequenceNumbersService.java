@@ -34,11 +34,6 @@ import java.util.Set;
  */
 public class SequenceNumbersService extends AbstractIndexShardComponent {
 
-    /**
-     * Represents a local checkpoint coming from a pre-6.0 node
-     */
-    public static final long PRE_60_NODE_LOCAL_CHECKPOINT = -3L;
-
     private final LocalCheckpointTracker localCheckpointTracker;
     private final GlobalCheckpointTracker globalCheckpointTracker;
 
@@ -56,13 +51,14 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public SequenceNumbersService(
         final ShardId shardId,
+        final String allocationId,
         final IndexSettings indexSettings,
         final long maxSeqNo,
         final long localCheckpoint,
         final long globalCheckpoint) {
         super(shardId, indexSettings);
         localCheckpointTracker = new LocalCheckpointTracker(indexSettings, maxSeqNo, localCheckpoint);
-        globalCheckpointTracker = new GlobalCheckpointTracker(shardId, indexSettings, globalCheckpoint);
+        globalCheckpointTracker = new GlobalCheckpointTracker(shardId, allocationId, indexSettings, globalCheckpoint);
     }
 
     /**
@@ -192,17 +188,6 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
-     * Returns the global checkpoints for all shards.
-     *
-     * @param allocationId the allocationId to use for the global checkpoint on the primary
-     *
-     * @return the global checkpoints for all shards
-     */
-    public ObjectLongMap<String> getGlobalCheckpoints(final String allocationId) {
-        return globalCheckpointTracker.getGlobalCheckpoints(allocationId);
-    }
-
-    /**
      * Updates the global checkpoint on a replica shard after it has been updated by the primary.
      *
      * @param globalCheckpoint the global checkpoint
@@ -219,12 +204,16 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
         return globalCheckpointTracker.getTrackedLocalCheckpointForShard(allocationId).getLocalCheckpoint();
     }
 
+    public ObjectLongMap<String> getGlobalCheckpoints() {
+        return globalCheckpointTracker.getGlobalCheckpoints();
+    }
+
     /**
      * Activates the global checkpoint tracker in primary mode (see {@link GlobalCheckpointTracker#primaryMode}.
      * Called on primary activation or promotion.
      */
-    public void activatePrimaryMode(final String allocationId, final long localCheckpoint) {
-        globalCheckpointTracker.activatePrimaryMode(allocationId, localCheckpoint);
+    public void activatePrimaryMode(final long localCheckpoint) {
+        globalCheckpointTracker.activatePrimaryMode(localCheckpoint);
     }
 
     /**

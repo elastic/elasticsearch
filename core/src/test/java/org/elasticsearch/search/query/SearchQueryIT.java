@@ -1890,19 +1890,4 @@ public class SearchQueryIT extends ESIntegTestCase {
         }
     }
 
-    public void testRangeQueryRangeFields_24744() throws Exception {
-        assertAcked(prepareCreate("test")
-            .addMapping("type1", "int_range", "type=integer_range"));
-
-        client().prepareIndex("test", "type1", "1")
-            .setSource(jsonBuilder()
-                .startObject()
-                .startObject("int_range").field("gte", 10).field("lte", 20).endObject()
-                .endObject()).get();
-        refresh();
-
-        RangeQueryBuilder range = new RangeQueryBuilder("int_range").relation("intersects").from(Integer.MIN_VALUE).to(Integer.MAX_VALUE);
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-    }
 }

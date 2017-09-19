@@ -306,16 +306,6 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             } else if (token.isValue()) {
                 if (TYPE_FIELD.match(currentFieldName)) {
                     parentType = parser.text();
-                } else if (SCORE_MODE_FIELD.match(currentFieldName)) {
-                    String scoreModeValue = parser.text();
-                    if ("score".equals(scoreModeValue)) {
-                        score = true;
-                    } else if ("none".equals(scoreModeValue)) {
-                        score = false;
-                    } else {
-                        throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" +
-                                scoreModeValue + "] as an option for score_mode");
-                    }
                 } else if (SCORE_FIELD.match(currentFieldName)) {
                     score = parser.booleanValue();
                 } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {

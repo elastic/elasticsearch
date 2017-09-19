@@ -196,7 +196,15 @@ project.afterEvaluate {
 
 integTestRunner {
   // TODO: fix this rest test to not depend on a hardcoded port!
-  systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*'
+  def blacklist = ['getting_started/10_monitor_cluster_health/*']
+  boolean snapshot = "true".equals(System.getProperty("build.snapshot", "true"))
+  if (!snapshot) {
+    // these tests attempt to install basic/internal licenses signed against the dev/public.key
+    // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
+    // private key, these tests are whitelisted in non-snapshot test runs
+    blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*'])
+  }
+  systemProperty 'tests.rest.blacklist', blacklist.join(',')
 }
 
 // location of generated keystores and certificates

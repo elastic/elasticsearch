@@ -45,6 +45,11 @@ public class RecoveryIT extends ESRestTestCase {
         return true;
     }
 
+    @Override
+    protected boolean preserveReposUponCompletion() {
+        return true;
+    }
+
     private enum CLUSTER_TYPE {
         OLD,
         MIXED,

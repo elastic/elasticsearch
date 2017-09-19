@@ -861,12 +861,10 @@ public final class NodeEnvironment  implements Closeable {
         final String indexUniquePathId = index.getUUID();
         for (final NodePath nodePath : nodePaths) {
             Path location = nodePath.indicesPath;
-            if (Files.isDirectory(location)) {
-                try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(location)) {
-                    for (Path indexPath : indexStream) {
-                        if (indexUniquePathId.equals(indexPath.getFileName().toString())) {
-                            shardCountPerPath.put(nodePath, (long) findAllShardsForIndex(indexPath, index).size());
-                        }
+            try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(location)) {
+                for (Path indexPath : indexStream) {
+                    if (indexUniquePathId.equals(indexPath.getFileName().toString())) {
+                        shardCountPerPath.put(nodePath, (long) findAllShardsForIndex(indexPath, index).size());
                     }
                 }
             }

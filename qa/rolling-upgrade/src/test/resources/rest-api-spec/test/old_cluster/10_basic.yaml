@@ -1,6 +1,8 @@
 ---
-"Index data, search, and create things in the cluster state that we'll validate are there after the ugprade":
+"Index data, search, and create things in the cluster state that we'll validate are there after the ugprade 5.6.0 and beyond":
   - skip:
+      version: " - 5.5.99"
+      reason: stored search template API is deprecated in 5.6.0
       features: "warnings"
 
   - do:
@@ -88,6 +90,111 @@
   - do:
       warnings:
         - "The stored search template API is deprecated. Use stored scripts instead."
+      put_template:
+        id: test_search_template
+        body:
+          query:
+            match:
+              f1: "{{f1}}"
+  - match: { acknowledged: true }
+
+  - do:
+      search_template:
+        body:
+          id: test_search_template
+          params:
+            f1: v5_old
+  - match: { hits.total: 1 }
+
+---
+"Index data, search, and create things in the cluster state that we'll validate are there after the ugprade before 5.6.0":
+  - skip:
+      version: "5.6.0 - "
+      reason: stored search template API is deprecated in 5.6.0
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: index_with_replicas # dummy index to ensure we can recover indices with replicas just fine
+        body:
+          # if the node with the replica is the first to be restarted, then delayed
+          # allocation will kick in, and the cluster health won't return to GREEN
+          # before timing out
+          index.unassigned.node_left.delayed_timeout: "100ms"
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
+          - '{"f1": "v1_old", "f2": 0}'
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
+          - '{"f1": "v2_old", "f2": 1}'
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
+          - '{"f1": "v3_old", "f2": 2}'
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
+          - '{"f1": "v4_old", "f2": 3}'
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
+          - '{"f1": "v5_old", "f2": 4}'
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
+          - '{"f1": "d_old"}'
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
+          - '{"f1": "d_old"}'
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
+          - '{"f1": "d_old"}'
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
+          - '{"f1": "d_old"}'
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
+          - '{"f1": "d_old"}'
+
+  - do:
+      indices.flush:
+        index: test_index,index_with_replicas
+
+  - do:
+      search:
+        index: test_index
+
+  - match: { hits.total: 5 }
+
+  - do:
+      search:
+        index: index_with_replicas
+
+  - match: { hits.total: 5 }
+
+  - do:
+      snapshot.create_repository:
+        repository: my_repo
+        body:
+          type: url
+          settings:
+            url: "http://snapshot.test"
+  - match: { "acknowledged": true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+            ]
+          }
+  - match: { "acknowledged": true }
+
+  - do:
       put_template:
         id: test_search_template
         body:

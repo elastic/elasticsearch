@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -82,7 +81,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -271,8 +269,8 @@ public class InternalEngineTests extends ESTestCase {
         return new EngineConfig(openMode, config.getShardId(), config.getAllocationId(), config.getThreadPool(), config.getIndexSettings(),
                 config.getWarmer(), config.getStore(), config.getMergePolicy(), analyzer, config.getSimilarity(),
                 new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
-                config.getTranslogConfig(), config.getFlushMergesAfter(), config.getRefreshListeners(), config.getIndexSort(),
-                config.getTranslogRecoveryRunner());
+                config.getForceNewHistoryUUID(), config.getTranslogConfig(), config.getFlushMergesAfter(), config.getRefreshListeners(),
+                config.getIndexSort(), config.getTranslogRecoveryRunner());
     }
 
     @Override
@@ -453,7 +451,7 @@ public class InternalEngineTests extends ESTestCase {
             refreshListener == null ? emptyList() : Collections.singletonList(refreshListener);
         EngineConfig config = new EngineConfig(openMode, shardId, allocationId.getId(), threadPool, indexSettings, null, store,
             mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
-            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
+            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig,
             TimeValue.timeValueMinutes(5), refreshListenerList, indexSort, handler);
 
         return config;
@@ -2028,7 +2026,7 @@ public class InternalEngineTests extends ESTestCase {
         final Set<String> indexedIds = new HashSet<>();
         long localCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
         long replicaLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
-        long globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        final long globalCheckpoint;
         long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         InternalEngine initialEngine = null;
 
@@ -2039,7 +2037,7 @@ public class InternalEngineTests extends ESTestCase {
             initialEngine.seqNoService().updateAllocationIdsFromMaster(1L, new HashSet<>(Arrays.asList(primary.allocationId().getId(),
                 replica.allocationId().getId())),
                 new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replica).build(), Collections.emptySet());
-            initialEngine.seqNoService().activatePrimaryMode(primary.allocationId().getId(), primarySeqNo);
+            initialEngine.seqNoService().activatePrimaryMode(primarySeqNo);
             for (int op = 0; op < opCount; op++) {
                 final String id;
                 // mostly index, sometimes delete
@@ -2797,8 +2795,8 @@ public class InternalEngineTests extends ESTestCase {
         EngineConfig brokenConfig = new EngineConfig(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, shardId, allocationId.getId(),
                 threadPool, config.getIndexSettings(), null, store, newMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
                 new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
-                IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5), config.getRefreshListeners(),
-                null, config.getTranslogRecoveryRunner());
+                IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig, TimeValue.timeValueMinutes(5),
+                config.getRefreshListeners(), null, config.getTranslogRecoveryRunner());
 
         try {
             InternalEngine internalEngine = new InternalEngine(brokenConfig);
@@ -2810,7 +2808,7 @@ public class InternalEngineTests extends ESTestCase {
         assertVisibleCount(engine, numDocs, false);
     }
 
-    public void testRecoverFromStoreSetsHistoryUUIDIfNeeded() throws IOException {
+    public void testHistoryUUIDIsSetIfMissing() throws IOException {
         final int numDocs = randomIntBetween(0, 3);
         for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
@@ -2843,9 +2841,54 @@ public class InternalEngineTests extends ESTestCase {
             .put(defaultSettings.getSettings())
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_0_0_beta1)
             .build());
-        engine = createEngine(indexSettings, store, primaryTranslogDir, newMergePolicy(), null);
-        assertVisibleCount(engine, numDocs, false);
+
+        EngineConfig config = engine.config();
+
+        EngineConfig newConfig = new EngineConfig(
+            randomBoolean() ? EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG,
+            shardId, allocationId.getId(),
+            threadPool, indexSettings, null, store, newMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
+            new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(), false, config.getTranslogConfig(), TimeValue.timeValueMinutes(5),
+            config.getRefreshListeners(), null, config.getTranslogRecoveryRunner());
+        engine = new InternalEngine(newConfig);
+        if (newConfig.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            engine.recoverFromTranslog();
+            assertVisibleCount(engine, numDocs, false);
+        } else {
+            assertVisibleCount(engine, 0, false);
+        }
         assertThat(engine.getHistoryUUID(), notNullValue());
+    }
+
+    public void testHistoryUUIDCanBeForced() throws IOException {
+        final int numDocs = randomIntBetween(0, 3);
+        for (int i = 0; i < numDocs; i++) {
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
+            Engine.Index firstIndexRequest = new Engine.Index(newUid(doc), doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
+            Engine.IndexResult index = engine.index(firstIndexRequest);
+            assertThat(index.getVersion(), equalTo(1L));
+        }
+        assertVisibleCount(engine, numDocs);
+        final String oldHistoryUUID = engine.getHistoryUUID();
+        engine.close();
+        EngineConfig config = engine.config();
+
+        EngineConfig newConfig = new EngineConfig(
+            randomBoolean() ? EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG,
+            shardId, allocationId.getId(),
+            threadPool, config.getIndexSettings(), null, store, newMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
+            new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(), true, config.getTranslogConfig(), TimeValue.timeValueMinutes(5),
+            config.getRefreshListeners(), null, config.getTranslogRecoveryRunner());
+        engine = new InternalEngine(newConfig);
+        if (newConfig.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            engine.recoverFromTranslog();
+            assertVisibleCount(engine, numDocs, false);
+        } else {
+            assertVisibleCount(engine, 0, false);
+        }
+        assertThat(engine.getHistoryUUID(), not(equalTo(oldHistoryUUID)));
     }
 
     public void testShardNotAvailableExceptionWhenEngineClosedConcurrently() throws IOException, InterruptedException {

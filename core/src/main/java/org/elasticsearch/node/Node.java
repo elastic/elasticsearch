@@ -362,10 +362,6 @@ public class Node implements Closeable {
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
-            ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
-                    settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
-                    threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService);
-            modules.add(actionModule);
             modules.add(new GatewayModule());
 
 
@@ -401,6 +397,12 @@ public class Node implements Closeable {
                                                  scriptModule.getScriptService(), xContentRegistry, environment, nodeEnvironment,
                                                  namedWriteableRegistry).stream())
                 .collect(Collectors.toList());
+
+            ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
+                settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
+                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService);
+            modules.add(actionModule);
+
             final RestController restController = actionModule.getRestController();
             final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class),
                     threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, restController);

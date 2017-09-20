@@ -52,6 +52,7 @@ setupSeedNodeAndUnicastHostsFile.doLast {
 integTestCluster {
     dependsOn setupSeedNodeAndUnicastHostsFile
     clusterName = 'discovery-file-test-cluster'
+    setting 'discovery.zen.hosts_provider', 'file'
     extraConfigFile 'discovery-file/unicast_hosts.txt', srcUnicastHostsFile
 }
 

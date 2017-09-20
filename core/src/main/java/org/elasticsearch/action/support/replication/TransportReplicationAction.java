@@ -411,19 +411,6 @@ public abstract class TransportReplicationAction<
                     request,
                     primaryShardReference,
                     listener,
-//                    ActionListener.wrap(response -> {
-//                                try {
-//                                    System.out.println(Thread.currentThread().getName());
-//                                    if (syncGlobalCheckpointAfterOperation &&
-//                                            response.finalResponseIfSuccessful.getShardInfo().getFailed() == 0) {
-//                                        threadPool.generic().execute(
-//                                                () -> primaryShardReference.indexShard.maybeSyncGlobalCheckpoint("post-operation"));
-//                                    }
-//                                } finally {
-//                                    listener.onResponse(response);
-//                                }
-//                            },
-//                            listener::onFailure),
                     newReplicasProxy(primaryTerm), logger, actionName);
         }
     }

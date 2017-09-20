@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -739,7 +740,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         try {
                             shard.acquirePrimaryOperationPermit(
                                     ActionListener.wrap(
-                                            releasable -> shard.maybeSyncGlobalCheckpoint("background"),
+                                            releasable -> {
+                                                try (Releasable ignored = releasable) {
+                                                        shard.maybeSyncGlobalCheckpoint("background");
+                                                }
+                                            },
                                             e -> logger.info("failed to execute background global checkpoint sync", e)),
                                     ThreadPool.Names.SAME);
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {

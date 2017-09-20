@@ -243,7 +243,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest("put", "network-data", Collections.emptyMap(), new StringEntity(mappings, ContentType.APPLICATION_JSON));
 
         String docTemplate = "{\"timestamp\":%d,\"host\":\"%s\",\"network_bytes_out\":%d}";
-        Date date = new Date(1464739200000L);
+        Date date = new Date(1464739200735L);
         for (int i=0; i<120; i++) {
             long byteCount = randomNonNegativeLong();
             String jsonDoc = String.format(Locale.ROOT, docTemplate, date.getTime(), "hostA", byteCount);
@@ -425,7 +425,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
     }
 
-    public void testLookbackUsingDerivativeAgg() throws Exception {
+    public void testLookbackUsingDerivativeAggWithLargerHistogramBucketThanDataRate() throws Exception {
         String jobId = "derivative-agg-network-job";
         String job = "{\"analysis_config\" :{\"bucket_span\":\"300s\","
                 + "\"summary_count_field_name\":\"doc_count\","
@@ -459,6 +459,38 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(jobStatsResponseAsString, containsString("\"bucket_count\":3"));
         // The derivative agg won't have values for the first bucket of each host
         assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":2"));
+    }
+
+    public void testLookbackUsingDerivativeAggWithSmallerHistogramBucketThanDataRate() throws Exception {
+        String jobId = "derivative-agg-network-job";
+        String job = "{\"analysis_config\" :{\"bucket_span\":\"300s\","
+                + "\"summary_count_field_name\":\"doc_count\","
+                + "\"detectors\":[{\"function\":\"mean\",\"field_name\":\"bytes-delta\",\"by_field_name\":\"hostname\"}]},"
+                + "\"data_description\" : {\"time_field\":\"timestamp\"}"
+                + "}";
+        client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
+                new StringEntity(job, ContentType.APPLICATION_JSON));
+
+        String datafeedId = "datafeed-" + jobId;
+        String aggregations =
+                "{\"hostname\": {\"terms\" : {\"field\": \"host.keyword\", \"size\":10},"
+                        + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"interval\":\"5s\"},"
+                        + "\"aggs\": {\"timestamp\":{\"max\":{\"field\":\"timestamp\"}},"
+                        + "\"bytes-delta\":{\"derivative\":{\"buckets_path\":\"avg_bytes_out\"}},"
+                        + "\"avg_bytes_out\":{\"avg\":{\"field\":\"network_bytes_out\"}} }}}}}";
+        new DatafeedBuilder(datafeedId, jobId, "network-data", "doc")
+                .setAggregations(aggregations)
+                .setChunkingTimespan("300s")
+                .build();
+
+        openJob(client(), jobId);
+
+        startDatafeedAndWaitUntilStopped(datafeedId);
+        waitUntilJobIsClosed(jobId);
+        Response jobStatsResponse = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+        String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
+        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":240"));
+        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":240"));
     }
 
     public void testLookbackWithPipelineBucketAgg() throws Exception {

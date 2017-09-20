@@ -21,8 +21,10 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
@@ -30,6 +32,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -592,6 +595,58 @@ public class SettingsTests extends ESTestCase {
         test.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
         builder.endObject();
         assertEquals("{\"foo.bar\":[\"1\",\"2\",\"3\"],\"foo.bar.baz\":\"test\"}", builder.string());
+    }
+
+    public void testReadLegacyFromStream() throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.writeVInt(5);
+        output.writeString("foo.bar.1");
+        output.writeOptionalString("1");
+        output.writeString("foo.bar.0");
+        output.writeOptionalString("0");
+        output.writeString("foo.bar.2");
+        output.writeOptionalString("2");
+        output.writeString("foo.bar.3");
+        output.writeOptionalString("3");
+        output.writeString("foo.bar.baz");
+        output.writeOptionalString("baz");
+        Settings settings = Settings.readSettingsFromStream(StreamInput.wrap(BytesReference.toBytes(output.bytes())));
+        assertEquals(2, settings.size());
+        assertArrayEquals(new String[]{"0", "1", "2", "3"}, settings.getAsArray("foo.bar"));
+        assertEquals("baz", settings.get("foo.bar.baz"));
+    }
+
+    public void testWriteLegacyOutput() throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setVersion(VersionUtils.getPreviousVersion(Version.CURRENT));
+        Settings settings = Settings.builder().putArray("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
+        Settings.writeSettingsToStream(settings, output);
+        StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
+        assertEquals(5, in.readVInt());
+        Map<String, String> keyValues = new HashMap<>();
+        for (int i = 0; i < 5; i++){
+            keyValues.put(in.readString(), in.readOptionalString());
+        }
+        assertEquals(keyValues.get("foo.bar.0"), "0");
+        assertEquals(keyValues.get("foo.bar.1"), "1");
+        assertEquals(keyValues.get("foo.bar.2"), "2");
+        assertEquals(keyValues.get("foo.bar.3"), "3");
+        assertEquals(keyValues.get("foo.bar.baz"), "baz");
+    }
+
+    public void testReadWriteArray() throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setVersion(Version.CURRENT);
+        Settings settings = Settings.builder().putArray("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
+        Settings.writeSettingsToStream(settings, output);
+        StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
+        assertEquals(2, in.readVInt());
+        Map<String, String> keyValues = new HashMap<>();
+        for (int i = 0; i < 2; i++){
+            keyValues.put(in.readString(), in.readOptionalString());
+        }
+        assertEquals(keyValues.get("foo.bar"), "[\"0\",\"1\",\"2\",\"3\"]");
+        assertEquals(keyValues.get("foo.bar.baz"), "baz");
     }
 
 }

@@ -549,6 +549,23 @@ public final class Settings implements ToXContentFragment {
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
         // pull getAsMap() to exclude secure settings in size()
         Set<Map.Entry<String, String>> entries = settings.getAsMap().entrySet();
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            entries = settings.getAsMap().entrySet();
+        } else {
+            Map<String, String> legacyEntries = new HashMap<>(settings.getAsMap().size());
+            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+                String value = entry.getValue();
+                List<String> optional = maybeGetList(value);
+                if (optional != null) {
+                    for (int i = 0; i < optional.size(); i++) {
+                        legacyEntries.put(entry.getKey() + "." + i, optional.get(i));
+                    }
+                } else {
+                    legacyEntries.put(entry.getKey(), value);
+                }
+            }
+            entries = legacyEntries.entrySet();
+        }
         out.writeVInt(entries.size());
         for (Map.Entry<String, String> entry : entries) {
             out.writeString(entry.getKey());
@@ -583,19 +600,25 @@ public final class Settings implements ToXContentFragment {
         return builder;
     }
 
-    private static void maybeWriteAsList(XContentBuilder builder, String key, String value) throws IOException {
+    private static List<String>  maybeGetList( String value) throws IOException {
         try {
-            if (value.startsWith("[")) { // we try to write it as a list if it is a list
-                List<String> values = decodeList(value);
-                builder.startArray(key);
-                for (String v : values) {
-                    builder.value(v);
-                }
-                builder.endArray();
-            } else {
-                builder.field(key, value);
+            if (value != null && value.startsWith("[")) { // we try to write it as a list if it is a list
+                return decodeList(value);
             }
         } catch (Exception e) {
+        }
+        return null;
+    }
+
+    private static void maybeWriteAsList(XContentBuilder builder, String key, String value) throws IOException {
+        List<String> values = maybeGetList(value);
+        if (values != null) { // we try to write it as a list if it is a list
+            builder.startArray(key);
+            for (String v : values) {
+                builder.value(v);
+            }
+            builder.endArray();
+        } else {
             builder.field(key, value);
         }
     }

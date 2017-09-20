@@ -35,7 +35,6 @@ import static org.hamcrest.Matchers.not;
  * system priviliges
  */
 @ClusterScope(maxNumDataNodes = 1, scope = Scope.SUITE, numClientNodes = 0)
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2421")
 public class TemplateUpgraderTests extends SecurityIntegTestCase {
 
     public void testTemplatesWorkAsExpected() throws Exception {

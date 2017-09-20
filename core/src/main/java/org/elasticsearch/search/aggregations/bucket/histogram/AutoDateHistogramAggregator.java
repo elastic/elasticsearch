@@ -160,7 +160,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         long[] bucketOrdArray = new long[(int) bucketOrds.size()];
         for (int i = 0; i < bucketOrds.size(); i++) {
-            bucketOrdArray[i] = bucketOrds.get(i);
+            bucketOrdArray[i] = i;
         }
 
         runDeferredCollections(bucketOrdArray);

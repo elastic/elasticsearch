@@ -102,6 +102,7 @@ public class MergingBucketsDeferringCollector extends DeferringBucketCollector {
     }
 
     public void mergeBuckets(long[] mergeMap) {
+
         List<Entry> newEntries = new ArrayList<>();
         for (Entry sourceEntry : entries) {
             PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
@@ -112,6 +113,18 @@ public class MergingBucketsDeferringCollector extends DeferringBucketCollector {
             newEntries.add(new Entry(sourceEntry.context, sourceEntry.docDeltas, newBuckets.build()));
         }
         entries = newEntries;
+
+        // if there are buckets that have been collected in the current segment
+        // we need to update the bucket ordinals there too
+        if (buckets.size() > 0) {
+            PackedLongValues currentBuckets = buckets.build();
+            PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+            for (PackedLongValues.Iterator itr = currentBuckets.iterator(); itr.hasNext();) {
+                long bucket = itr.next();
+                newBuckets.add(mergeMap[(int) bucket]);
+            }
+            buckets = newBuckets;
+        }
     }
 
     @Override
@@ -194,7 +207,7 @@ public class MergingBucketsDeferringCollector extends DeferringBucketCollector {
                 }
                 final long rebasedBucket = selectedBuckets.find(bucket);
                 if (rebasedBucket == -1) {
-                    throw new IllegalStateException("Cannot build for a bucket which has not been collected");
+                    throw new IllegalStateException("Cannot build for a bucket which has not been collected [" + bucket + "]");
                 }
                 return in.buildAggregation(rebasedBucket);
             }

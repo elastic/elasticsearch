@@ -16,7 +16,7 @@ POST /sales/_search?size=0
         "sales_over_time" : {
             "auto_date_histogram" : {
                 "field" : "date",
-                "target_buckets" : 10
+                "buckets" : 10
             }
         }
     }
@@ -41,9 +41,9 @@ POST /sales/_search?size=0
 {
     "aggs" : {
         "sales_over_time" : {
-            "date_histogram" : {
+            "auto_date_histogram" : {
                 "field" : "date",
-                "target_buckets" : 10,
+                "buckets" : 10,
                 "format" : "yyyy-MM-dd" <1>
             }
         }
@@ -114,9 +114,9 @@ GET my_index/_search?size=0
 {
   "aggs": {
     "by_day": {
-      "date_histogram": {
+      "auto_date_histogram": {
         "field":     "date",
-        "target_buckets" : 10
+        "buckets" : 10
       }
     }
   }
@@ -156,9 +156,9 @@ GET my_index/_search?size=0
 {
   "aggs": {
     "by_day": {
-      "date_histogram": {
+      "auto_date_histogram": {
         "field":     "date",
-        "target_buckets" : 10,
+        "buckets" : 10,
         "time_zone": "-01:00"
       }
     }
@@ -226,9 +226,9 @@ POST /sales/_search?size=0
 {
     "aggs" : {
         "sale_date" : {
-             "date_histogram" : {
+             "auto_date_histogram" : {
                  "field" : "date",
-                 "target_buckets": 10,
+                 "buckets": 10,
                  "missing": "2000/01/01" <1>
              }
          }

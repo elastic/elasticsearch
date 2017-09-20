@@ -31,7 +31,9 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -74,6 +76,137 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                 aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD),
                 histogram -> assertEquals(8, histogram.getBuckets().size())
         );
+    }
+
+    public void testSubAggregations() throws IOException {
+        Query query = new MatchAllDocsQuery();
+
+        testSearchCase(query, dataset,
+                aggregation -> aggregation.setNumBuckets(6).field(DATE_FIELD)
+                        .subAggregation(AggregationBuilders.stats("stats").field(DATE_FIELD)),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(6, buckets.size());
+
+                    Histogram.Bucket bucket = buckets.get(0);
+                    assertEquals("2010-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(2, bucket.getDocCount());
+                    Stats stats = bucket.getAggregations().get("stats");
+                    assertEquals("2010-03-12T01:07:45.000Z", stats.getMinAsString());
+                    assertEquals("2010-04-27T03:43:34.000Z", stats.getMaxAsString());
+                    assertEquals(2L, stats.getCount());
+
+                    bucket = buckets.get(1);
+                    assertEquals("2012-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+                    stats = bucket.getAggregations().get("stats");
+                    assertEquals("2012-05-18T04:11:00.000Z", stats.getMinAsString());
+                    assertEquals("2012-05-18T04:11:00.000Z", stats.getMaxAsString());
+                    assertEquals(1L, stats.getCount());
+
+                    bucket = buckets.get(2);
+                    assertEquals("2013-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(2, bucket.getDocCount());
+                    stats = bucket.getAggregations().get("stats");
+                    assertEquals("2013-05-29T05:11:31.000Z", stats.getMinAsString());
+                    assertEquals("2013-10-31T08:24:05.000Z", stats.getMaxAsString());
+                    assertEquals(2L, stats.getCount());
+
+                    bucket = buckets.get(3);
+                    assertEquals("2015-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(3, bucket.getDocCount());
+                    stats = bucket.getAggregations().get("stats");
+                    assertEquals("2015-02-13T13:09:32.000Z", stats.getMinAsString());
+                    assertEquals("2015-11-13T16:14:34.000Z", stats.getMaxAsString());
+                    assertEquals(3L, stats.getCount());
+
+                    bucket = buckets.get(4);
+                    assertEquals("2016-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+                    stats = bucket.getAggregations().get("stats");
+                    assertEquals("2016-03-04T17:09:50.000Z", stats.getMinAsString());
+                    assertEquals("2016-03-04T17:09:50.000Z", stats.getMaxAsString());
+                    assertEquals(1L, stats.getCount());
+
+                    bucket = buckets.get(5);
+                    assertEquals("2017-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+                    stats = bucket.getAggregations().get("stats");
+                    assertEquals("2017-12-12T22:55:46.000Z", stats.getMinAsString());
+                    assertEquals("2017-12-12T22:55:46.000Z", stats.getMaxAsString());
+                    assertEquals(1L, stats.getCount());
+                });
+        testSearchAndReduceCase(query, dataset,
+                aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD)
+                        .subAggregation(AggregationBuilders.stats("stats").field(DATE_FIELD)),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(8, buckets.size());
+
+                    Histogram.Bucket bucket = buckets.get(0);
+                    assertEquals("2010-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(2, bucket.getDocCount());
+                    Stats stats = bucket.getAggregations().get("stats");
+                    assertEquals("2010-03-12T01:07:45.000Z", stats.getMinAsString());
+                    assertEquals("2010-04-27T03:43:34.000Z", stats.getMaxAsString());
+                    assertEquals(2L, stats.getCount());
+
+                    bucket = buckets.get(1);
+                    assertEquals("2011-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(0, bucket.getDocCount());
+                    stats = bucket.getAggregations().get("stats");
+                    assertTrue(Double.isInfinite(stats.getMin()));
+                    assertTrue(Double.isInfinite(stats.getMax()));
+                    assertEquals(0L, stats.getCount());
+
+                    bucket = buckets.get(2);
+                    assertEquals("2012-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+                    stats = bucket.getAggregations().get("stats");
+                    assertEquals("2012-05-18T04:11:00.000Z", stats.getMinAsString());
+                    assertEquals("2012-05-18T04:11:00.000Z", stats.getMaxAsString());
+                    assertEquals(1L, stats.getCount());
+
+                    bucket = buckets.get(3);
+                    assertEquals("2013-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(2, bucket.getDocCount());
+                    stats = bucket.getAggregations().get("stats");
+                    assertEquals("2013-05-29T05:11:31.000Z", stats.getMinAsString());
+                    assertEquals("2013-10-31T08:24:05.000Z", stats.getMaxAsString());
+                    assertEquals(2L, stats.getCount());
+
+                    bucket = buckets.get(4);
+                    assertEquals("2014-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(0, bucket.getDocCount());
+                    stats = bucket.getAggregations().get("stats");
+                    assertTrue(Double.isInfinite(stats.getMin()));
+                    assertTrue(Double.isInfinite(stats.getMax()));
+                    assertEquals(0L, stats.getCount());
+
+                    bucket = buckets.get(5);
+                    assertEquals("2015-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(3, bucket.getDocCount());
+                    stats = bucket.getAggregations().get("stats");
+                    assertEquals("2015-02-13T13:09:32.000Z", stats.getMinAsString());
+                    assertEquals("2015-11-13T16:14:34.000Z", stats.getMaxAsString());
+                    assertEquals(3L, stats.getCount());
+
+                    bucket = buckets.get(6);
+                    assertEquals("2016-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+                    stats = bucket.getAggregations().get("stats");
+                    assertEquals("2016-03-04T17:09:50.000Z", stats.getMinAsString());
+                    assertEquals("2016-03-04T17:09:50.000Z", stats.getMaxAsString());
+                    assertEquals(1L, stats.getCount());
+
+                    bucket = buckets.get(7);
+                    assertEquals("2017-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+                    stats = bucket.getAggregations().get("stats");
+                    assertEquals("2017-12-12T22:55:46.000Z", stats.getMinAsString());
+                    assertEquals("2017-12-12T22:55:46.000Z", stats.getMaxAsString());
+                    assertEquals(1L, stats.getCount());
+                });
     }
 
     public void testNoDocs() throws IOException {

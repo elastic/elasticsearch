@@ -393,7 +393,7 @@ public class RestHighLevelClient {
         Request req = requestConverter.apply(request);
         Response response;
         try {
-            response = client.performRequest(req.method, req.endpoint, req.params, req.entity, headers);
+            response = client.performRequest(req.getMethod(), req.getEndpoint(), req.getParameters(), req.getEntity(), headers);
         } catch (ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
                 try {
@@ -442,7 +442,7 @@ public class RestHighLevelClient {
         }
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
-        client.performRequestAsync(req.method, req.endpoint, req.params, req.entity, responseListener, headers);
+        client.performRequestAsync(req.getMethod(), req.getEndpoint(), req.getParameters(), req.getEntity(), responseListener, headers);
     }
 
     <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,
@@ -490,7 +490,7 @@ public class RestHighLevelClient {
      * that wraps the original {@link ResponseException}. The potential exception obtained while parsing is added to the returned
      * exception as a suppressed exception. This method is guaranteed to not throw any exception eventually thrown while parsing.
      */
-    ElasticsearchStatusException parseResponseException(ResponseException responseException) {
+    protected ElasticsearchStatusException parseResponseException(ResponseException responseException) {
         Response response = responseException.getResponse();
         HttpEntity entity = response.getEntity();
         ElasticsearchStatusException elasticsearchException;
@@ -510,8 +510,8 @@ public class RestHighLevelClient {
         return elasticsearchException;
     }
 
-    <Resp> Resp parseEntity(
-            HttpEntity entity, CheckedFunction<XContentParser, Resp, IOException> entityParser) throws IOException {
+    protected <Resp> Resp parseEntity(final HttpEntity entity,
+                                      final CheckedFunction<XContentParser, Resp, IOException> entityParser) throws IOException {
         if (entity == null) {
             throw new IllegalStateException("Response body expected but not returned");
         }

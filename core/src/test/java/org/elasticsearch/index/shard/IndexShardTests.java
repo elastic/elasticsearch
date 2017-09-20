@@ -136,6 +136,7 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static java.util.Collections.max;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
@@ -735,7 +736,11 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverReplica(firstReplicaShard, primaryShard);
         final IndexShard secondReplicaShard = newShard(shardId, false);
         recoverReplica(secondReplicaShard, primaryShard);
-        final long checkpoint = randomIntBetween(0, 128);
+        final int maxSeqNo = randomIntBetween(0, 128);
+        for (int i = 0; i < maxSeqNo; i++) {
+            primaryShard.getEngine().seqNoService().generateSeqNo();
+        }
+        final long checkpoint = rarely() ? maxSeqNo - scaledRandomIntBetween(0, maxSeqNo) : maxSeqNo;
 
         // set up local checkpoints on the shard copies
         primaryShard.updateLocalCheckpointForShard(shardRouting.allocationId().getId(), checkpoint);
@@ -758,7 +763,10 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // simulate a background maybe sync; it should only run if one of the replica copies global checkpoint lags the primary
         primaryShard.maybeSyncGlobalCheckpoint();
-        assertThat(synced.get(), equalTo(firstReplicaGlobalCheckpoint < checkpoint || secondReplicaGlobalCheckpoint < checkpoint));
+        assertThat(
+                synced.get(),
+                equalTo(maxSeqNo == primaryShard.getGlobalCheckpoint() &&
+                        (firstReplicaGlobalCheckpoint < checkpoint || secondReplicaGlobalCheckpoint < checkpoint)));
 
         // simulate that the background sync advanced the global checkpoint on the replica copies
         primaryShard.updateGlobalCheckpointForShard(firstReplicaAllocationId, primaryShard.getGlobalCheckpoint());

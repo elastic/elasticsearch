@@ -26,11 +26,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -304,7 +310,7 @@ public class SettingsTests extends ESTestCase {
                 .put(Settings.builder().put("value.data", "1").build())
                 .build();
         assertThat(settings.get("value.data"), is("1"));
-        assertThat(settings.get("value"), is(nullValue()));
+        assertThat(settings.getAsArray("value"), is(new String[] {"4", "5"}));
     }
 
     public void testPrefixNormalization() {
@@ -551,15 +557,41 @@ public class SettingsTests extends ESTestCase {
         assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
     }
 
-    public void testGetAsArrayFailsOnDuplicates() {
+    public void testConcreteWillOverrideLegacyArray() {
         final Settings settings =
                 Settings.builder()
                         .put("foobar.0", "bar")
                         .put("foobar.1", "baz")
                         .put("foobar", "foo")
                         .build();
-        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> settings.getAsArray("foobar"));
-        assertThat(e, hasToString(containsString("settings object contains values for [foobar=foo] and [foobar.0=bar]")));
+        assertEquals(1, settings.size());
+        assertEquals(settings.get("foobar"), "foo");
+    }
+
+    public void testLegacyArrayOverrideConcrete() {
+        final Settings settings =
+            Settings.builder()
+                .put("foobar", "foo")
+                .put("foobar.0", "bar")
+                .put("foobar.1", "baz")
+                .build();
+        assertEquals(1, settings.size());
+        assertEquals(settings.get("foobar"), "[\"bar\",\"baz\"]");
+    }
+
+    public void testToXContent() throws IOException {
+        Settings test = Settings.builder().putArray("foo.bar", "1", "2", "3").put("foo.bar.baz", "test").build();
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
+        builder.endObject();
+        assertEquals("{\"foo\":{\"bar.baz\":\"test\",\"bar\":[\"1\",\"2\",\"3\"]}}", builder.string());
+
+        builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+        builder.endObject();
+        assertEquals("{\"foo.bar\":[\"1\",\"2\",\"3\"],\"foo.bar.baz\":\"test\"}", builder.string());
     }
 
 }

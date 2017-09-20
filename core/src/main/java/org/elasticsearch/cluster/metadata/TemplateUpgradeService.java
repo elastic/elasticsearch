@@ -123,11 +123,11 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
         lastTemplateMetaData = templates;
         Optional<Tuple<Map<String, BytesReference>, Set<String>>> changes = calculateTemplateChanges(templates);
         if (changes.isPresent()) {
-            logger.info("Starting template upgrade to version {}, {} templates will be updated and {} will be removed",
-                Version.CURRENT,
-                changes.get().v1().size(),
-                changes.get().v2().size());
             if (updatesInProgress.compareAndSet(0, changes.get().v1().size() + changes.get().v2().size())) {
+                logger.info("Starting template upgrade to version {}, {} templates will be updated and {} will be removed",
+                    Version.CURRENT,
+                    changes.get().v1().size(),
+                    changes.get().v2().size());
                 threadPool.generic().execute(() -> updateTemplates(changes.get().v1(), changes.get().v2()));
             }
         }

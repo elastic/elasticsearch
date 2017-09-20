@@ -31,7 +31,6 @@ import java.util.function.BiFunction;
  * statements like {@code SHOW TABLES} and {@code DESCRIBE TABLE}. 
  */
 public class SecurityCatalogFilter implements FilteredCatalog.Filter {
-    // NOCOMMIT need to figure out sql on aliases that expand to many indices
     private static final IndicesOptions OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
 
     private final ThreadContext threadContext;

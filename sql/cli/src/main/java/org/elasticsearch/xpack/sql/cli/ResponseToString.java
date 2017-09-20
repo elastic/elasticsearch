@@ -69,7 +69,7 @@ abstract class ResponseToString {
         return sb;
     }
 
-    @SuppressForbidden(reason="ignore for now") // NOCOMMIT figure this out
+    @SuppressForbidden(reason="ignore for now") // NOCOMMIT replace this with saving the file and printing a message
     private static void displayGraphviz(String str) {
         try {
             // save the content to a temp file

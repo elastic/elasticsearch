@@ -20,7 +20,7 @@ public class ProtoUtils {
         // NOCOMMIT <T> feels slippery here
         Object result;
         byte hasNext = in.readByte();
-        if (hasNext == 0) { // NOCOMMIT feels like a bitmask at the start of the row would be better.
+        if (hasNext == 0) { // TODO feels like a bitmask at the start of the row would be better.
             return null;
         }
         // NOCOMMIT we ought to make sure we use all of these

@@ -77,11 +77,11 @@ public class QueryInitResponse extends AbstractQueryResponse {
         }
         QueryInitResponse other = (QueryInitResponse) obj;
         return columns.equals(other.columns);
-        // NOCOMMIT data
+        // NOCOMMIT equals should take into account data
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), columns); // NOCOMMIT data
+        return Objects.hash(super.hashCode(), columns); // NOCOMMIT equals should take into account data
     }
 }

@@ -36,13 +36,11 @@ public class CliHttpClient implements AutoCloseable {
 
     public QueryInitResponse queryInit(String query, int fetchSize) {
         // TODO allow customizing the time zone
-        // NOCOMMIT figure out Timeouts....
         QueryInitRequest request = new QueryInitRequest(query, fetchSize, TimeZone.getTimeZone("UTC"), new TimeoutInfo(0, 0, 0));
         return (QueryInitResponse) sendRequest(request);
     }
 
     public QueryPageResponse nextPage(byte[] cursor) {
-        // NOCOMMIT figure out Timeouts....
         QueryPageRequest request = new QueryPageRequest(cursor, new TimeoutInfo(0, 0, 0));
         return (QueryPageResponse) sendRequest(request);
     }

@@ -16,12 +16,11 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils.classOf;
 import static org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils.readValue;
 import static org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils.writeValue;
+
 /**
  * Stores a page of data in a columnar format.
  */
 public class Page implements Payload {
-    private final List<ColumnInfo> columnInfo;
-
     /**
      * The actual data, one array per column.
      */

@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -75,8 +76,11 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
-import org.elasticsearch.xpack.security.action.SecurityActionModule;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
+import org.elasticsearch.xpack.security.action.interceptor.BulkShardRequestInterceptor;
+import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
+import org.elasticsearch.xpack.security.action.interceptor.SearchRequestInterceptor;
+import org.elasticsearch.xpack.security.action.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.security.action.realm.TransportClearRealmCacheAction;
 import org.elasticsearch.xpack.security.action.role.ClearRolesCacheAction;
@@ -228,6 +232,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
     private final SetOnce<SecurityContext> securityContext = new SetOnce<>();
     private final SetOnce<ThreadContext> threadContext = new SetOnce<>();
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
+    private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final List<BootstrapCheck> bootstrapChecks;
 
     public Security(Settings settings, Environment env, XPackLicenseState licenseState, SSLService sslService)
@@ -296,7 +301,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
                 b.bind(AuditTrail.class).to(AuditTrailService.class); // interface used by some actions...
             }
         });
-        modules.add(new SecurityActionModule(settings));
         return modules;
     }
 
@@ -418,6 +422,19 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(), authzService, licenseState,
                 sslService, securityContext.get(), destructiveOperations));
+
+        final Set<RequestInterceptor> requestInterceptors;
+        if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
+            requestInterceptors = Sets.newHashSet(
+                    new SearchRequestInterceptor(settings, threadPool, licenseState),
+                    new UpdateRequestInterceptor(settings, threadPool, licenseState),
+                    new BulkShardRequestInterceptor(settings, threadPool, licenseState));
+        } else {
+            requestInterceptors = Collections.emptySet();
+        }
+
+        securityActionFilter.set(new SecurityActionFilter(settings, authcService.get(), authzService, licenseState,
+                requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
 
         return components;
     }
@@ -587,13 +604,13 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
     }
 
     @Override
-    public List<Class<? extends ActionFilter>> getActionFilters() {
+    public List<ActionFilter> getActionFilters() {
         if (enabled == false) {
             return emptyList();
         }
         // registering the security filter only for nodes
         if (transportClientMode == false) {
-            return singletonList(SecurityActionFilter.class);
+            return singletonList(securityActionFilter.get());
         }
         return emptyList();
     }

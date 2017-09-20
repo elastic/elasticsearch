@@ -106,7 +106,7 @@ class AggregationDataExtractor implements DataExtractor {
 
     private void initAggregationProcessor(Aggregations aggs) throws IOException {
         aggregationToJsonProcessor = new AggregationToJsonProcessor(context.timeField, context.fields, context.includeDocCount,
-                context.start, getHistogramInterval());
+                context.start);
         aggregationToJsonProcessor.process(aggs);
     }
 
@@ -156,5 +156,9 @@ class AggregationDataExtractor implements DataExtractor {
 
     private long getHistogramInterval() {
         return ExtractorUtils.getHistogramIntervalMillis(context.aggs);
+    }
+
+    AggregationDataExtractorContext getContext() {
+        return context;
     }
 }

@@ -445,7 +445,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     }
 
     private ChunkedDataExtractorContext createContext(long start, long end) {
-        return new ChunkedDataExtractorContext(jobId, timeField, indices, types, query, scrollSize, start, end, chunkSpan);
+        return new ChunkedDataExtractorContext(jobId, timeField, indices, types, query, scrollSize, start, end, chunkSpan,
+                ChunkedDataExtractorFactory.newIdentityTimeAligner());
     }
 
     private static class StubSubExtractor implements DataExtractor {

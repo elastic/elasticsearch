@@ -94,9 +94,10 @@ public class ChunkedDataExtractor implements DataExtractor {
     private void setUpChunkedSearch() throws IOException {
         DataSummary dataSummary = requestDataSummary();
         if (dataSummary.totalHits > 0) {
-            currentStart = dataSummary.earliestTime;
+            currentStart = context.timeAligner.alignToFloor(dataSummary.earliestTime);
             currentEnd = currentStart;
             chunkSpan = context.chunkSpan == null ? dataSummary.estimateChunk() : context.chunkSpan.getMillis();
+            chunkSpan = context.timeAligner.alignToCeil(chunkSpan);
             LOGGER.debug("Chunked search configured:  totalHits = {}, dataTimeSpread = {} ms, chunk span = {} ms",
                     dataSummary.totalHits, dataSummary.getDataTimeSpread(), chunkSpan);
         } else {
@@ -211,5 +212,9 @@ public class ChunkedDataExtractor implements DataExtractor {
             long estimatedChunk = 10 * (context.scrollSize * getDataTimeSpread()) / totalHits;
             return Math.max(estimatedChunk, MIN_CHUNK_SPAN);
         }
+    }
+
+    ChunkedDataExtractorContext getContext() {
+        return context;
     }
 }

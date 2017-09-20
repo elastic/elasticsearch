@@ -33,6 +33,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -41,10 +42,13 @@ import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static java.util.Collections.disjoint;
 import static java.util.Collections.emptyMap;
@@ -65,7 +69,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
 
     private final Set<String> groups;
 
-    private final Map<String, String> tags;
+    private final Map<String, String[]> tags;
 
     private final Set<String> availabilityZones;
 
@@ -84,12 +88,14 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
         this.bindAnyGroup = AwsEc2Service.ANY_GROUP_SETTING.get(settings);
         this.groups = new HashSet<>();
         this.groups.addAll(AwsEc2Service.GROUPS_SETTING.get(settings));
-
-        this.tags = AwsEc2Service.TAG_SETTING.get(settings).getAsMap();
-
         this.availabilityZones = new HashSet<>();
         availabilityZones.addAll(AwsEc2Service.AVAILABILITY_ZONES_SETTING.get(settings));
-
+        HashMap<String, String[]> tags = new HashMap<>();
+        Stream<Setting<List<String>>> allConcreteSettings = AwsEc2Service.TAG_SETTING.getAllConcreteSettings(settings);
+        allConcreteSettings.forEach(setting -> {
+            tags.put(AwsEc2Service.TAG_SETTING.getNamespace(setting), setting.get(settings).toArray(new String[0]));
+        });
+        this.tags = Collections.unmodifiableMap(tags);
         if (logger.isDebugEnabled()) {
             logger.debug("using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]", hostType, tags,
                     groups, bindAnyGroup, availabilityZones);
@@ -205,11 +211,10 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
             .withFilters(
                 new Filter("instance-state-name").withValues("running", "pending")
             );
-
-        for (Map.Entry<String, String> tagFilter : tags.entrySet()) {
+        for (Map.Entry<String, String[]> tag : tags.entrySet()) {
             // for a given tag key, OR relationship for multiple different values
             describeInstancesRequest.withFilters(
-                new Filter("tag:" + tagFilter.getKey()).withValues(tagFilter.getValue())
+                new Filter("tag:" + tag.getKey()).withValues(tag.getValue())
             );
         }
 

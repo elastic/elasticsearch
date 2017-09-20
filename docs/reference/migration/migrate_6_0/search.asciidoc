@@ -76,6 +76,10 @@
   now mandatory. Previously, the index defaulted to the index the query was executed on. Now this index
   must be explicitly set in the request.
 
+* The deprecated `type` and `slop` parameter for the `match` query have been removed. Instead of
+setting the `type`, the `match_phrase` or `match_phrase_prefix` should be used. The `slop` removed from
+the `match` query but is supported for `match_phrase` and `match_phrase_prefix`.
+
 ==== Search shards API
 
 The search shards API no longer accepts the `type` url parameter, which didn't

@@ -58,7 +58,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     public static final boolean DEFAULT_LENIENCY = MatchQuery.DEFAULT_LENIENCY;
     public static final MatchQuery.ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
 
-    private static final ParseField SLOP_FIELD = new ParseField("slop", "phrase_slop");
+    private static final ParseField SLOP_FIELD = new ParseField("slop");
     private static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
     private static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency");

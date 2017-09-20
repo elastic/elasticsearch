@@ -14,7 +14,11 @@
 
 * The `geo_bbox` query (a synonym for the `geo_bounding_box` query) has been removed
 
-* The `mlt` query (a synonym for the `more_like_this` query) has been removed
+* The `mlt` query (a synonym for the `more_like_this` query) has been removed.
+
+* The deprecated `like_text`, `ids` and `docs` parameters (all synonyms for `like`) of the `more_like_this` query have
+been removed. Also the deprecated `min_word_len` (a synonym for `min_word_length`) and `max_word_len` 
+(a synonym for `max_word_length`) have been removed.
 
 * The `fuzzy_match` and `match_fuzzy` query (synonyma for the `match` query) have been removed
 
@@ -79,6 +83,19 @@
 * The deprecated `type` and `slop` parameter for the `match` query have been removed. Instead of
 setting the `type`, the `match_phrase` or `match_phrase_prefix` should be used. The `slop` removed from
 the `match` query but is supported for `match_phrase` and `match_phrase_prefix`.
+
+* The deprecated `phrase_slop` parameter (a synonym for the `slop` parameter) of the `match_phrase` query has been removed.
+
+* The deprecated `query` parameter (a synonym for the `filter` parameter) of the `constant_score` query has been removed.
+
+* The deprecated `phrase_slop` parameter (a synonym for the `slop` parameter) of the `multi_match` query has been removed.
+
+* The deprecated `prefix` parameter (a synonym for the `value` parameter) of the `prefix` query has been removed.
+
+* The deprecated `le` (a synonym for `lte`) and `ge` (a synonym for `gte`) parameter of the `range` query have been removed.
+
+* The deprecated multi term rewrite parameters `constant_score_auto`, `constant_score_filter` (synonyms for `constant_score`)
+have been removed.
 
 ==== Search shards API
 

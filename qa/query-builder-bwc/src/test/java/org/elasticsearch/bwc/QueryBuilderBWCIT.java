@@ -101,7 +101,7 @@ public class QueryBuilderBWCIT extends ESRestTestCase {
                 .tieBreaker(0.01f)
         );
         addCandidate(
-            "\"constant_score\": {\"query\": {\"match_all\": {}}, \"boost\": 0.1}",
+            "\"constant_score\": {\"filter\": {\"match_all\": {}}, \"boost\": 0.1}",
             new ConstantScoreQueryBuilder(new MatchAllQueryBuilder()).boost(0.1f)
         );
         addCandidate(

@@ -579,7 +579,7 @@ public class SettingsTests extends ESTestCase {
                 .put("foobar.1", "baz")
                 .build();
         assertEquals(1, settings.size());
-        assertEquals(settings.get("foobar"), "[\"bar\",\"baz\"]");
+        assertArrayEquals(settings.getAsArray("foobar"), new String[] {"bar", "baz"});
     }
 
     public void testToXContent() throws IOException {
@@ -645,8 +645,9 @@ public class SettingsTests extends ESTestCase {
         for (int i = 0; i < 2; i++){
             keyValues.put(in.readString(), in.readOptionalString());
         }
-        assertEquals(keyValues.get("foo.bar"), "[\"0\",\"1\",\"2\",\"3\"]");
-        assertEquals(keyValues.get("foo.bar.baz"), "baz");
+        Settings build = Settings.builder().put(keyValues).build();
+        assertEquals(build.getAsArray("foo.bar"), new String[] {"0", "1", "2", "3"});
+        assertEquals(build.get("foo.bar.baz"), "baz");
     }
 
 }

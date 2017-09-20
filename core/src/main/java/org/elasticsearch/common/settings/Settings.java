@@ -85,8 +85,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 public final class Settings implements ToXContentFragment {
 
     public static final Settings EMPTY = new Builder().build();
-    private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
-
+    private static final char INTERNAL_LIST_MARKER = '\uFEFF';
     /** The raw settings from the full key to raw string value. */
     private final Map<String, String> settings;
 
@@ -148,12 +147,8 @@ public final class Settings implements ToXContentFragment {
                 }
             }
             Object oValue = value;
-            if (value.startsWith("[")) {
-                try {
-                    oValue = decodeList(value);
-                } catch (Exception ex) {
-                    // not a list
-                }
+            if (isInternalList(value)) {
+                oValue = decodeList(value);
             }
             map.put(prefix + setting, oValue);
         } else {
@@ -208,8 +203,12 @@ public final class Settings implements ToXContentFragment {
      * @param setting The setting key
      * @return The setting value, <tt>null</tt> if it does not exists.
      */
-    public String get(String setting) {
-        return settings.get(setting);
+    public final String get(String setting) {
+        String s = settings.get(setting);
+        if (isInternalList(s)) {
+            return stripListMarker(s);
+        }
+        return s;
     }
 
     /**
@@ -383,8 +382,8 @@ public final class Settings implements ToXContentFragment {
      */
     public String[] getAsArray(String setting, String[] defaultArray, Boolean commaDelimited) throws SettingsException {
 
-        final String value = get(setting);
-        final String valueFromPreifx0 = get(setting + ".0");
+        final String value = settings.get(setting);
+        final String valueFromPreifx0 = settings.get(setting + ".0");
         if (value != null && valueFromPreifx0 != null) {
             final String message = String.format(
                 Locale.ROOT,
@@ -396,8 +395,8 @@ public final class Settings implements ToXContentFragment {
             throw new IllegalStateException(message);
         }
         final String[] array;
-        if (get(setting) != null) {
-            if (value.startsWith("[")) {
+        if (value != null) {
+            if (isInternalList(value)) {
                 List<String> strings = decodeList(value);
                 array = strings.toArray(new String[strings.size()]);
             } else if (commaDelimited) {
@@ -421,7 +420,17 @@ public final class Settings implements ToXContentFragment {
         return array;
     }
 
+    private static boolean isInternalList(String value) {
+        return value != null
+            && value.length() >= 4
+            && value.charAt(0) == INTERNAL_LIST_MARKER
+            && value.charAt(value.length()-1) ==  INTERNAL_LIST_MARKER;
+    }
 
+    private static String stripListMarker(String value) {
+        assert isInternalList(value) : "can't strip markers off: " + value;
+        return value.substring(1, value.length()-1);
+    }
 
     /**
      * Returns group settings for the given setting prefix.
@@ -601,11 +610,8 @@ public final class Settings implements ToXContentFragment {
     }
 
     private static List<String>  maybeGetList( String value) throws IOException {
-        try {
-            if (value != null && value.startsWith("[")) { // we try to write it as a list if it is a list
-                return decodeList(value);
-            }
-        } catch (Exception e) {
+        if (value != null && isInternalList(value)) { // we try to write it as a list if it is a list
+            return decodeList(value);
         }
         return null;
     }
@@ -1279,13 +1285,16 @@ public final class Settings implements ToXContentFragment {
                 builder.value(element);
             }
             builder.endArray();
-            return builder.string();
+            return INTERNAL_LIST_MARKER + builder.string() + INTERNAL_LIST_MARKER;
         } catch (IOException ex) {
             throw new ElasticsearchException(ex);
         }
     }
 
     static List<String> decodeList(String value) {
+        if (isInternalList(value)) {
+            value = stripListMarker(value);
+        }
         // EMPTY is safe here because we never call namedObject
         try (XContentParser xContentParser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, value)) {
             XContentParser.Token token = xContentParser.nextToken();

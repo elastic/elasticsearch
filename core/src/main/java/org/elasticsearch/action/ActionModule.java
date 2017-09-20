@@ -315,6 +315,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -341,7 +342,7 @@ public class ActionModule extends AbstractModule {
     private final SettingsFilter settingsFilter;
     private final List<ActionPlugin> actionPlugins;
     private final Map<String, ActionHandler<?, ?>> actions;
-    private final List<Class<? extends ActionFilter>> actionFilters;
+    private final ActionFilters actionFilters;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
@@ -503,8 +504,9 @@ public class ActionModule extends AbstractModule {
         return unmodifiableMap(actions.getRegistry());
     }
 
-    private List<Class<? extends ActionFilter>> setupActionFilters(List<ActionPlugin> actionPlugins) {
-        return unmodifiableList(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toList()));
+    private ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
+        return new ActionFilters(
+            Collections.unmodifiableSet(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet())));
     }
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
@@ -649,11 +651,7 @@ public class ActionModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        Multibinder<ActionFilter> actionFilterMultibinder = Multibinder.newSetBinder(binder(), ActionFilter.class);
-        for (Class<? extends ActionFilter> actionFilter : actionFilters) {
-            actionFilterMultibinder.addBinding().to(actionFilter);
-        }
-        bind(ActionFilters.class).asEagerSingleton();
+        bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
 
         if (false == transportClient) {
@@ -674,6 +672,10 @@ public class ActionModule extends AbstractModule {
                 }
             }
         }
+    }
+
+    public ActionFilters getActionFilters() {
+        return actionFilters;
     }
 
     public RestController getRestController() {

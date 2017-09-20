@@ -70,6 +70,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -106,7 +107,7 @@ public class Analysis {
                 return CharArraySet.EMPTY_SET;
             } else {
                 // LUCENE 4 UPGRADE: Should be settings.getAsBoolean("stem_exclusion_case", false)?
-                return new CharArraySet(Strings.commaDelimitedListToSet(value), false);
+                return new CharArraySet(new HashSet<>(Arrays.asList(settings.getAsArray("stem_exclusion"))), false);
             }
         }
         String[] stemExclusion = settings.getAsArray("stem_exclusion", null);
@@ -164,7 +165,7 @@ public class Analysis {
             if ("_none_".equals(value)) {
                 return CharArraySet.EMPTY_SET;
             } else {
-                return resolveNamedWords(Strings.commaDelimitedListToSet(value), namedWords, ignoreCase);
+                return resolveNamedWords(new HashSet<>(Arrays.asList(settings.getAsArray(name))), namedWords, ignoreCase);
             }
         }
         List<String> pathLoadedWords = getWordList(env, settings, name);

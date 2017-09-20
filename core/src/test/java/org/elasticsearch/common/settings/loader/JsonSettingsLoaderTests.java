@@ -42,8 +42,7 @@ public class JsonSettingsLoaderTests extends ESTestCase {
         assertThat(settings.getAsInt("test1.test2.value3", -1), equalTo(2));
 
         // check array
-        assertThat(settings.get("test1.test3.0"), equalTo("test3-1"));
-        assertThat(settings.get("test1.test3.1"), equalTo("test3-2"));
+        assertThat(settings.get("test1.test3"), equalTo("[\"test3-1\",\"test3-2\"]"));
         assertThat(settings.getAsArray("test1.test3").length, equalTo(2));
         assertThat(settings.getAsArray("test1.test3")[0], equalTo("test3-1"));
         assertThat(settings.getAsArray("test1.test3")[1], equalTo("test3-2"));

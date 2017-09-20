@@ -552,7 +552,7 @@ public final class Settings implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             entries = settings.getAsMap().entrySet();
         } else {
-            Map<String, String> legacyEntries = new HashMap<>(settings.getAsMap().size());
+            Map<String, String> legacyEntries = new TreeMap<>();
             for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
                 String value = entry.getValue();
                 List<String> optional = maybeGetList(value);

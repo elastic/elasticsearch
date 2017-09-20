@@ -91,8 +91,8 @@ indices:monitor/upgrade[n]
 indices:monitor/upgrade
 indices:data/read/sql
 indices:data/read/sql/jdbc
-indices:data/read/sql/cli
 indices:data/read/sql/tables
+indices:data/read/sql/translate
 internal:admin/tasks/ban
 internal:cluster/node/mapping/refresh
 internal:cluster/nodes/indices/shard/store

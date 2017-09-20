@@ -25,6 +25,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -736,7 +737,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     case STARTED:
                     case RELOCATED:
                         try {
-                            shard.maybeSyncGlobalCheckpoint();
+                            shard.acquirePrimaryOperationPermit(
+                                    ActionListener.wrap(
+                                            releasable -> shard.maybeSyncGlobalCheckpoint("background"),
+                                            e -> logger.info("failed to execute background global checkpoint sync", e)),
+                                    ThreadPool.Names.SAME);
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {
                             // the shard was closed concurrently, continue
                         }

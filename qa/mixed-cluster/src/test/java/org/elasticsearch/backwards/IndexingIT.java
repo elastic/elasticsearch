@@ -213,7 +213,6 @@ public class IndexingIT extends ESRestTestCase {
             final int numberOfInitialDocs = 1 + randomInt(5);
             logger.info("indexing [{}] docs initially", numberOfInitialDocs);
             numDocs += indexDocs(index, numDocs, numberOfInitialDocs);
-            assertOK(client().performRequest("POST", index + "/_refresh")); // this forces a global checkpoint sync
             assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
             logger.info("allowing shards on all nodes");
             updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
@@ -224,7 +223,6 @@ public class IndexingIT extends ESRestTestCase {
             final int numberOfDocsAfterAllowingShardsOnAllNodes = 1 + randomInt(5);
             logger.info("indexing [{}] docs after allowing shards on all nodes", numberOfDocsAfterAllowingShardsOnAllNodes);
             numDocs += indexDocs(index, numDocs, numberOfDocsAfterAllowingShardsOnAllNodes);
-            assertOK(client().performRequest("POST", index + "/_refresh")); // this forces a global checkpoint sync
             assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
             Shard primary = buildShards(index, nodes, newNodeClient).stream().filter(Shard::isPrimary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.getNode().getNodeName());
@@ -235,7 +233,6 @@ public class IndexingIT extends ESRestTestCase {
             logger.info("indexing [{}] docs after moving primary", numberOfDocsAfterMovingPrimary);
             numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterMovingPrimary);
             numDocs += numberOfDocsAfterMovingPrimary;
-            assertOK(client().performRequest("POST", index + "/_refresh")); // this forces a global checkpoint sync
             assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
             /*
              * Dropping the number of replicas to zero, and then increasing it to one triggers a recovery thus exercising any BWC-logic in

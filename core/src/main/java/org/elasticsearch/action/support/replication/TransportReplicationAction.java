@@ -375,6 +375,13 @@ public abstract class TransportReplicationAction<
             return new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {
+                    if (syncGlobalCheckpointAfterOperation) {
+                        try {
+                            primaryShardReference.indexShard.maybeSyncGlobalCheckpoint("post-operation");
+                        } catch (final Exception e) {
+                            logger.trace("ignored", e);
+                        }
+                    }
                     primaryShardReference.close(); // release shard operation lock before responding to caller
                     setPhase(replicationTask, "finished");
                     try {
@@ -403,17 +410,20 @@ public abstract class TransportReplicationAction<
             return new ReplicationOperation<>(
                     request,
                     primaryShardReference,
-                    ActionListener.wrap(response -> {
-                                try {
-                                    if (syncGlobalCheckpointAfterOperation &&
-                                            response.finalResponseIfSuccessful.getShardInfo().getFailed() == 0) {
-                                        threadPool.generic().execute(primaryShardReference.indexShard::maybeSyncGlobalCheckpoint);
-                                    }
-                                } finally {
-                                    listener.onResponse(response);
-                                }
-                            },
-                            listener::onFailure),
+                    listener,
+//                    ActionListener.wrap(response -> {
+//                                try {
+//                                    System.out.println(Thread.currentThread().getName());
+//                                    if (syncGlobalCheckpointAfterOperation &&
+//                                            response.finalResponseIfSuccessful.getShardInfo().getFailed() == 0) {
+//                                        threadPool.generic().execute(
+//                                                () -> primaryShardReference.indexShard.maybeSyncGlobalCheckpoint("post-operation"));
+//                                    }
+//                                } finally {
+//                                    listener.onResponse(response);
+//                                }
+//                            },
+//                            listener::onFailure),
                     newReplicasProxy(primaryTerm), logger, actionName);
         }
     }

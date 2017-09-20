@@ -73,7 +73,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
                 indexNameExpressionResolver,
                 Request::new,
                 Request::new,
-                ThreadPool.Names.SAME);
+                ThreadPool.Names.MANAGEMENT);
     }
 
     public void updateGlobalCheckpointForShard(final ShardId shardId) {

@@ -21,6 +21,7 @@ package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
@@ -1774,19 +1775,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Syncs the global checkpoint to the replicas if the global checkpoint on at least one replica is behind the global checkpoint on the
      * primary.
      */
-    public void maybeSyncGlobalCheckpoint() {
+    public void maybeSyncGlobalCheckpoint(final String reason) {
         verifyPrimary();
         verifyNotClosed();
+        if (state == IndexShardState.RELOCATED) {
+            return;
+        }
         // only sync if there are not operations in flight
-        if (getEngine().seqNoService().getMaxSeqNo() == getEngine().seqNoService().getGlobalCheckpoint()) {
+        final SeqNoStats stats = getEngine().seqNoService().stats();
+        if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint()) {
             final ObjectLongMap<String> globalCheckpoints = getGlobalCheckpoints();
             final String allocationId = routingEntry().allocationId().getId();
             assert globalCheckpoints.containsKey(allocationId);
             final long globalCheckpoint = globalCheckpoints.get(allocationId);
             final boolean syncNeeded =
-                    StreamSupport.stream(globalCheckpoints.values().spliterator(), false).anyMatch(v -> v.value < globalCheckpoint);
+                    StreamSupport
+                            .stream(globalCheckpoints.values().spliterator(), false)
+                            .anyMatch(v -> v.value < globalCheckpoint);
             // only sync if there is a shard lagging the primary
             if (syncNeeded) {
+                logger.trace("syncing global checkpoint for [{}]", reason);
                 globalCheckpointSyncer.run();
             }
         }

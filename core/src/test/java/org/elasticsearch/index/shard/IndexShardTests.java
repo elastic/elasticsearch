@@ -730,12 +730,10 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexMetaData.Builder indexMetadata = IndexMetaData.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
         final AtomicBoolean synced = new AtomicBoolean();
         final IndexShard primaryShard = newShard(shardRouting, indexMetadata.build(), null, null, () -> { synced.set(true); });
-        // add two replicas
+        // add a replicas
         recoverShardFromStore(primaryShard);
-        final IndexShard firstReplicaShard = newShard(shardId, false);
-        recoverReplica(firstReplicaShard, primaryShard);
-        final IndexShard secondReplicaShard = newShard(shardId, false);
-        recoverReplica(secondReplicaShard, primaryShard);
+        final IndexShard replicaShard = newShard(shardId, false);
+        recoverReplica(replicaShard, primaryShard);
         final int maxSeqNo = randomIntBetween(0, 128);
         for (int i = 0; i < maxSeqNo; i++) {
             primaryShard.getEngine().seqNoService().generateSeqNo();
@@ -744,43 +742,34 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // set up local checkpoints on the shard copies
         primaryShard.updateLocalCheckpointForShard(shardRouting.allocationId().getId(), checkpoint);
-        final int firstReplicaLocalCheckpoint = randomIntBetween(0, Math.toIntExact(checkpoint));
-        final String firstReplicaAllocationId = firstReplicaShard.routingEntry().allocationId().getId();
-        primaryShard.updateLocalCheckpointForShard(firstReplicaAllocationId, firstReplicaLocalCheckpoint);
-        final int secondReplicaLocalCheckpoint = randomIntBetween(0, Math.toIntExact(checkpoint));
-        final String secondReplicaAllocationId = secondReplicaShard.routingEntry().allocationId().getId();
-        primaryShard.updateLocalCheckpointForShard(secondReplicaAllocationId, secondReplicaLocalCheckpoint);
+        final int replicaLocalCheckpoint = randomIntBetween(0, Math.toIntExact(checkpoint));
+        final String replicaAllocationId = replicaShard.routingEntry().allocationId().getId();
+        primaryShard.updateLocalCheckpointForShard(replicaAllocationId, replicaLocalCheckpoint);
 
         // initialize the local knowledge on the primary of the global checkpoint on the replica shards
-        final int firstReplicaGlobalCheckpoint = Math.toIntExact(primaryShard.getGlobalCheckpoint());
+        final int replicaGlobalCheckpoint = Math.toIntExact(primaryShard.getGlobalCheckpoint());
         primaryShard.updateGlobalCheckpointForShard(
-                firstReplicaAllocationId,
-                randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), firstReplicaGlobalCheckpoint));
-        final int secondReplicaGlobalCheckpoint = Math.toIntExact(primaryShard.getGlobalCheckpoint());
-        primaryShard.updateGlobalCheckpointForShard(
-                secondReplicaAllocationId,
-                randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), secondReplicaGlobalCheckpoint));
+                replicaAllocationId,
+                randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), replicaGlobalCheckpoint));
 
-        // simulate a background maybe sync; it should only run if one of the replica copies global checkpoint lags the primary
-        primaryShard.maybeSyncGlobalCheckpoint();
+        // simulate a background maybe sync; it should only run if the knowledge on the replica of the global checkpoint lags the primary
+        primaryShard.maybeSyncGlobalCheckpoint("test");
         assertThat(
                 synced.get(),
-                equalTo(maxSeqNo == primaryShard.getGlobalCheckpoint() &&
-                        (firstReplicaGlobalCheckpoint < checkpoint || secondReplicaGlobalCheckpoint < checkpoint)));
+                equalTo(maxSeqNo == primaryShard.getGlobalCheckpoint() && (replicaGlobalCheckpoint < checkpoint)));
 
-        // simulate that the background sync advanced the global checkpoint on the replica copies
-        primaryShard.updateGlobalCheckpointForShard(firstReplicaAllocationId, primaryShard.getGlobalCheckpoint());
-        primaryShard.updateGlobalCheckpointForShard(secondReplicaAllocationId, primaryShard.getGlobalCheckpoint());
+        // simulate that the background sync advanced the global checkpoint on the replica
+        primaryShard.updateGlobalCheckpointForShard(replicaAllocationId, primaryShard.getGlobalCheckpoint());
 
         // reset our boolean so that we can assert after another simulated maybe sync
         synced.set(false);
 
-        primaryShard.maybeSyncGlobalCheckpoint();
+        primaryShard.maybeSyncGlobalCheckpoint("test");
 
         // this time there should not be a sync since all the replica copies are caught up with the primary
         assertFalse(synced.get());
 
-        closeShards(secondReplicaShard, firstReplicaShard, primaryShard);
+        closeShards(replicaShard, primaryShard);
     }
 
     public void testRestoreLocalCheckpointTrackerFromTranslogOnPromotion() throws IOException, InterruptedException {

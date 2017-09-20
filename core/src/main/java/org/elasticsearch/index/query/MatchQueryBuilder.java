@@ -110,13 +110,11 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         super(in);
         fieldName = in.readString();
         value = in.readGenericValue();
-        // TODO lower this version once this has been backported to 6.0.0
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
             MatchQuery.Type.readFromStream(in);  // deprecated type
         }
         operator = Operator.readFromStream(in);
-        // TODO lower this version once this has been backported to 6.0.0
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
             in.readVInt(); // deprecated slop
         }
         prefixLength = in.readVInt();
@@ -139,13 +137,11 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeGenericValue(value);
-        // TODO lower this version once this has been backported to 6.0.0
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
             MatchQuery.Type.BOOLEAN.writeTo(out); // deprecated type
         }
         operator.writeTo(out);
-        // TODO lower this version once this has been backported to 6.0.0
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
             out.writeVInt(MatchQuery.DEFAULT_PHRASE_SLOP); // deprecated slop
         }
         out.writeVInt(prefixLength);

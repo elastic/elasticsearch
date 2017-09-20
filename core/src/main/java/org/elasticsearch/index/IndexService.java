@@ -933,13 +933,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     final class AsyncGlobalCheckpointTask extends BaseAsyncTask {
 
         AsyncGlobalCheckpointTask(final IndexService indexService) {
-            // index.global_checkpoint_sync_interval is not a real setting, it is only registered in tests
-            super(
-                    indexService,
-                    indexService
-                            .getIndexSettings()
-                            .getSettings()
-                            .getAsTime("index.global_checkpoint_sync.interval", GLOBAL_CHECKPOINT_SYNC_INTERVAL));
+            super(indexService, GLOBAL_CHECKPOINT_SYNC_INTERVAL);
         }
 
         @Override
@@ -964,10 +958,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     AsyncTranslogFSync getFsyncTask() { // for tests
         return fsyncTask;
-    }
-
-    AsyncGlobalCheckpointTask getGlobalCheckpointTask() {
-        return globalCheckpointTask;
     }
 
     /**

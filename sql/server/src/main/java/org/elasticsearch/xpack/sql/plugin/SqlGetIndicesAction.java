@@ -77,9 +77,8 @@ public class SqlGetIndicesAction
             this.indices = indices;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        Request(StreamInput in) throws IOException {
+            super(in);
             indicesOptions = IndicesOptions.readIndicesOptions(in);
             indices = in.readStringArray();
         }
@@ -190,7 +189,7 @@ public class SqlGetIndicesAction
                 ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver, CatalogHolder catalog, SqlLicenseChecker licenseChecker) {
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                    Request::new, indexNameExpressionResolver);
             this.catalogSupplier = catalog.catalogSupplier;
             this.licenseChecker = licenseChecker;
         }

@@ -6,16 +6,17 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.plugin.SqlGetIndicesAction.Request;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.Supplier;
 
-public class SqlGetIndicesRequestTests extends AbstractStreamableTestCase<SqlGetIndicesAction.Request> {
+public class SqlGetIndicesRequestTests extends AbstractWireSerializingTestCase<SqlGetIndicesAction.Request> {
     @Override
     protected Request createTestInstance() {
         Request request = new Request(randomIndicesOptions(), randomIndices());
@@ -26,16 +27,12 @@ public class SqlGetIndicesRequestTests extends AbstractStreamableTestCase<SqlGet
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override
-    protected MutateFunction<Request> getMutateFunction() {
-        return SqlGetIndicesRequestTests::mutate;
-    }
-
-    private static Request mutate(Request request) {
+    protected Request mutateInstance(Request request) throws IOException {
         @SuppressWarnings("unchecked")
         Supplier<Request> supplier = randomFrom(
                 () -> {

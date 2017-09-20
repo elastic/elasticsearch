@@ -113,6 +113,15 @@ if (bwcVersion.endsWith('-SNAPSHOT')) {
     dependsOn checkoutBwcBranch, writeBuildMetadata
     dir = checkoutDir
     tasks = [':distribution:deb:assemble', ':distribution:rpm:assemble', ':distribution:zip:assemble']
+    startParameter.systemPropertiesArgs = ['build.snapshot': 'true']
+    doLast {
+      List missing = [bwcDeb, bwcRpm, bwcZip].grep { file ->
+        false == file.exists() }
+      if (false == missing.empty) {
+        throw new InvalidUserDataException(
+          "Building bwc version didn't generate expected files ${missing}")
+      }
+    }
   }
 
 

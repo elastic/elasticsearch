@@ -51,7 +51,6 @@ class AggregationToJsonProcessor {
     private long keyValueWrittenCount;
     private final SortedMap<Long, List<Map<String, Object>>> docsByBucketTimestamp;
     private final long startTime;
-    private final long histogramInterval;
 
     /**
      * Constructs a processor that processes aggregations into JSON
@@ -60,9 +59,8 @@ class AggregationToJsonProcessor {
      * @param fields the fields to convert into JSON
      * @param includeDocCount whether to include the doc_count
      * @param startTime buckets with a timestamp before this time are discarded
-     * @param histogramInterval the histogram interval
      */
-    AggregationToJsonProcessor(String timeField, Set<String> fields, boolean includeDocCount, long startTime, long histogramInterval)
+    AggregationToJsonProcessor(String timeField, Set<String> fields, boolean includeDocCount, long startTime)
             throws IOException {
         this.timeField = Objects.requireNonNull(timeField);
         this.fields = Objects.requireNonNull(fields);
@@ -71,7 +69,6 @@ class AggregationToJsonProcessor {
         docsByBucketTimestamp = new TreeMap<>();
         keyValueWrittenCount = 0;
         this.startTime = startTime;
-        this.histogramInterval = histogramInterval;
     }
 
     public void process(Aggregations aggs) throws IOException {
@@ -162,9 +159,9 @@ class AggregationToJsonProcessor {
         for (Histogram.Bucket bucket : agg.getBuckets()) {
             if (checkBucketTime) {
                 long bucketTime = toHistogramKeyToEpoch(bucket.getKey());
-                if (bucketTime + histogramInterval <= startTime) {
+                if (bucketTime < startTime) {
                     // skip buckets outside the required time range
-                    LOGGER.debug("Skipping bucket at [" + bucketTime + "], startTime is [" + startTime + "]");
+                    LOGGER.debug("Skipping bucket at [{}], startTime is [{}]", bucketTime, startTime);
                     continue;
                 } else {
                     checkBucketTime = false;

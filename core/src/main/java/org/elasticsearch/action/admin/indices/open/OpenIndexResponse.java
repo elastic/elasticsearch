@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.open;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -54,13 +55,17 @@ public class OpenIndexResponse extends AcknowledgedResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         readAcknowledged(in);
-        shardsAcknowledged = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            shardsAcknowledged = in.readBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
-        out.writeBoolean(shardsAcknowledged);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(shardsAcknowledged);
+        }
     }
 }

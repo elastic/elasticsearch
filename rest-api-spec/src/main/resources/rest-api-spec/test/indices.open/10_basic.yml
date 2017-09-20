@@ -38,6 +38,10 @@
 
 ---
 "Open index with wait_for_active_shards set to all":
+  - skip:
+      version: " - 6.99.99"
+      reason: wait_for_active_shards parameter was added in 7.0.0
+
   - do:
       indices.create:
         index: test_index

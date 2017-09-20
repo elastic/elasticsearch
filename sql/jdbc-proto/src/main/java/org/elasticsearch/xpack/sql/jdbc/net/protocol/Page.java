@@ -21,6 +21,8 @@ import static org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils.writeValu
  * Stores a page of data in a columnar format.
  */
 public class Page implements Payload {
+    private final List<ColumnInfo> columnInfo;
+
     /**
      * The actual data, one array per column.
      */

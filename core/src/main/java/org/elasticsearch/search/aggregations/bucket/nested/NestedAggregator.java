@@ -158,7 +158,6 @@ class NestedAggregator extends BucketsAggregator implements SingleBucketAggregat
                 return;
             }
 
-
             final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
             int childDocId = childDocs.docID();
             if (childDocId <= prevParentDoc) {
@@ -178,7 +177,5 @@ class NestedAggregator extends BucketsAggregator implements SingleBucketAggregat
         void postCollect() throws IOException {
             processChildBuckets(currentParentDoc, bucketBuffer);
         }
-
     }
-
 }

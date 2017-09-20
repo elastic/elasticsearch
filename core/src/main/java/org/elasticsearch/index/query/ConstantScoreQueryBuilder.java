@@ -39,7 +39,7 @@ import java.util.Objects;
 public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScoreQueryBuilder> {
     public static final String NAME = "constant_score";
 
-    private static final ParseField INNER_QUERY_FIELD = new ParseField("filter", "query");
+    private static final ParseField INNER_QUERY_FIELD = new ParseField("filter");
 
     private final QueryBuilder filterBuilder;
 

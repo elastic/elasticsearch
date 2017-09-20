@@ -95,7 +95,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                           TransportNodesListGatewayMetaState listGatewayMetaState,
                           IndicesService indicesService) {
         super(settings);
-        this.gateway = new Gateway(settings, clusterService, metaState, listGatewayMetaState,
+        this.gateway = new Gateway(settings, clusterService, listGatewayMetaState,
             indicesService);
         this.allocationService = allocationService;
         this.clusterService = clusterService;
@@ -121,6 +121,8 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             // TODO: change me once the minimum_master_nodes is changed too
             recoverAfterMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", -1);
         }
+
+        clusterService.addLowPriorityApplier(metaState);
     }
 
     @Override

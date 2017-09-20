@@ -22,7 +22,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -283,8 +282,10 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         for (int i = 1; i < iterations; i++) {
             assertAcked(client().admin().cluster().preparePutStoredScript()
                     .setId("git01")
-                    .setContent(new BytesArray("{\"template\":{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
-                            "\"type\": \"ooophrase_prefix\"}}}}}"), XContentType.JSON));
+                    .setContent(new BytesArray(
+                            "{\"template\":{\"query\": {\"match_phrase_prefix\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\","
+                                    + "\"slop\": -1}}}}}"),
+                            XContentType.JSON));
 
             GetStoredScriptResponse getResponse = client().admin().cluster().prepareGetStoredScript("git01").get();
             assertNotNull(getResponse.getSource());
@@ -292,24 +293,22 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             Map<String, Object> templateParams = new HashMap<>();
             templateParams.put("P_Keyword1", "dev");
 
-            ParsingException e = expectThrows(ParsingException.class, () -> new SearchTemplateRequestBuilder(client())
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SearchTemplateRequestBuilder(client())
                     .setRequest(new SearchRequest("testindex").types("test"))
                     .setScript("git01").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
                     .get());
-            assertThat(e.getMessage(), containsString("[match] query does not support type ooophrase_prefix"));
-            assertWarnings("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]");
+            assertThat(e.getMessage(), containsString("No negative slop allowed"));
 
             assertAcked(client().admin().cluster().preparePutStoredScript()
                     .setId("git01")
-                    .setContent(new BytesArray("{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
-                            "\"type\": \"phrase_prefix\"}}}}"), XContentType.JSON));
+                    .setContent(new BytesArray("{\"query\": {\"match_phrase_prefix\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
+                            "\"slop\": 0}}}}"), XContentType.JSON));
 
             SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
                     .setRequest(new SearchRequest("testindex").types("test"))
                     .setScript("git01").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
                     .get();
             assertHitCount(searchResponse.getResponse(), 1);
-            assertWarnings("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]");
         }
     }
 

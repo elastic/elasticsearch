@@ -81,7 +81,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         client().admin().indices().prepareRefresh("*").get();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/machine-learning-cpp/issues/279")
     public void testBasicCategorization() throws Exception {
         Job.Builder job = newJobBuilder("categorization", Collections.emptyList());
         registerJob(job);

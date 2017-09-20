@@ -48,7 +48,6 @@ public class IndexServiceIT extends ESIntegTestCase {
     public void testGlobalCheckpointSync() throws Exception {
         internalCluster().startNode();
         prepareCreate("test", Settings.builder().put(GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")).get();
-        ensureGreen("test");
         final int numberOfDocuments = randomIntBetween(1, 128);
         for (int i = 0; i < numberOfDocuments; i++) {
             final String id = Integer.toString(i);

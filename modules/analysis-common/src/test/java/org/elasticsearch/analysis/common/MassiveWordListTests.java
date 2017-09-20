@@ -26,7 +26,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.util.Collection;
 import java.util.Collections;
 
-public class MassiveWordListTest extends ESSingleNodeTestCase {
+public class MassiveWordListTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

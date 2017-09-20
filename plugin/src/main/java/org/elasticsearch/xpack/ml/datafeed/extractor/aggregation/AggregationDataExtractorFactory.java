@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.utils.Intervals;
 
 import java.util.Objects;
 
@@ -27,6 +28,7 @@ public class AggregationDataExtractorFactory implements DataExtractorFactory {
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
+        long histogramInterval = datafeedConfig.getHistogramIntervalMillis();
         AggregationDataExtractorContext dataExtractorContext = new AggregationDataExtractorContext(
                 job.getId(),
                 job.getDataDescription().getTimeField(),
@@ -35,8 +37,8 @@ public class AggregationDataExtractorFactory implements DataExtractorFactory {
                 datafeedConfig.getTypes(),
                 datafeedConfig.getQuery(),
                 datafeedConfig.getAggregations(),
-                start,
-                end,
+                Intervals.alignToCeil(start, histogramInterval),
+                Intervals.alignToFloor(end, histogramInterval),
                 job.getAnalysisConfig().getSummaryCountFieldName().equals(DatafeedConfig.DOC_COUNT));
         return new AggregationDataExtractor(client, dataExtractorContext);
     }

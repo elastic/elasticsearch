@@ -41,7 +41,9 @@ A {dfeed} resource has the following properties:
 `query_delay`::
   (time units) The number of seconds behind real time that data is queried. For
   example, if data from 10:04 a.m. might not be searchable in {es} until
-  10:06 a.m., set this property to 120 seconds. The default value is `60s`.
+  10:06 a.m., set this property to 120 seconds. The default value is randomly
+  selected between `60s` and `120s`. This randomness improves the query
+  performance when there are multiple jobs running on the same node. 
 
 `script_fields`::
   (object) Specifies scripts that evaluate custom expressions and returns

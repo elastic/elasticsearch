@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.client.Client;
@@ -34,6 +35,7 @@ import static org.hamcrest.Matchers.not;
  * system priviliges
  */
 @ClusterScope(maxNumDataNodes = 1, scope = Scope.SUITE, numClientNodes = 0)
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2421")
 public class TemplateUpgraderTests extends SecurityIntegTestCase {
 
     public void testTemplatesWorkAsExpected() throws Exception {

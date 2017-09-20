@@ -14,6 +14,11 @@ import java.util.Objects;
 
 class ChunkedDataExtractorContext {
 
+    interface TimeAligner {
+        long alignToFloor(long value);
+        long alignToCeil(long value);
+    }
+
     final String jobId;
     final String timeField;
     final String[] indices;
@@ -23,9 +28,11 @@ class ChunkedDataExtractorContext {
     final long start;
     final long end;
     final TimeValue chunkSpan;
+    final TimeAligner timeAligner;
 
     ChunkedDataExtractorContext(String jobId, String timeField, List<String> indices, List<String> types,
-                                QueryBuilder query, int scrollSize, long start, long end, @Nullable TimeValue chunkSpan) {
+                                QueryBuilder query, int scrollSize, long start, long end, @Nullable TimeValue chunkSpan,
+                                TimeAligner timeAligner) {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
         this.indices = indices.toArray(new String[indices.size()]);
@@ -35,5 +42,6 @@ class ChunkedDataExtractorContext {
         this.start = start;
         this.end = end;
         this.chunkSpan = chunkSpan;
+        this.timeAligner = Objects.requireNonNull(timeAligner);
     }
 }

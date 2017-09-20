@@ -65,7 +65,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     static final String AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING = "user_search.down_level_filter";
     static final String AD_USER_SEARCH_SCOPE_SETTING = "user_search.scope";
     private static final String NETBIOS_NAME_FILTER_TEMPLATE = "(netbiosname={0})";
-    private static final Setting<Boolean> POOL_ENABLED = Setting.boolSetting("user_search.pool.enabled",
+    static final Setting<Boolean> POOL_ENABLED = Setting.boolSetting("user_search.pool.enabled",
             settings -> Boolean.toString(PoolingSessionFactory.BIND_DN.exists(settings)), Setting.Property.NodeScope);
 
     final DefaultADAuthenticator defaultADAuthenticator;
@@ -106,6 +106,13 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     @Override
     protected String[] getDefaultLdapUrls(Settings settings) {
         return new String[] {"ldap://" + settings.get(AD_DOMAIN_NAME_SETTING) + ":389"};
+    }
+
+    @Override
+    public boolean supportsUnauthenticatedSession() {
+        // Strictly, we only support unauthenticated sessions if there is a bind_dn or a connection pool, but the
+        // getUnauthenticatedSession... methods handle the situations correctly, so it's OK to always return true here.
+        return true;
     }
 
     @Override
@@ -207,6 +214,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         settings.add(Setting.simpleString(AD_UPN_USER_SEARCH_FILTER_SETTING, Setting.Property.NodeScope));
         settings.add(Setting.simpleString(AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING, Setting.Property.NodeScope));
         settings.add(Setting.simpleString(AD_USER_SEARCH_SCOPE_SETTING, Setting.Property.NodeScope));
+        settings.add(POOL_ENABLED);
         settings.addAll(PoolingSessionFactory.getSettings());
         return settings;
     }

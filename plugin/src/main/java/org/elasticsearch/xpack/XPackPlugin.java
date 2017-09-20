@@ -487,8 +487,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     }
 
     @Override
-    public List<Class<? extends ActionFilter>> getActionFilters() {
-        List<Class<? extends ActionFilter>> filters = new ArrayList<>();
+    public List<ActionFilter> getActionFilters() {
+        List<ActionFilter> filters = new ArrayList<>();
         filters.addAll(licensing.getActionFilters());
         filters.addAll(monitoring.getActionFilters());
         filters.addAll(security.getActionFilters());

@@ -72,10 +72,11 @@ information, see
 {kibana-ref}/xpack-dashboard-only-mode.html[{kib} Dashboard Only Mode].
 
 [[built-in-roles-kibana-system]] `kibana_system` ::
-Grants access necessary for the <<kibana, Kibana system user>>
-to read from and write to the Kibana indices and check the availability of the
-Elasticsearch cluster. This role grants read access to the `.monitoring-*`
-indices and read and write access to the `.reporting-*` indices.
+Grants access necessary for the {kib} system user to read from and write to the
+{kib} indices and check the availability of the {es} cluster. This role grants
+read access to the `.monitoring-*` indices and read and write access to the
+`.reporting-*` indices. For more information, see
+{kibana-ref}/using-kibana-with-security.html[Configuring Security in {kib}].
 +
 NOTE: This role should not be assigned to users as the granted permissions may
 change between releases.

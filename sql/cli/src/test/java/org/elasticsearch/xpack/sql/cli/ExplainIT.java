@@ -27,14 +27,14 @@ public class ExplainIT extends CliIntegrationTestCase {
         assertThat(in.readLine(), startsWith("----------"));
         assertThat(in.readLine(), startsWith("Project[[test_field{r}#"));
         assertThat(in.readLine(), startsWith("\\_SubQueryAlias[test]"));
-        assertThat(in.readLine(), startsWith("  \\EsRelation[test][test_field{r}#"));
+        assertThat(in.readLine(), startsWith("  \\_EsRelation[test][test_field{r}#"));
         assertEquals("", in.readLine());
 
         command("EXPLAIN (PLAN OPTIMIZED) SELECT * FROM test");
         assertThat(in.readLine(), containsString("plan"));
         assertThat(in.readLine(), startsWith("----------"));
         assertThat(in.readLine(), startsWith("Project[[test_field{r}#"));
-        assertThat(in.readLine(), startsWith("\\EsRelation[test][test_field{r}#"));
+        assertThat(in.readLine(), startsWith("\\_EsRelation[test][test_field{r}#"));
         assertEquals("", in.readLine());
 
         // TODO in this case we should probably remove the source filtering entirely. Right? It costs but we don't need it.
@@ -71,7 +71,7 @@ public class ExplainIT extends CliIntegrationTestCase {
         assertThat(in.readLine(), startsWith("Project[[i{r}#"));
         assertThat(in.readLine(), startsWith("\\_Filter[i{r}#"));
         assertThat(in.readLine(), startsWith("  \\_SubQueryAlias[test]"));
-        assertThat(in.readLine(), startsWith("    \\EsRelation[test][i{r}#"));
+        assertThat(in.readLine(), startsWith("    \\_EsRelation[test][i{r}#"));
         assertEquals("", in.readLine());
 
         command("EXPLAIN (PLAN OPTIMIZED) SELECT * FROM test WHERE i = 2");
@@ -79,7 +79,7 @@ public class ExplainIT extends CliIntegrationTestCase {
         assertThat(in.readLine(), startsWith("----------"));
         assertThat(in.readLine(), startsWith("Project[[i{r}#"));
         assertThat(in.readLine(), startsWith("\\_Filter[i{r}#"));
-        assertThat(in.readLine(), startsWith("  \\EsRelation[test][i{r}#"));
+        assertThat(in.readLine(), startsWith("  \\_EsRelation[test][i{r}#"));
         assertEquals("", in.readLine());
 
         command("EXPLAIN (PLAN EXECUTABLE) SELECT * FROM test WHERE i = 2");
@@ -124,14 +124,14 @@ public class ExplainIT extends CliIntegrationTestCase {
         assertThat(in.readLine(), startsWith("----------"));
         assertThat(in.readLine(), startsWith("Aggregate[[],[COUNT(1)#"));
         assertThat(in.readLine(), startsWith("\\_SubQueryAlias[test]"));
-        assertThat(in.readLine(), startsWith("  \\EsRelation[test][i{r}#"));
+        assertThat(in.readLine(), startsWith("  \\_EsRelation[test][i{r}#"));
         assertEquals("", in.readLine());
 
         command("EXPLAIN (PLAN OPTIMIZED) SELECT COUNT(*) FROM test");
         assertThat(in.readLine(), containsString("plan"));
         assertThat(in.readLine(), startsWith("----------"));
         assertThat(in.readLine(), startsWith("Aggregate[[],[COUNT(1)#"));
-        assertThat(in.readLine(), startsWith("\\EsRelation[test][i{r}#"));
+        assertThat(in.readLine(), startsWith("\\_EsRelation[test][i{r}#"));
         assertEquals("", in.readLine());
 
         command("EXPLAIN (PLAN EXECUTABLE) SELECT COUNT(*) FROM test");

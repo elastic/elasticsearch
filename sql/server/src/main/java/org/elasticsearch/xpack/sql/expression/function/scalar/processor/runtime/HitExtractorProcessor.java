@@ -34,7 +34,7 @@ public class HitExtractorProcessor implements Processor {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        extractor.writeTo(out);
+        out.writeNamedWriteable(extractor);
     }
 
     @Override

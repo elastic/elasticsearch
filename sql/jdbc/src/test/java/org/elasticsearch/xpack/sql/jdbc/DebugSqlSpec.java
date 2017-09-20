@@ -15,7 +15,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 @TestLogging(JdbcTestUtils.SQL_TRACE)
-public class DebugSqlSpec extends SqlSpecIT {
+public abstract class DebugSqlSpec extends SqlSpecIT {
     public static LocalH2 H2 = new LocalH2();
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)

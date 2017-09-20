@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
@@ -161,7 +160,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
     }
 
     private Map<String, Object> runSql(HttpEntity sql) throws IOException {
-        Response response = client().performRequest("POST", "/_sql", emptyMap(), sql);
+        Response response = client().performRequest("POST", "/_sql", singletonMap("error_trace", "true"), sql);
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }

@@ -35,6 +35,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
@@ -49,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /** Separate test class from ShardPathTests because we need static (BeforeClass) setup to install mock filesystems... */
 public class NewPathForShardTests extends ESTestCase {
@@ -208,8 +210,10 @@ public class NewPathForShardTests extends ESTestCase {
 
         Map<Path,Integer> dataPathToShardCount = new HashMap<>();
         ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, dataPathToShardCount);
+        createFakeShard(result1);
         dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), 1);
         ShardPath result2 = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, dataPathToShardCount);
+        createFakeShard(result2);
 
         // #11122: this was the original failure: on a node with 2 disks that have nearly equal
         // free space, we would always allocate all N incoming shards to the one path that
@@ -241,7 +245,7 @@ public class NewPathForShardTests extends ESTestCase {
 
         // Path a has lots of free space, but b has little, so new shard should go to a:
         aFileStore.usableSpace = 100000;
-        bFileStore.usableSpace = 1000;
+        bFileStore.usableSpace = 10000;
 
         ShardId shardId = new ShardId("index", "uid1", 0);
         ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
@@ -269,11 +273,59 @@ public class NewPathForShardTests extends ESTestCase {
         shardId = new ShardId("index2", "uid2", 2);
         ShardPath result3 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
         createFakeShard(result3);
-        // 2 shards go to 'a'
+        // 2 shards go to 'a' and 1 to 'b'
         assertThat(result1.getDataPath().toString(), containsString(aPathPart));
-        assertThat(result2.getDataPath().toString(), containsString(aPathPart));
-        // and 1 to 'b'
-        assertThat(result3.getDataPath().toString(), containsString(bPathPart));
+        assertThat(result2.getDataPath().toString(), containsString(bPathPart));
+        assertThat(result3.getDataPath().toString(), containsString(aPathPart));
+
+        nodeEnv.close();
+    }
+
+    public void testPathHasEnoughSpace() throws Exception {
+        Path path = PathUtils.get(createTempDir().toString());
+
+        // Use 2 data paths:
+        String[] paths = new String[] {path.resolve("a").toString(),
+                                       path.resolve("b").toString()};
+
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), path)
+            .putArray(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+        NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
+
+        aFileStore.usableSpace = 100000;
+        bFileStore.usableSpace = 1000;
+
+        assertTrue(ShardPath.pathHasEnoughSpace(nodeEnv.nodePaths()[0], BigInteger.valueOf(999)));
+        assertTrue(ShardPath.pathHasEnoughSpace(nodeEnv.nodePaths()[1], BigInteger.valueOf(999)));
+        assertTrue(ShardPath.pathHasEnoughSpace(nodeEnv.nodePaths()[0], BigInteger.valueOf(2000)));
+        assertFalse(ShardPath.pathHasEnoughSpace(nodeEnv.nodePaths()[1], BigInteger.valueOf(2000)));
+        assertFalse(ShardPath.pathHasEnoughSpace(nodeEnv.nodePaths()[0], BigInteger.valueOf(1000000)));
+        assertFalse(ShardPath.pathHasEnoughSpace(nodeEnv.nodePaths()[1], BigInteger.valueOf(1000000)));
+        nodeEnv.close();
+    }
+
+    public void testGettingPathWithMostFreeSpace() throws Exception {
+        Path path = PathUtils.get(createTempDir().toString());
+
+        // Use 2 data paths:
+        String[] paths = new String[] {path.resolve("a").toString(),
+                                       path.resolve("b").toString()};
+
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), path)
+            .putArray(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+        NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
+
+        aFileStore.usableSpace = 100000;
+        bFileStore.usableSpace = 1000;
+
+        assertThat(ShardPath.getPathWithMostFreeSpace(nodeEnv), equalTo(nodeEnv.nodePaths()[0]));
+
+        aFileStore.usableSpace = 10000;
+        bFileStore.usableSpace = 20000;
+
+        assertThat(ShardPath.getPathWithMostFreeSpace(nodeEnv), equalTo(nodeEnv.nodePaths()[1]));
 
         nodeEnv.close();
     }

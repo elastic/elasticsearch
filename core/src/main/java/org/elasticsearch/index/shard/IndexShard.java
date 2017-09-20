@@ -1777,14 +1777,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void maybeSyncGlobalCheckpoint() {
         verifyPrimary();
         verifyNotClosed();
-        final String allocationId = routingEntry().allocationId().getId();
-        final ObjectLongMap<String> globalCheckpoints = getGlobalCheckpoints();
-        assert globalCheckpoints.containsKey(allocationId);
-        final long globalCheckpoint = globalCheckpoints.get(allocationId);
-        final boolean syncNeeded =
-                StreamSupport.stream(globalCheckpoints.values().spliterator(), false).anyMatch(v -> v.value < globalCheckpoint);
-        if (syncNeeded) {
-            globalCheckpointSyncer.run();
+        // only sync if there are not operations in flight
+        if (getEngine().seqNoService().getMaxSeqNo() == getEngine().seqNoService().getGlobalCheckpoint()) {
+            final ObjectLongMap<String> globalCheckpoints = getGlobalCheckpoints();
+            final String allocationId = routingEntry().allocationId().getId();
+            assert globalCheckpoints.containsKey(allocationId);
+            final long globalCheckpoint = globalCheckpoints.get(allocationId);
+            final boolean syncNeeded =
+                    StreamSupport.stream(globalCheckpoints.values().spliterator(), false).anyMatch(v -> v.value < globalCheckpoint);
+            // only sync if there is a shard lagging the primary
+            if (syncNeeded) {
+                globalCheckpointSyncer.run();
+            }
         }
     }
 

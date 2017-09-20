@@ -108,12 +108,26 @@ public abstract class TransportReplicationAction<
     protected final String transportReplicaAction;
     protected final String transportPrimaryAction;
 
+    private final boolean syncGlobalCheckpointAfterOperation;
+
     protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
                                          ClusterService clusterService, IndicesService indicesService,
                                          ThreadPool threadPool, ShardStateAction shardStateAction,
                                          ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
                                          Supplier<ReplicaRequest> replicaRequest, String executor) {
+        this(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
+                indexNameExpressionResolver, request, replicaRequest, executor, false);
+    }
+
+
+    protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
+                                         ClusterService clusterService, IndicesService indicesService,
+                                         ThreadPool threadPool, ShardStateAction shardStateAction,
+                                         ActionFilters actionFilters,
+                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                         Supplier<ReplicaRequest> replicaRequest, String executor,
+                                         boolean syncGlobalCheckpointAfterOperation) {
         super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -126,6 +140,8 @@ public abstract class TransportReplicationAction<
         registerRequestHandlers(actionName, transportService, request, replicaRequest, executor);
 
         this.transportOptions = transportOptions();
+
+        this.syncGlobalCheckpointAfterOperation = syncGlobalCheckpointAfterOperation;
     }
 
     protected void registerRequestHandlers(String actionName, TransportService transportService, Supplier<Request> request,
@@ -150,7 +166,7 @@ public abstract class TransportReplicationAction<
         new ReroutePhase((ReplicationTask) task, request, listener).run();
     }
 
-    protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
+    protected ReplicationOperation.Replicas<ReplicaRequest> newReplicasProxy(long primaryTerm) {
         return new ReplicasProxy(primaryTerm);
     }
 
@@ -384,7 +400,20 @@ public abstract class TransportReplicationAction<
         protected ReplicationOperation<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>> createReplicatedOperation(
             Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener,
             PrimaryShardReference primaryShardReference) {
-            return new ReplicationOperation<>(request, primaryShardReference, listener,
+            return new ReplicationOperation<>(
+                    request,
+                    primaryShardReference,
+                    ActionListener.wrap(response -> {
+                                try {
+                                    if (syncGlobalCheckpointAfterOperation &&
+                                            response.finalResponseIfSuccessful.getShardInfo().getFailed() == 0) {
+                                        threadPool.generic().execute(primaryShardReference.indexShard::maybeSyncGlobalCheckpoint);
+                                    }
+                                } finally {
+                                    listener.onResponse(response);
+                                }
+                            },
+                            listener::onFailure),
                     newReplicasProxy(primaryTerm), logger, actionName);
         }
     }

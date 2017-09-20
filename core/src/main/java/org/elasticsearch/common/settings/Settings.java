@@ -203,7 +203,7 @@ public final class Settings implements ToXContentFragment {
      * @param setting The setting key
      * @return The setting value, <tt>null</tt> if it does not exists.
      */
-    public final String get(String setting) {
+    public String get(String setting) {
         String s = settings.get(setting);
         if (isInternalList(s)) {
             return stripListMarker(s);

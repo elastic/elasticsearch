@@ -730,13 +730,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         for (final IndexShard shard : this.shards.values()) {
             if (shard.routingEntry().active() && shard.routingEntry().primary()) {
                 switch (shard.state()) {
+                    case CLOSED:
                     case CREATED:
                     case RECOVERING:
-                    case CLOSED:
+                    case RELOCATED:
                         continue;
                     case POST_RECOVERY:
+                        assert false : "shard " + shard.shardId() + " is in post-recovery but marked as active";
                     case STARTED:
-                    case RELOCATED:
                         try {
                             shard.acquirePrimaryOperationPermit(
                                     ActionListener.wrap(

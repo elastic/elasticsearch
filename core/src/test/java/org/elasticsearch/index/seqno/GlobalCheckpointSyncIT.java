@@ -31,9 +31,13 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -54,11 +58,42 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         if (randomBoolean()) {
             ensureGreen();
         }
-        final int numberOfDocuments = randomIntBetween(0, 128);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            final String id = Integer.toString(i);
-            client().prepareIndex("test", "test", id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
+
+        final int numberOfDocuments = randomIntBetween(0, 256);
+
+        final int numberOfThreads = randomIntBetween(1, 4);
+        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
+
+        // start concurrent indexing threads
+        final List<Thread> threads = new ArrayList<>(numberOfThreads);
+        for (int i = 0; i < numberOfThreads; i++) {
+            final int index = i;
+            final Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                } catch (BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                for (int j = 0; j < numberOfDocuments; j++) {
+                    final String id = Integer.toString(index * numberOfDocuments + j);
+                    client().prepareIndex("test", "test", id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
+                }
+                try {
+                    barrier.await();
+                } catch (BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            threads.add(thread);
+            thread.start();
         }
+
+        // synchronize the start of the threads
+        barrier.await();
+
+        // wait for the threads to finish
+        barrier.await();
+
         assertBusy(() -> {
             final IndicesStatsResponse stats = client().admin().indices().prepareStats().clear().get();
             final IndexStats indexStats = stats.getIndex("test");
@@ -82,6 +117,10 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                 }
             }
         });
+
+        for (final Thread thread : threads) {
+            thread.join();
+        }
     }
 
 }

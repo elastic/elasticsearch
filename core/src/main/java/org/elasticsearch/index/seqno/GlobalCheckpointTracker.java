@@ -618,8 +618,6 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         assert invariant();
     }
 
-    private ObjectLongMap<String> globalCheckpoints = new ObjectLongHashMap<>();
-
     /**
      * Computes the global checkpoint based on the given local checkpoints. In case where there are entries preventing the
      * computation to happen (for example due to blocking), it returns the fallback value.
@@ -719,7 +717,6 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
                 }
             }
         });
-        globalCheckpoints.clear();
         assert invariant();
     }
 

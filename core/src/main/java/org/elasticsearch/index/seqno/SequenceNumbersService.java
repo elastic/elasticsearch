@@ -21,7 +21,6 @@ package org.elasticsearch.index.seqno;
 
 import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ReplicationGroup;

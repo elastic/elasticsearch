@@ -1954,7 +1954,7 @@ public class InternalEngine extends Engine {
             // assert we don't loose key entries
             assert commitDataAsMap(writer).containsKey(Translog.TRANSLOG_UUID_KEY) : "commit misses translog uuid";
             assert commitDataAsMap(writer).containsKey(Translog.TRANSLOG_GENERATION_KEY) : "commit misses translog generation";
-            assert commitDataAsMap(writer).containsKey(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) : "commit misses max unsafe times stamps";
+            assert commitDataAsMap(writer).containsKey(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) : "commit misses max unsafe timestamp";
             assert commitDataAsMap(writer).containsKey(HISTORY_UUID_KEY) : "commit misses a history uuid";
             assert commitDataAsMap(writer).containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) ||
                 config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1): "commit misses local checkpoint";

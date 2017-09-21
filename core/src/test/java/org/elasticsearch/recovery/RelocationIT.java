@@ -63,6 +63,7 @@ import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -89,6 +90,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.InternalSettingsPlugin.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -104,7 +106,7 @@ public class RelocationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class, MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
     }
 
     @Override
@@ -301,11 +303,14 @@ public class RelocationIT extends ESIntegTestCase {
         nodes[0] = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
-        prepareCreate("test", Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", numberOfReplicas)
-            .put("index.refresh_interval", -1) // we want to control refreshes c
-        ).get();
+        prepareCreate(
+                "test",
+                Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", numberOfReplicas)
+                        .put("index.refresh_interval", -1) // we want to control refreshes c
+                        .put(GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms"))
+                .get();
 
         for (int i = 1; i < numberOfNodes; i++) {
             logger.info("--> starting [node_{}] ...", i);
@@ -478,11 +483,12 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("red nodes: {}", (Object)redNodes);
         ensureStableCluster(halfNodes * 2);
 
-        assertAcked(prepareCreate("test", Settings.builder()
-            .put("index.routing.allocation.exclude.color", "blue")
-            .put(indexSettings())
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1))
-        ));
+        final Settings.Builder settings = Settings.builder()
+                .put("index.routing.allocation.exclude.color", "blue")
+                .put(indexSettings())
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1))
+                .put(GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms");
+        assertAcked(prepareCreate("test", settings));
         assertAllShardsOnNodes("test", redNodes);
         int numDocs = randomIntBetween(100, 150);
         ArrayList<String> ids = new ArrayList<>();

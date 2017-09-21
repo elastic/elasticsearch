@@ -550,7 +550,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             logger.debug("{} creating shard", shardRouting.shardId());
             RecoveryState recoveryState = new RecoveryState(shardRouting, nodes.getLocalNode(), sourceNode);
             indicesService.createShard(shardRouting, recoveryState, recoveryTargetService, new RecoveryListener(shardRouting),
-                repositoriesService, failedShardHandler);
+                repositoriesService, failedShardHandler, globalCheckpointSyncer);
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
         }
@@ -841,7 +841,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         T createShard(ShardRouting shardRouting, RecoveryState recoveryState, PeerRecoveryTargetService recoveryTargetService,
                       PeerRecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
-                      Consumer<IndexShard.ShardFailure> onShardFailure) throws IOException;
+                      Consumer<IndexShard.ShardFailure> onShardFailure,
+                      Consumer<ShardId> globalCheckpointSyncer) throws IOException;
 
         /**
          * Returns shard for the specified id if it exists otherwise returns <code>null</code>.

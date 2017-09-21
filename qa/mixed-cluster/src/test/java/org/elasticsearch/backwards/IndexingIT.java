@@ -236,7 +236,6 @@ public class IndexingIT extends ESRestTestCase {
             logger.info("indexing [{}] docs after moving primary", numberOfDocsAfterMovingPrimary);
             numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterMovingPrimary);
             numDocs += numberOfDocsAfterMovingPrimary;
-            assertOK(client().performRequest("POST", index + "/_refresh")); // this forces a global checkpoint sync
             assertSeqNoOnShards(index, nodes, numDocsOnNewPrimary, newNodeClient);
             /*
              * Dropping the number of replicas to zero, and then increasing it to one triggers a recovery thus exercising any BWC-logic in

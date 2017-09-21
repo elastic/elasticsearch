@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
@@ -34,6 +37,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +51,7 @@ import org.elasticsearch.transport.TransportService;
 public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         GlobalCheckpointSyncAction.Request,
         GlobalCheckpointSyncAction.Request,
-        ReplicationResponse> implements IndexEventListener {
+        ReplicationResponse> {
 
     public static String ACTION_NAME = "indices:admin/seq_no/global_checkpoint_sync";
 
@@ -73,7 +77,17 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
                 indexNameExpressionResolver,
                 Request::new,
                 Request::new,
-                ThreadPool.Names.SAME);
+                ThreadPool.Names.MANAGEMENT);
+    }
+
+    public void updateGlobalCheckpointForShard(final ShardId shardId) {
+        execute(
+                new Request(shardId),
+                ActionListener.wrap(r -> {}, e -> {
+                    if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
+                        logger.info(shardId + " global checkpoint sync failed", e);
+                    }
+                }));
     }
 
     @Override
@@ -92,11 +106,6 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
             final long pre60NodeCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
             listener.onResponse(new ReplicaResponse(pre60NodeCheckpoint, pre60NodeCheckpoint));
         }
-    }
-
-    @Override
-    public void onShardInactive(final IndexShard indexShard) {
-        execute(new Request(indexShard.shardId()));
     }
 
     @Override

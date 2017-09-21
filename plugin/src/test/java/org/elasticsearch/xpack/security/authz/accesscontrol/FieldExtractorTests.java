@@ -21,8 +21,10 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -113,6 +115,12 @@ public class FieldExtractorTests extends ESTestCase {
         assertEquals(asSet("foo"), fields);
     }
     
+    public void testTermInSet() {
+        Set<String> fields = new HashSet<>();
+        FieldExtractor.extractFields(new TermInSetQuery("foo", new BytesRef("baz"), new BytesRef("baz2")), fields);
+        assertEquals(asSet("foo"), fields);
+    }
+
     public void testMatchAllDocs() {
         Set<String> fields = new HashSet<>();
         FieldExtractor.extractFields(new MatchAllDocsQuery(), fields);

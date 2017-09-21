@@ -379,7 +379,8 @@ public abstract class TransportReplicationAction<
                         try {
                             primaryShardReference.indexShard.maybeSyncGlobalCheckpoint("post-operation");
                         } catch (final Exception e) {
-                            logger.trace("ignored", e);
+                            logger.info("post-operation global checkpoint sync failed", e);
+                            // intentionally swallow, a missed global checkpoint sync should not fail this operation
                         }
                     }
                     primaryShardReference.close(); // release shard operation lock before responding to caller

@@ -738,26 +738,68 @@ public final class Settings implements ToXContentFragment {
             return this;
         }
 
+        /**
+         * Sets a path setting with the provided setting key and path.
+         *
+         * @param key  The setting key
+         * @param path The setting path
+         * @return The builder
+         */
         public Builder put(String key, Path path) {
             return put(key, path.toString());
         }
 
+        /**
+         * Sets a time value setting with the provided setting key and value.
+         *
+         * @param key  The setting key
+         * @param timeValue The setting timeValue
+         * @return The builder
+         */
         public Builder put(String key, TimeValue timeValue) {
             return put(key, timeValue.toString());
         }
 
+        /**
+         * Sets a byteSizeValue setting with the provided setting key and byteSizeValue.
+         *
+         * @param key  The setting key
+         * @param byteSizeValue The setting value
+         * @return The builder
+         */
         public Builder put(String key, ByteSizeValue byteSizeValue) {
             return put(key, byteSizeValue.toString());
         }
 
+        /**
+         * Sets an enum setting with the provided setting key and enum instance.
+         *
+         * @param key  The setting key
+         * @param enumValue The setting value
+         * @return The builder
+         */
         public Builder put(String key, Enum<?> enumValue) {
             return put(key, enumValue.toString());
         }
 
+        /**
+         * Sets an level setting with the provided setting key and level instance.
+         *
+         * @param key  The setting key
+         * @param level The setting value
+         * @return The builder
+         */
         public Builder put(String key, Level level) {
             return put(key, level.toString());
         }
 
+        /**
+         * Sets an lucene version setting with the provided setting key and lucene version instance.
+         *
+         * @param key  The setting key
+         * @param luceneVersion The setting value
+         * @return The builder
+         */
         public Builder put(String key, org.apache.lucene.util.Version luceneVersion) {
             return put(key, luceneVersion.toString());
         }

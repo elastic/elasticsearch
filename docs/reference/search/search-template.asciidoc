@@ -403,7 +403,7 @@ The previous query will be rendered as:
 ===== Pre-registered template
 
 You can register search templates by storing it in the `config/scripts` directory, in a file using the `.mustache` extension.
-In order to execute the stored template, reference it by it's name under the `template` key:
+In order to execute the stored template, reference it by its name under the `template` key:
 
 
 [source,js]

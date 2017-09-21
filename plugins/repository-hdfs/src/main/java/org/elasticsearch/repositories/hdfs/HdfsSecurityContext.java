@@ -26,8 +26,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.util.Arrays;
-import java.util.Locale;
-import java.util.function.Supplier;
 import javax.security.auth.AuthPermission;
 import javax.security.auth.PrivateCredentialPermission;
 import javax.security.auth.kerberos.ServicePermission;
@@ -41,7 +39,7 @@ import org.elasticsearch.env.Environment;
  * Oversees all the security specific logic for the HDFS Repository plugin.
  *
  * Keeps track of the current user for a given repository, as well as which
- * permissions to grant the blob store restricted execution methods.
+ * permissions to grant to privileged methods inside the BlobStore.
  */
 class HdfsSecurityContext {
 
@@ -56,7 +54,9 @@ class HdfsSecurityContext {
             // 1) hadoop dynamic proxy is messy with access rules
             new ReflectPermission("suppressAccessChecks"),
             // 2) allow hadoop to add credentials to our Subject
-            new AuthPermission("modifyPrivateCredentials")
+            new AuthPermission("modifyPrivateCredentials"),
+            // 3) RPC Engine requires this for re-establishing pooled connections over the lifetime of the client
+            new PrivateCredentialPermission("org.apache.hadoop.security.Credentials * \"*\"", "read")
         };
 
         // If Security is enabled, we need all the following elevated permissions:

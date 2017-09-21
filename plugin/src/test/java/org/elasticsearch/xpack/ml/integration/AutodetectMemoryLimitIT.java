@@ -83,9 +83,9 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // it is important to check that while we rejected partitions, we still managed
         // to create some by fields; it shows we utilize memory in a meaningful way
         // rather than creating empty partitions
-        assertThat(modelSizeStats.getTotalPartitionFieldCount(), lessThan(700L));
+        assertThat(modelSizeStats.getTotalPartitionFieldCount(), lessThan(1000L));
         assertThat(modelSizeStats.getTotalPartitionFieldCount(), greaterThan(600L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(700L));
+        assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(900L));
         assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(600L));
     }
 
@@ -130,7 +130,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
         assertThat(modelSizeStats.getModelBytes(), lessThan(36000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(30000000L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(1600L));
+        assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(2100L));
         assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(1500L));
     }
 

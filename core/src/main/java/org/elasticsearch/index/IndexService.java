@@ -724,7 +724,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    private void syncGlobalCheckpoints() {
+    private void maybeSyncGlobalCheckpoints() {
         for (final IndexShard shard : this.shards.values()) {
             if (shard.routingEntry().active() && shard.routingEntry().primary()) {
                 switch (shard.state()) {
@@ -950,7 +950,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         @Override
         protected void runInternal() {
-            indexService.syncGlobalCheckpoints();
+            indexService.maybeSyncGlobalCheckpoints();
         }
 
         @Override

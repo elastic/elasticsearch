@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -90,7 +91,10 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         // map for each address of the nodes a cluster state request should respond with
         final Map<TransportAddress, DiscoveryNodes> nodeMap;
 
-
+        TestIteration() {
+            this(Settings.EMPTY);
+        }
+        
         TestIteration(Settings extraSettings) {
             Settings settings = Settings.builder().put(extraSettings).put("cluster.name", "test").build();
             ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);

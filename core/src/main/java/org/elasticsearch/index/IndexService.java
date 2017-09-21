@@ -737,6 +737,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         continue;
                     case POST_RECOVERY:
                         assert false : "shard " + shard.shardId() + " is in post-recovery but marked as active";
+                        continue;
                     case STARTED:
                         try {
                             shard.acquirePrimaryOperationPermit(

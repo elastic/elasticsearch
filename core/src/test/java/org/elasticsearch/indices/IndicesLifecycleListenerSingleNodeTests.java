@@ -52,7 +52,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
     public void testStartDeleteIndexEventCallback() throws Throwable {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         ensureGreen();
         Index idx = resolveIndex("test");
         IndexMetaData metaData = indicesService.indexService(idx).getMetaData();

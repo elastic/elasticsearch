@@ -94,7 +94,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         TestIteration() {
             this(Settings.EMPTY);
         }
-        
+
         TestIteration(Settings extraSettings) {
             Settings settings = Settings.builder().put(extraSettings).put("cluster.name", "test").build();
             ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);

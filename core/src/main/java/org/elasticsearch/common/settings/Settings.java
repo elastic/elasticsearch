@@ -520,7 +520,7 @@ public final class Settings implements ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Settings settings = SettingsFilter.filterSettings(params, this);
         if (params.paramAsBoolean("flat_settings", false) == false) {
-            for (Map.Entry<String, String> entry : this.settings.entrySet()) {
+            for (Map.Entry<String, String> entry : settings.settings.entrySet()) {
                 String key = entry.getKey();
                 String value = entry.getValue();
                 Matcher matcher = LIST_KEY_PATTERN.matcher(key);
@@ -544,22 +544,46 @@ public final class Settings implements ToXContentFragment {
         }
         return builder;
     }
-
     public static Settings.Builder fromXContent(XContentParser parser, Settings.Builder builder) throws IOException {
+        return fromXContent(parser, builder, true);
+    }
+
+    public static Settings.Builder fromXContent(XContentParser parser, Settings.Builder builder, boolean allowNullValues)
+        throws IOException {
         if (parser.currentToken() == null) {
             parser.nextToken();
+           // throw new ElasticsearchParseException("malformed, expected settings to start with 'object', instead was [{}]", token);
         }
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalStateException("Parser must point to a START_OBJECT token but was: " + parser.currentToken());
         }
         Builder innerBuilder = Settings.builder();
         StringBuilder currentKeyBuilder = new StringBuilder();
-        fromXContent(parser, currentKeyBuilder, innerBuilder);
+        fromXContent(parser, currentKeyBuilder, innerBuilder, allowNullValues);
+
+        // ensure we reached the end of the stream
+        XContentParser.Token lastToken = null;
+        try {
+            while (!parser.isClosed() && (lastToken = parser.nextToken()) == null);
+        } catch (Exception e) {
+            throw new ElasticsearchParseException(
+                "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
+                    + "column number: [{}]",
+                e, parser.getTokenLocation().lineNumber, parser.getTokenLocation().columnNumber);
+        }
+        if (lastToken != null) {
+            throw new ElasticsearchParseException(
+                "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
+                    + "column number: [{}]",
+                parser.getTokenLocation().lineNumber, parser.getTokenLocation().columnNumber);
+        }
+
         builder.put(innerBuilder.build());
         return builder;
     }
 
-    private static void fromXContent(XContentParser parser, StringBuilder keyBuilder, Settings.Builder builder) throws IOException {
+    private static void fromXContent(XContentParser parser, StringBuilder keyBuilder, Settings.Builder builder,
+                                     boolean allowNullValues) throws IOException {
         final int length = keyBuilder.length();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
@@ -567,7 +591,7 @@ public final class Settings implements ToXContentFragment {
                 keyBuilder.append(parser.currentName());
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 keyBuilder.append('.');
-                fromXContent(parser, keyBuilder, builder);
+                fromXContent(parser, keyBuilder, builder, allowNullValues);
             } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 List<String> list = new ArrayList<>();
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
@@ -582,21 +606,21 @@ public final class Settings implements ToXContentFragment {
                     }
                 }
                 String key = keyBuilder.toString();
-                valdiateValue(key, list, builder, parser);
+                valdiateValue(key, list, builder, parser, allowNullValues);
                 builder.putArray(key, list);
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 String key = keyBuilder.toString();
-                valdiateValue(key, null, builder, parser);
+                valdiateValue(key, null, builder, parser, allowNullValues);
                 builder.putNull(key);
             } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING
                 || parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 String key = keyBuilder.toString();
                 String value = parser.text();
-                valdiateValue(key, value, builder, parser);
+                valdiateValue(key, value, builder, parser, allowNullValues);
                 builder.put(key, value);
             } else if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
                 String key = keyBuilder.toString();
-                valdiateValue(key, parser.text(), builder, parser);
+                valdiateValue(key, parser.text(), builder, parser, allowNullValues);
                 builder.put(key, parser.booleanValue());
             } else {
                 throw new IllegalStateException("Illegal token: " + parser.currentToken());
@@ -604,7 +628,8 @@ public final class Settings implements ToXContentFragment {
         }
     }
 
-    private static void valdiateValue(String key, Object currentValue, Settings.Builder builder, XContentParser parser) {
+    private static void valdiateValue(String key, Object currentValue, Settings.Builder builder, XContentParser parser,
+                                      boolean allowNullValues) {
         if (builder.map.containsKey(key)) {
             throw new ElasticsearchParseException(
                 "duplicate settings key [{}] found at line number [{}], column number [{}], previous value [{}], current value [{}]",
@@ -616,14 +641,14 @@ public final class Settings implements ToXContentFragment {
             );
         }
 
-//        if (currentValue == null && allowNullValues == false) {
-//            throw new ElasticsearchParseException(
-//                "null-valued setting found for key [{}] found at line number [{}], column number [{}]",
-//                key,
-//                parser.getTokenLocation().lineNumber,
-//                parser.getTokenLocation().columnNumber
-//            );
-//        }
+        if (currentValue == null && allowNullValues == false) {
+            throw new ElasticsearchParseException(
+                "null-valued setting found for key [{}] found at line number [{}], column number [{}]",
+                key,
+                parser.getTokenLocation().lineNumber,
+                parser.getTokenLocation().columnNumber
+            );
+        }
     }
 
 
@@ -735,30 +760,6 @@ public final class Settings implements ToXContentFragment {
 
         public Builder put(String key, org.apache.lucene.util.Version luceneVersion) {
             return put(key, luceneVersion.toString());
-        }
-
-        /**
-         * Puts tuples of key value pairs of settings. Simplified version instead of repeating calling
-         * put for each one.
-         */
-        public Builder put(Object... settings) {
-            if (settings.length == 1) {
-                // support cases where the actual type gets lost down the road...
-                if (settings[0] instanceof Map) {
-                    //noinspection unchecked
-                    return put((Map) settings[0]);
-                } else if (settings[0] instanceof Settings) {
-                    return put((Settings) settings[0]);
-                }
-            }
-            if ((settings.length % 2) != 0) {
-                throw new IllegalArgumentException(
-                        "array settings of key + value order doesn't hold correct number of arguments (" + settings.length + ")");
-            }
-            for (int i = 0; i < settings.length; i++) {
-                put(settings[i++].toString(), settings[i].toString());
-            }
-            return this;
         }
 
         /**
@@ -997,7 +998,7 @@ public final class Settings implements ToXContentFragment {
          */
         public Builder loadFromSource(String source, XContentType xContentType) {
             try (XContentParser parser =  XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY, source)) {
-                fromXContent(parser, this);
+                fromXContent(parser, this, false);
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + source + "]", e);
             }
@@ -1025,7 +1026,9 @@ public final class Settings implements ToXContentFragment {
                 throw new IllegalArgumentException("unable to detect content type from resource name [" + resourceName + "]");
             }
             try (XContentParser parser =  XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY, is)) {
-                fromXContent(parser, this);
+                fromXContent(parser, this, false);
+            } catch (ElasticsearchParseException e) {
+                throw e;
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + resourceName + "]", e);
             } finally {

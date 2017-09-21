@@ -85,14 +85,6 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     }
 
     /**
-     * A simplified version of settings that takes key value pairs settings.
-     */
-    public CreateIndexRequestBuilder setSettings(Object... settings) {
-        request.settings(settings);
-        return this;
-    }
-
-    /**
      * The settings to create the index with (either json/yaml/properties format)
      */
     public CreateIndexRequestBuilder setSettings(Map<String, ?> source) {

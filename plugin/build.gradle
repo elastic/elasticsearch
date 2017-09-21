@@ -61,8 +61,8 @@ dependencies {
   compile project(path: ':modules:tribe', configuration: 'runtime')
   compile project(path: ':modules:transport-netty4', configuration: 'runtime')
   compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
-  compile 'org.bouncycastle:bcprov-jdk15on:1.55'
-  compile 'org.bouncycastle:bcpkix-jdk15on:1.55'
+  compile 'org.bouncycastle:bcprov-jdk15on:1.58'
+  compile 'org.bouncycastle:bcpkix-jdk15on:1.58'
   testCompile 'com.google.jimfs:jimfs:1.1'
 
   // watcher deps

@@ -68,10 +68,6 @@ public class CommandLineHttpClient {
      * @param responseConsumer
      *            consumer of the response Input Stream.
      * @return HTTP protocol response code.
-     *
-     * @SuppressForbidden We do not install the security manager when calling from
-     *                    the commandline. However, doPrivileged blocks will be
-     *                    necessary for any test code that calls this.
      */
     @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
     public int postURL(String method, URL url, String user, SecureString password, CheckedSupplier<String, Exception> requestBodySupplier,

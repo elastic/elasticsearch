@@ -402,7 +402,6 @@ The previous query will be rendered as:
 [[pre-registered-templates]]
 ===== Pre-registered template
 
-<<<<<<< HEAD
 You can register search templates by storing it in the `config/scripts` directory, in a file using the `.mustache` extension.
 In order to execute the stored template, reference it by it's name under the `template` key:
 

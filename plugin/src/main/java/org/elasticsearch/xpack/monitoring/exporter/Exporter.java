@@ -7,8 +7,11 @@ package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -24,6 +27,10 @@ public abstract class Exporter implements AutoCloseable {
      * Every {@code Exporter} allows users to explicitly disable cluster alerts.
      */
     public static final String CLUSTER_ALERTS_MANAGEMENT_SETTING = "cluster_alerts.management.enabled";
+    /**
+     * Every {@code Exporter} allows users to use a different index time format.
+     */
+    public static final String INDEX_NAME_TIME_FORMAT_SETTING = "index.name.time_format";
 
     protected final Config config;
 
@@ -71,6 +78,16 @@ public abstract class Exporter implements AutoCloseable {
 
     protected static String settingFQN(final Config config, final String setting) {
         return MonitoringSettings.EXPORTERS_SETTINGS.getKey() + config.name + "." + setting;
+    }
+
+    protected static DateTimeFormatter dateTimeFormatter(final Config config) {
+        String format = config.settings().get(INDEX_NAME_TIME_FORMAT_SETTING, "YYYY.MM.dd");
+        try {
+            return DateTimeFormat.forPattern(format).withZoneUTC();
+        } catch (IllegalArgumentException e) {
+            throw new SettingsException("[" + settingFQN(config, INDEX_NAME_TIME_FORMAT_SETTING)
+                    + "] invalid index name time format: [" + format + "]", e);
+        }
     }
 
     public static class Config {

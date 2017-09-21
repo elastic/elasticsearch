@@ -7,6 +7,11 @@ package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 
@@ -14,6 +19,7 @@ import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtil
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
+import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.indexName;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.oldTemplateName;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.templateName;
@@ -84,4 +90,27 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
         assertThat(json, containsString("\"version\":" + LAST_UPDATED_VERSION));
     }
 
+    public void testIndexName() {
+        final long timestamp = new DateTime(2017, 8, 3, 13, 47, 58, DateTimeZone.UTC).getMillis();
+
+        DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC();
+        assertThat(indexName(formatter, MonitoredSystem.ES, timestamp),
+                equalTo(".monitoring-es-" + TEMPLATE_VERSION + "-2017.08.03"));
+        assertThat(indexName(formatter, MonitoredSystem.BEATS, timestamp),
+                equalTo(".monitoring-beats-" + TEMPLATE_VERSION + "-2017.08.03"));
+        assertThat(indexName(formatter, MonitoredSystem.KIBANA, timestamp),
+                equalTo(".monitoring-kibana-" + TEMPLATE_VERSION + "-2017.08.03"));
+        assertThat(indexName(formatter, MonitoredSystem.LOGSTASH, timestamp),
+                equalTo(".monitoring-logstash-" + TEMPLATE_VERSION + "-2017.08.03"));
+
+        formatter = DateTimeFormat.forPattern("YYYY-dd-MM-HH.mm.ss").withZoneUTC();
+        assertThat(indexName(formatter, MonitoredSystem.ES, timestamp),
+                equalTo(".monitoring-es-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
+        assertThat(indexName(formatter, MonitoredSystem.BEATS, timestamp),
+                equalTo(".monitoring-beats-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
+        assertThat(indexName(formatter, MonitoredSystem.KIBANA, timestamp),
+                equalTo(".monitoring-kibana-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
+        assertThat(indexName(formatter, MonitoredSystem.LOGSTASH, timestamp),
+                equalTo(".monitoring-logstash-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
+    }
 }

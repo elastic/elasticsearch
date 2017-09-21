@@ -171,7 +171,9 @@ public class MonitoringService extends AbstractLifecycleComponent {
             threadPool.executor(threadPoolName()).submit(new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
-                    Collection<MonitoringDoc> results = new ArrayList<>();
+                    final long timestamp = System.currentTimeMillis();
+
+                    final Collection<MonitoringDoc> results = new ArrayList<>();
                     for (Collector collector : collectors) {
                         if (isStarted() == false) {
                             // Do not collect more data if the the monitoring service is stopping
@@ -180,7 +182,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                         }
 
                         try {
-                            Collection<MonitoringDoc> result = collector.collect();
+                            Collection<MonitoringDoc> result = collector.collect(timestamp);
                             if (result != null) {
                                 results.addAll(result);
                             }

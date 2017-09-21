@@ -27,9 +27,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkDoc;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkRequestBuilder;
-import org.elasticsearch.xpack.monitoring.action.MonitoringIndex;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
@@ -104,7 +104,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 final int nbDocs = randomIntBetween(1, 20);
                 List<MonitoringBulkDoc> monitoringDocs = new ArrayList<>(nbDocs);
                 for (int i = 0; i < nbDocs; i++) {
-                    monitoringDocs.add(createMonitoringBulkDoc(String.valueOf(i)));
+                    monitoringDocs.add(createMonitoringBulkDoc());
                 }
 
                 assertBusy(() -> {
@@ -228,9 +228,10 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
     private void checkMonitoringTemplates() {
         final Set<String> templates = new HashSet<>();
         templates.add(".monitoring-alerts");
-        for (MonitoredSystem system : MonitoredSystem.values()) {
-            templates.add(String.join("-", ".monitoring", system.getSystem()));
-        }
+        templates.add(".monitoring-es");
+        templates.add(".monitoring-kibana");
+        templates.add(".monitoring-logstash");
+        templates.add(".monitoring-beats");
 
         GetIndexTemplatesResponse response =
                 client().admin().indices().prepareGetTemplates(".monitoring-*").get();
@@ -316,12 +317,9 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 expectedSystem = MonitoredSystem.fromSystem((String) docSource.get("expected_system"));
             }
 
-            Set<String> expectedIndex = new HashSet<>();
-
             String dateTime = dateFormatter.print(dateParser.parseDateTime(timestamp));
-            expectedIndex.add(".monitoring-" + expectedSystem.getSystem() + "-" + TEMPLATE_VERSION + "-" + dateTime);
-
-            assertTrue("Expected " + expectedIndex + " but got " + hit.getIndex(), expectedIndex.contains(hit.getIndex()));
+            final String expectedIndex = ".monitoring-" + expectedSystem.getSystem() + "-" + TEMPLATE_VERSION + "-" + dateTime;
+            assertEquals("Expected " + expectedIndex + " but got " + hit.getIndex(), expectedIndex, hit.getIndex());
 
             @SuppressWarnings("unchecked")
             Map<String, Object> sourceNode = (Map<String, Object>) source.get("source_node");
@@ -331,17 +329,15 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         }
     }
 
-    private static MonitoringBulkDoc createMonitoringBulkDoc(String id) throws IOException {
-        String monitoringId = randomFrom(BEATS, KIBANA, LOGSTASH).getSystem();
-        String monitoringVersion = TEMPLATE_VERSION;
-        XContentType xContentType = randomFrom(XContentType.values());
-
-        BytesReference source;
+    private static MonitoringBulkDoc createMonitoringBulkDoc() throws IOException {
+        final MonitoredSystem system = randomFrom(BEATS, KIBANA, LOGSTASH);
+        final XContentType xContentType = randomFrom(XContentType.values());
+        final BytesReference source;
 
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             builder.startObject();
             {
-                builder.field("expected_system", monitoringId);
+                builder.field("expected_system", system.getSystem());
                 final int nbFields = randomIntBetween(1, 3);
                 for (int i = 0; i < nbFields; i++) {
                     builder.field("field_" + i, i);
@@ -351,7 +347,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             source = builder.bytes();
         }
 
-        return new MonitoringBulkDoc(monitoringId, monitoringVersion, MonitoringIndex.TIMESTAMPED, "doc", id, source, xContentType);
+        return MonitoringTestUtils.randomMonitoringBulkDoc(random(), xContentType, source, system, "doc");
     }
 
 }

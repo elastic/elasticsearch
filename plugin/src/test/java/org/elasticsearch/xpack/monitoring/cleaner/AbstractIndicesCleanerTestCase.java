@@ -8,16 +8,15 @@ package org.elasticsearch.xpack.monitoring.cleaner;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.util.Locale;
 
@@ -202,12 +201,9 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
      * Creates a monitoring timestamped index using a given template version.
      */
     protected void createTimestampedIndex(DateTime creationDate, String version) {
-        MonitoringDoc monitoringDoc = new MonitoringDoc(null, null, null, null, null,
-                creationDate.getMillis(), (MonitoringDoc.Node) null);
-
-        MonitoringIndexNameResolver.Timestamped resolver =
-                new MockTimestampedIndexNameResolver(MonitoredSystem.ES, Settings.EMPTY, version);
-        createIndex(resolver.index(monitoringDoc), creationDate);
+        final DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC();
+        final String index = ".monitoring-es-" + version + "-" + formatter.print(creationDate.getMillis());
+        createIndex(index, creationDate);
     }
 
     protected abstract void createIndex(String name, DateTime creationDate);

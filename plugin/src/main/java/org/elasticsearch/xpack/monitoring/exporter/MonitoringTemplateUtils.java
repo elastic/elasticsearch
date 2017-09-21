@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.monitoring.exporter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.template.TemplateUtils;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -37,11 +39,9 @@ public final class MonitoringTemplateUtils {
     public static final String OLD_TEMPLATE_VERSION = "2";
 
     /**
-     * IDs of templates that can be used with {@linkplain #loadTemplate(String) loadTemplate} that are not managed by a Resolver.
-     * <p>
-     * This will be the complete list of template IDs when resolvers are removed.
+     * IDs of templates that can be used with {@linkplain #loadTemplate(String) loadTemplate}.
      */
-    public static final String[] TEMPLATE_IDS = { "alerts" };
+    public static final String[] TEMPLATE_IDS = { "alerts", "es", "kibana", "logstash", "beats" };
 
     /**
      * IDs of templates that can be used with {@linkplain #createEmptyTemplate(String) createEmptyTemplate} that are not managed by a
@@ -242,5 +242,17 @@ public final class MonitoringTemplateUtils {
         } catch (final IOException e) {
             throw new RuntimeException("Failed to create empty pipeline", e);
         }
+    }
+
+    /**
+     * Get the index name given a specific date format, a monitored system and a timestamp.
+     *
+     * @param formatter the {@link DateTimeFormatter} to use to compute the timestamped index name
+     * @param system the {@link MonitoredSystem} for which the index name is computed
+     * @param timestamp the timestamp value to use to compute the timestamped index name
+     * @return the index name as a @{link String}
+     */
+    public static String indexName(final DateTimeFormatter formatter, final MonitoredSystem system, final long timestamp) {
+        return ".monitoring-" + system.getSystem() + "-" + TEMPLATE_VERSION + "-" + formatter.print(timestamp);
     }
 }

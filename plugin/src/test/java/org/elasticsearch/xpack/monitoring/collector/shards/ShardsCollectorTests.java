@@ -5,172 +5,148 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.shards;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.AbstractCollectorTestCase;
+import org.elasticsearch.xpack.monitoring.collector.BaseCollectorTestCase;
+import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
+import java.util.UUID;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.xpack.monitoring.MonitoringTestUtils.randomMonitoringNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-public class ShardsCollectorTests extends AbstractCollectorTestCase {
+public class ShardsCollectorTests extends BaseCollectorTestCase {
 
-    public void testShardsCollectorNoIndices() throws Exception {
-        Collection<MonitoringDoc> results = newShardsCollector().doCollect();
-        assertThat(results, hasSize(0));
+    /** Used to match no indices when collecting shards information **/
+    private static final String[] NONE = new String[]{"_none"};
+
+    public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
+        // this controls the blockage
+        when(licenseState.isMonitoringAllowed()).thenReturn(false);
+        whenLocalNodeElectedMaster(randomBoolean());
+
+        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState);
+
+        assertThat(collector.shouldCollect(), is(false));
+        verify(licenseState).isMonitoringAllowed();
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(MonitoringSettings.INDICES.getKey(), "test-shards*")
-                .build();
+    public void testShouldCollectReturnsFalseIfNotMaster() {
+        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        // this controls the blockage
+        whenLocalNodeElectedMaster(false);
+
+        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState);
+
+        assertThat(collector.shouldCollect(), is(false));
+        verify(licenseState).isMonitoringAllowed();
+        verify(nodes).isLocalNodeElectedMaster();
     }
 
-    public void testShardsCollectorOneIndex() throws Exception {
-        int nbDocs = randomIntBetween(1, 20);
-        for (int i = 0; i < nbDocs; i++) {
-            client().prepareIndex("test-shards", "test").setSource("num", i).get();
-        }
+    public void testShouldCollectReturnsTrue() {
+        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        whenLocalNodeElectedMaster(true);
 
-        waitForRelocation();
-        ensureGreen();
-        refresh();
+        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState);
 
-        assertHitCount(client().prepareSearch().setSize(0).get(), nbDocs);
+        assertThat(collector.shouldCollect(), is(true));
+        verify(licenseState).isMonitoringAllowed();
+        verify(nodes).isLocalNodeElectedMaster();
+    }
 
-        Collection<MonitoringDoc> results = newShardsCollector().doCollect();
-        assertThat(results, hasSize(getNumShards("test-shards").totalNumShards));
+    public void testDoCollectWhenNoClusterState() throws Exception {
+        when(clusterService.state()).thenReturn(null);
 
-        final ClusterState clusterState = client().admin().cluster().prepareState().setMetaData(true).get().getState();
+        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState);
 
-        int primaries = 0;
-        int replicas = 0;
+        final Collection<MonitoringDoc> results = collector.doCollect(randomMonitoringNode(random()));
+        assertThat(results, notNullValue());
+        assertThat(results.size(), equalTo(0));
+        verify(clusterService).state();
+    }
+
+    public void testDoCollect() throws Exception {
+        final String clusterName = randomAlphaOfLength(10);
+        whenClusterStateWithName(clusterName);
+
+        final String clusterUUID = UUID.randomUUID().toString();
+        whenClusterStateWithUUID(clusterUUID);
+
+        final String stateUUID = UUID.randomUUID().toString();
+        when(clusterState.stateUUID()).thenReturn(stateUUID);
+
+        final String[] indices = randomFrom(NONE, Strings.EMPTY_ARRAY, new String[]{"_all"}, new String[]{"_index*"});
+        when(monitoringSettings.indices()).thenReturn(indices);
+
+        final RoutingTable routingTable = mockRoutingTable();
+        when(clusterState.routingTable()).thenReturn(routingTable);
+
+        final DiscoveryNode localNode = localNode("_current");
+        final MonitoringDoc.Node node = Collector.convertNode(randomNonNegativeLong(), localNode);
+        when(nodes.get(eq("_current"))).thenReturn(localNode);
+        when(clusterState.getNodes()).thenReturn(nodes);
+
+        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState);
+
+        final Collection<MonitoringDoc> results = collector.doCollect(node);
+        assertThat(results, notNullValue());
+        assertThat(results.size(), equalTo((indices != NONE) ? routingTable.allShards().size() : 0));
 
         for (MonitoringDoc monitoringDoc : results) {
             assertNotNull(monitoringDoc);
             assertThat(monitoringDoc, instanceOf(ShardMonitoringDoc.class));
 
-            ShardMonitoringDoc shardMonitoringDoc = (ShardMonitoringDoc) monitoringDoc;
-            assertThat(shardMonitoringDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
-            assertThat(shardMonitoringDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
-            assertThat(shardMonitoringDoc.getClusterUUID(), equalTo(clusterState.metaData().clusterUUID()));
-            assertThat(shardMonitoringDoc.getTimestamp(), greaterThan(0L));
-            assertThat(shardMonitoringDoc.getSourceNode(), notNullValue());
-            assertThat(shardMonitoringDoc.getClusterStateUUID(), equalTo(clusterState.stateUUID()));
+            final ShardMonitoringDoc document = (ShardMonitoringDoc) monitoringDoc;
+            assertThat(document.getCluster(), equalTo(clusterUUID));
+            assertThat(document.getTimestamp(), greaterThan(0L));
+            assertThat(document.getSystem(), is(MonitoredSystem.ES));
+            assertThat(document.getType(), equalTo(ShardMonitoringDoc.TYPE));
+            assertThat(document.getId(), equalTo(ShardMonitoringDoc.id(stateUUID, document.getShardRouting())));
+            assertThat(document.getClusterStateUUID(), equalTo(stateUUID));
 
-            ShardRouting shardRouting = shardMonitoringDoc.getShardRouting();
-            assertNotNull(shardRouting);
-            assertThat(shardMonitoringDoc.getShardRouting().assignedToNode(), is(true));
-
-            if (shardRouting.primary()) {
-                primaries++;
+            if (document.getShardRouting().assignedToNode()) {
+                assertThat(document.getNode(), equalTo(node));
             } else {
-                replicas++;
+                assertThat(document.getNode(), nullValue());
             }
-        }
 
-        int expectedPrimaries = getNumShards("test-shards").numPrimaries;
-        int expectedReplicas = expectedPrimaries * getNumShards("test-shards").numReplicas;
-        assertThat(primaries, equalTo(expectedPrimaries));
-        assertThat(replicas, equalTo(expectedReplicas));
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/96")
-    public void testShardsCollectorMultipleIndices() throws Exception {
-        final String indexPrefix = "test-shards-";
-        final int nbIndices = randomIntBetween(1, 3);
-        final int[] nbDocsPerIndex = new int[nbIndices];
-
-        for (int i = 0; i < nbIndices; i++) {
-            String index = indexPrefix + String.valueOf(i);
-            assertAcked(prepareCreate(index));
-
-            nbDocsPerIndex[i] = randomIntBetween(1, 20);
-            for (int j = 0; j < nbDocsPerIndex[i]; j++) {
-                client().prepareIndex(index, "test").setSource("num", i).get();
-            }
-        }
-
-        waitForRelocation();
-        refresh();
-
-        int totalShards = 0;
-        for (int i = 0; i < nbIndices; i++) {
-            String index = indexPrefix + String.valueOf(i);
-
-            assertHitCount(client().prepareSearch(index).setSize(0).get(), nbDocsPerIndex[i]);
-            disableAllocation(index);
-            totalShards += getNumShards(index).totalNumShards;
-        }
-
-        Collection<MonitoringDoc> results = newShardsCollector().doCollect();
-        assertThat(results, hasSize(totalShards));
-
-        final ClusterState clusterState = client().admin().cluster().prepareState().setMetaData(true).get().getState();
-
-        for (MonitoringDoc doc : results) {
-            assertNotNull(doc);
-            assertThat(doc, instanceOf(ShardMonitoringDoc.class));
-
-            ShardMonitoringDoc shardDoc = (ShardMonitoringDoc) doc;
-            assertThat(shardDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
-            assertThat(shardDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
-            assertThat(shardDoc.getClusterUUID(), equalTo(clusterState.metaData().clusterUUID()));
-            assertThat(shardDoc.getTimestamp(), greaterThan(0L));
-            assertThat(shardDoc.getClusterStateUUID(), equalTo(clusterState.stateUUID()));
-
-            ShardRouting shardRouting = shardDoc.getShardRouting();
-            assertNotNull(shardRouting);
-
-            if (shardRouting.assignedToNode()) {
-                assertThat(shardDoc.getSourceNode(), notNullValue());
-            } else {
-                assertThat(shardDoc.getSourceNode(), nullValue());
-            }
-        }
-
-        // Checks that a correct number of ShardMonitoringDoc documents has been created for each index
-        int[] shards = new int[nbIndices];
-        for (MonitoringDoc monitoringDoc : results) {
-            ShardRouting routing = ((ShardMonitoringDoc) monitoringDoc).getShardRouting();
-            int index = Integer.parseInt(routing.getIndexName().substring(indexPrefix.length()));
-            shards[index]++;
-        }
-
-        for (int i = 0; i < nbIndices; i++) {
-            String index = indexPrefix + String.valueOf(i);
-            int total = getNumShards(index).totalNumShards;
-            assertThat("expecting " + total + " shards monitoring documents for index [" + index + "]", shards[i], equalTo(total));
         }
     }
 
-    private ShardsCollector newShardsCollector() {
-        // This collector runs on master node only
-        return newShardsCollector(internalCluster().getMasterName());
-    }
+    private static RoutingTable mockRoutingTable() {
+        final List<ShardRouting> allShards = new ArrayList<>();
 
-    private ShardsCollector newShardsCollector(String nodeId) {
-        assertNotNull(nodeId);
-        return new ShardsCollector(internalCluster().getInstance(Settings.class, nodeId),
-                internalCluster().getInstance(ClusterService.class, nodeId),
-                internalCluster().getInstance(MonitoringSettings.class, nodeId),
-                internalCluster().getInstance(XPackLicenseState.class, nodeId));
+        final int nbShards = randomIntBetween(0, 10);
+        for (int i = 0; i < nbShards; i++) {
+            ShardRoutingState state = randomFrom(STARTED, UNASSIGNED);
+            ShardId shardId = new ShardId("_index", randomAlphaOfLength(12), i);
+            allShards.add(TestShardRouting.newShardRouting(shardId, state == STARTED ? "_current" : null, true, state));
+        }
+
+        final RoutingTable routingTable = mock(RoutingTable.class);
+        when(routingTable.allShards()).thenReturn(allShards);
+        return routingTable;
     }
 }

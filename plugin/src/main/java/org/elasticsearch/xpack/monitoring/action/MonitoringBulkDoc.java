@@ -6,123 +6,150 @@
 package org.elasticsearch.xpack.monitoring.action;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 
 import java.io.IOException;
+import java.util.Objects;
 
-// TODO remove inherance from MonitoringDoc once all resolvers are removed
-public class MonitoringBulkDoc extends MonitoringDoc implements Writeable {
+public class MonitoringBulkDoc implements Writeable {
 
-    private MonitoringIndex index;
-    private String type;
-    private String id;
-    private BytesReference source;
-    private XContentType xContentType;
+    private final MonitoredSystem system;
+    private final String type;
+    private final String id;
+    private final long timestamp;
+    private final long interval;
+    private final BytesReference source;
+    private final XContentType xContentType;
 
-    public MonitoringBulkDoc(String monitoringId, String monitoringVersion,
-                              MonitoringIndex index, String type, String id,
-                              String clusterUUID, long timestamp, MonitoringDoc.Node sourceNode,
-                              BytesReference source, XContentType xContentType) {
-        super(monitoringId, monitoringVersion, type, id, clusterUUID, timestamp, sourceNode);
-        this.index = index != null ? index : MonitoringIndex.TIMESTAMPED;
-        this.type = type;
-        this.id = id;
-        this.source = source;
-        this.xContentType = xContentType;
-    }
+    public MonitoringBulkDoc(final MonitoredSystem system,
+                             final String type,
+                             @Nullable final String id,
+                             final long timestamp,
+                             final long interval,
+                             final BytesReference source,
+                             final XContentType xContentType) {
 
-    public MonitoringBulkDoc(String monitoringId, String monitoringVersion,
-                             MonitoringIndex index, String type, String id,
-                             BytesReference source, XContentType xContentType) {
-        this(monitoringId, monitoringVersion, index, type, id, null, 0, null, source, xContentType);
+        this.system = Objects.requireNonNull(system);
+        this.type = Objects.requireNonNull(type);
+        // We allow strings to be "" because Logstash 5.2 - 5.3 would submit empty _id values for time-based documents
+        this.id = Strings.isNullOrEmpty(id) ? null : id;
+        this.timestamp = timestamp;
+        this.interval = interval;
+        this.source = Objects.requireNonNull(source);
+        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
     /**
      * Read from a stream.
-     *
-     * Here we use a static helper method to read a serialized {@link MonitoringBulkDoc} instance
-     * instead of the usual <code>MonitoringBulkDoc(StreamInput in)</code> constructor because
-     * MonitoringBulkDoc still inherits from MonitoringDoc and using ctors would make things
-     * cumbersome. This will be replaced by a ctor <code>MonitoringBulkDoc(StreamInput in)</code>
-     * once MonitoringBulkDoc does not inherit from MonitoringDoc anymore.
      */
     public static MonitoringBulkDoc readFrom(StreamInput in) throws IOException {
-        String monitoringId = in.readOptionalString();
-        String monitoringVersion = in.readOptionalString();
-        String clusterUUID = in.readOptionalString();
-        long timestamp = in.readVLong();
-        MonitoringDoc.Node sourceNode = in.readOptionalWriteable(MonitoringDoc.Node::new);
-        MonitoringIndex index = MonitoringIndex.readFrom(in);
-        String type = in.readOptionalString();
-        String id = in.readOptionalString();
-        BytesReference source = in.readBytesReference();
-        XContentType xContentType;
-        if (source != BytesArray.EMPTY && in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType = XContentType.readFrom(in);
-        } else {
-            xContentType = XContentFactory.xContentType(source);
+        final MonitoredSystem system = MonitoredSystem.fromSystem(in.readOptionalString());
+
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readOptionalString(); // Monitoring version, removed in 7.0
+            in.readOptionalString(); // Cluster UUID, removed in 7.0
         }
-        return new MonitoringBulkDoc(monitoringId, monitoringVersion, index, type, id, clusterUUID,
-                timestamp, sourceNode, source, xContentType);
+
+        final long timestamp = in.readVLong();
+
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readOptionalWriteable(MonitoringDoc.Node::new);// Source node, removed in 7.0
+            MonitoringIndex.readFrom(in);// Monitoring index, removed in 7.0
+        }
+
+        final String type = in.readOptionalString();
+        final String id = in.readOptionalString();
+        final BytesReference source = in.readBytesReference();
+        final XContentType xContentType = (source != BytesArray.EMPTY) ? XContentType.readFrom(in) : XContentType.JSON;
+
+        long interval = 0L;
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            interval = in.readVLong();
+        }
+        return new MonitoringBulkDoc(system, type, id, timestamp, interval, source, xContentType);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(getMonitoringId());
-        out.writeOptionalString(getMonitoringVersion());
-        out.writeOptionalString(getClusterUUID());
-        out.writeVLong(getTimestamp());
-        out.writeOptionalWriteable(getSourceNode());
-        index.writeTo(out);
+        out.writeOptionalString(system.getSystem());
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalString(MonitoringTemplateUtils.TEMPLATE_VERSION);
+            out.writeOptionalString(null);
+        }
+        out.writeVLong(timestamp);
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalWriteable(null);
+            MonitoringIndex.IGNORED_DATA.writeTo(out);
+        }
         out.writeOptionalString(type);
         out.writeOptionalString(id);
         out.writeBytesReference(source);
-        if (source != null && source != BytesArray.EMPTY && out.getVersion().onOrAfter(Version.V_5_3_0)) {
+        if (source != BytesArray.EMPTY) {
             xContentType.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeVLong(interval);
         }
     }
 
-    public MonitoringIndex getIndex() {
-        return index;
-    }
-
-    public void setIndex(MonitoringIndex index) {
-        this.index = index;
+    public MonitoredSystem getSystem() {
+        return system;
     }
 
     public String getType() {
         return type;
     }
 
-    public void setType(String type) {
-        this.type = type;
-    }
-
     public String getId() {
         return id;
     }
 
-    public void setId(String id) {
-        this.id = id;
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public long getInterval() {
+        return interval;
     }
 
     public BytesReference getSource() {
         return source;
     }
 
-    public void setSource(BytesReference source, XContentType xContentType) {
-        this.source = source;
-        this.xContentType = xContentType;
-    }
-
     public XContentType getXContentType() {
         return xContentType;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        MonitoringBulkDoc that = (MonitoringBulkDoc) o;
+        return timestamp == that.timestamp
+                && interval == that.interval
+                && system == that.system
+                && Objects.equals(type, that.type)
+                && Objects.equals(id, that.id)
+                && Objects.equals(source, that.source)
+                && xContentType == that.xContentType;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(system, type, id, timestamp, interval, source, xContentType);
     }
 }

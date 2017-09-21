@@ -12,18 +12,20 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.monitoring.exporter.BytesReferenceMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class TransportMonitoringBulkAction extends HandledTransportAction<MonitoringBulkRequest, MonitoringBulkResponse> {
 
@@ -43,77 +45,75 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
     @Override
     protected void doExecute(MonitoringBulkRequest request, ActionListener<MonitoringBulkResponse> listener) {
         clusterService.state().blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);
-        new AsyncAction(request, listener, exportService, clusterService).start();
+
+        final long timestamp = System.currentTimeMillis();
+        final String cluster = clusterService.state().metaData().clusterUUID();
+
+        final DiscoveryNode discoveryNode = clusterService.localNode();
+        final MonitoringDoc.Node node = new MonitoringDoc.Node(discoveryNode.getId(),
+                                                               discoveryNode.getHostName(),
+                                                               discoveryNode.getAddress().toString(),
+                                                               discoveryNode.getHostAddress(),
+                                                               discoveryNode.getName(), timestamp);
+
+        new AsyncAction(request, listener, exportService, cluster, timestamp, node).start();
     }
 
-    class AsyncAction {
+    static class AsyncAction {
 
         private final MonitoringBulkRequest request;
         private final ActionListener<MonitoringBulkResponse> listener;
         private final Exporters exportService;
-        private final ClusterService clusterService;
+        private final String defaultClusterUUID;
+        private final long defaultTimestamp;
+        private final MonitoringDoc.Node defaultNode;
 
-        AsyncAction(MonitoringBulkRequest request, ActionListener<MonitoringBulkResponse> listener,
-                           Exporters exportService, ClusterService clusterService) {
+        AsyncAction(MonitoringBulkRequest request, ActionListener<MonitoringBulkResponse> listener, Exporters exportService,
+                    String defaultClusterUUID, long defaultTimestamp, MonitoringDoc.Node defaultNode) {
             this.request = request;
             this.listener = listener;
             this.exportService = exportService;
-            this.clusterService = clusterService;
+            this.defaultClusterUUID = defaultClusterUUID;
+            this.defaultTimestamp = defaultTimestamp;
+            this.defaultNode = defaultNode;
         }
 
         void start() {
-            executeExport(prepareForExport(request.getDocs()), System.nanoTime(), listener);
+            executeExport(createMonitoringDocs(request.getDocs()), System.nanoTime(), listener);
         }
 
         /**
-         * Iterate over the documents and set the values of common fields if needed:
-         * - cluster UUID
-         * - timestamp
-         * - source node
+         * Iterate over the list of {@link MonitoringBulkDoc} to create the corresponding
+         * list of {@link MonitoringDoc}.
          */
-        Collection<MonitoringDoc> prepareForExport(Collection<MonitoringBulkDoc> bulkDocs) {
-            final long defaultTimestamp = System.currentTimeMillis();
-            final String defaultClusterUUID = clusterService.state().metaData().clusterUUID();
+        Collection<MonitoringDoc> createMonitoringDocs(Collection<MonitoringBulkDoc> bulkDocs) {
+            return bulkDocs.stream()
+                           .filter(bulkDoc -> bulkDoc.getSystem() != MonitoredSystem.UNKNOWN)
+                           .map(this::createMonitoringDoc)
+                           .collect(Collectors.toList());
+        }
 
-            DiscoveryNode discoveryNode = clusterService.localNode();
-            final MonitoringDoc.Node defaultNode = new MonitoringDoc.Node(discoveryNode.getId(),
-                    discoveryNode.getHostName(), discoveryNode.getAddress().toString(),
-                    discoveryNode.getHostAddress(), discoveryNode.getName(),
-                    discoveryNode.getAttributes());
+        /**
+         * Create a {@link MonitoringDoc} from a {@link MonitoringBulkDoc}.
+         *
+         * @param bulkDoc the {@link MonitoringBulkDoc}
+         * @return the {@link MonitoringDoc} to export
+         */
+        MonitoringDoc createMonitoringDoc(final MonitoringBulkDoc bulkDoc) {
+            final MonitoredSystem system = bulkDoc.getSystem();
+            final String type = bulkDoc.getType();
+            final String id = bulkDoc.getId();
+            final XContentType xContentType = bulkDoc.getXContentType();
+            final BytesReference source = bulkDoc.getSource();
 
-            List<MonitoringDoc> docs = new ArrayList<>();
-            for (MonitoringBulkDoc bulkDoc : bulkDocs) {
-                String clusterUUID;
-                if (Strings.hasLength(bulkDoc.getClusterUUID())) {
-                    clusterUUID = bulkDoc.getClusterUUID();
-                } else {
-                    clusterUUID = defaultClusterUUID;
-                }
-
-                long timestamp;
-                if (bulkDoc.getTimestamp() != 0L) {
-                    timestamp = bulkDoc.getTimestamp();
-                } else {
-                    timestamp = defaultTimestamp;
-                }
-
-                MonitoringDoc.Node node;
-                if (bulkDoc.getSourceNode() != null) {
-                    node = bulkDoc.getSourceNode();
-                } else {
-                    node = defaultNode;
-                }
-
-                // TODO Convert MonitoringBulkDoc to a simple MonitoringDoc when all resolvers are
-                // removed and MonitoringBulkDoc does not inherit from MonitoringDoc anymore.
-                // Monitoring indices will be resolved here instead of being resolved at export
-                // time.
-                docs.add(new MonitoringBulkDoc(bulkDoc.getMonitoringId(),
-                        bulkDoc.getMonitoringVersion(), bulkDoc.getIndex(), bulkDoc.getType(),
-                        bulkDoc.getId(), clusterUUID, timestamp, node, bulkDoc.getSource(),
-                        bulkDoc.getXContentType()));
+            final long timestamp;
+            if (bulkDoc.getTimestamp() != 0L) {
+                timestamp = bulkDoc.getTimestamp();
+            } else {
+                timestamp = defaultTimestamp;
             }
-            return docs;
+
+            return new BytesReferenceMonitoringDoc(defaultClusterUUID, timestamp, defaultNode, system, type, id, xContentType, source);
         }
 
         /**
@@ -131,15 +131,15 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
         }
     }
 
-    private MonitoringBulkResponse response(final long start) {
+    private static MonitoringBulkResponse response(final long start) {
         return new MonitoringBulkResponse(took(start));
     }
 
-    private MonitoringBulkResponse response(final long start, final Exception e) {
+    private static MonitoringBulkResponse response(final long start, final Exception e) {
         return new MonitoringBulkResponse(took(start), new MonitoringBulkResponse.Error(e));
     }
 
-    private long took(final long start) {
+    private static long took(final long start) {
         return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
     }
 

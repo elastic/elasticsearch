@@ -5,148 +5,173 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.client.AdminClient;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.AbstractCollectorTestCase;
+import org.elasticsearch.xpack.monitoring.collector.BaseCollectorTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.empty;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.monitoring.MonitoringTestUtils.randomMonitoringNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-@ClusterScope(numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
-public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
+public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
 
-    private final boolean activeOnly = false;
-    private final String indexName = "test";
+    public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
+        // this controls the blockage
+        when(licenseState.isMonitoringAllowed()).thenReturn(false);
+        whenLocalNodeElectedMaster(randomBoolean());
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(MonitoringSettings.INDEX_RECOVERY_ACTIVE_ONLY.getKey(), activeOnly)
-                .put(MonitoringSettings.INDICES.getKey(), indexName)
-                .build();
+        final IndexRecoveryCollector collector =
+                new IndexRecoveryCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+
+        assertThat(collector.shouldCollect(), is(false));
+        verify(licenseState).isMonitoringAllowed();
     }
 
-    public void testIndexRecoveryCollector() throws Exception {
-        logger.info("--> start first node");
-        final String node1 = internalCluster().startNode();
-        waitForNoBlocksOnNode(node1);
+    public void testShouldCollectReturnsFalseIfNotMaster() {
+        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        // this controls the blockage
+        whenLocalNodeElectedMaster(false);
 
-        logger.info("--> collect index recovery data");
-        Collection<MonitoringDoc> results = newIndexRecoveryCollector(node1).doCollect();
+        final IndexRecoveryCollector collector =
+                new IndexRecoveryCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
 
-        logger.info("--> no indices created, expecting 0 monitoring documents");
-        assertNotNull(results);
-        assertThat(results, is(empty()));
+        assertThat(collector.shouldCollect(), is(false));
+        verify(licenseState).isMonitoringAllowed();
+        verify(nodes).isLocalNodeElectedMaster();
+    }
 
-        logger.info("--> create index [{}] on node [{}]", indexName, node1);
-        ElasticsearchAssertions.assertAcked(prepareCreate(indexName, 1,
-                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 1)));
+    public void testShouldCollectReturnsTrue() {
+        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        whenLocalNodeElectedMaster(true);
 
-        logger.info("--> indexing sample data");
-        final int numDocs = between(50, 150);
-        for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex(indexName, "foo").setSource("value", randomInt()).get();
+        final IndexRecoveryCollector collector =
+                new IndexRecoveryCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+
+        assertThat(collector.shouldCollect(), is(true));
+        verify(licenseState).isMonitoringAllowed();
+        verify(nodes).isLocalNodeElectedMaster();
+    }
+
+    public void testDoCollect() throws Exception {
+        whenLocalNodeElectedMaster(true);
+
+        final String clusterName = randomAlphaOfLength(10);
+        whenClusterStateWithName(clusterName);
+
+        final String clusterUUID = UUID.randomUUID().toString();
+        whenClusterStateWithUUID(clusterUUID);
+
+        final DiscoveryNode localNode = localNode(randomAlphaOfLength(5));
+        when(clusterService.localNode()).thenReturn(localNode);
+
+        final MonitoringDoc.Node node = randomMonitoringNode(random());
+
+        final boolean recoveryOnly = randomBoolean();
+        when(monitoringSettings.recoveryActiveOnly()).thenReturn(recoveryOnly);
+
+        final String[] indices;
+        if (randomBoolean()) {
+            indices = null;
+        } else {
+            indices = new String[randomIntBetween(1, 5)];
+            for (int i = 0; i < indices.length; i++) {
+                indices[i] = randomAlphaOfLengthBetween(5, 10);
+            }
         }
+        when(monitoringSettings.indices()).thenReturn(indices);
+        when(monitoringSettings.recoveryTimeout()).thenReturn(TimeValue.timeValueSeconds(12));
 
-        logger.info("--> create a second index [{}] on node [{}] that won't be part of stats collection", indexName, node1);
-        client().prepareIndex("other", "bar").setSource("value", randomInt()).get();
+        final int nbRecoveries = randomBoolean() ? 0 : randomIntBetween(1, 3);
+        final Map<String, List<RecoveryState>> recoveryStates = new HashMap<>();
+        for (int i = 0; i < nbRecoveries; i++) {
+            ShardId shardId = new ShardId("_index_" + i, "_uuid_" + i, i);
+            RecoverySource source = RecoverySource.PeerRecoverySource.INSTANCE;
+            final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_index_info_" + i);
+            final ShardRouting shardRouting = ShardRouting
+                                                .newUnassigned(shardId, true, source, unassignedInfo)
+                                                .initialize(localNode.getId(), "_allocation_id", 10 * i);
 
-        flushAndRefresh();
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), numDocs);
-        assertHitCount(client().prepareSearch("other").setSize(0).get(), 1L);
-
-        logger.info("--> start second node");
-        final String node2 = internalCluster().startNode();
-        waitForNoBlocksOnNode(node2);
-        waitForRelocation();
-
-        for (MonitoringSettings monitoringSettings : internalCluster().getInstances(MonitoringSettings.class)) {
-            assertThat(monitoringSettings.recoveryActiveOnly(), equalTo(activeOnly));
+            final RecoveryState recoveryState = new RecoveryState(shardRouting, localNode, localNode);
+            recoveryStates.put("_index_" + i, singletonList(recoveryState));
         }
+        final RecoveryResponse recoveryResponse =
+                new RecoveryResponse(randomInt(), randomInt(), randomInt(), randomBoolean(), recoveryStates, emptyList());
 
-        logger.info("--> collect index recovery data");
-        results = newIndexRecoveryCollector(null).doCollect();
+        final TimeValue timeout = mock(TimeValue.class);
+        when(monitoringSettings.recoveryTimeout()).thenReturn(timeout);
 
-        logger.info("--> we should have at least 1 shard in relocation state");
-        assertNotNull(results);
-        assertThat(results, hasSize(1));
+        final RecoveryRequestBuilder recoveryRequestBuilder =
+                spy(new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE));
+        doReturn(recoveryResponse).when(recoveryRequestBuilder).get(eq(timeout));
 
-        MonitoringDoc monitoringDoc = results.iterator().next();
-        assertNotNull(monitoringDoc);
-        assertThat(monitoringDoc, instanceOf(IndexRecoveryMonitoringDoc.class));
+        final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        when(indicesAdminClient.prepareRecoveries()).thenReturn(recoveryRequestBuilder);
 
-        IndexRecoveryMonitoringDoc indexRecoveryMonitoringDoc = (IndexRecoveryMonitoringDoc) monitoringDoc;
-        assertThat(indexRecoveryMonitoringDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
-        assertThat(indexRecoveryMonitoringDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
-        assertThat(indexRecoveryMonitoringDoc.getClusterUUID(),
-                equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
-        assertThat(indexRecoveryMonitoringDoc.getTimestamp(), greaterThan(0L));
-        assertThat(indexRecoveryMonitoringDoc.getSourceNode(), notNullValue());
+        final AdminClient adminClient = mock(AdminClient.class);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
 
-        RecoveryResponse recovery = indexRecoveryMonitoringDoc.getRecoveryResponse();
-        assertNotNull(recovery);
+        final Client client = mock(Client.class);
+        when(client.admin()).thenReturn(adminClient);
 
-        Map<String, List<RecoveryState>> shards = recovery.shardRecoveryStates();
-        assertThat(shards.size(), greaterThan(0));
+        final IndexRecoveryCollector collector =
+                new IndexRecoveryCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
 
-        for (Map.Entry<String, List<RecoveryState>> shard : shards.entrySet()) {
-            List<RecoveryState> shardRecoveries = shard.getValue();
-            assertNotNull(shardRecoveries);
-            assertThat(shardRecoveries.size(), greaterThan(0));
-            assertThat(shard.getKey(), equalTo(indexName));
+        final Collection<MonitoringDoc> results = collector.doCollect(node);
+        verify(indicesAdminClient).prepareRecoveries();
+
+        if (nbRecoveries == 0) {
+            assertEquals(0, results.size());
+        } else {
+            assertEquals(1, results.size());
+
+            final MonitoringDoc monitoringDoc = results.iterator().next();
+            assertThat(monitoringDoc, instanceOf(IndexRecoveryMonitoringDoc.class));
+
+            final IndexRecoveryMonitoringDoc document = (IndexRecoveryMonitoringDoc) monitoringDoc;
+            assertThat(document.getCluster(), equalTo(clusterUUID));
+            assertThat(document.getTimestamp(), greaterThan(0L));
+            assertThat(document.getNode(), equalTo(node));
+            assertThat(document.getSystem(), is(MonitoredSystem.ES));
+            assertThat(document.getType(), equalTo(IndexRecoveryMonitoringDoc.TYPE));
+            assertThat(document.getId(), nullValue());
+
+            final RecoveryResponse recoveries = document.getRecoveryResponse();
+            assertThat(recoveries, notNullValue());
+            assertThat(recoveries.hasRecoveries(), equalTo(true));
+            assertThat(recoveries.shardRecoveryStates().size(), equalTo(nbRecoveries));
         }
-    }
-
-    public void testEmptyCluster() throws Exception {
-        final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), Strings.EMPTY_ARRAY));
-        waitForNoBlocksOnNode(node);
-        assertThat(newIndexRecoveryCollector(node).doCollect(), hasSize(0));
-    }
-
-    public void testEmptyClusterAllIndices() throws Exception {
-        final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), MetaData.ALL));
-        waitForNoBlocksOnNode(node);
-        assertThat(newIndexRecoveryCollector(node).doCollect(), hasSize(0));
-    }
-
-    public void testEmptyClusterMissingIndex() throws Exception {
-        final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), "unknown"));
-        waitForNoBlocksOnNode(node);
-        assertThat(newIndexRecoveryCollector(node).doCollect(), hasSize(0));
-    }
-
-    private IndexRecoveryCollector newIndexRecoveryCollector(String nodeId) {
-        if (!Strings.hasText(nodeId)) {
-            nodeId = randomFrom(internalCluster().getNodeNames());
-        }
-        return new IndexRecoveryCollector(internalCluster().getInstance(Settings.class, nodeId),
-                internalCluster().getInstance(ClusterService.class, nodeId),
-                internalCluster().getInstance(MonitoringSettings.class, nodeId),
-                internalCluster().getInstance(XPackLicenseState.class, nodeId),
-                securedClient(nodeId));
     }
 }

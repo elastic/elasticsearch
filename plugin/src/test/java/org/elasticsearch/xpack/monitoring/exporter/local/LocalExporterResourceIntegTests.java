@@ -9,7 +9,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -48,8 +47,6 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
 
     private final boolean useClusterAlerts = enableWatcher() && randomBoolean();
     private final MonitoredSystem system = randomFrom(MonitoredSystem.values());
-    private final MockTimestampedIndexNameResolver resolver =
-            new MockTimestampedIndexNameResolver(system, Settings.EMPTY, MonitoringTemplateUtils.TEMPLATE_VERSION);
 
     @Override
     protected boolean useClusterAlerts() {
@@ -125,9 +122,10 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
     }
 
     private void putTemplate(final Integer version) throws Exception {
-        final BytesReference source = generateTemplateSource(resolver.templateName(), version);
+        final String templateName = MonitoringTemplateUtils.templateName(system.getSystem());
+        final BytesReference source = generateTemplateSource(templateName, version);
 
-        assertAcked(client().admin().indices().preparePutTemplate(resolver.templateName()).setSource(source, XContentType.JSON).get());
+        assertAcked(client().admin().indices().preparePutTemplate(templateName).setSource(source, XContentType.JSON).get());
     }
 
     private void putPipelines(final Integer version) throws Exception {
@@ -272,7 +270,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
     }
 
     private void assertTemplateNotUpdated() {
-        final String name = resolver.templateName();
+        final String name = MonitoringTemplateUtils.templateName(system.getSystem());
 
         for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(name).get().getIndexTemplates()) {
             final String docMapping = template.getMappings().get("doc").toString();

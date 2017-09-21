@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.monitoring.collector.shards;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -32,9 +31,12 @@ import java.util.List;
  */
 public class ShardsCollector extends Collector {
 
-    public ShardsCollector(Settings settings, ClusterService clusterService,
-                           MonitoringSettings monitoringSettings, XPackLicenseState licenseState) {
-        super(settings, "shards", clusterService, monitoringSettings, licenseState);
+    public ShardsCollector(final Settings settings,
+                           final ClusterService clusterService,
+                           final MonitoringSettings monitoringSettings,
+                           final XPackLicenseState licenseState) {
+
+        super(settings, ShardMonitoringDoc.TYPE, clusterService, monitoringSettings, licenseState);
     }
 
     @Override
@@ -43,8 +45,8 @@ public class ShardsCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect() throws Exception {
-        List<MonitoringDoc> results = new ArrayList<>(1);
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node) throws Exception {
+        final List<MonitoringDoc> results = new ArrayList<>(1);
 
         ClusterState clusterState = clusterService.state();
         if (clusterState != null) {
@@ -52,20 +54,18 @@ public class ShardsCollector extends Collector {
             if (routingTable != null) {
                 List<ShardRouting> shards = routingTable.allShards();
                 if (shards != null) {
-                    String clusterUUID = clusterUUID();
-                    String stateUUID = clusterState.stateUUID();
-                    long timestamp = System.currentTimeMillis();
+                    final String clusterUUID = clusterUUID();
+                    final String stateUUID = clusterState.stateUUID();
+                    final long timestamp = timestamp();
 
                     for (ShardRouting shard : shards) {
                         if (match(shard.getIndexName())) {
-                            DiscoveryNode node = null;
+                            MonitoringDoc.Node shardNode = null;
                             if (shard.assignedToNode()) {
-                                // If the shard is assigned to a node, the shard monitoring document
-                                // refers to this node
-                                node = clusterState.getNodes().get(shard.currentNodeId());
+                                // If the shard is assigned to a node, the shard monitoring document refers to this node
+                                shardNode = convertNode(node.getTimestamp(), clusterState.getNodes().get(shard.currentNodeId()));
                             }
-                            results.add(new ShardMonitoringDoc(monitoringId(), monitoringVersion(),
-                                    clusterUUID, timestamp, node, shard, stateUUID));
+                            results.add(new ShardMonitoringDoc(clusterUUID, timestamp, shardNode, shard, stateUUID));
                         }
                     }
                 }
@@ -74,9 +74,8 @@ public class ShardsCollector extends Collector {
         return Collections.unmodifiableCollection(results);
     }
 
-    private boolean match(String indexName) {
-        String[] indices = monitoringSettings.indices();
-        return IndexNameExpressionResolver.isAllIndices(Arrays.asList(monitoringSettings.indices()))
-                || Regex.simpleMatch(indices, indexName);
+    private boolean match(final String indexName) {
+        final String[] indices = monitoringSettings.indices();
+        return IndexNameExpressionResolver.isAllIndices(Arrays.asList(indices)) || Regex.simpleMatch(indices, indexName);
     }
 }

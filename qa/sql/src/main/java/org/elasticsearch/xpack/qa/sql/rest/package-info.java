@@ -5,6 +5,6 @@
  */
 
 /**
- * Unit tests for the Elasticsearch JDBC client.
+ * Integration tests shared between multiple qa projects. 
  */
-package org.elasticsearch.xpack.sql.jdbc;
+package org.elasticsearch.xpack.qa.sql.rest;

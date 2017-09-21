@@ -5,6 +5,7 @@
  */
 
 /**
- * Unit tests for the Elasticsearch JDBC client.
+ * Support for integration tests for the Elasticsearch SQL JDBC client
+ * and integration tests shared between multiple qa projects. 
  */
-package org.elasticsearch.xpack.sql.jdbc;
+package org.elasticsearch.xpack.qa.sql.jdbc;

@@ -1,0 +1,111 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.qa.sql.embed;
+
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.sql.analysis.catalog.EsCatalog;
+import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.plugin.SqlGetIndicesAction;
+
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.util.function.BiConsumer;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+
+public abstract class ProtoHandler<R> implements HttpHandler, AutoCloseable {
+    protected static PlanExecutor planExecutor(Client client) {
+        Supplier<ClusterState> clusterStateSupplier =
+                () -> client.admin().cluster().prepareState().get(timeValueMinutes(1)).getState();
+        BiConsumer<SqlGetIndicesAction.Request, ActionListener<SqlGetIndicesAction.Response>> getIndices = (request, listener) -> {
+            ClusterState state = clusterStateSupplier.get();
+            SqlGetIndicesAction.operation(new IndexNameExpressionResolver(Settings.EMPTY), EsCatalog::new,
+                    request, state, listener);
+        };
+        return new PlanExecutor(client, clusterStateSupplier, getIndices, EsCatalog::new);
+    }
+
+    protected static final Logger log = ESLoggerFactory.getLogger(ProtoHandler.class.getName());
+    private final TimeValue TV = TimeValue.timeValueSeconds(5);
+    protected final Client client;
+    protected final NodeInfo info;
+    protected final String clusterName;
+    private final CheckedFunction<R, BytesReference, IOException> toProto;
+
+    protected ProtoHandler(Client client, CheckedFunction<R, BytesReference, IOException> toProto) {
+        NodesInfoResponse niResponse = client.admin().cluster().prepareNodesInfo("_local").clear().get(TV);
+        this.client = client;
+        info = niResponse.getNodes().get(0);
+        clusterName = niResponse.getClusterName().value();
+
+        this.toProto = toProto;
+    }
+
+    @Override
+    public void handle(HttpExchange http) throws IOException {
+        log.debug("Received query call...");
+
+        if ("HEAD".equals(http.getRequestMethod())) {
+            http.sendResponseHeaders(RestStatus.OK.getStatus(), 0);
+            http.close();
+            return;
+        }
+
+        try (DataInputStream in = new DataInputStream(http.getRequestBody())) {
+            handle(http, in);
+        } catch (Exception ex) {
+            fail(http, ex);
+        }
+    }
+
+    protected abstract void handle(HttpExchange http, DataInput in) throws IOException;
+
+    protected void sendHttpResponse(HttpExchange http, R response) throws IOException {
+        // first do the conversion in case an exception is triggered
+        BytesReference data = toProto.apply(response);
+        if (http.getResponseHeaders().isEmpty()) {
+            http.sendResponseHeaders(RestStatus.OK.getStatus(), 0);
+        }
+        data.writeTo(http.getResponseBody());
+        http.close();
+    }
+
+    protected void fail(HttpExchange http, Exception ex) {
+        log.error("Caught error while transmitting response", ex);
+        try {
+            // the error conversion has failed, halt
+            if (http.getResponseHeaders().isEmpty()) {
+                http.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
+            }
+        } catch (IOException ioEx) {
+            log.error("Caught error while trying to catch error", ex);
+        } finally {
+            http.close();
+        }
+    }
+
+    @Override
+    public void close() {
+        // no-op
+    }
+}

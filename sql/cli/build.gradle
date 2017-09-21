@@ -12,13 +12,6 @@ dependencies {
   compile project(':x-pack-elasticsearch:sql:cli-proto')
   compile project(':x-pack-elasticsearch:sql:shared-proto')
 
-  // Used by embedded sql instance
-  testCompile project(":x-pack-elasticsearch:transport-client")
-  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts') // NOCOMMIT this is needed for TestUtils
-                                                                                            // we can remove this when #2432 is in
-  testCompile project(':x-pack-elasticsearch:sql:server')
-  testCompile project(':x-pack-elasticsearch:sql:test-utils')
-
   runtime "org.fusesource.jansi:jansi:1.16"
   runtime "org.elasticsearch:jna:4.4.0-1"
 }
@@ -52,12 +45,6 @@ jar {
 // Needed so we can launch graphviz if it is installed
 project.compactProfile = 'full'
 
-forbiddenApisTest {
-  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
-  bundledSignatures -= 'jdk-non-portable'
-  bundledSignatures += 'jdk-internal'
-}
-
 thirdPartyAudit.excludes = [
   'org.apache.sshd.client.SshClient',
   'org.apache.sshd.client.auth.keyboard.UserInteraction',
@@ -86,46 +73,15 @@ thirdPartyAudit.excludes = [
   'org.mozilla.universalchardet.UniversalDetector'
 ]
 
-apply plugin: 'elasticsearch.rest-test'
-integTest.mustRunAfter test
-
-integTestCluster {
-  distribution = 'zip' // we need this for painless support
-  plugin project(':x-pack-elasticsearch:plugin').path
-  /* Get a "clean" test without the other x-pack features here and check them
-   * all together later on. */
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.watcher.enabled', 'false'
-}
-
-task runServer(type: RunTask) {
-  distribution = 'zip'
-  plugin project(':x-pack-elasticsearch:plugin').path
-  // Daemonize Elasticsearch so we can run the cli application
-  daemonize = true
-  /* Get a "clean" test without the other x-pack features here and check them
-   * all together later on. */
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.watcher.enabled', 'false'
-}
 task run {
-  /* We can't use JavaExec or Exec because neither support
-   * ProcessBuilder.Redirect.INHERIT which is required to get full tty-support.
-   */
-  dependsOn jar, runServer
-  finalizedBy 'runServer#stop'
-  description = 'Run the CLI and an Elasticsearch instant for it to connect to'
+  description = 'Run the CLI and connect to elasticsearch running on 9200'
   doLast {
     List command = [new File(project.javaHome, 'bin/java').absolutePath]
     if ('true'.equals(System.getProperty('debug', 'false'))) {
       command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
     }
     command += ['-jar', jar.archivePath.absolutePath]
-    logger.info("command: ${command}")
+    logger.info("running the cli with: ${command}")
 
     new ProcessBuilder(command)
         .redirectOutput(ProcessBuilder.Redirect.INHERIT)
@@ -134,21 +90,4 @@ task run {
         .start()
         .waitFor()
   }
-}
-
-// Allow for com.sun.net.httpserver.* usage for testing
-eclipse {
-  classpath.file {
-    whenMerged { cp ->
-      def con = entries.find { e ->
-        e.kind == "con" && e.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER")
-      }
-      con.accessRules.add(new org.gradle.plugins.ide.eclipse.model.AccessRule(
-        "accessible", "com/sun/net/httpserver/*"))
-    }
-  }
-}
-forbiddenApisTest {
-  bundledSignatures -= 'jdk-non-portable'
-  bundledSignatures += 'jdk-internal'
 }

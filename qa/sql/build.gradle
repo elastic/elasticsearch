@@ -5,9 +5,57 @@ description = 'Integration tests for SQL'
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  compile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
-  compile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
   compile "org.elasticsearch.test:framework:${versions.elasticsearch}"
+
+  // JDBC testing dependencies
+  compile(project(':x-pack-elasticsearch:sql:jdbc')) {
+    if (false == isEclipse && false == isIdea) {
+      /* Skip the transitive dependencies of the server when outside
+       * of an IDE because outside of an IDE we use the jdbc jar
+       * which includes all the transitive dependencies *already*.
+       * If we didn't skip these dependencies the jar hell checks
+       * would fail. And we need the transitive dependencies to
+       * run in embedded mode but only do that inside of an IDE. */
+      transitive = false
+    }
+  }
+  compile "net.sourceforge.csvjdbc:csvjdbc:1.0.31"
+  runtime "com.h2database:h2:1.4.194"
+
+  // There are *no* CLI testing dependencies because we
+  // communicate fork a new CLI process when we need it.
+
+  // Used to support embedded testing mode
+  compile(project(':x-pack-elasticsearch:sql:server')) {
+    transitive = false
+  }
+  compile(project(':x-pack-elasticsearch:sql:cli-proto')) {
+    transitive = false
+  }
+  compile "org.elasticsearch.client:transport:${version}"
+}
+
+/* disable unit tests because these are all integration tests used
+ * other qa projects. */
+test.enabled = false
+
+dependencyLicenses.enabled = false
+
+// Allow for com.sun.net.httpserver.* usage for embedded mode
+eclipse {
+  classpath.file {
+    whenMerged { cp ->
+      def con = entries.find { e ->
+        e.kind == "con" && e.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER")
+      }
+      con.accessRules.add(new org.gradle.plugins.ide.eclipse.model.AccessRule(
+        "accessible", "com/sun/net/httpserver/*"))
+    }
+  }
+}
+forbiddenApisMain {
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
 }
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
@@ -16,20 +64,79 @@ forbiddenApisMain {
                     PrecommitTasks.getResource('/forbidden/es-test-signatures.txt')]
 }
 
-// just test utilities
-test.enabled = false
-
-dependencyLicenses.enabled = false
+thirdPartyAudit.excludes = [
+      // H2 dependencies that we don't actually use....
+      'javax.servlet.ServletConfig',
+      'javax.servlet.ServletContext',
+      'javax.servlet.ServletContextEvent',
+      'javax.servlet.ServletContextListener',
+      'javax.servlet.ServletOutputStream',
+      'javax.servlet.http.HttpServlet',
+      'javax.servlet.http.HttpServletRequest',
+      'javax.servlet.http.HttpServletResponse',
+      'org.apache.lucene.document.Field$Index',
+      'org.apache.lucene.queryParser.QueryParser',
+      'org.osgi.framework.BundleActivator',
+      'org.osgi.framework.BundleContext',
+      'org.osgi.service.jdbc.DataSourceFactory',
+      'org.slf4j.Logger',
+      'org.slf4j.LoggerFactory',
+    ]
 
 subprojects {
   apply plugin: 'elasticsearch.standalone-rest-test'
   apply plugin: 'elasticsearch.rest-test'
 
+  configurations {
+    cliFixture
+  }
+
   dependencies {
-    testCompile project(path: ':x-pack-elasticsearch:qa:sql')
-    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+    /* Since we're a standalone rest test we actually get transitive
+     * dependencies but we don't really want them because they cause
+     * all kinds of trouble with the jar hell checks. So we suppress
+     * them explicitly for non-es projects. */
+    testCompile(project(':x-pack-elasticsearch:qa:sql')) {
+      transitive = false
+    }
     testCompile "org.elasticsearch.test:framework:${versions.elasticsearch}"
+
+    // JDBC testing dependencies
+    testRuntime(project(':x-pack-elasticsearch:sql:jdbc')) {
+      if (false == isEclipse && false == isIdea) {
+        /* Skip the transitive dependencies of the server when outside
+         * of an IDE because outside of an IDE we use the jdbc jar
+         * which includes all the transitive dependencies *already*.
+         * If we didn't skip these dependencies the jar hell checks
+         * would fail. And we need the transitive dependencies to
+         * run in embedded mode but only do that inside of an IDE. */
+        transitive = false
+      }
+    }
+    testRuntime("net.sourceforge.csvjdbc:csvjdbc:1.0.31") {
+      transitive = false
+    }
+    testRuntime("com.h2database:h2:1.4.194") {
+      transitive = false
+    }
+
+    cliFixture project(':x-pack-elasticsearch:test:sql-cli-fixture')
+
+    // Used to support embedded testing mode
+    testRuntime(project(':x-pack-elasticsearch:sql:server')) {
+      transitive = false
+    }
+    testRuntime "org.elasticsearch.client:transport:${version}"
+  }
+
+  task cliFixture(type: org.elasticsearch.gradle.test.AntFixture) {
+    Project cli = project(':x-pack-elasticsearch:sql:cli')
+    dependsOn project.configurations.cliFixture
+    dependsOn cli.jar
+    executable = new File(project.javaHome, 'bin/java')
+    env 'CLASSPATH', "${ -> project.configurations.cliFixture.asPath }"
+    args 'org.elasticsearch.xpack.sql.cli.fixture.CliFixture',
+        baseDir, "${ -> cli.jar.outputs.files.singleFile}"
   }
 
   integTestCluster {
@@ -39,6 +146,12 @@ subprojects {
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.watcher.enabled', 'false'
     setting 'script.max_compilations_rate', '1000/1m'
+    dependsOn cliFixture
+  }
+
+  integTestRunner {
+    systemProperty 'tests.cli.fixture', "${ -> cliFixture.addressAndPort }"
+    finalizedBy cliFixture.stopTask
   }
 
   task run(type: RunTask) {
@@ -48,5 +161,7 @@ subprojects {
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.watcher.enabled', 'false'
     setting 'script.max_compilations_rate', '1000/1m'
+    dependsOn cliFixture
   }
+  run.finalizedBy cliFixture.stopTask
 }

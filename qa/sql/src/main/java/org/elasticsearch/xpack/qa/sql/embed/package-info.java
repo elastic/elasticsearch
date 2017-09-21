@@ -5,6 +5,6 @@
  */
 
 /**
- * Unit tests for the Elasticsearch JDBC client.
+ * Support for testing in embedded mode.
  */
-package org.elasticsearch.xpack.sql.jdbc;
+package org.elasticsearch.xpack.qa.sql.embed;

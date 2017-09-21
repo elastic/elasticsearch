@@ -5,6 +5,6 @@
  */
 
 /**
- * Unit tests for the Elasticsearch JDBC client.
+ * Unit tests for the Elasticsearch CLI client.
  */
-package org.elasticsearch.xpack.sql.jdbc;
+package org.elasticsearch.xpack.sql.cli;

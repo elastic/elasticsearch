@@ -13,16 +13,6 @@ dependencies {
   compile project(':x-pack-elasticsearch:sql:shared-proto')
   /* We want to limit these dependencies so do not add anything to this list
    * without serious consideration, and probably shading. */
-
-  // Used by the embedded sql tests
-  testCompile project(path: ':client:transport', configuration: 'runtime')
-  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts') // NOCOMMIT this is needed for TestUtils
-                                                                                            // we can remove this when #2432 is in
-  testCompile project(':x-pack-elasticsearch:sql:server')
-  testCompile project(':x-pack-elasticsearch:sql:test-utils')
-  testCompile "net.sourceforge.csvjdbc:csvjdbc:1.0.31"
-
-  testRuntime "com.h2database:h2:1.4.194"
 }
 
 dependencyLicenses {
@@ -40,48 +30,4 @@ jar {
     configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
     configurations.runtime.collect { it.isDirectory() ? it : zipTree(it) }
   }
-}
-
-apply plugin: 'elasticsearch.rest-test'
-integTest.mustRunAfter test
-
-integTestCluster {
-  distribution = 'zip' // we need this for painless support
-  plugin project(':x-pack-elasticsearch:plugin').path
-  /* Get a "clean" test without the other x-pack features here and check them
-   * all together later on. */
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'script.max_compilations_rate', '1000/1m'
-}
-
-task run(type: RunTask) {
-  distribution = 'zip' // we want to run it with painless
-  plugin project(':x-pack-elasticsearch:plugin').path
-  /* Get a "clean" test without the other x-pack features here and check them
-   * all together later on. */
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'script.max_compilations_rate', '1000/1m'
-}
-
-// Allow for com.sun.net.httpserver.* usage for testing
-eclipse {
-  classpath.file {
-    whenMerged { cp ->
-      def con = entries.find { e ->
-        e.kind == "con" && e.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER")
-      }
-      con.accessRules.add(new org.gradle.plugins.ide.eclipse.model.AccessRule(
-        "accessible", "com/sun/net/httpserver/*"))
-    }
-  }
-}
-forbiddenApisTest {
-  bundledSignatures -= 'jdk-non-portable'
-  bundledSignatures += 'jdk-internal'
 }

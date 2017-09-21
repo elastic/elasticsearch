@@ -1,3 +1,9 @@
+dependencies {
+  testCompile(project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')) {
+    transitive = false
+  }
+}
+
 integTestCluster {
   // Setup auditing so we can use it in some tests
   setting 'xpack.security.audit.enabled', 'true'

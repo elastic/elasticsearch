@@ -1,11 +1,11 @@
 apply plugin: 'elasticsearch.build'
 
-description = 'Shared test utilities for jdbc and cli projects'
+description = 'Shared test utilities for jdbc and cli protocol projects'
 
 dependencies {
-  compile "org.elasticsearch.client:transport:${version}"
   compile "junit:junit:${versions.junit}"
   compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  compile "org.elasticsearch.test:framework:${versions.elasticsearch}"
 }
 
 thirdPartyAudit.excludes = [
@@ -19,25 +19,7 @@ thirdPartyAudit.excludes = [
   'org.jmock.core.Constraint',
 ]
 
-
 /* Elasticsearch traditionally disables this for test utilities because it is
  * hard to configure and (hopefully) much less important for tests than
  * production code. */
 dependencyLicenses.enabled = false
-
-// Allow for com.sun.net.httpserver.* usage for testing
-eclipse {
-  classpath.file {
-    whenMerged { cp ->
-      def con = entries.find { e ->
-        e.kind == "con" && e.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER")
-      }
-      con.accessRules.add(new org.gradle.plugins.ide.eclipse.model.AccessRule(
-        "accessible", "com/sun/net/httpserver/*"))
-    }
-  }
-}
-forbiddenApisMain {
-  bundledSignatures -= 'jdk-non-portable'
-  bundledSignatures += 'jdk-internal'
-}

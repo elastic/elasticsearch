@@ -3,8 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.qa.sql.nosecurity;
 
-/**
- * Unit tests for the Elasticsearch JDBC client.
- */
-package org.elasticsearch.xpack.sql.jdbc;
+import org.elasticsearch.xpack.qa.sql.cli.FetchSizeTestCase;
+
+public class CliFetchSizeIT extends FetchSizeTestCase {
+}

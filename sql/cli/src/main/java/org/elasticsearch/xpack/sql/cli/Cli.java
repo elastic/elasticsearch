@@ -40,9 +40,13 @@ public class Cli {
         /* Initialize the logger from the a properties file we bundle. This makes sure
          * we get useful error messages. */
         LogManager.getLogManager().readConfiguration(Cli.class.getResourceAsStream("/logging.properties"));
+        String url = "localhost:9200/_sql/cli";
+        if (args.length > 0) {
+            url = args[0] + "/_sql/cli";
+        }
         try (Terminal term = TerminalBuilder.builder().build()) {
             try {
-                Cli console = new Cli(new CliConfiguration("localhost:9200/_sql/cli", new Properties()), term);
+                Cli console = new Cli(new CliConfiguration(url, new Properties()), term);
                 console.run();
             } catch (FatalException e) {
                 term.writer().println(e.getMessage());

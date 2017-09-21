@@ -20,6 +20,7 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
@@ -77,7 +78,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     }
 
     public void updateGlobalCheckpointForShard(final ShardId shardId) {
-        execute(new Request(shardId));
+        execute(new Request(shardId), ActionListener.wrap(r -> {}, e -> logger.info(shardId + " global checkpoint sync failed", e)));
     }
 
     @Override

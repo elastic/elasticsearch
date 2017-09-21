@@ -89,7 +89,7 @@ compared to its past behavior.
 [source,js]
 --------------------------------------------------
 {
-  "summary_count_field" : "events_per_min",
+  "summary_count_field_name" : "events_per_min",
   "detectors" [
       { "function" : "count" }
    ]
@@ -98,7 +98,7 @@ compared to its past behavior.
 
 If you are analyzing an aggregated `events_per_min` field, do not use a sum
 function (for example, `sum(events_per_min)`). Instead, use the count function
-and the `summary_count_field` property.
+and the `summary_count_field_name` property.
 //TO-DO: For more information, see <<aggreggations.asciidoc>>.
 
 [float]

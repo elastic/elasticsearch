@@ -66,7 +66,10 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(InternalSettingsPlugin.class, MockTransportService.TestPlugin.class)).collect(Collectors.toList());
+        return Stream.concat(
+                super.nodePlugins().stream(),
+                Stream.of(InternalSettingsPlugin.class, MockTransportService.TestPlugin.class))
+                .collect(Collectors.toList());
     }
 
     public void testPostOperationGlobalCheckpointSync() throws Exception {

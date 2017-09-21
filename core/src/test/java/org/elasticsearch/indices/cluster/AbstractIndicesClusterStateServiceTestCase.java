@@ -190,8 +190,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         @Override
         public synchronized MockIndexService createIndex(
                 IndexMetaData indexMetaData,
-                List<IndexEventListener> buildInIndexListener,
-                Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+                List<IndexEventListener> buildInIndexListener) throws IOException {
             MockIndexService indexService = new MockIndexService(new IndexSettings(indexMetaData, Settings.EMPTY));
             indices = newMapBuilder(indices).put(indexMetaData.getIndexUUID(), indexService).immutableMap();
             return indexService;

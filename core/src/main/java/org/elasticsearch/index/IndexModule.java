@@ -330,8 +330,7 @@ public final class IndexModule {
             IndicesQueryCache indicesQueryCache,
             MapperRegistry mapperRegistry,
             IndicesFieldDataCache indicesFieldDataCache,
-            NamedWriteableRegistry namedWriteableRegistry,
-            Consumer<ShardId> globalCheckpointSyncer)
+            NamedWriteableRegistry namedWriteableRegistry)
         throws IOException {
         final IndexEventListener eventListener = freeze();
         IndexSearcherWrapperFactory searcherWrapperFactory = indexSearcherWrapper.get() == null

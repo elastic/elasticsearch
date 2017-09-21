@@ -378,14 +378,11 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param indexMetaData          the index metadata to create the index for
      * @param builtInListeners       a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with the
      *                               per-index listeners
-     * @param globalCheckpointSyncer callback for syncing global checkpoints
      * @throws ResourceAlreadyExistsException if the index already exists.
      */
     @Override
     public synchronized IndexService createIndex(
-            final IndexMetaData indexMetaData,
-            final List<IndexEventListener> builtInListeners,
-            final Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+            final IndexMetaData indexMetaData, final List<IndexEventListener> builtInListeners) throws IOException {
         ensureChangesAllowed();
         if (indexMetaData.getIndexUUID().equals(IndexMetaData.INDEX_UUID_NA_VALUE)) {
             throw new IllegalArgumentException("index must have a real UUID found value: [" + indexMetaData.getIndexUUID() + "]");
@@ -409,7 +406,6 @@ public class IndicesService extends AbstractLifecycleComponent
                         indexMetaData,
                         indicesQueryCache,
                         indicesFieldDataCache,
-                        globalCheckpointSyncer,
                         finalListeners,
                         indexingMemoryController);
         boolean success = false;
@@ -432,7 +428,6 @@ public class IndicesService extends AbstractLifecycleComponent
                                                          IndexMetaData indexMetaData,
                                                          IndicesQueryCache indicesQueryCache,
                                                          IndicesFieldDataCache indicesFieldDataCache,
-                                                         Consumer<ShardId> globalCheckpointSyncer,
                                                          List<IndexEventListener> builtInListeners,
                                                          IndexingOperationListener... indexingOperationListeners) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopeSetting);
@@ -462,8 +457,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesQueryCache,
                 mapperRegistry,
                 indicesFieldDataCache,
-                namedWriteableRegistry,
-                globalCheckpointSyncer);
+                namedWriteableRegistry
+        );
     }
 
     /**
@@ -494,7 +489,7 @@ public class IndicesService extends AbstractLifecycleComponent
             closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
             final IndexService service =
-                createIndexService("metadata verification", metaData, indicesQueryCache, indicesFieldDataCache, s -> {}, emptyList());
+                createIndexService("metadata verification", metaData, indicesQueryCache, indicesFieldDataCache, emptyList());
             closeables.add(() -> service.close("metadata verification", false));
             service.mapperService().merge(metaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
             if (metaData.equals(metaDataUpdate) == false) {

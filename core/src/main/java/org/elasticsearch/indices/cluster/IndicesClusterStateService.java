@@ -451,7 +451,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             AllocatedIndex<? extends Shard> indexService = null;
             try {
-                indexService = indicesService.createIndex(indexMetaData, buildInIndexListener, globalCheckpointSyncer);
+                indexService = indicesService.createIndex(indexMetaData, buildInIndexListener);
                 if (indexService.updateMapping(indexMetaData) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
                         new NodeMappingRefreshAction.NodeMappingRefreshRequest(indexMetaData.getIndex().getName(),
@@ -798,12 +798,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @param indexMetaData          the index metadata to create the index for
          * @param builtInIndexListener   a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with
          *                               the per-index listeners
-         * @param globalCheckpointSyncer callback for syncing global checkpoints
          * @throws ResourceAlreadyExistsException if the index already exists.
          */
         U createIndex(IndexMetaData indexMetaData,
-                      List<IndexEventListener> builtInIndexListener,
-                      Consumer<ShardId> globalCheckpointSyncer) throws IOException;
+                      List<IndexEventListener> builtInIndexListener) throws IOException;
 
         /**
          * Verify that the contents on disk for the given index is deleted; if not, delete the contents.

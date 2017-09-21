@@ -139,7 +139,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                             if (indexService == null) {
                                 // temporarily create the index and add mappings so we can parse the filter
                                 try {
-                                    indexService = indicesService.createIndex(index, emptyList(), s -> {});
+                                    indexService = indicesService.createIndex(index, emptyList());
                                     indicesToClose.add(index.getIndex());
                                 } catch (IOException e) {
                                     throw new ElasticsearchException("Failed to create temporary index for parsing the alias", e);

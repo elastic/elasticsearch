@@ -95,7 +95,6 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyList;
-import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -140,7 +139,7 @@ public class ClusterStateChanges extends AbstractComponent {
         // MetaDataCreateIndexService creates indices using its IndicesService instance to check mappings -> fake it here
         try {
             @SuppressWarnings("unchecked") final List<IndexEventListener> listeners = anyList();
-            when(indicesService.createIndex(any(IndexMetaData.class), listeners, anyObject()))
+            when(indicesService.createIndex(any(IndexMetaData.class), listeners))
                 .then(invocationOnMock -> {
                     IndexService indexService = mock(IndexService.class);
                     IndexMetaData indexMetaData = (IndexMetaData)invocationOnMock.getArguments()[0];

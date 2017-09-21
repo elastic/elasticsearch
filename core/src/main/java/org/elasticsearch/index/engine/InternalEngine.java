@@ -197,7 +197,7 @@ public class InternalEngine extends Engine {
                 logger.trace("recovered [{}]", seqNoStats);
                 seqNoService = sequenceNumberService(shardId, allocationId, engineConfig.getIndexSettings(), seqNoStats);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
-                historyUUID = loadHistoryUUIDFromCommit(writer, engineConfig.getForceNewHistoryUUID());
+                historyUUID = loadOrGenerateHistoryUUID(writer, engineConfig.getForceNewHistoryUUID());
                 Objects.requireNonNull(historyUUID, "history uuid should not be null");
                 indexWriter = writer;
                 translog = openTranslog(engineConfig, writer, translogDeletionPolicy, () -> seqNoService().getGlobalCheckpoint());
@@ -441,7 +441,7 @@ public class InternalEngine extends Engine {
     /**
      * Reads the current stored history ID from the IW commit data. Generates a new UUID if not found or if generation is forced.
      */
-    private String loadHistoryUUIDFromCommit(final IndexWriter writer, boolean forceNew) throws IOException {
+    private String loadOrGenerateHistoryUUID(final IndexWriter writer, boolean forceNew) throws IOException {
         String uuid = commitDataAsMap(writer).get(HISTORY_UUID_KEY);
         if (uuid == null || forceNew) {
             assert

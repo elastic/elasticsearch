@@ -62,6 +62,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
     }
 
     public void testPostOperationGlobalCheckpointSync() throws Exception {
+        // set the sync interval high so it does not execute during this test
         runGlobalCheckpointSyncTest(TimeValue.timeValueHours(24), client -> {}, client -> {});
     }
 
@@ -128,7 +129,6 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
             final Consumer<Client> afterIndexing) throws Exception {
         final int numberOfReplicas = randomIntBetween(1, 4);
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);
-        // set the sync interval high so it does not execute during this test
         prepareCreate(
                 "test",
                 Settings.builder()

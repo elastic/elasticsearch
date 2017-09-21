@@ -319,7 +319,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 routing,
                 current.shardPath(),
                 current.indexSettings().getIndexMetaData(),
-                null, current.engineFactory,
+                null,
+                current.engineFactory,
                 current.getGlobalCheckpointSyncer(),
                 listeners);
     }

@@ -92,10 +92,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         final List<String> nodes = startCluster(rarely() ? 5 : 3);
 
         assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-                ));
+            .setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+            ));
         ensureGreen();
 
         ServiceDisruptionScheme disruptionScheme = addRandomDisruptionScheme();
@@ -142,8 +142,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                 exceptedExceptions.add(e);
                                 final String docId = id;
                                 logger.trace(
-                                        (Supplier<?>)
-                                                () -> new ParameterizedMessage("[{}] failed id [{}] through node [{}]", name, docId, node), e);
+                                    (Supplier<?>)
+                                        () -> new ParameterizedMessage("[{}] failed id [{}] through node [{}]", name, docId, node), e);
                             } finally {
                                 countDownLatchRef.get().countDown();
                                 logger.trace("[{}] decreased counter : {}", name, countDownLatchRef.get().getCount());
@@ -190,12 +190,12 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 disruptionScheme.stopDisrupting();
                 for (String node : internalCluster().getNodeNames()) {
                     ensureStableCluster(nodes.size(), TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() +
-                            DISRUPTION_HEALING_OVERHEAD.millis()), true, node);
+                        DISRUPTION_HEALING_OVERHEAD.millis()), true, node);
                 }
                 // in case of a bridge partition, shard allocation can fail "index.allocation.max_retries" times if the master
                 // is the super-connected node and recovery source and target are on opposite sides of the bridge
                 if (disruptionScheme instanceof NetworkDisruption &&
-                        ((NetworkDisruption) disruptionScheme).getDisruptedLinks() instanceof Bridge) {
+                    ((NetworkDisruption) disruptionScheme).getDisruptedLinks() instanceof Bridge) {
                     assertAcked(client().admin().cluster().prepareReroute().setRetryFailed(true));
                 }
                 ensureGreen("test");
@@ -207,7 +207,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                             logger.debug("validating through node [{}] ([{}] acked docs)", node, ackedDocs.size());
                             for (String id : ackedDocs.keySet()) {
                                 assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
-                                        client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
+                                    client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
                             }
                         } catch (AssertionError | NoShardAvailableActionException e) {
                             throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);

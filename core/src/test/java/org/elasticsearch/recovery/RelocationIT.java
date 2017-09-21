@@ -130,7 +130,7 @@ public class RelocationIT extends ESIntegTestCase {
                     final IndicesService indicesService =
                             internalCluster().getInstance(IndicesService.class, node.getName());
                     final IndexShard indexShard = indicesService.getShardOrNull(primaryShardRouting.shardId());
-                    final ObjectLongMap<String> globalCheckpoints = indexShard.getGlobalCheckpoints();
+                    final ObjectLongMap<String> globalCheckpoints = indexShard.getInSyncGlobalCheckpoints();
                     for (ShardStats shardStats : indexShardStats) {
                         final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
                         assertThat(shardStats.getShardRouting() + " local checkpoint mismatch",

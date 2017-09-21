@@ -139,12 +139,12 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
-     * Get the local knowledge of the global checkpoints for all tracked allocation IDs.
+     * Get the local knowledge of the global checkpoints for all in-sync allocation IDs.
      *
      * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
      */
-    public ObjectLongMap<String> getGlobalCheckpoints() {
-        return globalCheckpointTracker.getGlobalCheckpoints();
+    public ObjectLongMap<String> getInSyncGlobalCheckpoints() {
+        return globalCheckpointTracker.getInSyncGlobalCheckpoints();
     }
 
     /**

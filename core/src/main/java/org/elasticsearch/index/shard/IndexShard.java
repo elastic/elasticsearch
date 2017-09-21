@@ -1764,14 +1764,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Get the local knowledge of the global checkpoints for all tracked allocation IDs.
+     * Get the local knowledge of the global checkpoints for all in-sync allocation IDs.
      *
      * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
      */
-    public ObjectLongMap<String> getGlobalCheckpoints() {
+    public ObjectLongMap<String> getInSyncGlobalCheckpoints() {
         verifyPrimary();
         verifyNotClosed();
-        return getEngine().seqNoService().getGlobalCheckpoints();
+        return getEngine().seqNoService().getInSyncGlobalCheckpoints();
     }
 
     /**
@@ -1787,7 +1787,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // only sync if there are not operations in flight
         final SeqNoStats stats = getEngine().seqNoService().stats();
         if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint()) {
-            final ObjectLongMap<String> globalCheckpoints = getGlobalCheckpoints();
+            final ObjectLongMap<String> globalCheckpoints = getInSyncGlobalCheckpoints();
             final String allocationId = routingEntry().allocationId().getId();
             assert globalCheckpoints.containsKey(allocationId);
             final long globalCheckpoint = globalCheckpoints.get(allocationId);

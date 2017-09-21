@@ -210,17 +210,19 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     }
 
     /**
-     * Get the local knowledge of the global checkpoints for all tracked allocation IDs.
+     * Get the local knowledge of the global checkpoints for all in-sync allocation IDs.
      *
      * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
      */
-    synchronized ObjectLongMap<String> getGlobalCheckpoints() {
+    synchronized ObjectLongMap<String> getInSyncGlobalCheckpoints() {
         assert primaryMode;
         assert handoffInProgress == false;
-        final ObjectLongMap<String> globalCheckpoints = new ObjectLongHashMap<>(checkpoints.size());
-        for (final Map.Entry<String, CheckpointState> cps : checkpoints.entrySet()) {
-            globalCheckpoints.put(cps.getKey(), cps.getValue().globalCheckpoint);
-        }
+        final ObjectLongMap<String> globalCheckpoints = new ObjectLongHashMap<>(checkpoints.size()); // upper bound on the size
+        checkpoints
+                .entrySet()
+                .stream()
+                .filter(e -> e.getValue().inSync)
+                .forEach(e -> globalCheckpoints.put(e.getKey(), e.getValue().globalCheckpoint));
         return globalCheckpoints;
     }
 

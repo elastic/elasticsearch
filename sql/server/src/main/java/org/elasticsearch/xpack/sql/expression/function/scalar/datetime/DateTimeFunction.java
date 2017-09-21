@@ -59,7 +59,7 @@ public abstract class DateTimeFunction extends UnaryScalarFunction implements Ti
 
     @Override
     protected ScriptTemplate asScriptFrom(FieldAttribute field) {
-        // NOCOMMIT I think we should investigate registering SQL as a script engine so we don't need to generate painless
+        // TODO I think we should investigate registering SQL as a script engine so we don't need to generate painless
         return new ScriptTemplate(createTemplate(), 
                 paramsBuilder()
                     .variable(field.name())
@@ -76,7 +76,7 @@ public abstract class DateTimeFunction extends UnaryScalarFunction implements Ti
         if (DateTimeZone.UTC.equals(timeZone)) {
             return formatTemplate("doc[{}].value.get" + extractFunction() + "()");
         } else {
-            // NOCOMMIT ewwww
+            // TODO ewwww
             /* This uses the Java 8 time API because Painless doesn't whitelist creation of new
              * Joda classes. */
 

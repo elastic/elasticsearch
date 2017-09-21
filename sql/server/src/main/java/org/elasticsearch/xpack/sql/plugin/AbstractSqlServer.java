@@ -37,7 +37,7 @@ public abstract class AbstractSqlServer {
     }
 
     protected final Response exceptionResponse(Request req, Exception e) {
-        // NOCOMMIT I wonder why we don't just teach the servers to handle ES's normal exception response.....
+        // NOCOMMIT I wonder why we don't just teach the clients to handle ES's normal exception response.....
         SqlExceptionType exceptionType = sqlExceptionType(e);
 
         String message = EMPTY;

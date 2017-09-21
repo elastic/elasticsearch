@@ -166,7 +166,6 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
      * Information about a column.
      */
     public static final class ColumnInfo implements Writeable, ToXContentObject {
-        // NOCOMMIT: we probably need to add more info about columns, but that's all we use for now
         private final String name;
         private final String type;
 

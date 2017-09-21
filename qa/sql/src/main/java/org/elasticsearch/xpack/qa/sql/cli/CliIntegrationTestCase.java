@@ -52,9 +52,10 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
     static {
         String addressAndPort = System.getProperty("tests.cli.fixture");
         if (addressAndPort == null) {
-            throw new IllegalArgumentException("Must set the [tests.cli.fixture] property. This is required even in embedded "
-                    + "mode. The easiest way to run the fixture is with "
-                    + "`gradle :x-pack-elasticsearch:test:sql-cli-fixture:run` and to set the property to localhost:53798");
+            throw new IllegalArgumentException("Must set the [tests.cli.fixture] property. Gradle handles this for you "
+                    + " in regular tests. In embedded mode the easiest thing to do is run "
+                    + "`gradle :x-pack-elasticsearch:qa:sql:no-security:run` and to set the property to the contents of "
+                    + "`qa/sql/no-security/build/fixtures/cliFixture/ports`");
         }
         int split = addressAndPort.lastIndexOf(':');
         try {

@@ -307,7 +307,7 @@ public class RelocationIT extends ESIntegTestCase {
                 Settings.builder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", numberOfReplicas)
-                        .put("index.refresh_interval", -1) // we want to control refreshes c
+                        .put("index.refresh_interval", -1) // we want to control refreshes
                         .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms"))
                 .get();
 

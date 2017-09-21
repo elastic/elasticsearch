@@ -50,7 +50,6 @@ public class Cli {
                 console.run();
             } catch (FatalException e) {
                 term.writer().println(e.getMessage());
-                
             }
         }
     }

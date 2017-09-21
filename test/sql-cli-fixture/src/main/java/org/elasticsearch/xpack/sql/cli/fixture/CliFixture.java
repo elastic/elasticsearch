@@ -80,6 +80,13 @@ public class CliFixture {
                     List<String> command = new ArrayList<>();
                     command.add(javaExecutable.toString());
 //                    command.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000");
+                    // Force a specific terminal type so we have consistent responses for testing.
+                    command.add("-Dorg.jline.terminal.type=xterm-256color");
+                    // Disable terminal types that won't work with stdin isn't actually a tty
+                    command.add("-Dorg.jline.terminal.jna=false");
+                    command.add("-Dorg.jline.terminal.jansi=false");
+                    command.add("-Dorg.jline.terminal.exec=false");
+                    command.add("-Dorg.jline.terminal.dumb=true");
                     command.add("-jar");
                     command.add(cliJar.toString());
                     command.add(url);

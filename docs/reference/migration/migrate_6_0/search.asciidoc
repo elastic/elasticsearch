@@ -177,3 +177,9 @@ In prior versions the source field names were relative to the inner hit.
 
 The `from` parameter can no longer be used in the search request body when initiating a scroll.
 The parameter was already ignored in these situations, now in addition an error is thrown.
+
+==== Limit on from/size in top hits and inner hits
+
+The maximum number of results (`from` + `size`) that is allowed to be retrieved
+via inner hits and top hits has been limited to 100. The limit can be controlled
+via the `index.max_inner_result_window` index setting.

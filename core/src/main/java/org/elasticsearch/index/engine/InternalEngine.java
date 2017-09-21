@@ -197,11 +197,13 @@ public class InternalEngine extends Engine {
                 logger.trace("recovered [{}]", seqNoStats);
                 seqNoService = sequenceNumberService(shardId, allocationId, engineConfig.getIndexSettings(), seqNoStats);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
-                historyUUID = loadOrGenerateHistoryUUID(writer, engineConfig.getForceNewHistoryUUID());
+                historyUUID = loadHistoryUUIDFromCommit(writer, engineConfig.getForceNewHistoryUUID());
                 Objects.requireNonNull(historyUUID, "history uuid should not be null");
                 indexWriter = writer;
                 translog = openTranslog(engineConfig, writer, translogDeletionPolicy, () -> seqNoService().getGlobalCheckpoint());
                 assert translog.getGeneration() != null;
+                // we can only do this after we generated and committed a translog uuid. other wise the combined
+                // retention policy, which listens to commits, gets all confused.
                 persistHistoryUUIDIfNeeded();
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -392,20 +394,16 @@ public class InternalEngine extends Engine {
     private void persistHistoryUUIDIfNeeded() throws IOException {
         Objects.requireNonNull(historyUUID);
         final Map<String, String> commitUserData = commitDataAsMap(indexWriter);
-        boolean needsCommit = false;
         if (historyUUID.equals(commitUserData.get(HISTORY_UUID_KEY)) == false) {
+            assert openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG :
+                "if the translog was created, history should have been committed";
             assert commitUserData.containsKey(HISTORY_UUID_KEY) == false || config().getForceNewHistoryUUID();
+            Map<String, String> newData = new HashMap<>(commitUserData);
+            newData.put(HISTORY_UUID_KEY, historyUUID);
+            commitIndexWriter(indexWriter, newData.entrySet());
         } else {
-            assert config().getForceNewHistoryUUID() == false : "config forced a new history uuid but it didn't change";
-            assert openMode != EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG : "new index but it already has an existing history uuid";
-        }
-        if (translog.getTranslogUUID().equals(commitUserData.get(Translog.TRANSLOG_UUID_KEY)) == false) {
-            needsCommit = true;
-        } else {
-        }
-        if (needsCommit) {
-            commitIndexWriter(indexWriter, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
-                ? commitUserData.get(SYNC_COMMIT_ID) : null);
+            assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG || config().getForceNewHistoryUUID() == false :
+                "history uuid is already committed, but the translog uuid isn't committed and a new history id was generated";
         }
     }
 
@@ -441,11 +439,10 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Reads the current stored history ID from the IW commit data.
+     * Reads the current stored history ID from the IW commit data. Generates a new UUID if not found or if generation is forced.
      */
-    private String loadOrGenerateHistoryUUID(final IndexWriter writer, boolean forceNew) throws IOException {
-        final Map<String, String> commitDataAsMap = commitDataAsMap(writer);
-        String uuid = commitDataAsMap.get(HISTORY_UUID_KEY);
+    private String loadHistoryUUIDFromCommit(final IndexWriter writer, boolean forceNew) throws IOException {
+        String uuid = commitDataAsMap(writer).get(HISTORY_UUID_KEY);
         if (uuid == null || forceNew) {
             assert
                 forceNew || // recovery from a local store creates an index that doesn't have yet a history_uuid
@@ -453,9 +450,6 @@ public class InternalEngine extends Engine {
                 config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
                 "existing index was created after 6_0_0_rc1 but has no history uuid";
             uuid = UUIDs.randomBase64UUID();
-            Map<String, String> newData = new HashMap<>(commitDataAsMap);
-            newData.put(HISTORY_UUID_KEY, uuid);
-            commitIndexWriter(writer, newData.entrySet());
         }
         return uuid;
     }
@@ -1957,6 +1951,14 @@ public class InternalEngine extends Engine {
             ensureCanFlush();
             writer.setLiveCommitData(userData);
             writer.commit();
+            // assert we don't loose key entries
+            assert commitDataAsMap(writer).containsKey(Translog.TRANSLOG_UUID_KEY) : "commit misses translog uuid";
+            assert commitDataAsMap(writer).containsKey(Translog.TRANSLOG_GENERATION_KEY) : "commit misses translog generation";
+            assert commitDataAsMap(writer).containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit misses local checkpoint";
+            assert commitDataAsMap(writer).containsKey(SequenceNumbers.MAX_SEQ_NO) : "commit misses max seq no";
+            assert commitDataAsMap(writer).containsKey(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) : "commit misses max unsafe times stamps";
+            assert commitDataAsMap(writer).containsKey(HISTORY_UUID_KEY) : "commit misses a history uuid";
+
         } catch (final Exception ex) {
             try {
                 failEngine("lucene commit failed", ex);

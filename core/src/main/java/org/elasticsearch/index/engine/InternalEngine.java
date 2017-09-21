@@ -202,8 +202,7 @@ public class InternalEngine extends Engine {
                 indexWriter = writer;
                 translog = openTranslog(engineConfig, writer, translogDeletionPolicy, () -> seqNoService().getGlobalCheckpoint());
                 assert translog.getGeneration() != null;
-                this.translog = translog;
-                updateWriterOnOpen();
+                persistHistoryUUIDIfNeeded();
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             } catch (AssertionError e) {
@@ -215,6 +214,8 @@ public class InternalEngine extends Engine {
                     throw e;
                 }
             }
+
+            this.translog = translog;
             manager = createSearcherManager();
             this.searcherManager = manager;
             this.versionMap.setManager(searcherManager);
@@ -369,16 +370,31 @@ public class InternalEngine extends Engine {
                 throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
             }
         }
-        return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
+        final Translog translog = new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
+        if (translogUUID == null) {
+            assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OpenMode must not be "
+                + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
+            boolean success = false;
+            try {
+                commitIndexWriter(writer, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
+                    ? commitDataAsMap(writer).get(SYNC_COMMIT_ID) : null);
+                success = true;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(translog);
+                }
+            }
+        }
+        return translog;
     }
 
     /** If needed, updates the metadata in the index writer to match the potentially new translog and history uuid */
-    private void updateWriterOnOpen() throws IOException {
+    private void persistHistoryUUIDIfNeeded() throws IOException {
         Objects.requireNonNull(historyUUID);
         final Map<String, String> commitUserData = commitDataAsMap(indexWriter);
         boolean needsCommit = false;
         if (historyUUID.equals(commitUserData.get(HISTORY_UUID_KEY)) == false) {
-            needsCommit = true;
+            assert commitUserData.containsKey(HISTORY_UUID_KEY) == false || config().getForceNewHistoryUUID();
         } else {
             assert config().getForceNewHistoryUUID() == false : "config forced a new history uuid but it didn't change";
             assert openMode != EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG : "new index but it already has an existing history uuid";
@@ -386,7 +402,6 @@ public class InternalEngine extends Engine {
         if (translog.getTranslogUUID().equals(commitUserData.get(Translog.TRANSLOG_UUID_KEY)) == false) {
             needsCommit = true;
         } else {
-            assert openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "translog uuid didn't change but open mode is " + openMode;
         }
         if (needsCommit) {
             commitIndexWriter(indexWriter, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
@@ -426,10 +441,11 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Reads the current stored history ID from the IW commit data. Generates a new UUID if not found or if generation is forced.
+     * Reads the current stored history ID from the IW commit data.
      */
     private String loadOrGenerateHistoryUUID(final IndexWriter writer, boolean forceNew) throws IOException {
-        String uuid = commitDataAsMap(writer).get(HISTORY_UUID_KEY);
+        final Map<String, String> commitDataAsMap = commitDataAsMap(writer);
+        String uuid = commitDataAsMap.get(HISTORY_UUID_KEY);
         if (uuid == null || forceNew) {
             assert
                 forceNew || // recovery from a local store creates an index that doesn't have yet a history_uuid
@@ -437,6 +453,9 @@ public class InternalEngine extends Engine {
                 config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
                 "existing index was created after 6_0_0_rc1 but has no history uuid";
             uuid = UUIDs.randomBase64UUID();
+            Map<String, String> newData = new HashMap<>(commitDataAsMap);
+            newData.put(HISTORY_UUID_KEY, uuid);
+            commitIndexWriter(writer, newData.entrySet());
         }
         return uuid;
     }
@@ -1901,15 +1920,13 @@ public class InternalEngine extends Engine {
      * @throws IOException if an I/O exception occurs committing the specfied writer
      */
     protected void commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
-        ensureCanFlush();
-        try {
             final long localCheckpoint = seqNoService().getLocalCheckpoint();
             final Translog.TranslogGeneration translogGeneration = translog.getMinGenerationForSeqNo(localCheckpoint + 1);
             final String translogFileGeneration = Long.toString(translogGeneration.translogFileGeneration);
             final String translogUUID = translogGeneration.translogUUID;
             final String localCheckpointValue = Long.toString(localCheckpoint);
 
-            writer.setLiveCommitData(() -> {
+            final Iterable<Map.Entry<String, String>> commitIterable = () -> {
                 /*
                  * The user data captured above (e.g. local checkpoint) contains data that must be evaluated *before* Lucene flushes
                  * segments, including the local checkpoint amongst other values. The maximum sequence number is different, we never want
@@ -1931,8 +1948,14 @@ public class InternalEngine extends Engine {
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
-            });
+            };
+        commitIndexWriter(writer, commitIterable);
+    }
 
+    private void commitIndexWriter(IndexWriter writer, Iterable<Map.Entry<String, String>> userData) throws IOException {
+        try {
+            ensureCanFlush();
+            writer.setLiveCommitData(userData);
             writer.commit();
         } catch (final Exception ex) {
             try {

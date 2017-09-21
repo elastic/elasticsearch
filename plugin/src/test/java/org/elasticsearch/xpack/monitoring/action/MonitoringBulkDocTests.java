@@ -6,95 +6,185 @@
 package org.elasticsearch.xpack.monitoring.action;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
+import org.junit.Before;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
 
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.elasticsearch.xpack.monitoring.MonitoringTestUtils.randomMonitoringBulkDoc;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MonitoringBulkDocTests extends ESTestCase {
 
+    private MonitoredSystem system;
+    private String type;
+    private String id;
+    private long timestamp;
+    private long interval;
+    private BytesReference source;
+    private XContentType xContentType;
+
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        system = randomFrom(MonitoredSystem.values());
+        type = randomAlphaOfLength(5);
+        id = randomBoolean() ? randomAlphaOfLength(10) : null;
+        timestamp = randomNonNegativeLong();
+        interval = randomNonNegativeLong();
+        xContentType = randomFrom(XContentType.values());
+        source = RandomObjects.randomSource(random(), xContentType);
+    }
+
+    public void testConstructorMonitoredSystemMustNotBeNull() {
+        expectThrows(NullPointerException.class, () -> new MonitoringBulkDoc(null, type, id, timestamp, interval, source, xContentType));
+    }
+
+    public void testConstructorTypeMustNotBeNull() {
+        expectThrows(NullPointerException.class, () -> new MonitoringBulkDoc(system, null, id, timestamp, interval, source, xContentType));
+    }
+
+    public void testConstructorSourceMustNotBeNull() {
+        expectThrows(NullPointerException.class, () -> new MonitoringBulkDoc(system, type, id, timestamp, interval, null, xContentType));
+    }
+
+    public void testConstructorXContentTypeMustNotBeNull() {
+        expectThrows(NullPointerException.class, () -> new MonitoringBulkDoc(system, type, id, timestamp, interval, source, null));
+    }
+
+    public void testConstructor() {
+        final MonitoringBulkDoc document = new MonitoringBulkDoc(system, type, id, timestamp, interval, source, xContentType);
+
+        assertThat(document.getSystem(), equalTo(system));
+        assertThat(document.getType(), equalTo(type));
+        assertThat(document.getId(), equalTo(id));
+        assertThat(document.getTimestamp(), equalTo(timestamp));
+        assertThat(document.getInterval(), equalTo(interval));
+        assertThat(document.getSource(), equalTo(source));
+        assertThat(document.getXContentType(), equalTo(xContentType));
+    }
+
+    public void testEqualsAndHashcode() {
+        final EqualsHashCodeTestUtils.CopyFunction<MonitoringBulkDoc> copy =
+                doc -> new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), doc.getInterval(),
+                                             doc.getSource(), doc.getXContentType());
+
+        final List<EqualsHashCodeTestUtils.MutateFunction<MonitoringBulkDoc>> mutations = new ArrayList<>();
+        mutations.add(doc -> {
+            MonitoredSystem system;
+            do {
+                system = randomFrom(MonitoredSystem.values());
+            } while (system == doc.getSystem());
+            return new MonitoringBulkDoc(system, doc.getType(), doc.getId(), doc.getTimestamp(), doc.getInterval(),
+                                         doc.getSource(),  doc.getXContentType());
+        });
+        mutations.add(doc -> {
+            String type;
+            do {
+                type = randomAlphaOfLength(5);
+            } while (type.equals(doc.getType()));
+            return new MonitoringBulkDoc(doc.getSystem(), type, doc.getId(), doc.getTimestamp(), doc.getInterval(),
+                                         doc.getSource(), doc.getXContentType());
+        });
+        mutations.add(doc -> {
+            String id;
+            do {
+                id = randomAlphaOfLength(10);
+            } while (id.equals(doc.getId()));
+            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), id, doc.getTimestamp(), doc.getInterval(),
+                                         doc.getSource(), doc.getXContentType());
+        });
+        mutations.add(doc -> {
+            long timestamp;
+            do {
+                timestamp = randomNonNegativeLong();
+            } while (timestamp == doc.getTimestamp());
+            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), timestamp, doc.getInterval(),
+                                         doc.getSource(), doc.getXContentType());
+        });
+        mutations.add(doc -> {
+            long interval;
+            do {
+                interval = randomNonNegativeLong();
+            } while (interval == doc.getInterval());
+            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), interval,
+                                         doc.getSource(), doc.getXContentType());
+        });
+        mutations.add(doc -> {
+            final BytesReference source = RandomObjects.randomSource(random(), doc.getXContentType());
+            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), doc.getInterval(),
+                                         source, doc.getXContentType());
+        });
+        mutations.add(doc -> {
+            XContentType xContentType;
+            do {
+                xContentType = randomFrom(XContentType.values());
+            } while (xContentType == doc.getXContentType());
+            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), doc.getInterval(),
+                                         doc.getSource(), xContentType);
+        });
+
+        final MonitoringBulkDoc document = new MonitoringBulkDoc(system, type, id, timestamp, interval, source, xContentType);
+        checkEqualsAndHashCode(document, copy, randomFrom(mutations));
+    }
+
     public void testSerialization() throws IOException {
-        int iterations = randomIntBetween(5, 50);
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(emptyList());
+
+        final int iterations = randomIntBetween(5, 50);
         for (int i = 0; i < iterations; i++) {
-            MonitoringBulkDoc doc = newRandomMonitoringBulkDoc();
+            final MonitoringBulkDoc original = randomMonitoringBulkDoc(random());
+            final MonitoringBulkDoc deserialized = copyWriteable(original, registry, MonitoringBulkDoc::readFrom);
 
-            BytesStreamOutput output = new BytesStreamOutput();
-            Version outputVersion = randomVersion(random());
-            output.setVersion(outputVersion);
-            doc.writeTo(output);
-
-            StreamInput streamInput = output.bytes().streamInput();
-            streamInput.setVersion(outputVersion);
-            MonitoringBulkDoc doc2 = MonitoringBulkDoc.readFrom(streamInput);
-
-            assertThat(doc2.getMonitoringId(), equalTo(doc.getMonitoringId()));
-            assertThat(doc2.getMonitoringVersion(), equalTo(doc.getMonitoringVersion()));
-            assertThat(doc2.getClusterUUID(), equalTo(doc.getClusterUUID()));
-            assertThat(doc2.getTimestamp(), equalTo(doc.getTimestamp()));
-            assertThat(doc2.getSourceNode(), equalTo(doc.getSourceNode()));
-            assertThat(doc2.getIndex(), equalTo(doc.getIndex()));
-            assertThat(doc2.getType(), equalTo(doc.getType()));
-            assertThat(doc2.getId(), equalTo(doc.getId()));
-            assertThat(doc2.getXContentType(), equalTo(doc.getXContentType()));
-            if (doc.getSource() == null) {
-                assertThat(doc2.getSource(), equalTo(BytesArray.EMPTY));
-            } else {
-                assertThat(doc2.getSource(), equalTo(doc.getSource()));
-            }
+            assertEquals(original, deserialized);
+            assertEquals(original.hashCode(), deserialized.hashCode());
+            assertNotSame(original, deserialized);
         }
     }
 
-    public static MonitoringBulkDoc newRandomMonitoringBulkDoc() {
-        String monitoringId = randomFrom(MonitoredSystem.values()).getSystem();
-        String monitoringVersion = randomVersion(random()).toString();
-        MonitoringIndex index = randomBoolean() ? randomFrom(MonitoringIndex.values()) : null;
-        String type = randomFrom("type1", "type2", "type3");
-        String id = randomBoolean() ? randomAlphaOfLength(3) : null;
-        String clusterUUID = randomBoolean() ? randomAlphaOfLength(5) : null;
-        long timestamp = randomBoolean() ? randomNonNegativeLong() : 0L;
-        MonitoringDoc.Node sourceNode = randomBoolean() ? newRandomSourceNode() : null;
-        BytesReference source =  new BytesArray("{\"key\" : \"value\"}");
-        XContentType xContentType = XContentType.JSON;
-
-        return new MonitoringBulkDoc(monitoringId, monitoringVersion, index, type, id,
-                clusterUUID, timestamp, sourceNode, source, xContentType);
+    public void testSerializationBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("AQNtSWQBBTUuMS4yAAAAAQEEdHlwZQECaWQNeyJmb28iOiJiYXIifQAAAAAAAAAA");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+                Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            MonitoringBulkDoc bulkDoc = MonitoringBulkDoc.readFrom(in);
+            assertEquals(MonitoredSystem.UNKNOWN, bulkDoc.getSystem());
+            assertEquals("type", bulkDoc.getType());
+            assertEquals("id", bulkDoc.getId());
+            assertEquals(0L, bulkDoc.getTimestamp());
+            assertEquals(0L, bulkDoc.getInterval());
+            assertEquals("{\"foo\":\"bar\"}", bulkDoc.getSource().utf8ToString());
+            assertEquals(XContentType.JSON, bulkDoc.getXContentType());
+        }
     }
 
-    public static MonitoringDoc.Node newRandomSourceNode() {
-        String uuid = null;
-        String name = null;
-        String ip = null;
-        String transportAddress = null;
-        String host = null;
-        Map<String, String> attributes = null;
+    /**
+     *  Test that we allow strings to be "" because Logstash 5.2 - 5.3 would submit empty _id values for time-based documents
+     */
+    public void testEmptyIdBecomesNull() {
+        final String id = randomFrom("", null, randomAlphaOfLength(5));
+        final MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.ES, "_type", id, 1L, 2L, BytesArray.EMPTY, XContentType.JSON);
 
-        if (frequently()) {
-            uuid = randomAlphaOfLength(5);
-            name = randomAlphaOfLength(5);
+        if (Strings.isNullOrEmpty(id)) {
+            assertNull(doc.getId());
+        } else {
+            assertSame(id, doc.getId());
         }
-        if (randomBoolean()) {
-            ip = randomAlphaOfLength(5);
-            transportAddress = randomAlphaOfLength(5);
-            host = randomAlphaOfLength(3);
-        }
-        if (rarely()) {
-            int nbAttributes = randomIntBetween(0, 5);
-            attributes = new HashMap<>();
-            for (int i = 0; i < nbAttributes; i++) {
-                attributes.put("key#" + i, String.valueOf(i));
-            }
-        }
-        return new MonitoringDoc.Node(uuid, host, transportAddress, ip, name, attributes);
     }
 }

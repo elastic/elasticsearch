@@ -8,12 +8,23 @@ package org.elasticsearch.xpack.monitoring.collector.cluster;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Monitoring document collected by {@link ClusterStatsCollector}.
@@ -26,58 +37,122 @@ import java.util.List;
  */
 public class ClusterStatsMonitoringDoc extends MonitoringDoc {
 
+    private static final ToXContent.MapParams CLUSTER_STATS_PARAMS =
+            new ToXContent.MapParams(
+                    Collections.singletonMap("metric",
+                                ClusterState.Metric.VERSION + "," +
+                                ClusterState.Metric.MASTER_NODE + "," +
+                                ClusterState.Metric.NODES));
+
     public static final String TYPE = "cluster_stats";
 
     private final String clusterName;
     private final String version;
     private final License license;
-    private final List<XPackFeatureSet.Usage> usage;
+    private final List<XPackFeatureSet.Usage> usages;
     private final ClusterStatsResponse clusterStats;
     private final ClusterState clusterState;
     private final ClusterHealthStatus status;
 
-    public ClusterStatsMonitoringDoc(String monitoringId, String monitoringVersion,
-                                     String clusterUUID, long timestamp, DiscoveryNode node,
-                                     String clusterName, String version, License license,
-                                     List<XPackFeatureSet.Usage> usage,
-                                     ClusterStatsResponse clusterStats,
-                                     ClusterState clusterState, ClusterHealthStatus status) {
-        super(monitoringId, monitoringVersion, TYPE, null, clusterUUID, timestamp, node);
-        this.clusterName = clusterName;
-        this.version = version;
+    ClusterStatsMonitoringDoc(final String cluster,
+                              final long timestamp,
+                              final MonitoringDoc.Node node,
+                              final String clusterName,
+                              final String version,
+                              final ClusterHealthStatus status,
+                              @Nullable final License license,
+                              @Nullable final List<XPackFeatureSet.Usage> usages,
+                              @Nullable final ClusterStatsResponse clusterStats,
+                              @Nullable final ClusterState clusterState) {
+
+        super(cluster, timestamp, node, MonitoredSystem.ES, TYPE, null);
+        this.clusterName = Objects.requireNonNull(clusterName);
+        this.version = Objects.requireNonNull(version);
+        this.status = Objects.requireNonNull(status);
         this.license = license;
-        this.usage = usage;
+        this.usages = usages;
         this.clusterStats = clusterStats;
         this.clusterState = clusterState;
-        this.status = status;
     }
 
-    public String getClusterName() {
+    String getClusterName() {
         return clusterName;
     }
 
-    public String getVersion() {
+    String getVersion() {
         return version;
     }
 
-    public License getLicense() {
+    License getLicense() {
         return license;
     }
 
-    public List<XPackFeatureSet.Usage> getUsage() {
-        return usage;
+    List<XPackFeatureSet.Usage> getUsages() {
+        return usages;
     }
 
-    public ClusterStatsResponse getClusterStats() {
+    ClusterStatsResponse getClusterStats() {
         return clusterStats;
     }
 
-    public ClusterState getClusterState() {
+    ClusterState getClusterState() {
         return clusterState;
     }
 
-    public ClusterHealthStatus getStatus() {
+    ClusterHealthStatus getStatus() {
         return status;
     }
 
+    @Override
+    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("cluster_name", clusterName);
+        builder.field("version", version);
+
+        if (license != null) {
+            builder.startObject("license");
+            Map<String, String> extraParams = new MapBuilder<String, String>()
+                    .put(License.REST_VIEW_MODE, "true")
+                    .map();
+            params = new ToXContent.DelegatingMapParams(extraParams, params);
+            license.toInnerXContent(builder, params);
+            builder.field("hkey", hash(license, getCluster()));
+            builder.endObject();
+        }
+
+        if (clusterStats != null) {
+            builder.startObject("cluster_stats");
+            clusterStats.toXContent(builder, params);
+            builder.endObject();
+        }
+
+        if (clusterState != null) {
+            builder.startObject("cluster_state");
+            builder.field("status", status.name().toLowerCase(Locale.ROOT));
+            clusterState.toXContent(builder, CLUSTER_STATS_PARAMS);
+            builder.endObject();
+        }
+
+        if (usages != null) {
+            // in the future we may choose to add other usages under the stack_stats section, but it is only xpack for now
+            // it may also be combined on the UI side of phone-home to add things like "kibana" and "logstash" under "stack_stats"
+            builder.startObject("stack_stats");
+            {
+                builder.startObject("xpack");
+                for (final XPackFeatureSet.Usage usage : usages) {
+                    builder.field(usage.name(), usage);
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+    }
+
+    public static String hash(License license, String clusterName) {
+        return hash(license.status().label(), license.uid(), license.type(), String.valueOf(license.expiryDate()), clusterName);
+    }
+
+    public static String hash(String licenseStatus, String licenseUid, String licenseType, String licenseExpiryDate, String clusterUUID) {
+        String toHash = licenseStatus + licenseUid + licenseType + licenseExpiryDate + clusterUUID;
+        return MessageDigests.toHexString(MessageDigests.sha256().digest(toHash.getBytes(StandardCharsets.UTF_8)));
+    }
 }

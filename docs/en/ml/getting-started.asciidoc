@@ -331,7 +331,7 @@ requests over time. It is therefore logical to start by creating a single metric
 job for this KPI.
 
 TIP: If you are using aggregated data, you can create an advanced job
-and configure it to use a `summary_count_field`. The {ml} algorithms will
+and configure it to use a `summary_count_field_name`. The {ml} algorithms will
 make the best possible use of summarized data in this case. For simplicity, in
 this tutorial we will not make use of that advanced functionality.
 

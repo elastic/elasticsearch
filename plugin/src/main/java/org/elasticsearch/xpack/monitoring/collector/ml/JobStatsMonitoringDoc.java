@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Response.JobStats;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -24,15 +24,21 @@ public class JobStatsMonitoringDoc extends MonitoringDoc {
 
     private final JobStats jobStats;
 
-    public JobStatsMonitoringDoc(final String clusterUuid, final long timestamp, final DiscoveryNode node,
-                                 final JobStats jobStats) {
-        super(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString(), TYPE, null, clusterUuid, timestamp, node);
-
+    public JobStatsMonitoringDoc(final String cluster, final long timestamp, final MonitoringDoc.Node node, final JobStats jobStats) {
+        super(cluster, timestamp, node, MonitoredSystem.ES, TYPE, null);
         this.jobStats = Objects.requireNonNull(jobStats);
     }
 
-    public JobStats getJobStats() {
+    JobStats getJobStats() {
         return jobStats;
     }
 
+    @Override
+    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(TYPE);
+        {
+            jobStats.toUnwrappedXContent(builder);
+        }
+        builder.endObject();
+    }
 }

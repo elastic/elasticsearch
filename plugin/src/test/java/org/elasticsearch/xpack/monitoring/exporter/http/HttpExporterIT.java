@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import java.util.Arrays;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -16,7 +13,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -33,14 +29,13 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.joda.time.format.DateTimeFormat;
@@ -50,18 +45,20 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
+import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.indexName;
 import static org.elasticsearch.xpack.monitoring.exporter.http.ClusterAlertHttpResource.CLUSTER_ALERT_VERSION_PARAMETERS;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.FILTER_PATH_RESOURCE_VERSION;
 import static org.elasticsearch.xpack.monitoring.exporter.http.WatcherExistsHttpResource.WATCHER_CHECK_PARAMETERS;
@@ -349,8 +346,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                                remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
         MockRequest recordedRequest = assertBulk(webServer);
 
-        @SuppressWarnings("unchecked")
-        String indexName = new ResolversRegistry(Settings.EMPTY).getResolver(doc).index(doc);
+        String indexName = indexName(DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC(), doc.getSystem(), doc.getTimestamp());
 
         byte[] bytes = recordedRequest.getBody().getBytes(StandardCharsets.UTF_8);
         Map<String, Object> data = XContentHelper.convertToMap(new BytesArray(bytes), false, XContentType.JSON).v2();
@@ -607,13 +603,11 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     private MonitoringDoc newRandomMonitoringDoc() {
-        String monitoringId = MonitoredSystem.ES.getSystem();
-        String monitoringVersion = Version.CURRENT.toString();
         String clusterUUID = internalCluster().getClusterName();
         long timestamp = System.currentTimeMillis();
-        DiscoveryNode sourceNode = new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        MonitoringDoc.Node sourceNode = MonitoringTestUtils.randomMonitoringNode(random());
 
-        return new IndexRecoveryMonitoringDoc(monitoringId, monitoringVersion, clusterUUID, timestamp, sourceNode, new RecoveryResponse());
+        return new IndexRecoveryMonitoringDoc(clusterUUID, timestamp, sourceNode, new RecoveryResponse());
     }
 
     private List<MonitoringDoc> newRandomMonitoringDocs(int nb) {

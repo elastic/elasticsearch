@@ -1,6 +1,6 @@
 {
   "index_patterns": ".monitoring-es-${monitoring.template.version}-*",
-  "version": 6000026,
+  "version": 7000001,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 1,
@@ -41,6 +41,10 @@
             },
             "name": {
               "type": "keyword"
+            },
+            "timestamp": {
+              "type": "date",
+              "format": "date_time"
             }
           }
         },

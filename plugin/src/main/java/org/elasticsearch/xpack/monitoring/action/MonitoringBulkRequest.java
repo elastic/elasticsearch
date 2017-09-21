@@ -11,11 +11,11 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,19 +28,15 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A monitoring bulk request holds one or more {@link MonitoringBulkDoc}s.
  * <p>
- * Every monitoring document added to the request is associated to a monitoring system id and version. If this {id, version} pair is
- * supported by the monitoring plugin, the monitoring documents will be indexed in a single batch using a normal bulk request.
- * <p>
- * The monitoring {id, version} pair is used by MonitoringIndexNameResolver to resolve the index,
- * type and id of the final document to be indexed. A {@link MonitoringBulkDoc} can also hold its own index/type/id values but there's no
- * guarantee that these information will be effectively used.
+ * Every monitoring document added to the request is associated to a {@link MonitoredSystem}. The monitored system is used
+ * to resolve the index name in which the document will be indexed into.
  */
 public class MonitoringBulkRequest extends ActionRequest {
 
-    final List<MonitoringBulkDoc> docs = new ArrayList<>();
+    private final List<MonitoringBulkDoc> docs = new ArrayList<>();
 
     /**
-     * @return the list of monitoring documents to be indexed
+     * @return the list of {@link MonitoringBulkDoc} to be indexed
      */
     public Collection<MonitoringBulkDoc> getDocs() {
         return Collections.unmodifiableCollection(new ArrayList<>(this.docs));
@@ -52,26 +48,12 @@ public class MonitoringBulkRequest extends ActionRequest {
         if (docs.isEmpty()) {
             validationException = addValidationError("no monitoring documents added", validationException);
         }
-
         for (int i = 0; i < docs.size(); i++) {
             MonitoringBulkDoc doc = docs.get(i);
-            if (Strings.hasLength(doc.getMonitoringId()) == false) {
-                validationException = addValidationError("monitored system id is missing for monitoring document [" + i + "]",
-                        validationException);
-            }
-            if (Strings.hasLength(doc.getMonitoringVersion()) == false) {
-                validationException = addValidationError("monitored system API version is missing for monitoring document [" + i + "]",
-                        validationException);
-            }
-            if (Strings.hasLength(doc.getType()) == false) {
-                validationException = addValidationError("type is missing for monitoring document [" + i + "]",
-                        validationException);
-            }
             if (doc.getSource() == null || doc.getSource().length() == 0) {
                 validationException = addValidationError("source is missing for monitoring document [" + i + "]", validationException);
             }
         }
-
         return validationException;
     }
 
@@ -86,11 +68,16 @@ public class MonitoringBulkRequest extends ActionRequest {
     /**
      * Parses a monitoring bulk request and builds the list of documents to be indexed.
      */
-    public MonitoringBulkRequest add(BytesReference content, String defaultMonitoringId, String defaultMonitoringApiVersion,
-                                     String defaultType, XContentType xContentType) throws IOException {
+    public MonitoringBulkRequest add(final MonitoredSystem system,
+                                     final String defaultType,
+                                     final BytesReference content,
+                                     final XContentType xContentType,
+                                     final long timestamp,
+                                     final long intervalMillis) throws IOException {
+
         // MonitoringBulkRequest accepts a body request that has the same format as the BulkRequest:
         // instead of duplicating the parsing logic here we use a new BulkRequest instance to parse the content.
-        BulkRequest bulkRequest = Requests.bulkRequest().add(content, null, defaultType, xContentType);
+        final BulkRequest bulkRequest = Requests.bulkRequest().add(content, null, defaultType, xContentType);
 
         for (DocWriteRequest request : bulkRequest.requests()) {
             if (request instanceof IndexRequest) {
@@ -102,17 +89,14 @@ public class MonitoringBulkRequest extends ActionRequest {
                     continue;
                 }
 
-                // builds a new monitoring document based on the index request
-                MonitoringBulkDoc doc =
-                        new MonitoringBulkDoc(defaultMonitoringId,
-                                              defaultMonitoringApiVersion,
-                                              MonitoringIndex.TIMESTAMPED,
-                                              indexRequest.type(),
-                                              indexRequest.id(),
-                                              indexRequest.source(),
-                                              xContentType);
+                final BytesReference source = indexRequest.source();
+                if (source.length() == 0) {
+                    throw new IllegalArgumentException("source is missing for monitoring document ["
+                            + indexRequest.index() + "][" + indexRequest.type() + "][" + indexRequest.id() + "]");
+                }
 
-                add(doc);
+                // builds a new monitoring document based on the index request
+                add(new MonitoringBulkDoc(system, indexRequest.type(), indexRequest.id(), timestamp, intervalMillis, source, xContentType));
             } else {
                 throw new IllegalArgumentException("monitoring bulk requests should only contain index requests");
             }

@@ -6,7 +6,8 @@
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import org.bouncycastle.util.io.Streams;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.lease.Releasables;
@@ -14,10 +15,8 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.common.socket.SocketAccess;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
@@ -30,7 +29,6 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
-import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
@@ -57,16 +55,26 @@ public class CommandLineHttpClient {
         this.env = env;
     }
 
-    // We do not install the security manager when calling from the commandline.
-    // However, doPrivileged blocks will be necessary for any test code that calls this.
+    /**
+     * General purpose HTTP(S) call with JSON Content-Type and Authorization Header.
+     * SSL settings are read from the settings file, if any.
+     *
+     * @param user
+     *            user in the authorization header.
+     * @param password
+     *            password in the authorization header.
+     * @param requestBodySupplier
+     *            supplier for the JSON string body of the request.
+     * @param responseConsumer
+     *            consumer of the response Input Stream.
+     * @return HTTP protocol response code.
+     */
     @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
-    public String postURL(String method, String urlString, String user, SecureString password, @Nullable String bodyString)
-            throws Exception {
-        URI uri = new URI(urlString);
-        URL url = uri.toURL();
+    public int postURL(String method, URL url, String user, SecureString password, CheckedSupplier<String, Exception> requestBodySupplier,
+            CheckedConsumer<InputStream, Exception> responseConsumer) throws Exception {
         HttpURLConnection conn;
         // If using SSL, need a custom service because it's likely a self-signed certificate
-        if ("https".equalsIgnoreCase(uri.getScheme())) {
+        if ("https".equalsIgnoreCase(url.getProtocol())) {
             Settings sslSettings = settings.getByPrefix(setting("http.ssl."));
             final SSLService sslService = new SSLService(settings, env);
             final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
@@ -85,6 +93,7 @@ public class CommandLineHttpClient {
         String token = UsernamePasswordToken.basicAuthHeaderValue(user, password);
         conn.setRequestProperty("Authorization", token);
         conn.setRequestProperty("Content-Type", XContentType.JSON.mediaType());
+        String bodyString = requestBodySupplier.get();
         conn.setDoOutput(bodyString != null); // set true if we are sending a body
         SocketAccess.doPrivileged(conn::connect);
         if (bodyString != null) {
@@ -95,17 +104,19 @@ public class CommandLineHttpClient {
                 throw e;
             }
         }
+        // this throws IOException if there is a network problem
+        final int ans = conn.getResponseCode();
         try (InputStream inputStream = conn.getInputStream()) {
-            byte[] bytes = Streams.readAll(inputStream);
-            return new String(bytes, StandardCharsets.UTF_8);
+            responseConsumer.accept(inputStream);
         } catch (IOException e) {
+            // this IOException is if the HTTP response code is 'BAD' (>= 400)
             try (InputStream errorStream = conn.getErrorStream()) {
-                byte[] bytes = Streams.readAll(errorStream);
-                throw new IOException(new String(bytes, StandardCharsets.UTF_8), e);
+                responseConsumer.accept(errorStream);
             }
         } finally {
-            conn.disconnect();
+            Releasables.closeWhileHandlingException(conn::disconnect);
         }
+        return ans;
     }
 
     String getDefaultURL() {

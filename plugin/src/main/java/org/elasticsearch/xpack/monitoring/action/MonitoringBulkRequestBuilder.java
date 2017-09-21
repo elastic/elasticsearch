@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 
 import java.io.IOException;
 
@@ -24,9 +25,13 @@ public class MonitoringBulkRequestBuilder
         return this;
     }
 
-    public MonitoringBulkRequestBuilder add(BytesReference content, String defaultId, String defaultApiVersion, String defaultType,
-                                            XContentType xContentType) throws IOException {
-        request.add(content, defaultId, defaultApiVersion, defaultType, xContentType);
+    public MonitoringBulkRequestBuilder add(final MonitoredSystem system,
+                                            final String type,
+                                            final BytesReference content,
+                                            final XContentType xContentType,
+                                            final long timestamp,
+                                            final long intervalMillis) throws IOException {
+        request.add(system, type, content, xContentType, timestamp, intervalMillis);
         return this;
     }
 

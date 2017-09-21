@@ -15,12 +15,21 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.XPackClient;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkRequestBuilder;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkResponse;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.rest.MonitoringRestHandler;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -30,12 +39,26 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
     public static final String MONITORING_VERSION = "system_api_version";
     public static final String INTERVAL = "interval";
 
+    private final Map<MonitoredSystem, List<String>> supportedApiVersions;
+
     public RestMonitoringBulkAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, URI_BASE + "/_bulk", this);
         controller.registerHandler(PUT, URI_BASE + "/_bulk", this);
         controller.registerHandler(POST, URI_BASE + "/{type}/_bulk", this);
         controller.registerHandler(PUT, URI_BASE + "/{type}/_bulk", this);
+
+        final List<String> allVersions = Arrays.asList(
+                MonitoringTemplateUtils.TEMPLATE_VERSION,
+                MonitoringTemplateUtils.OLD_TEMPLATE_VERSION
+        );
+
+        final Map<MonitoredSystem, List<String>> versionsMap = new HashMap<>();
+        versionsMap.put(MonitoredSystem.KIBANA, allVersions);
+        versionsMap.put(MonitoredSystem.LOGSTASH, allVersions);
+        // Beats did not report data in the 5.x timeline, so it should never send the original version
+        versionsMap.put(MonitoredSystem.BEATS, Collections.singletonList(MonitoringTemplateUtils.TEMPLATE_VERSION));
+        supportedApiVersions = Collections.unmodifiableMap(versionsMap);
     }
 
     @Override
@@ -45,19 +68,20 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
 
     @Override
     public RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
-        String defaultType = request.param("type");
+        final String defaultType = request.param("type");
 
-        String id = request.param(MONITORING_ID);
+        final String id = request.param(MONITORING_ID);
         if (Strings.isEmpty(id)) {
             throw new IllegalArgumentException("no [" + MONITORING_ID + "] for monitoring bulk request");
         }
-        String version = request.param(MONITORING_VERSION);
+
+        final String version = request.param(MONITORING_VERSION);
         if (Strings.isEmpty(version)) {
             throw new IllegalArgumentException("no [" + MONITORING_VERSION + "] for monitoring bulk request");
         }
-        // we don't currently use the interval, but in future releases we can incorporate it without breaking BWC since it was here from
-        //  the beginning
-        if (Strings.isEmpty(request.param(INTERVAL))) {
+
+        final String intervalAsString = request.param(INTERVAL);
+        if (Strings.isEmpty(intervalAsString)) {
             throw new IllegalArgumentException("no [" + INTERVAL + "] for monitoring bulk request");
         }
 
@@ -65,19 +89,30 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
             throw new ElasticsearchParseException("no body content for monitoring bulk request");
         }
 
-        MonitoringBulkRequestBuilder requestBuilder = client.monitoring().prepareMonitoringBulk();
-        requestBuilder.add(request.content(), id, version, defaultType, request.getXContentType());
+        final MonitoredSystem system = MonitoredSystem.fromSystem(id);
+        if (isSupportedSystemVersion(system, version) == false) {
+            throw new IllegalArgumentException(MONITORING_VERSION + " [" + version + "] is not supported by "
+                    + MONITORING_ID + " [" + id + "]");
+        }
+
+        final long timestamp = System.currentTimeMillis();
+        final long intervalMillis = parseTimeValue(intervalAsString, INTERVAL).getMillis();
+
+        final MonitoringBulkRequestBuilder requestBuilder = client.monitoring().prepareMonitoringBulk();
+        requestBuilder.add(system, defaultType, request.content(), request.getXContentType(), timestamp, intervalMillis);
         return channel -> requestBuilder.execute(new RestBuilderListener<MonitoringBulkResponse>(channel) {
             @Override
             public RestResponse buildResponse(MonitoringBulkResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                builder.field(Fields.TOOK, response.getTookInMillis());
+                {
+                    builder.field("took", response.getTookInMillis());
 
-                MonitoringBulkResponse.Error error = response.getError();
-                builder.field(Fields.ERRORS, error != null);
+                    final MonitoringBulkResponse.Error error = response.getError();
+                    builder.field("errors", error != null);
 
-                if (error != null) {
-                    builder.field(Fields.ERROR, response.getError());
+                    if (error != null) {
+                        builder.field("error", response.getError());
+                    }
                 }
                 builder.endObject();
                 return new BytesRestResponse(response.status(), builder);
@@ -90,9 +125,16 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
         return true;
     }
 
-    static final class Fields {
-        static final String TOOK = "took";
-        static final String ERRORS = "errors";
-        static final String ERROR = "error";
+    /**
+     * Indicate if the given {@link MonitoredSystem} and system api version pair is supported by
+     * the Monitoring Bulk API.
+     *
+     * @param system the {@link MonitoredSystem}
+     * @param version the system API version
+     * @return true if supported, false otherwise
+     */
+    private boolean isSupportedSystemVersion(final MonitoredSystem system, final String version) {
+        final List<String> monitoredSystem = supportedApiVersions.getOrDefault(system, emptyList());
+        return monitoredSystem.contains(version);
     }
 }

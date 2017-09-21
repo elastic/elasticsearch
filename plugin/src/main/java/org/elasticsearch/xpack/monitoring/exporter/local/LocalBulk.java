@@ -11,14 +11,15 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
-import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -32,17 +33,17 @@ public class LocalBulk extends ExportBulk {
 
     private final Logger logger;
     private final InternalClient client;
-    private final ResolversRegistry resolvers;
+    private final DateTimeFormatter formatter;
     private final boolean usePipeline;
 
     private BulkRequestBuilder requestBuilder;
 
 
-    public LocalBulk(String name, Logger logger, InternalClient client, ResolversRegistry resolvers, boolean usePipeline) {
+    LocalBulk(String name, Logger logger, InternalClient client, DateTimeFormatter dateTimeFormatter, boolean usePipeline) {
         super(name, client.threadPool().getThreadContext());
         this.logger = logger;
         this.client = client;
-        this.resolvers = resolvers;
+        this.formatter = dateTimeFormatter;
         this.usePipeline = usePipeline;
     }
 
@@ -59,12 +60,15 @@ public class LocalBulk extends ExportBulk {
             }
 
             try {
-                MonitoringIndexNameResolver<MonitoringDoc> resolver = resolvers.getResolver(doc);
-                IndexRequest request = new IndexRequest(resolver.index(doc), "doc");
+                final String index = MonitoringTemplateUtils.indexName(formatter, doc.getSystem(), doc.getTimestamp());
+
+                final IndexRequest request = new IndexRequest(index, "doc");
                 if (Strings.hasText(doc.getId())) {
                     request.id(doc.getId());
                 }
-                request.source(resolver.source(doc, XContentType.SMILE), XContentType.SMILE);
+
+                final BytesReference source = XContentHelper.toXContent(doc, XContentType.SMILE, false);
+                request.source(source, XContentType.SMILE);
 
                 // allow the use of ingest pipelines to be completely optional
                 if (usePipeline) {

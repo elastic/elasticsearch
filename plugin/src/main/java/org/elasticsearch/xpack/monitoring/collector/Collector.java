@@ -8,13 +8,12 @@ package org.elasticsearch.xpack.monitoring.collector;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
@@ -64,11 +63,11 @@ public abstract class Collector extends AbstractComponent {
         return clusterService.state().nodes().isLocalNodeElectedMaster();
     }
 
-    public Collection<MonitoringDoc> collect() {
+    public Collection<MonitoringDoc> collect(final long timestamp) {
         try {
             if (shouldCollect()) {
                 logger.trace("collector [{}] - collecting data...", name());
-                return doCollect();
+                return doCollect(convertNode(timestamp, clusterService.localNode()));
             }
         } catch (ElasticsearchTimeoutException e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("collector [{}] timed out when collecting data", name()));
@@ -78,23 +77,39 @@ public abstract class Collector extends AbstractComponent {
         return null;
     }
 
-    protected abstract Collection<MonitoringDoc> doCollect() throws Exception;
+    protected abstract Collection<MonitoringDoc> doCollect(MonitoringDoc.Node sourceNode) throws Exception;
 
     protected String clusterUUID() {
         return clusterService.state().metaData().clusterUUID();
     }
 
-    protected DiscoveryNode localNode() {
-        return clusterService.localNode();
+    /**
+     * Returns a timestamp to use in {@link MonitoringDoc}
+     *
+     * @return the timestamp
+     */
+    protected static long timestamp() {
+        return System.currentTimeMillis();
     }
 
-    protected static String monitoringId() {
-        // Collectors always collects data for Elasticsearch
-        return MonitoredSystem.ES.getSystem();
-    }
-
-    protected static String monitoringVersion() {
-        // Collectors always collects data for the current version of Elasticsearch
-        return Version.CURRENT.toString();
+    /**
+     * Creates a {@link MonitoringDoc.Node} from a {@link DiscoveryNode} and a timestamp, copying over the
+     * required information.
+     *
+     * @param timestamp the node's timestamp
+     * @param node the {@link DiscoveryNode}
+     *
+     * @return a {@link MonitoringDoc.Node} instance, or {@code null} if the given discovery node is null.
+     */
+    public static MonitoringDoc.Node convertNode(final long timestamp, final @Nullable DiscoveryNode node) {
+        if (node == null) {
+            return null;
+        }
+        return new MonitoringDoc.Node(node.getId(),
+                                      node.getHostName(),
+                                      node.getAddress().toString(),
+                                      node.getHostAddress(),
+                                      node.getName(),
+                                      timestamp);
     }
 }

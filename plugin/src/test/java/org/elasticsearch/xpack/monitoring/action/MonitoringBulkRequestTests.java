@@ -5,201 +5,307 @@
  */
 package org.elasticsearch.xpack.monitoring.action;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matcher;
+import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
+/**
+ * Tests {@link MonitoringBulkRequest}
+ */
 public class MonitoringBulkRequestTests extends ESTestCase {
 
-    private static final BytesArray SOURCE = new BytesArray("{\"key\" : \"value\"}");
-
-    public void testValidateRequestNoDocs() {
-        assertValidationErrors(new MonitoringBulkRequest(), hasItems("no monitoring documents added"));
+    public void testValidateWithNoDocs() {
+        ActionRequestValidationException validation = new MonitoringBulkRequest().validate();
+        assertNotNull(validation);
+        assertThat(validation.validationErrors(), hasItem("no monitoring documents added"));
     }
 
-    public void testValidateRequestSingleDoc() {
-        MonitoringBulkDoc doc = new MonitoringBulkDoc(null, null, null, null, null, null, null);
+    public void testValidateWithEmptySource() throws IOException {
+        final MonitoringBulkRequest request = new MonitoringBulkRequest();
 
-        assertValidationErrors(new MonitoringBulkRequest().add(doc), hasItems("monitored system id is missing for monitoring document [0]",
-                "monitored system API version is missing for monitoring document [0]",
-                "type is missing for monitoring document [0]",
-                "source is missing for monitoring document [0]"));
+        final int nbDocs = randomIntBetween(0, 5);
+        for (int i = 0; i < nbDocs; i++) {
+            request.add(randomMonitoringBulkDoc());
+        }
 
-        doc = new MonitoringBulkDoc("id", null, null, null, null, null, null);
-        assertValidationErrors(new MonitoringBulkRequest().add(doc),
-                hasItems("monitored system API version is missing for monitoring document [0]",
-                "type is missing for monitoring document [0]",
-                "source is missing for monitoring document [0]"));
+        final int nbEmptyDocs = randomIntBetween(1, 20);
+        for (int i = 0; i < nbEmptyDocs; i++) {
+            request.add(MonitoringTestUtils.randomMonitoringBulkDoc(random(), randomXContentType(), BytesArray.EMPTY));
+        }
 
-        doc = new MonitoringBulkDoc("id", "version", null, null, null, null, null);
-        assertValidationErrors(new MonitoringBulkRequest().add(doc), hasItems("type is missing for monitoring document [0]",
-                "source is missing for monitoring document [0]"));
+        final ActionRequestValidationException validation = request.validate();
+        assertNotNull(validation);
 
-        doc.setType("type");
-        assertValidationErrors(new MonitoringBulkRequest().add(doc), hasItems("source is missing for monitoring document [0]"));
-
-        doc.setSource(SOURCE, XContentType.JSON);
-        assertValidationErrors(new MonitoringBulkRequest().add(doc), nullValue());
+        final List<String> validationErrors = validation.validationErrors();
+        for (int i = 0; i < nbEmptyDocs; i++) {
+            assertThat(validationErrors, hasItem("source is missing for monitoring document [" + String.valueOf(nbDocs + i) + "]"));
+        }
     }
 
+    public void testAdd() throws IOException {
+        final MonitoringBulkRequest request = new MonitoringBulkRequest();
 
-    public void testValidateRequestMultiDocs() {
-        MonitoringBulkRequest request = new MonitoringBulkRequest();
-
-        // Doc0 is complete
-        MonitoringBulkDoc doc0 = new MonitoringBulkDoc(randomAlphaOfLength(2),
-                randomAlphaOfLength(2), MonitoringIndex.TIMESTAMPED, randomAlphaOfLength(5),
-                null, SOURCE, XContentType.JSON);
-        request.add(doc0);
-
-        // Doc1 has no type
-        MonitoringBulkDoc doc1 = new MonitoringBulkDoc(randomAlphaOfLength(2),
-                randomAlphaOfLength(2), MonitoringIndex.TIMESTAMPED, null,
-                null, SOURCE, XContentType.JSON);
-        request.add(doc1);
-
-        // Doc2 has no source
-        MonitoringBulkDoc doc2 = new MonitoringBulkDoc(randomAlphaOfLength(2),
-                randomAlphaOfLength(2), MonitoringIndex.TIMESTAMPED, randomAlphaOfLength(5),
-                null, BytesArray.EMPTY, XContentType.JSON);
-        request.add(doc2);
-
-        // Doc3 has no version
-        MonitoringBulkDoc doc3 = new MonitoringBulkDoc(randomAlphaOfLength(2),
-                null, MonitoringIndex.TIMESTAMPED, randomAlphaOfLength(5),
-                null, SOURCE, XContentType.JSON);
-        request.add(doc3);
-
-        // Doc4 has no id
-        MonitoringBulkDoc doc4 = new MonitoringBulkDoc(null,
-                randomAlphaOfLength(2), MonitoringIndex.TIMESTAMPED, randomAlphaOfLength(5),
-                null, SOURCE, XContentType.JSON);
-        request.add(doc4);
-
-        assertValidationErrors(request, hasItems("type is missing for monitoring document [1]",
-                "source is missing for monitoring document [2]",
-                "monitored system API version is missing for monitoring document [3]",
-                "monitored system id is missing for monitoring document [4]"));
-
-    }
-
-    public void testAddSingleDoc() {
-        MonitoringBulkRequest request = new MonitoringBulkRequest();
         final int nbDocs = randomIntBetween(1, 20);
         for (int i = 0; i < nbDocs; i++) {
-            request.add(new MonitoringBulkDoc(String.valueOf(i), String.valueOf(i),
-                    randomFrom(MonitoringIndex.values()), randomAlphaOfLength(5),
-                    randomAlphaOfLength(5), SOURCE, XContentType.JSON));
+            request.add(randomMonitoringBulkDoc());
         }
+
         assertThat(request.getDocs(), hasSize(nbDocs));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1353")
-    public void testAddMultipleDocs() throws Exception {
-        final int nbDocs = randomIntBetween(3, 20);
-        final String[] types = new String[nbDocs];
+    public void testAddRequestContent() throws IOException {
         final XContentType xContentType = XContentType.JSON;
-        int dataCount = 0;
-        int i;
+        final String defaultType = rarely() ? randomAlphaOfLength(4) : null;
 
-        try (BytesStreamOutput content = new BytesStreamOutput()) {
-            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, content)) {
-                for (i = 0; i < nbDocs; i++) {
-                    builder.startObject().startObject("index");
-                    if (rarely()) {
-                        builder.field("_index", "");
+        final int nbDocs = randomIntBetween(1, 20);
+        final String[] types = new String[nbDocs];
+        final String[] ids = new String[nbDocs];
+        final BytesReference[] sources = new BytesReference[nbDocs];
+
+        final BytesStreamOutput content = new BytesStreamOutput();
+        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, content)) {
+            for (int i = 0; i < nbDocs; i++) {
+                builder.startObject();
+                {
+                    builder.startObject("index");
+                    {
+                        if (rarely()) {
+                            builder.field("_index", "");
+                        }
+                        if (defaultType == null || randomBoolean()) {
+                            types[i] = randomAlphaOfLength(5);
+                            builder.field("_type", types[i]);
+                        }
+                        if (randomBoolean()) {
+                            ids[i] = randomAlphaOfLength(10);
+                            builder.field("_id", ids[i]);
+                        }
                     }
-                    if (randomBoolean()) {
-                        types[i] = randomAlphaOfLength(5);
-                        builder.field("_type", types[i]);
-                    }
-                    builder.endObject().endObject().flush();
-                    content.write(xContentType.xContent().streamSeparator());
-                    builder.startObject().field("foo").value(i).endObject().flush();
-                    content.write(xContentType.xContent().streamSeparator());
+                    builder.endObject();
                 }
+                builder.endObject();
+
+                builder.flush();
+                content.write(xContentType.xContent().streamSeparator());
+
+                sources[i] = RandomObjects.randomSource(random(), xContentType);
+                BytesRef bytes = sources[i].toBytesRef();
+                content.write(bytes.bytes, bytes.offset, bytes.length);
+
+                content.write(xContentType.xContent().streamSeparator());
             }
 
-            String defaultMonitoringId = randomBoolean() ? randomAlphaOfLength(2) : null;
-            String defaultMonitoringVersion = randomBoolean() ? randomAlphaOfLength(3) : null;
-            String defaultType = rarely() ? randomAlphaOfLength(4) : null;
-
-            MonitoringBulkRequest request = new MonitoringBulkRequest();
-            request.add(content.bytes(), defaultMonitoringId, defaultMonitoringVersion, defaultType, xContentType);
-            assertThat(request.getDocs(), hasSize(nbDocs - dataCount));
-
-            i = 0;
-
-            for (final MonitoringBulkDoc doc : request.getDocs()) {
-                final String expectedType = types[i] != null ? types[i] : defaultType;
-
-                assertThat(doc.getMonitoringId(), equalTo(defaultMonitoringId));
-                assertThat(doc.getMonitoringVersion(), equalTo(defaultMonitoringVersion));
-                assertThat(doc.getType(), equalTo(expectedType));
-
-                ++i;
-            }
+            content.write(xContentType.xContent().streamSeparator());
         }
+
+        final MonitoredSystem system = randomFrom(MonitoredSystem.values());
+        final long timestamp = randomNonNegativeLong();
+        final long interval = randomNonNegativeLong();
+
+        final MonitoringBulkRequest bulkRequest = new MonitoringBulkRequest();
+        bulkRequest.add(system, defaultType, content.bytes(), xContentType, timestamp, interval);
+
+        final Collection<MonitoringBulkDoc> bulkDocs = bulkRequest.getDocs();
+        assertNotNull(bulkDocs);
+        assertEquals(nbDocs, bulkDocs.size());
+
+        int count = 0;
+        for (final MonitoringBulkDoc bulkDoc : bulkDocs) {
+            assertThat(bulkDoc.getSystem(), equalTo(system));
+            assertThat(bulkDoc.getType(), equalTo(types[count] != null ? types[count] : defaultType));
+            assertThat(bulkDoc.getId(), equalTo(ids[count]));
+            assertThat(bulkDoc.getTimestamp(), equalTo(timestamp));
+            assertThat(bulkDoc.getInterval(), equalTo(interval));
+            assertThat(bulkDoc.getSource(), equalTo(sources[count]));
+            assertThat(bulkDoc.getXContentType(), equalTo(xContentType));
+            ++count;
+        }
+    }
+
+    public void testAddRequestContentWithEmptySource() throws IOException {
+        final int nbDocs = randomIntBetween(0, 5);
+        final int nbEmptyDocs = randomIntBetween(1, 10);
+        final int totalDocs = nbDocs + nbEmptyDocs;
+
+        final XContentType xContentType = XContentType.JSON;
+        final byte separator = xContentType.xContent().streamSeparator();
+
+        final BytesStreamOutput content = new BytesStreamOutput();
+        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, content)) {
+            for (int i = 0; i < totalDocs; i++) {
+                builder.startObject();
+                {
+                    builder.startObject("index");
+                    {
+                        builder.field("_index", "");
+                        builder.field("_type", "doc");
+                        builder.field("_id", String.valueOf(i));
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+
+                builder.flush();
+                content.write(separator);
+
+                final BytesRef bytes;
+                if (i < nbDocs) {
+                    bytes = RandomObjects.randomSource(random(), xContentType).toBytesRef();
+                } else {
+                    bytes = BytesArray.EMPTY.toBytesRef();
+                }
+                content.write(bytes.bytes, bytes.offset, bytes.length);
+                content.write(separator);
+            }
+
+            content.write(separator);
+        }
+
+        final MonitoringBulkRequest bulkRequest = new MonitoringBulkRequest();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            bulkRequest.add(randomFrom(MonitoredSystem.values()), null, content.bytes(), xContentType, 0L, 0L)
+        );
+
+        assertThat(e.getMessage(), containsString("source is missing for monitoring document [][doc][" + nbDocs + "]"));
+    }
+
+    public void testAddRequestContentWithUnrecognizedIndexName() throws IOException {
+        final String indexName = randomAlphaOfLength(10);
+
+        final XContentType xContentType = XContentType.JSON;
+        final byte separator = xContentType.xContent().streamSeparator();
+
+        final BytesStreamOutput content = new BytesStreamOutput();
+        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, content)) {
+            builder.startObject();
+            {
+                builder.startObject("index");
+                {
+                    builder.field("_index", indexName);
+                    builder.field("_type", "doc");
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+
+            builder.flush();
+            content.write(separator);
+
+            final BytesRef bytes = RandomObjects.randomSource(random(), xContentType).toBytesRef();
+            content.write(bytes.bytes, bytes.offset, bytes.length);
+            content.write(separator);
+
+            content.write(separator);
+        }
+
+        final MonitoringBulkRequest bulkRequest = new MonitoringBulkRequest();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+                bulkRequest.add(randomFrom(MonitoredSystem.values()), null, content.bytes(), xContentType, 0L, 0L)
+        );
+
+        assertThat(e.getMessage(), containsString("unrecognized index name [" + indexName + "]"));
     }
 
     public void testSerialization() throws IOException {
-        MonitoringBulkRequest request = new MonitoringBulkRequest();
+        final MonitoringBulkRequest originalRequest = new MonitoringBulkRequest();
 
-        int numDocs = iterations(10, 30);
+        final int numDocs = iterations(10, 30);
         for (int i = 0; i < numDocs; i++) {
-            request.add(MonitoringBulkDocTests.newRandomMonitoringBulkDoc());
+            originalRequest.add(randomMonitoringBulkDoc());
         }
 
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(randomVersion(random()));
-        request.writeTo(out);
+        final BytesStreamOutput out = new BytesStreamOutput();
+        originalRequest.writeTo(out);
 
-        StreamInput in = out.bytes().streamInput();
+        final StreamInput in = out.bytes().streamInput();
         in.setVersion(out.getVersion());
-        MonitoringBulkRequest request2 = new MonitoringBulkRequest();
-        request2.readFrom(in);
+
+        final MonitoringBulkRequest deserializedRequest = new MonitoringBulkRequest();
+        deserializedRequest.readFrom(in);
 
         assertThat(in.available(), equalTo(0));
-        assertThat(request2.docs.size(), equalTo(request.docs.size()));
 
-        for (int i = 0; i < request2.docs.size(); i++) {
-            MonitoringBulkDoc doc = request.docs.get(i);
-            MonitoringBulkDoc doc2 = request2.docs.get(i);
-            assertThat(doc2.getMonitoringId(), equalTo(doc.getMonitoringId()));
-            assertThat(doc2.getMonitoringVersion(), equalTo(doc.getMonitoringVersion()));
-            assertThat(doc2.getClusterUUID(), equalTo(doc.getClusterUUID()));
-            assertThat(doc2.getTimestamp(), equalTo(doc.getTimestamp()));
-            assertThat(doc2.getSourceNode(), equalTo(doc.getSourceNode()));
-            assertThat(doc2.getIndex(), equalTo(doc.getIndex()));
-            assertThat(doc2.getType(), equalTo(doc.getType()));
-            assertThat(doc2.getId(), equalTo(doc.getId()));
-            assertThat(doc2.getSource(), equalTo(doc.getSource()));
-            assertThat(doc2.getXContentType(), equalTo(doc.getXContentType()));
+        final MonitoringBulkDoc[] originalBulkDocs = originalRequest.getDocs().toArray(new MonitoringBulkDoc[]{});
+        final MonitoringBulkDoc[] deserializedBulkDocs = deserializedRequest.getDocs().toArray(new MonitoringBulkDoc[]{});
+
+        assertArrayEquals(originalBulkDocs, deserializedBulkDocs);
+    }
+
+    public void testSerializationBwc() throws IOException {
+        final MonitoringBulkRequest originalRequest = new MonitoringBulkRequest();
+
+        final int numDocs = iterations(10, 30);
+        for (int i = 0; i < numDocs; i++) {
+            originalRequest.add(randomMonitoringBulkDoc());
+        }
+
+        final Version version = randomVersionBetween(random(), Version.V_5_0_0, Version.V_7_0_0_alpha1);
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(version);
+        originalRequest.writeTo(out);
+
+        final StreamInput in = out.bytes().streamInput();
+        in.setVersion(out.getVersion());
+
+        final MonitoringBulkRequest deserializedRequest = new MonitoringBulkRequest();
+        deserializedRequest.readFrom(in);
+
+        assertThat(in.available(), equalTo(0));
+
+        final MonitoringBulkDoc[] originalBulkDocs = originalRequest.getDocs().toArray(new MonitoringBulkDoc[]{});
+        final MonitoringBulkDoc[] deserializedBulkDocs = deserializedRequest.getDocs().toArray(new MonitoringBulkDoc[]{});
+
+        assertThat(originalBulkDocs.length, equalTo(deserializedBulkDocs.length));
+
+        for (int i = 0; i < originalBulkDocs.length; i++) {
+            final MonitoringBulkDoc original = originalBulkDocs[i];
+            final MonitoringBulkDoc deserialized = deserializedBulkDocs[i];
+
+            assertThat(deserialized.getSystem(), equalTo(original.getSystem()));
+            assertThat(deserialized.getType(), equalTo(original.getType()));
+            assertThat(deserialized.getId(), equalTo(original.getId()));
+            assertThat(deserialized.getTimestamp(), equalTo(original.getTimestamp()));
+            assertThat(deserialized.getSource(), equalTo(original.getSource()));
+            assertThat(deserialized.getXContentType(), equalTo(original.getXContentType()));
+
+            if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
+                assertThat(deserialized.getInterval(), equalTo(original.getInterval()));
+            } else {
+                assertThat(deserialized.getInterval(), equalTo(0L));
+            }
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T> void assertValidationErrors(MonitoringBulkRequest request, Matcher<? super T> matcher) {
-        ActionRequestValidationException validation = request.validate();
-        if (validation != null) {
-            assertThat((T) validation.validationErrors(), matcher);
-        } else {
-            assertThat(null, matcher);
-        }
+    /**
+     * Return a {@link XContentType} supported by the Monitoring Bulk API (JSON or Smile)
+     */
+    private XContentType randomXContentType() {
+        return randomFrom(XContentType.JSON, XContentType.SMILE);
+    }
+
+    private MonitoringBulkDoc randomMonitoringBulkDoc() throws IOException {
+        return MonitoringTestUtils.randomMonitoringBulkDoc(random(), randomXContentType());
     }
 }

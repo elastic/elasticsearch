@@ -5,64 +5,135 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.node;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.client.AdminClient;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.AbstractCollectorTestCase;
+import org.elasticsearch.xpack.monitoring.collector.BaseCollectorTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.UUID;
 
+import static org.elasticsearch.xpack.monitoring.MonitoringTestUtils.randomMonitoringNode;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-// numClientNodes is set to 0 in this test because the NodeStatsCollector never collects data on client nodes:
-// the NodeStatsCollector.shouldCollect() method checks if the node has node files and client nodes don't have
-// such files.
-@ClusterScope(numClientNodes = 0)
-public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
+public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
-    public void testNodeStatsCollector() throws Exception {
-        String[] nodes = internalCluster().getNodeNames();
-        for (String node : nodes) {
-            Collection<MonitoringDoc> results = newNodeStatsCollector(node).doCollect();
-            assertThat(results, hasSize(1));
+    public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
+        // this controls the blockage
+        when(licenseState.isMonitoringAllowed()).thenReturn(false);
+        whenLocalNodeElectedMaster(randomBoolean());
 
-            MonitoringDoc monitoringDoc = results.iterator().next();
-            assertNotNull(monitoringDoc);
-            assertThat(monitoringDoc, instanceOf(NodeStatsMonitoringDoc.class));
+        final NodeStatsCollector collector =
+                new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
 
-            NodeStatsMonitoringDoc nodeStatsMonitoringDoc = (NodeStatsMonitoringDoc) monitoringDoc;
-            assertThat(nodeStatsMonitoringDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
-            assertThat(nodeStatsMonitoringDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
-            assertThat(nodeStatsMonitoringDoc.getClusterUUID(),
-                    equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
-            assertThat(nodeStatsMonitoringDoc.getTimestamp(), greaterThan(0L));
-            assertThat(nodeStatsMonitoringDoc.getSourceNode(), notNullValue());
-
-            assertThat(nodeStatsMonitoringDoc.getNodeId(),
-                    equalTo(internalCluster().getInstance(ClusterService.class, node).localNode().getId()));
-            assertThat(nodeStatsMonitoringDoc.isNodeMaster(), equalTo(node.equals(internalCluster().getMasterName())));
-            assertThat(nodeStatsMonitoringDoc.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
-
-            assertNotNull(nodeStatsMonitoringDoc.getNodeStats());
-        }
+        assertThat(collector.shouldCollect(), is(false));
+        verify(licenseState).isMonitoringAllowed();
     }
 
-    private NodeStatsCollector newNodeStatsCollector(final String nodeId) {
-        return new NodeStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
-                internalCluster().getInstance(ClusterService.class, nodeId),
-                internalCluster().getInstance(MonitoringSettings.class, nodeId),
-                internalCluster().getInstance(XPackLicenseState.class, nodeId),
-                internalCluster().getInstance(InternalClient.class, nodeId));
+    public void testShouldCollectReturnsTrue() {
+        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        whenLocalNodeElectedMaster(true);
+
+        final NodeStatsCollector collector =
+                new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+
+        assertThat(collector.shouldCollect(), is(true));
+        verify(licenseState).isMonitoringAllowed();
+    }
+
+    public void testDoCollectWithFailures() throws Exception {
+        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+
+        final NodesStatsResponse nodesStatsResponse = mock(NodesStatsResponse.class);
+        when(nodesStatsResponse.hasFailures()).thenReturn(true);
+
+        final FailedNodeException exception = new FailedNodeException("_node_id", "_msg", new Exception());
+        when(nodesStatsResponse.failures()).thenReturn(Collections.singletonList(exception));
+
+        final Client client = mock(Client.class);
+        thenReturnNodeStats(client, nodesStatsResponse);
+
+        final NodeStatsCollector collector =
+                new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+
+        final FailedNodeException e = expectThrows(FailedNodeException.class, () -> collector.doCollect(randomMonitoringNode(random())));
+        assertEquals(exception, e);
+    }
+
+    public void testDoCollect() throws Exception {
+        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+
+        final boolean isMaster = randomBoolean();
+        whenLocalNodeElectedMaster(isMaster);
+
+        final String clusterUUID = UUID.randomUUID().toString();
+        whenClusterStateWithUUID(clusterUUID);
+
+        final MonitoringDoc.Node node = randomMonitoringNode(random());
+
+        final NodesStatsResponse nodesStatsResponse = mock(NodesStatsResponse.class);
+        when(nodesStatsResponse.hasFailures()).thenReturn(false);
+
+        final NodeStats nodeStats = mock(NodeStats.class);
+        when(nodesStatsResponse.getNodes()).thenReturn(Collections.singletonList(nodeStats));
+
+        final long timestamp = randomNonNegativeLong();
+        when(nodeStats.getTimestamp()).thenReturn(timestamp);
+
+        final Client client = mock(Client.class);
+        thenReturnNodeStats(client, nodesStatsResponse);
+
+        final NodeStatsCollector collector =
+                new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+
+        final Collection<MonitoringDoc> results = collector.doCollect(node);
+        assertEquals(1, results.size());
+
+        final MonitoringDoc monitoringDoc = results.iterator().next();
+        assertThat(monitoringDoc, instanceOf(NodeStatsMonitoringDoc.class));
+
+        final NodeStatsMonitoringDoc document = (NodeStatsMonitoringDoc) monitoringDoc;
+        assertThat(document.getCluster(), equalTo(clusterUUID));
+        assertThat(document.getTimestamp(), equalTo(timestamp));
+        assertThat(document.getNode(), equalTo(node));
+        assertThat(document.getSystem(), is(MonitoredSystem.ES));
+        assertThat(document.getType(), equalTo(NodeStatsMonitoringDoc.TYPE));
+        assertThat(document.getId(), nullValue());
+
+        assertThat(document.isNodeMaster(), equalTo(isMaster));
+        assertThat(document.getNodeId(), equalTo(node.getUUID()));
+        assertThat(document.getNodeStats(), is(nodeStats));
+        assertThat(document.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
+    }
+
+    private void thenReturnNodeStats(final Client client, final NodesStatsResponse nodesStatsResponse) {
+        @SuppressWarnings("unchecked")
+        final ActionFuture<NodesStatsResponse> future = (ActionFuture<NodesStatsResponse>) mock(ActionFuture.class);
+        when(future.actionGet(eq(monitoringSettings.nodeStatsTimeout()))).thenReturn(nodesStatsResponse);
+
+        final ClusterAdminClient clusterAdminClient = mock(ClusterAdminClient.class);
+        when(clusterAdminClient.nodesStats(any(NodesStatsRequest.class))).thenReturn(future);
+
+        final AdminClient adminClient = mock(AdminClient.class);
+        when(adminClient.cluster()).thenReturn(clusterAdminClient);
+        when(client.admin()).thenReturn(adminClient);
     }
 }

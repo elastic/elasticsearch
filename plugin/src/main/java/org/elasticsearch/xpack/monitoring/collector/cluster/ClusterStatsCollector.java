@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
@@ -46,10 +45,12 @@ public class ClusterStatsCollector extends Collector {
     private final LicenseService licenseService;
     private final Client client;
 
-    public ClusterStatsCollector(Settings settings, ClusterService clusterService,
-                                 MonitoringSettings monitoringSettings,
-                                 XPackLicenseState licenseState, InternalClient client,
-                                 LicenseService licenseService) {
+    public ClusterStatsCollector(final Settings settings,
+                                 final ClusterService clusterService,
+                                 final MonitoringSettings monitoringSettings,
+                                 final XPackLicenseState licenseState,
+                                 final Client client,
+                                 final LicenseService licenseService) {
         super(settings, ClusterStatsMonitoringDoc.TYPE, clusterService, monitoringSettings, licenseState);
         this.client = client;
         this.licenseService = licenseService;
@@ -62,7 +63,7 @@ public class ClusterStatsCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect() throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node) throws Exception {
         final Supplier<ClusterStatsResponse> clusterStatsSupplier =
                 () -> client.admin().cluster().prepareClusterStats()
                         .get(monitoringSettings.clusterStatsTimeout());
@@ -71,9 +72,6 @@ public class ClusterStatsCollector extends Collector {
 
         final ClusterStatsResponse clusterStats = clusterStatsSupplier.get();
 
-        final long timestamp = System.currentTimeMillis();
-        final String clusterUUID = clusterUUID();
-        final DiscoveryNode sourceNode = localNode();
         final String clusterName = clusterService.getClusterName().value();
         final String version = Version.CURRENT.toString();
         final ClusterState clusterState = clusterService.state();
@@ -82,9 +80,8 @@ public class ClusterStatsCollector extends Collector {
 
         // Adds a cluster stats document
         return Collections.singleton(
-                new ClusterStatsMonitoringDoc(monitoringId(), monitoringVersion(),
-                                              clusterUUID, timestamp, sourceNode, clusterName, version, license, usage,
-                                              clusterStats, clusterState, clusterStats.getStatus()));
+                new ClusterStatsMonitoringDoc(clusterUUID(), timestamp(), node, clusterName, version,  clusterStats.getStatus(),
+                        license, usage, clusterStats, clusterState));
     }
 
     @Nullable

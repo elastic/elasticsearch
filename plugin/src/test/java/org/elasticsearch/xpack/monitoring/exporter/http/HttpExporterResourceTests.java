@@ -23,8 +23,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
-import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -71,7 +69,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
     private final RestClient client = mock(RestClient.class);
     private final Response versionResponse = mock(Response.class);
-    private final ResolversRegistry registry = new ResolversRegistry(Settings.EMPTY);
     private final List<String> templateNames = new ArrayList<>(EXPECTED_TEMPLATES);
     private final List<String> pipelineNames = new ArrayList<>(EXPECTED_PIPELINES);
     private final List<String> watchNames = new ArrayList<>(EXPECTED_WATCHES);
@@ -80,20 +77,11 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
     private final MultiHttpResource resources =
             HttpExporter.createResources(
-                    new Exporter.Config("_http", "http", Settings.EMPTY, exporterSettings, clusterService, licenseState), registry);
+                    new Exporter.Config("_http", "http", Settings.EMPTY, exporterSettings, clusterService, licenseState));
 
     @Before
     public void setupResources() {
         templateNames.addAll(Arrays.stream(TEMPLATE_IDS).map(MonitoringTemplateUtils::templateName).collect(Collectors.toList()));
-
-        // TODO: when resolvers are removed, all templates managed by this loop should be included in the TEMPLATE_IDS above
-        for (final MonitoringIndexNameResolver resolver : registry) {
-            final String templateName = resolver.templateName();
-
-            if (templateNames.contains(templateName) == false) {
-                templateNames.add(templateName);
-            }
-        }
 
         if (createOldTemplates) {
             templateNames.addAll(
@@ -569,8 +557,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         final MultiHttpResource resources =
                 HttpExporter.createResources(
-                        new Exporter.Config("_http", "http", Settings.EMPTY, exporterSettings, clusterService, licenseState),
-                        new ResolversRegistry(Settings.EMPTY));
+                        new Exporter.Config("_http", "http", Settings.EMPTY, exporterSettings, clusterService, licenseState));
 
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;

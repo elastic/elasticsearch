@@ -5,261 +5,351 @@
  */
 package org.elasticsearch.xpack.monitoring.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.CapturingTransport;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.exporter.ExportException;
+import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
+import org.elasticsearch.xpack.monitoring.exporter.BytesReferenceMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
-import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.elasticsearch.Version.CURRENT;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.core.IsEqual.equalTo;
+import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+/**
+ * Tests {@link TransportMonitoringBulkAction}
+ */
 public class TransportMonitoringBulkActionTests extends ESTestCase {
 
-    private static ThreadPool threadPool;
-
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
-
+    private ActionListener<MonitoringBulkResponse> listener;
+    private Exporters exporters;
+    private ThreadPool threadPool;
     private ClusterService clusterService;
-    private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private TransportService transportService;
-    private CapturingExporters exportService;
-    private TransportMonitoringBulkAction action;
-
-    @BeforeClass
-    public static void beforeClass() {
-        threadPool = new TestThreadPool(TransportMonitoringBulkActionTests.class.getSimpleName());
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        threadPool = null;
-    }
+    private ActionFilters filters;
+    private IndexNameExpressionResolver resolver;
+    private XPackLicenseState licenseState;
+    private TaskManager taskManager;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        CapturingTransport transport = new CapturingTransport();
-        Set<Setting<?>>  clusterSettings = new HashSet<>();
-        clusterSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        clusterSettings.add(MonitoringSettings.EXPORTERS_SETTINGS);
-        final DiscoveryNode node = new DiscoveryNode("node", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
-                Version.CURRENT);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool, node, new ClusterSettings(Settings.EMPTY, clusterSettings));
-        transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> node, null);
-        transportService.start();
-        transportService.acceptIncomingRequests();
-        exportService = new CapturingExporters();
-        action = new TransportMonitoringBulkAction(
-                Settings.EMPTY,
-                threadPool,
-                clusterService,
-                transportService,
-                new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver(Settings.EMPTY),
-                exportService
-        );
+    @SuppressWarnings("unchecked")
+    public void setUpMocks() throws Exception {
+        listener = mock(ActionListener.class);
+        exporters = mock(Exporters.class);
+        threadPool = mock(ThreadPool.class);
+        clusterService = mock(ClusterService.class);
+        transportService = mock(TransportService.class);
+        filters = mock(ActionFilters.class);
+        resolver = mock(IndexNameExpressionResolver.class);
+        licenseState = mock(XPackLicenseState.class);
+        taskManager = mock(TaskManager.class);
+
+        when(transportService.getTaskManager()).thenReturn(taskManager);
+        when(taskManager.register(anyString(), eq(MonitoringBulkAction.NAME), any(TaskAwareRequest.class))).thenReturn(null);
+        when(filters.filters()).thenReturn(new ActionFilter[0]);
     }
 
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
-        clusterService.close();
-        transportService.close();
-    }
+    public void testExecuteWithGlobalBlock() throws Exception {
+        final ClusterBlocks.Builder clusterBlock = ClusterBlocks.builder().addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ALL);
+        when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.DEFAULT).blocks(clusterBlock).build());
 
-    public void testGlobalBlock() throws Exception {
-        expectedException.expect(ExecutionException.class);
-        expectedException.expect(hasToString(containsString("ClusterBlockException[blocked by: [SERVICE_UNAVAILABLE/2/no master]")));
+        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
+                                                                                       transportService, filters, resolver, exporters);
 
-        final ClusterBlocks.Builder block = ClusterBlocks.builder().addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ALL);
-        ClusterState currentState = clusterService.state();
-        ClusterServiceUtils.setState(clusterService,
-                ClusterState.builder(currentState).blocks(block).version(currentState.version() + 1).build());
-
-        MonitoringBulkRequest request = randomRequest();
-        action.execute(request).get();
-    }
-
-    public void testEmptyRequest() throws Exception {
-        expectedException.expect(ExecutionException.class);
-        expectedException.expect(hasToString(containsString("no monitoring documents added")));
-
-        MonitoringBulkRequest request = randomRequest(0);
-        action.execute(request).get();
-
-        assertThat(exportService.getExported(), hasSize(0));
-    }
-
-    public void testBasicRequest() throws Exception {
-        MonitoringBulkRequest request = randomRequest();
-        action.execute(request).get();
-
-        assertThat(exportService.getExported(), hasSize(request.getDocs().size()));
-    }
-
-    public void testAsyncActionPrepareDocs() throws Exception {
-        final PlainActionFuture<MonitoringBulkResponse> listener = new PlainActionFuture<>();
         final MonitoringBulkRequest request = randomRequest();
+        final ExecutionException e = expectThrows(ExecutionException.class, () -> action.execute(request).get());
 
-        Collection<MonitoringDoc> results = action.new AsyncAction(request, listener, exportService, clusterService)
-                                                            .prepareForExport(request.getDocs());
+        assertThat(e, hasToString(containsString("ClusterBlockException[blocked by: [SERVICE_UNAVAILABLE/2/no master]")));
+    }
 
-        assertThat(results, hasSize(request.getDocs().size()));
-        for (MonitoringDoc exported : results) {
-            assertThat(exported.getClusterUUID(), equalTo(clusterService.state().metaData().clusterUUID()));
-            assertThat(exported.getTimestamp(), greaterThan(0L));
-            assertThat(exported.getSourceNode(), notNullValue());
-            assertThat(exported.getSourceNode().getUUID(), equalTo(clusterService.localNode().getId()));
-            assertThat(exported.getSourceNode().getName(), equalTo(clusterService.localNode().getName()));
+    public void testExecuteEmptyRequest() throws Exception {
+        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
+                                                                                       transportService, filters, resolver, exporters);
+
+        final MonitoringBulkRequest request = new MonitoringBulkRequest();
+        final ExecutionException e = expectThrows(ExecutionException.class, () -> action.execute(request).get());
+
+        assertThat(e, hasToString(containsString("no monitoring documents added")));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecuteRequest() throws Exception {
+        final DiscoveryNode discoveryNode =  new DiscoveryNode("_id", new TransportAddress(TransportAddress.META_ADDRESS, 9300), CURRENT);
+        when(clusterService.localNode()).thenReturn(discoveryNode);
+
+        final String clusterUUID = UUIDs.randomBase64UUID();
+        when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.DEFAULT)
+                                                            .metaData(MetaData.builder().clusterUUID(clusterUUID).build())
+                                                            .build());
+
+        final MonitoringBulkRequest request = new MonitoringBulkRequest();
+
+        final MonitoredSystem system = randomFrom(MonitoredSystem.KIBANA, MonitoredSystem.BEATS, MonitoredSystem.LOGSTASH);
+        final String type = randomAlphaOfLength(5);
+        final String id = randomBoolean() ? randomAlphaOfLength(5) : null;
+        final long timestamp = randomNonNegativeLong();
+        final XContentType xContentType = randomFrom(XContentType.values());
+
+        final int nbDocs = randomIntBetween(1, 50);
+        for (int i = 0; i < nbDocs; i++) {
+            MonitoringBulkDoc mockBulkDoc = mock(MonitoringBulkDoc.class);
+            request.add(mockBulkDoc);
+
+            when(mockBulkDoc.getSystem()).thenReturn(system);
+            when(mockBulkDoc.getType()).thenReturn(type);
+            when(mockBulkDoc.getId()).thenReturn(id + String.valueOf(i));
+            when(mockBulkDoc.getTimestamp()).thenReturn(timestamp);
+            when(mockBulkDoc.getSource()).thenReturn(RandomObjects.randomSource(random(), xContentType));
+            when(mockBulkDoc.getXContentType()).thenReturn(xContentType);
         }
+
+        doAnswer((i) -> {
+            final Collection<MonitoringDoc> exportedDocs = (Collection) i.getArguments()[0];
+            assertEquals(nbDocs, exportedDocs.size());
+            exportedDocs.forEach(exportedDoc -> {
+                assertThat(exportedDoc, instanceOf(BytesReferenceMonitoringDoc.class));
+                assertThat(exportedDoc.getSystem(), equalTo(system));
+                assertThat(exportedDoc.getType(), equalTo(type));
+                assertThat(exportedDoc.getId(), startsWith(id));
+                assertThat(exportedDoc.getTimestamp(), equalTo(timestamp));
+                assertThat(exportedDoc.getNode().getUUID(), equalTo(discoveryNode.getId()));
+                assertThat(exportedDoc.getCluster(), equalTo(clusterUUID));
+            });
+
+            final ActionListener listener = (ActionListener) i.getArguments()[1];
+            listener.onResponse(null);
+            return Void.TYPE;
+        }).when(exporters).export(any(Collection.class), any(ActionListener.class));
+
+        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
+                                                                                       transportService, filters, resolver, exporters);
+        action.execute(request).get();
+
+        verify(exporters).export(any(Collection.class), any(ActionListener.class));
+        verify(clusterService, times(2)).state();
+        verify(clusterService).localNode();
     }
 
-    public void testAsyncActionExecuteExport() throws Exception {
-        final PlainActionFuture<MonitoringBulkResponse> listener = new PlainActionFuture<>();
-        final MonitoringBulkRequest request = randomRequest();
-        final Collection<MonitoringDoc> docs = Collections.unmodifiableCollection(request.getDocs());
+    public void testAsyncActionCreateMonitoringDocsWithNoDocs() throws Exception {
+        final Collection<MonitoringBulkDoc> bulkDocs = new ArrayList<>();
+        if (randomBoolean()) {
+            final int nbDocs = randomIntBetween(1, 50);
+            for (int i = 0; i < nbDocs; i++) {
+                MonitoringBulkDoc mockBulkDoc = mock(MonitoringBulkDoc.class);
+                bulkDocs.add(mockBulkDoc);
+                when(mockBulkDoc.getSystem()).thenReturn(MonitoredSystem.UNKNOWN);
+            }
+        }
 
-        action.new AsyncAction(request, listener, exportService, clusterService).executeExport(docs, 0L, listener);
-        assertThat(listener.get().getError(), nullValue());
+        final Collection<MonitoringDoc> results =
+                new TransportMonitoringBulkAction.AsyncAction(null, null, null, null, 0L, null).createMonitoringDocs(bulkDocs);
 
-        Collection<MonitoringDoc> exported = exportService.getExported();
-        assertThat(exported, hasSize(request.getDocs().size()));
+        assertThat(results, notNullValue());
+        assertThat(results.size(), equalTo(0));
     }
 
-    public void testAsyncActionExportThrowsException() throws Exception {
-        final PlainActionFuture<MonitoringBulkResponse> listener = new PlainActionFuture<>();
-        final MonitoringBulkRequest request = randomRequest();
+    public void testAsyncActionCreateMonitoringDocs() throws Exception {
+        final List<MonitoringBulkDoc> docs = new ArrayList<>();
 
-        final Exporters exporters = new ConsumingExporters(docs -> {
-            throw new IllegalStateException();
+        final MonitoredSystem system = randomFrom(MonitoredSystem.KIBANA, MonitoredSystem.BEATS, MonitoredSystem.LOGSTASH);
+        final String type = randomAlphaOfLength(5);
+        final String id = randomBoolean() ? randomAlphaOfLength(5) : null;
+        final long timestamp = randomBoolean() ? randomNonNegativeLong() : 0L;
+        final XContentType xContentType = randomFrom(XContentType.values());
+        final MonitoringDoc.Node node = MonitoringTestUtils.randomMonitoringNode(random());
+
+        final int nbDocs = randomIntBetween(1, 50);
+        for (int i = 0; i < nbDocs; i++) {
+            MonitoringBulkDoc mockBulkDoc = mock(MonitoringBulkDoc.class);
+            docs.add(mockBulkDoc);
+
+            when(mockBulkDoc.getSystem()).thenReturn(system);
+            when(mockBulkDoc.getType()).thenReturn(type);
+            when(mockBulkDoc.getId()).thenReturn(id);
+            when(mockBulkDoc.getTimestamp()).thenReturn(timestamp);
+            when(mockBulkDoc.getSource()).thenReturn(BytesArray.EMPTY);
+            when(mockBulkDoc.getXContentType()).thenReturn(xContentType);
+        }
+
+        final Collection<MonitoringDoc> exportedDocs =
+                new TransportMonitoringBulkAction.AsyncAction(null, null, null, "_cluster", 123L, node).createMonitoringDocs(docs);
+
+        assertThat(exportedDocs, notNullValue());
+        assertThat(exportedDocs.size(), equalTo(nbDocs));
+        exportedDocs.forEach(exportedDoc -> {
+            assertThat(exportedDoc.getSystem(), equalTo(system));
+            assertThat(exportedDoc.getType(), equalTo(type));
+            assertThat(exportedDoc.getId(), equalTo(id));
+            assertThat(exportedDoc.getTimestamp(), equalTo(timestamp != 0L ? timestamp : 123L));
+            assertThat(exportedDoc.getNode(), equalTo(node));
+            assertThat(exportedDoc.getCluster(), equalTo("_cluster"));
         });
+    }
 
-        action.new AsyncAction(request, listener, exporters, clusterService).start();
-        assertThat(listener.get().getError(), notNullValue());
-        assertThat(listener.get().getError().getCause(), instanceOf(IllegalStateException.class));
+    public void testAsyncActionCreateMonitoringDocWithNoTimestamp() throws Exception {
+        final MonitoringBulkDoc monitoringBulkDoc =
+            new MonitoringBulkDoc(MonitoredSystem.BEATS, "_type", "_id", 0L, 0L, BytesArray.EMPTY, XContentType.JSON);
+
+        final MonitoringDoc monitoringDoc =
+            new TransportMonitoringBulkAction.AsyncAction(null, null, null, "", 456L, null).createMonitoringDoc(monitoringBulkDoc);
+        assertThat(monitoringDoc.getTimestamp(), equalTo(456L));
+    }
+
+    public void testAsyncActionCreateMonitoringDoc() throws Exception {
+        final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
+
+        final XContentType xContentType = randomFrom(XContentType.values());
+        final BytesReference source = XContentBuilder.builder(xContentType.xContent())
+                                                        .startObject()
+                                                            .startObject("_foo")
+                                                                .field("_bar", "_baz")
+                                                            .endObject()
+                                                        .endObject().bytes();
+
+        final MonitoringBulkDoc monitoringBulkDoc =
+                new MonitoringBulkDoc(MonitoredSystem.LOGSTASH, "_type", "_id", 1502107402133L, 15_000L, source, xContentType);
+
+        final MonitoringDoc monitoringDoc =
+                new TransportMonitoringBulkAction.AsyncAction(null, null, null, "_cluster_uuid", 3L, node)
+                        .createMonitoringDoc(monitoringBulkDoc);
+
+        final BytesReference xContent = XContentHelper.toXContent(monitoringDoc, XContentType.JSON, randomBoolean());
+        assertEquals("{"
+                    + "\"cluster_uuid\":\"_cluster_uuid\","
+                    + "\"timestamp\":\"2017-08-07T12:03:22.133Z\","
+                    + "\"type\":\"_type\","
+                    + "\"source_node\":{"
+                        + "\"uuid\":\"_uuid\","
+                        + "\"host\":\"_host\","
+                        + "\"transport_address\":\"_addr\","
+                        + "\"ip\":\"_ip\","
+                        + "\"name\":\"_name\","
+                        + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
+                    + "},"
+                    + "\"_type\":{"
+                        + "\"_foo\":{"
+                            + "\"_bar\":\"_baz\""
+                        + "}"
+                    + "}"
+                + "}" , xContent.utf8ToString());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAsyncActionExecuteExport() throws Exception {
+        final int nbDocs = randomIntBetween(1, 25);
+        final Collection<MonitoringDoc> docs = new ArrayList<>(nbDocs);
+        for (int i = 0; i < nbDocs; i++) {
+            docs.add(mock(MonitoringDoc.class));
+        }
+
+        doAnswer((i) -> {
+            final Collection<MonitoringDoc> exportedDocs = (Collection) i.getArguments()[0];
+            assertThat(exportedDocs, is(docs));
+
+            final ActionListener listener = (ActionListener) i.getArguments()[1];
+            listener.onResponse(null);
+            return Void.TYPE;
+        }).when(exporters).export(any(Collection.class), any(ActionListener.class));
+
+        final TransportMonitoringBulkAction.AsyncAction asyncAction =
+                new TransportMonitoringBulkAction.AsyncAction(null, null, exporters, null, 0L, null);
+
+        asyncAction.executeExport(docs, randomNonNegativeLong(), listener);
+
+        verify(exporters).export(eq(docs), any(ActionListener.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAsyncActionExportThrowsException() throws Exception {
+        final int nbDocs = randomIntBetween(1, 25);
+        final Collection<MonitoringDoc> docs = new ArrayList<>(nbDocs);
+        for (int i = 0; i < nbDocs; i++) {
+            docs.add(mock(MonitoringDoc.class));
+        }
+
+        doThrow(new IllegalStateException("something went wrong"))
+                .when(exporters)
+                    .export(any(Collection.class), any(ActionListener.class));
+
+        final TransportMonitoringBulkAction.AsyncAction asyncAction =
+                new TransportMonitoringBulkAction.AsyncAction(null, null, exporters, null, 0L, null);
+
+        asyncAction.executeExport(docs, randomNonNegativeLong(), listener);
+
+        final ArgumentCaptor<Collection<MonitoringDoc>> argDocs = ArgumentCaptor.forClass((Class) Collection.class);
+        verify(exporters).export(argDocs.capture(), any(ActionListener.class));
+        assertThat(argDocs.getValue(), is(docs));
+
+        final ArgumentCaptor<MonitoringBulkResponse> argResponse = ArgumentCaptor.forClass(MonitoringBulkResponse.class);
+        verify(listener).onResponse(argResponse.capture());
+        assertThat(argResponse.getValue().getError(), notNullValue());
+        assertThat(argResponse.getValue().getError().getCause(), instanceOf(IllegalStateException.class));
     }
 
     /**
      * @return a new MonitoringBulkRequest instance with random number of documents
      */
-    private static MonitoringBulkRequest randomRequest() throws IOException {
+    private MonitoringBulkRequest randomRequest() throws IOException {
         return randomRequest(scaledRandomIntBetween(1, 100));
     }
 
     /**
-     * @return a new MonitoringBulkRequest instance with given number of documents
+     * Creates a {@link MonitoringBulkRequest} with the given number of {@link MonitoringBulkDoc} in it.
+     *
+     * @return the {@link MonitoringBulkRequest}
      */
-    private static MonitoringBulkRequest randomRequest(final int numDocs) throws IOException {
-        MonitoringBulkRequest request = new MonitoringBulkRequest();
+    private MonitoringBulkRequest randomRequest(final int numDocs) throws IOException {
+        final MonitoringBulkRequest request = new MonitoringBulkRequest();
         for (int i = 0; i < numDocs; i++) {
-            String monitoringId = randomFrom(MonitoredSystem.values()).getSystem();
-            String monitoringVersion = randomVersion(random()).toString();
-            MonitoringIndex index = randomBoolean() ? randomFrom(MonitoringIndex.values()) : null;
-            String type = randomFrom("type1", "type2", "type3");
-            String id = randomAlphaOfLength(10);
-
-            BytesReference source;
-            XContentType xContentType = randomFrom(XContentType.values());
-            try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-                source = builder.startObject().field("key", i).endObject().bytes();
-            }
-            request.add(new MonitoringBulkDoc(monitoringId, monitoringVersion, index, type, id,
-                    null, 0L, null, source, xContentType));
+            request.add(MonitoringTestUtils.randomMonitoringBulkDoc(random()));
         }
         return request;
-    }
-
-    /**
-     * A Exporters implementation that captures the documents to export
-     */
-    class CapturingExporters extends Exporters {
-
-        private final Collection<MonitoringDoc> exported = ConcurrentCollections.newConcurrentSet();
-
-        CapturingExporters() {
-            super(Settings.EMPTY, Collections.emptyMap(), clusterService, licenseState, threadPool.getThreadContext());
-        }
-
-        @Override
-        public synchronized void export(Collection<MonitoringDoc> docs, ActionListener<Void> listener) throws ExportException {
-            exported.addAll(docs);
-            listener.onResponse(null);
-        }
-
-        public Collection<MonitoringDoc> getExported() {
-            return exported;
-        }
-    }
-
-    /**
-     * A Exporters implementation that applies a Consumer when exporting documents
-     */
-    class ConsumingExporters extends Exporters {
-
-        private final Consumer<Collection<? extends MonitoringDoc>> consumer;
-
-        ConsumingExporters(Consumer<Collection<? extends MonitoringDoc>> consumer) {
-            super(Settings.EMPTY, Collections.emptyMap(), clusterService, licenseState, threadPool.getThreadContext());
-            this.consumer = consumer;
-        }
-
-        @Override
-        public synchronized void export(Collection<MonitoringDoc> docs, ActionListener<Void> listener) throws ExportException {
-            consumer.accept(docs);
-            listener.onResponse(null);
-        }
     }
 }

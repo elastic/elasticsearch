@@ -5,35 +5,54 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.shards;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.monitoring.exporter.FilteredMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
+
+import java.io.IOException;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Monitoring document collected by {@link ShardsCollector}
  */
-public class ShardMonitoringDoc extends MonitoringDoc {
+public class ShardMonitoringDoc extends FilteredMonitoringDoc {
 
     public static final String TYPE = "shards";
 
-    private ShardRouting shardRouting;
-    private String clusterStateUUID;
+    private final ShardRouting shardRouting;
+    private final String clusterStateUUID;
 
-    public ShardMonitoringDoc(String monitoringId, String monitoringVersion,
-                              String clusterUUID, long timestamp, DiscoveryNode node,
-                              ShardRouting shardRouting, String clusterStateUUID) {
-        super(monitoringId, monitoringVersion, TYPE, id(clusterStateUUID, shardRouting),
-                clusterUUID, timestamp, node);
-        this.shardRouting = shardRouting;
-        this.clusterStateUUID = clusterStateUUID;
+    ShardMonitoringDoc(final String cluster,
+                       final long timestamp,
+                       final MonitoringDoc.Node node,
+                       final ShardRouting shardRouting,
+                       final String clusterStateUUID) {
+
+        super(cluster, timestamp, node, MonitoredSystem.ES, TYPE, id(clusterStateUUID, shardRouting), XCONTENT_FILTERS);
+        this.shardRouting = Objects.requireNonNull(shardRouting);
+        this.clusterStateUUID = Objects.requireNonNull(clusterStateUUID);
     }
 
-    public ShardRouting getShardRouting() {
+    ShardRouting getShardRouting() {
         return shardRouting;
     }
 
-    public String getClusterStateUUID() {
+    String getClusterStateUUID() {
         return clusterStateUUID;
+    }
+
+    @Override
+    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("state_uuid", clusterStateUUID);
+        if (shardRouting != null) {
+            // ShardRouting is rendered inside a startObject() / endObject() but without a name,
+            // so we must use XContentBuilder.field(String, ToXContent, ToXContent.Params) here
+            builder.field("shard", shardRouting, params);
+        }
     }
 
     /**
@@ -62,4 +81,13 @@ public class ShardMonitoringDoc extends MonitoringDoc {
         }
         return builder.toString();
     }
+
+    public static final Set<String> XCONTENT_FILTERS =
+        Sets.newHashSet("state_uuid",
+                        "shard.state",
+                        "shard.primary",
+                        "shard.node",
+                        "shard.relocating_node",
+                        "shard.shard",
+                        "shard.index");
 }

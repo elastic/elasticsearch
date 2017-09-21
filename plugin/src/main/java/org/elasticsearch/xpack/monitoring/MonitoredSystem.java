@@ -5,14 +5,17 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.stream.Stream;
 
 public enum MonitoredSystem {
 
     ES("es"),
     KIBANA("kibana"),
     LOGSTASH("logstash"),
-    BEATS("beats");
+    BEATS("beats"),
+    UNKNOWN("unknown");
 
     private final String system;
 
@@ -35,7 +38,20 @@ public enum MonitoredSystem {
             case "beats":
                 return BEATS;
             default:
-                throw new IllegalArgumentException("Unknown monitoring system [" + system + "]");
+                // Return an "unknown" monitored system
+                // that can easily be filtered out if
+                // a node receives documents for a new
+                // system it does not know yet
+                return UNKNOWN;
         }
+    }
+
+    /**
+     * Get all {@code MonitoredSystem}s except {@linkplain MonitoredSystem#UNKNOWN UNKNOWN}.
+     *
+     * @return Never {@code null}. A filtered {@code Stream} that removes the {@code UNKNOWN} {@code MonitoredSystem}.
+     */
+    public static Stream<MonitoredSystem> allSystems() {
+        return Arrays.stream(MonitoredSystem.values()).filter(s -> s != MonitoredSystem.UNKNOWN);
     }
 }

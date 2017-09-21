@@ -24,9 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter.Config;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.ssl.SSLService;
-
 import org.junit.Before;
 import org.mockito.InOrder;
 
@@ -319,7 +317,7 @@ public class HttpExporterTests extends ESTestCase {
 
         final Config config = createConfig(builder.build());
 
-        final MultiHttpResource multiResource = HttpExporter.createResources(config, new ResolversRegistry(config.settings()));
+        final MultiHttpResource multiResource = HttpExporter.createResources(config);
 
         final List<HttpResource> resources = multiResource.getResources();
         final int version = (int)resources.stream().filter((resource) -> resource instanceof VersionHttpResource).count();
@@ -405,10 +403,9 @@ public class HttpExporterTests extends ESTestCase {
         final RestClient client = mock(RestClient.class);
         final Sniffer sniffer = randomFrom(mock(Sniffer.class), null);
         final NodeFailureListener listener = mock(NodeFailureListener.class);
-        final ResolversRegistry resolvers = mock(ResolversRegistry.class);
         final HttpResource resource = new MockHttpResource(exporterName(), true, PublishableHttpResource.CheckResponse.ERROR, false);
 
-        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resolvers, resource)) {
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource)) {
             verify(listener).setResource(resource);
 
             assertThat(exporter.openBulk(), nullValue());
@@ -420,11 +417,10 @@ public class HttpExporterTests extends ESTestCase {
         final RestClient client = mock(RestClient.class);
         final Sniffer sniffer = randomFrom(mock(Sniffer.class), null);
         final NodeFailureListener listener = mock(NodeFailureListener.class);
-        final ResolversRegistry resolvers = mock(ResolversRegistry.class);
         // sometimes dirty to start with and sometimes not; but always succeeds on checkAndPublish
         final HttpResource resource = new MockHttpResource(exporterName(), randomBoolean());
 
-        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resolvers, resource)) {
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource)) {
             verify(listener).setResource(resource);
 
             final HttpExportBulk bulk = exporter.openBulk();
@@ -438,7 +434,6 @@ public class HttpExporterTests extends ESTestCase {
         final RestClient client = mock(RestClient.class);
         final Sniffer sniffer = randomFrom(mock(Sniffer.class), null);
         final NodeFailureListener listener = mock(NodeFailureListener.class);
-        final ResolversRegistry resolvers = mock(ResolversRegistry.class);
         final MultiHttpResource resource = mock(MultiHttpResource.class);
 
         if (sniffer != null && rarely()) {
@@ -449,7 +444,7 @@ public class HttpExporterTests extends ESTestCase {
             doThrow(randomFrom(new IOException("expected"), new RuntimeException("expected"))).when(client).close();
         }
 
-        new HttpExporter(config, client, sniffer, threadContext, listener, resolvers, resource).close();
+        new HttpExporter(config, client, sniffer, threadContext, listener, resource).close();
 
         // order matters; sniffer must close first
         if (sniffer != null) {

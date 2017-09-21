@@ -23,6 +23,7 @@ import static org.elasticsearch.common.settings.Setting.groupSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
+// TODO Remove this class and put the settings in Monitoring class
 public class MonitoringSettings extends AbstractComponent {
 
     public static final String HISTORY_DURATION_SETTING_NAME = "history.duration";
@@ -80,6 +81,12 @@ public class MonitoringSettings extends AbstractComponent {
             timeSetting(collectionKey("ml.job.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
+     * Timeout value when collecting the nodes statistics (default to 10s)
+     */
+    public static final Setting<TimeValue> NODE_STATS_TIMEOUT =
+            timeSetting(collectionKey("node.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
+
+    /**
      * Timeout value when collecting the recovery information (default to 10s)
      */
     public static final Setting<TimeValue> INDEX_RECOVERY_TIMEOUT =
@@ -123,6 +130,7 @@ public class MonitoringSettings extends AbstractComponent {
                 CLUSTER_STATE_TIMEOUT,
                 CLUSTER_STATS_TIMEOUT,
                 JOB_STATS_TIMEOUT,
+                NODE_STATS_TIMEOUT,
                 HISTORY_DURATION,
                 EXPORTERS_SETTINGS);
     }
@@ -137,6 +145,7 @@ public class MonitoringSettings extends AbstractComponent {
     private volatile TimeValue clusterStatsTimeout;
     private volatile TimeValue recoveryTimeout;
     private volatile TimeValue jobStatsTimeout;
+    private volatile TimeValue nodeStatsTimeout;
     private volatile boolean recoveryActiveOnly;
     private volatile String[] indices;
 
@@ -153,6 +162,8 @@ public class MonitoringSettings extends AbstractComponent {
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_STATS_TIMEOUT, this::setClusterStatsTimeout);
         setJobStatsTimeout(JOB_STATS_TIMEOUT.get(settings));
         clusterSettings.addSettingsUpdateConsumer(JOB_STATS_TIMEOUT, this::setJobStatsTimeout);
+        setNodeStatsTimeout(NODE_STATS_TIMEOUT.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(NODE_STATS_TIMEOUT, this::setNodeStatsTimeout);
         setRecoveryTimeout(INDEX_RECOVERY_TIMEOUT.get(settings));
         clusterSettings.addSettingsUpdateConsumer(INDEX_RECOVERY_TIMEOUT, this::setRecoveryTimeout);
         setRecoveryActiveOnly(INDEX_RECOVERY_ACTIVE_ONLY.get(settings));
@@ -179,6 +190,10 @@ public class MonitoringSettings extends AbstractComponent {
         return jobStatsTimeout;
     }
 
+    public TimeValue nodeStatsTimeout() {
+        return nodeStatsTimeout;
+    }
+
     public TimeValue recoveryTimeout() {
         return recoveryTimeout;
     }
@@ -201,6 +216,10 @@ public class MonitoringSettings extends AbstractComponent {
 
     private void setJobStatsTimeout(TimeValue jobStatsTimeout) {
         this.jobStatsTimeout = jobStatsTimeout;
+    }
+
+    public void setNodeStatsTimeout(TimeValue nodeStatsTimeout) {
+        this.nodeStatsTimeout = nodeStatsTimeout;
     }
 
     private void setRecoveryTimeout(TimeValue recoveryTimeout) {

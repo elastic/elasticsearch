@@ -20,8 +20,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -35,15 +33,11 @@ import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
-import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -68,7 +62,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -79,7 +72,8 @@ import static org.hamcrest.Matchers.lessThan;
 
 public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
-    public static final String MONITORING_INDICES_PREFIX = MonitoringIndexNameResolver.PREFIX + MonitoringIndexNameResolver.DELIMITER;
+    protected static final String MONITORING_INDICES_PREFIX = ".monitoring-";
+    protected static final String ALL_MONITORING_INDICES = MONITORING_INDICES_PREFIX + "*";
 
     /**
      * Per test run this is enabled or disabled.
@@ -238,7 +232,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         CountDown retries = new CountDown(3);
         assertBusy(() -> {
             try {
-                boolean exist = client().admin().indices().prepareExists(MONITORING_INDICES_PREFIX + "*")
+                boolean exist = client().admin().indices().prepareExists(ALL_MONITORING_INDICES)
                         .get().isExists();
                 if (exist) {
                     deleteMonitoringIndices();
@@ -253,7 +247,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void deleteMonitoringIndices() {
-        assertAcked(client().admin().indices().prepareDelete(MONITORING_INDICES_PREFIX + "*"));
+        assertAcked(client().admin().indices().prepareDelete(ALL_MONITORING_INDICES));
     }
 
     protected void awaitMonitoringDocsCountOnPrimary(Matcher<Long> matcher, String... types) throws Exception {
@@ -265,8 +259,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void assertMonitoringDocsCountOnPrimary(Matcher<Long> matcher, String... types) {
-        flushAndRefresh(MONITORING_INDICES_PREFIX + "*");
-        long count = client().prepareSearch(MONITORING_INDICES_PREFIX + "*").setSize(0)
+        flushAndRefresh(ALL_MONITORING_INDICES);
+        long count = client().prepareSearch(ALL_MONITORING_INDICES).setSize(0)
                 .setQuery(QueryBuilders.termsQuery("type", types))
                 .setPreference("_primary").get().getHits().getTotalHits();
         logger.trace("--> searched for [{}] documents on primary, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
@@ -274,36 +268,15 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected List<Tuple<String, String>> monitoringTemplates() {
-        final List<Tuple<String, String>> templates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-                .map(id -> new Tuple<>(MonitoringTemplateUtils.templateName(id), MonitoringTemplateUtils.loadTemplate(id)))
-                .collect(Collectors.toList());
-
-        // TODO: remove this when we remove resolvers
-        templates.addAll(StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
-                .map((resolver) -> new Tuple<>(resolver.templateName(), resolver.template()))
-                .distinct()
-                .collect(Collectors.toList()));
-
-        return templates;
+        return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
+                    .map(id -> new Tuple<>(MonitoringTemplateUtils.templateName(id), MonitoringTemplateUtils.loadTemplate(id)))
+                    .collect(Collectors.toList());
     }
 
     protected List<String> monitoringTemplateNames() {
-        final List<String> templateNames = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-                .map(MonitoringTemplateUtils::templateName)
-                .collect(Collectors.toList());
-
-        // TODO: remove this when we remove resolvers
-        final ResolversRegistry registry = new ResolversRegistry(Settings.EMPTY);
-
-        for (final MonitoringIndexNameResolver resolver : registry) {
-            final String templateName = resolver.templateName();
-
-            if (templateNames.contains(templateName) == false) {
-                templateNames.add(templateName);
-            }
-        }
-
-        return templateNames;
+        return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
+                    .map(MonitoringTemplateUtils::templateName)
+                    .collect(Collectors.toList());
     }
 
     private Tuple<String, String> monitoringPipeline(final String pipelineId) {
@@ -356,23 +329,19 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void waitForMonitoringIndices() throws Exception {
-        awaitIndexExists(MONITORING_INDICES_PREFIX + "*");
+        awaitIndexExists(ALL_MONITORING_INDICES);
         assertBusy(this::ensureMonitoringIndicesYellow);
     }
 
-    protected void awaitIndexExists(final String index) throws Exception {
+    private void awaitIndexExists(final String index) throws Exception {
         assertBusy(() -> {
             assertIndicesExists(index);
         }, 30, TimeUnit.SECONDS);
     }
 
-    protected void assertIndicesExists(String... indices) {
+    private void assertIndicesExists(String... indices) {
         logger.trace("checking if index exists [{}]", Strings.arrayToCommaDelimitedString(indices));
         assertThat(client().admin().indices().prepareExists(indices).get().isExists(), is(true));
-    }
-
-    protected void updateClusterSettings(Settings.Builder settings) {
-        updateClusterSettings(settings.build());
     }
 
     protected void updateClusterSettings(Settings settings) {
@@ -436,18 +405,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     protected void updateMonitoringInterval(long value, TimeUnit timeUnit) {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                 Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), value, timeUnit)));
-    }
-
-    protected class MockTimestampedIndexNameResolver extends MonitoringIndexNameResolver.Timestamped<MonitoringDoc> {
-
-        public MockTimestampedIndexNameResolver(MonitoredSystem system, Settings settings, String version) {
-            super(system, settings, version);
-        }
-
-        @Override
-        protected void buildXContent(MonitoringDoc document, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            throw new UnsupportedOperationException("MockTimestampedIndexNameResolver does not support resolving building XContent");
-        }
     }
 
     /** security related settings */

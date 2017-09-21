@@ -30,7 +30,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
@@ -40,13 +39,11 @@ import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
-import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchRequest;
@@ -56,6 +53,7 @@ import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -69,7 +67,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
@@ -87,9 +84,9 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     private final InternalClient client;
     private final ClusterService clusterService;
     private final XPackLicenseState licenseState;
-    private final ResolversRegistry resolvers;
     private final CleanerService cleanerService;
     private final boolean useIngest;
+    private final DateTimeFormatter dateTimeFormatter;
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final AtomicBoolean installingSomething = new AtomicBoolean(false);
@@ -103,22 +100,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         this.licenseState = config.licenseState();
         this.useIngest = config.settings().getAsBoolean(USE_INGEST_PIPELINE_SETTING, true);
         this.cleanerService = cleanerService;
-        this.resolvers = new ResolversRegistry(config.settings());
-
-        // Checks that required templates are loaded
-        for (MonitoringIndexNameResolver resolver : resolvers) {
-            if (resolver.template() == null) {
-                throw new IllegalStateException("unable to find built-in template " + resolver.templateName());
-            }
-        }
-
+        this.dateTimeFormatter = dateTimeFormatter(config);
         clusterService.addListener(this);
         cleanerService.add(this);
         licenseState.addListener(this::licenseChanged);
-    }
-
-    ResolversRegistry getResolvers() {
-        return resolvers;
     }
 
     @Override
@@ -178,17 +163,9 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             return null;
         }
 
-        // List of distinct templates
-        final Map<String, String> templates = StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
-                .collect(Collectors.toMap(MonitoringIndexNameResolver::templateName, MonitoringIndexNameResolver::template, (a, b) -> a));
-
-        // templates not managed by resolvers
-        // TODO: this should just become "templates" when we remove resolvers (and the above templates will disappear as a result)
-        final Map<String, String> nonResolverTemplates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
+        // List of templates
+        final Map<String, String> templates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
                 .collect(Collectors.toMap(MonitoringTemplateUtils::templateName, MonitoringTemplateUtils::loadTemplate));
-
-        // add templates that don't come from resolvers
-        templates.putAll(nonResolverTemplates);
 
         boolean setup = true;
 
@@ -217,7 +194,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             clusterService.removeListener(this);
         }
 
-        return new LocalBulk(name(), logger, client, resolvers, useIngest);
+        return new LocalBulk(name(), logger, client, dateTimeFormatter, useIngest);
     }
 
     /**
@@ -504,17 +481,16 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
             ClusterState clusterState = clusterService.state();
             if (clusterState != null) {
-                long expirationTime = expiration.getMillis();
+                final long expirationTimeMillis = expiration.getMillis();
+                final long currentTimeMillis = System.currentTimeMillis();
 
                 // list of index patterns that we clean up; we may add watcher history in the future
                 final String[] indexPatterns = new String[] { ".monitoring-*" };
 
-                MonitoringDoc monitoringDoc = new MonitoringDoc(null, null, null, null, null,
-                        System.currentTimeMillis(), (MonitoringDoc.Node) null);
 
                 // Get the names of the current monitoring indices
-                Set<String> currents = StreamSupport.stream(getResolvers().spliterator(), false)
-                                                    .map(r -> r.index(monitoringDoc))
+                final Set<String> currents = MonitoredSystem.allSystems()
+                                                    .map(s -> MonitoringTemplateUtils.indexName(dateTimeFormatter, s, currentTimeMillis))
                                                     .collect(Collectors.toSet());
 
                 // avoid deleting the current alerts index, but feel free to delete older ones
@@ -531,7 +507,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                         }
 
                         long creationDate = index.value.getCreationDate();
-                        if (creationDate <= expirationTime) {
+                        if (creationDate <= expirationTimeMillis) {
                             if (logger.isDebugEnabled()) {
                                 logger.debug("detected expired index [name={}, created={}, expired={}]",
                                         indexName, new DateTime(creationDate, DateTimeZone.UTC), expiration);

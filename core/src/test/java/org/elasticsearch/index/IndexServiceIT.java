@@ -38,11 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IndexServiceIT extends ESIntegTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(InternalSettingsPlugin.class);
-    }
-
     public void testGlobalCheckpointSync() throws Exception {
         internalCluster().startNode();
         final int numberOfDocuments = randomIntBetween(1, 128);

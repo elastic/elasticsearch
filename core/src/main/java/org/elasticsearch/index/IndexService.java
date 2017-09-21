@@ -32,6 +32,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -927,7 +929,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    private static final TimeValue GLOBAL_CHECKPOINT_SYNC_INTERVAL = TimeValue.timeValueSeconds(30);
+    // this setting is intentionally not registered, it is only used in tests
+    public static final Setting<TimeValue> GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING =
+            Setting.timeSetting(
+                    "index.global_checkpoint_sync.interval",
+                    new TimeValue(30, TimeUnit.SECONDS),
+                    new TimeValue(0, TimeUnit.MILLISECONDS),
+                    Property.Dynamic,
+                    Property.IndexScope);
 
     /**
      * Background task that syncs the global checkpoint to replicas.
@@ -936,12 +945,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         AsyncGlobalCheckpointTask(final IndexService indexService) {
             // index.global_checkpoint_sync_interval is not a real setting, it is only registered in tests
-            super(
-                    indexService,
-                    indexService
-                            .getIndexSettings()
-                            .getSettings()
-                            .getAsTime("index.global_checkpoint_sync.interval", GLOBAL_CHECKPOINT_SYNC_INTERVAL));
+            super(indexService, GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings()));
         }
 
         @Override

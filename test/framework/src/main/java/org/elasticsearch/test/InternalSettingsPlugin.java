@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Arrays;
@@ -42,14 +43,6 @@ public final class InternalSettingsPlugin extends Plugin {
         Setting.timeSetting("index.translog.retention.check_interval", new TimeValue(10, TimeUnit.MINUTES),
             new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic, Property.IndexScope);
 
-    public static final Setting<TimeValue> GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING =
-            Setting.timeSetting(
-                    "index.global_checkpoint_sync.interval",
-                    new TimeValue(30, TimeUnit.SECONDS),
-                    new TimeValue(0, TimeUnit.MILLISECONDS),
-                    Property.Dynamic,
-                    Property.IndexScope);
-
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
@@ -58,6 +51,6 @@ public final class InternalSettingsPlugin extends Plugin {
                 INDEX_CREATION_DATE_SETTING,
                 PROVIDED_NAME_SETTING,
                 TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING,
-                GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING);
+                IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING);
     }
 }

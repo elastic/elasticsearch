@@ -90,7 +90,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.InternalSettingsPlugin.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -309,7 +308,7 @@ public class RelocationIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", numberOfReplicas)
                         .put("index.refresh_interval", -1) // we want to control refreshes c
-                        .put(GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms"))
+                        .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms"))
                 .get();
 
         for (int i = 1; i < numberOfNodes; i++) {
@@ -487,7 +486,7 @@ public class RelocationIT extends ESIntegTestCase {
                 .put("index.routing.allocation.exclude.color", "blue")
                 .put(indexSettings())
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1))
-                .put(GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms");
+                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms");
         assertAcked(prepareCreate("test", settings));
         assertAllShardsOnNodes("test", redNodes);
         int numDocs = randomIntBetween(100, 150);

@@ -276,9 +276,10 @@ public final class Script implements ToXContentObject, Writeable {
      * Parse the script configured in the given settings.
      */
     public static Script parse(Settings settings) {
-        try {
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            builder.map(settings.getAsStructuredMap());
+        try (XContentBuilder builder = JsonXContent.contentBuilder()){
+            builder.startObject();
+            settings.toXContent(builder, new MapParams(Collections.emptyMap()));
+            builder.endObject();
             return parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, builder.bytes()));
         } catch (IOException e) {
             // it should not happen since we are not actually reading from a stream but an in-memory byte[]

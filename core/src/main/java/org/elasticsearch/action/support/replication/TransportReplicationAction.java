@@ -412,8 +412,8 @@ public abstract class TransportReplicationAction<
         }
 
         protected ReplicationOperation<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>> createReplicatedOperation(
-                Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener,
-                PrimaryShardReference primaryShardReference) {
+            Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener,
+            PrimaryShardReference primaryShardReference) {
             return new ReplicationOperation<>(request, primaryShardReference, listener,
                     newReplicasProxy(primaryTerm), logger, actionName);
         }

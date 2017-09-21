@@ -215,6 +215,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                     }
                 }, 30, TimeUnit.SECONDS);
 
+                assertSeqNos();
+
                 logger.info("done validating (iteration [{}])", iter);
             }
         } finally {

@@ -20,7 +20,9 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -55,6 +57,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -379,8 +382,11 @@ public abstract class TransportReplicationAction<
                         try {
                             primaryShardReference.indexShard.maybeSyncGlobalCheckpoint("post-operation");
                         } catch (final Exception e) {
-                            logger.info("post-operation global checkpoint sync failed", e);
-                            // intentionally swallow, a missed global checkpoint sync should not fail this operation
+                            // only log non-closed exceptions
+                            if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
+                                logger.info("post-operation global checkpoint sync failed", e);
+                                // intentionally swallow, a missed global checkpoint sync should not fail this operation
+                            }
                         }
                     }
                     primaryShardReference.close(); // release shard operation lock before responding to caller

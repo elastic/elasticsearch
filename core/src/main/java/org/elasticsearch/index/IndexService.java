@@ -745,7 +745,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                                         shard.maybeSyncGlobalCheckpoint("background");
                                                 }
                                             },
-                                            e -> logger.info("failed to execute background global checkpoint sync", e)),
+                                            e -> {
+                                                if (!(e instanceof AlreadyClosedException || e instanceof IndexShardClosedException)) {
+                                                    logger.info("failed to execute background global checkpoint sync", e);
+                                                }
+                                            }),
                                     ThreadPool.Names.SAME);
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {
                             // the shard was closed concurrently, continue

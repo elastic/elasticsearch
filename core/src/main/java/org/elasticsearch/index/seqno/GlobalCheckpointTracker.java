@@ -209,6 +209,11 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         }
     }
 
+    /**
+     * Get the local knowledge of the global checkpoints for all tracked allocation IDs.
+     *
+     * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
+     */
     synchronized ObjectLongMap<String> getGlobalCheckpoints() {
         assert primaryMode;
         assert handoffInProgress == false;

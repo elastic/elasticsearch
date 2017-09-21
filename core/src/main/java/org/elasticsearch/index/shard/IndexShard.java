@@ -1763,6 +1763,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().seqNoService().getGlobalCheckpoint();
     }
 
+    /**
+     * Get the local knowledge of the global checkpoints for all tracked allocation IDs.
+     *
+     * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
+     */
     public ObjectLongMap<String> getGlobalCheckpoints() {
         verifyPrimary();
         verifyNotClosed();

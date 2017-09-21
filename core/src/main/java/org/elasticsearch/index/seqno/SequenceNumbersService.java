@@ -139,6 +139,15 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
+     * Get the local knowledge of the global checkpoints for all tracked allocation IDs.
+     *
+     * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
+     */
+    public ObjectLongMap<String> getGlobalCheckpoints() {
+        return globalCheckpointTracker.getGlobalCheckpoints();
+    }
+
+    /**
      * Called when the recovery process for a shard is ready to open the engine on the target shard.
      * See {@link GlobalCheckpointTracker#initiateTracking(String)} for details.
      *
@@ -201,10 +210,6 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public synchronized long getTrackedLocalCheckpointForShard(final String allocationId) {
         return globalCheckpointTracker.getTrackedLocalCheckpointForShard(allocationId).getLocalCheckpoint();
-    }
-
-    public ObjectLongMap<String> getGlobalCheckpoints() {
-        return globalCheckpointTracker.getGlobalCheckpoints();
     }
 
     /**

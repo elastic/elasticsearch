@@ -132,7 +132,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         hadoopConfiguration.setBoolean("fs.hdfs.impl.disable.cache", true);
 
         // Create the filecontext with our user information
-        // This will correctly configure the filecontext to have our UGI as it's internal user.
+        // This will correctly configure the filecontext to have our UGI as its internal user.
         return ugi.doAs((PrivilegedAction<FileContext>) () -> {
             try {
                 AbstractFileSystem fs = AbstractFileSystem.get(uri, hadoopConfiguration);

@@ -127,7 +127,7 @@ fields to an existing index with the <<indices-put-mapping,PUT mapping API>>.
 Other than where documented, *existing type and field mappings cannot be
 updated*. Changing the mapping would mean invalidating already indexed
 documents.  Instead, you should create a new index with the correct mappings
-and reindex your data into that index.
+and <<docs-reindex,reindex>> your data into that index.
 
 [[field-conflicts]]
 [float]

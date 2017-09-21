@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
+import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
@@ -19,6 +20,7 @@ import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.spans.SpanTermQuery;
@@ -87,6 +89,14 @@ class FieldExtractor {
                 fields.addAll(dvQueryFields);
             } catch (UnsupportedOperationException e) {
                 extractFields(((IndexOrDocValuesQuery) query).getIndexQuery(), fields);
+            }
+        } else if (query instanceof TermInSetQuery) {
+            // TermInSetQuery#field is inaccessible
+            TermInSetQuery termInSetQuery = (TermInSetQuery) query;
+            TermIterator termIterator = termInSetQuery.getTermData().iterator();
+            // there should only be one field
+            if (termIterator.next() != null) {
+                fields.add(termIterator.field());
             }
         } else if (query instanceof MatchAllDocsQuery) {
             // no field

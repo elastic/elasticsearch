@@ -382,7 +382,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                         .builder()
                         .put("index.number_of_shards", 1)
                         .put("index.translog.generation_threshold_size", generationThreshold + "b")
-                        .put()
                         .build();
         createIndex("test", settings);
         ensureGreen("test");

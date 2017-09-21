@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
@@ -716,6 +717,26 @@ public final class Settings implements ToXContentFragment {
             return put(key, path.toString());
         }
 
+        public Builder put(String key, TimeValue timeValue) {
+            return put(key, timeValue.toString());
+        }
+
+        public Builder put(String key, ByteSizeValue byteSizeValue) {
+            return put(key, byteSizeValue.toString());
+        }
+
+        public Builder put(String key, Enum<?> enumValue) {
+            return put(key, enumValue.toString());
+        }
+
+        public Builder put(String key, Level level) {
+            return put(key, level.toString());
+        }
+
+        public Builder put(String key, org.apache.lucene.util.Version luceneVersion) {
+            return put(key, luceneVersion.toString());
+        }
+
         /**
          * Puts tuples of key value pairs of settings. Simplified version instead of repeating calling
          * put for each one.
@@ -857,13 +878,6 @@ public final class Settings implements ToXContentFragment {
             return this;
         }
 
-        /**
-         * Sets the setting with the provided setting key and an array of values.
-         *
-         * @param setting The setting key
-         * @param values  The values
-         * @return The builder
-         */
 
         /**
          * Sets the setting with the provided setting key and an array of values.
@@ -894,26 +908,6 @@ public final class Settings implements ToXContentFragment {
             }
             for (int i = 0; i < values.size(); i++) {
                 put(setting + "." + i, values.get(i));
-            }
-            return this;
-        }
-
-        /**
-         * Sets the setting as an array of values, but keeps existing elements for the key.
-         */
-        public Builder extendArray(String setting, String... values) {
-            // check for a singular (non array) value
-            String oldSingle = remove(setting);
-            // find the highest array index
-            int counter = 0;
-            while (map.containsKey(setting + '.' + counter)) {
-                ++counter;
-            }
-            if (oldSingle != null) {
-                put(setting + '.' + counter++, oldSingle);
-            }
-            for (String value : values) {
-                put(setting + '.' + counter++, value);
             }
             return this;
         }

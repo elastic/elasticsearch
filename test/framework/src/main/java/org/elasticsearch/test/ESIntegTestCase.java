@@ -456,7 +456,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     private static Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
-                random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
+                (random.nextBoolean() ? random.nextDouble() : random.nextBoolean()).toString());
         }
         switch (random.nextInt(4)) {
             case 3:

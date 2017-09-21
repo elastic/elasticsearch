@@ -91,7 +91,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         final Map<TransportAddress, DiscoveryNodes> nodeMap;
 
 
-        TestIteration(Object... extraSettings) {
+        TestIteration(Settings extraSettings) {
             Settings settings = Settings.builder().put(extraSettings).put("cluster.name", "test").build();
             ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
             List<TransportAddress> listNodes = new ArrayList<>();
@@ -318,7 +318,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     }
 
     private void checkRemoveAddress(boolean sniff) {
-        Object[] extraSettings = {TransportClient.CLIENT_TRANSPORT_SNIFF.getKey(), sniff};
+        Settings extraSettings = Settings.builder().put(TransportClient.CLIENT_TRANSPORT_SNIFF.getKey(), sniff).build();
         try(TestIteration iteration = new TestIteration(extraSettings)) {
             final TransportClientNodesService service = iteration.transportClientNodesService;
             assertEquals(iteration.listNodesCount + iteration.sniffNodesCount, service.connectedNodes().size());

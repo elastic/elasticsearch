@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.plugins.Plugin;
@@ -34,6 +35,7 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.InternalSettingsPlugin.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexServiceIT extends ESIntegTestCase {
@@ -45,6 +47,7 @@ public class IndexServiceIT extends ESIntegTestCase {
 
     public void testGlobalCheckpointSync() throws Exception {
         internalCluster().startNode();
+        prepareCreate("test", Settings.builder().put(GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")).get();
         final int numberOfDocuments = randomIntBetween(1, 128);
         for (int i = 0; i < numberOfDocuments; i++) {
             final String id = Integer.toString(i);

@@ -75,7 +75,7 @@ final class HdfsBlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        return new HdfsBlobContainer(path, this, buildHdfsPath(path), bufferSize);
+        return new HdfsBlobContainer(path, this, buildHdfsPath(path), bufferSize, securityContext);
     }
 
     private Path buildHdfsPath(BlobPath blobPath) {

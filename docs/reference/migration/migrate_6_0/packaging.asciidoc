@@ -76,3 +76,17 @@ environment used to start Elasticsearch (and various supporting scripts). This
 legacy feature could be useful when there were several environment variables
 useful for configuring JVM options; this functionality had previously been
 replaced by <<jvm-options>>. Therefore, `ES_INCLUDE` has been removed.
+
+==== Heap dump path default
+
+Previous versions of Elasticsearch did not configure the JVM heap dump
+path. As such, the JVM would default to the working directory for the
+JVM. For the RPM and Debian package distributions this was a problem
+because the default would be `/usr/share/elasticsearch`, a path not
+writable by the `elasticsearch` user meaning that out of the box heap
+dumps would not be produced. It is a tragedy to not have this diagnostic
+information by default. Starting in Elasticsearch 6.0.0, the RPM and
+Debian packages <<heap-dump-path,configure the heap dump path>> to be
+`/var/lib/elasticsearch`. If this location is not suitable for receiving
+heap dumps (e.g., due to disk space concerns), you should adjust this
+path to a more suitable location.

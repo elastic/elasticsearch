@@ -38,7 +38,7 @@ public class YamlSettingsLoaderTests extends ESTestCase {
     public void testSimpleYamlSettings() throws Exception {
         final String yaml = "/org/elasticsearch/common/settings/loader/test-settings.yml";
         final Settings settings = Settings.builder()
-                .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
+                .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
                 .build();
 
         assertThat(settings.get("test1.value1"), equalTo("value1"));
@@ -56,7 +56,7 @@ public class YamlSettingsLoaderTests extends ESTestCase {
     public void testIndentation() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-settings.yml";
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
-            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml));
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
@@ -64,7 +64,7 @@ public class YamlSettingsLoaderTests extends ESTestCase {
     public void testIndentationWithExplicitDocumentStart() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
-            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml));
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }

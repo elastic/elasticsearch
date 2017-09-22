@@ -535,7 +535,7 @@ public class SettingsTests extends ESTestCase {
     public void testSimpleJsonSettings() throws Exception {
         final String json = "/org/elasticsearch/common/settings/loader/test-settings.json";
         final Settings settings = Settings.builder()
-            .loadFromStream(json, getClass().getResourceAsStream(json))
+            .loadFromStream(json, getClass().getResourceAsStream(json), false)
             .build();
 
         assertThat(settings.get("test1.value1"), equalTo("value1"));

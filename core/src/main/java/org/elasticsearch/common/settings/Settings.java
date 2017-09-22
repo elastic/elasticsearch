@@ -65,7 +65,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
-import java.util.StringTokenizer;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -1112,7 +1111,7 @@ public final class Settings implements ToXContentFragment {
          */
         public Builder loadFromSource(String source, XContentType xContentType) {
             try (XContentParser parser =  XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY, source)) {
-                fromXContent(parser, this, false, true);
+                fromXContent(parser, this, true, true);
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + source + "]", e);
             }
@@ -1121,16 +1120,17 @@ public final class Settings implements ToXContentFragment {
 
         /**
          * Loads settings from a url that represents them using {@link #fromXContent(XContentParser, Builder)}
+         * Note: Loading from a path doesn't allow <code>null</code> values in the incoming xcontent
          */
         public Builder loadFromPath(Path path) throws IOException {
             // NOTE: loadFromStream will close the input stream
-            return loadFromStream(path.getFileName().toString(), Files.newInputStream(path));
+            return loadFromStream(path.getFileName().toString(), Files.newInputStream(path), false);
         }
 
         /**
          * Loads settings from a stream that represents them using {@link #fromXContent(XContentParser, Builder)}
          */
-        public Builder loadFromStream(String resourceName, InputStream is) throws IOException {
+        public Builder loadFromStream(String resourceName, InputStream is, boolean acceptNullValues) throws IOException {
             final XContentType xContentType;
             if (resourceName.endsWith(".json")) {
                 xContentType = XContentType.JSON;
@@ -1140,7 +1140,7 @@ public final class Settings implements ToXContentFragment {
                 throw new IllegalArgumentException("unable to detect content type from resource name [" + resourceName + "]");
             }
             try (XContentParser parser =  XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY, is)) {
-                fromXContent(parser, this, false, true);
+                fromXContent(parser, this, acceptNullValues, true);
             } catch (ElasticsearchParseException e) {
                 throw e;
             } catch (Exception e) {

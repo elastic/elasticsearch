@@ -85,6 +85,9 @@ change between releases.
 Grants the minimum privileges required for any user of {kib}. This role grants
 access to the {kib} indices and grants  monitoring privileges for the cluster.
 
+[[built-in-roles-logstash-admin]] `logstash_admin` ::
+Grants access to the `.logstash*` indices for managing configurations. 
+
 [[built-in-roles-logstash-system]] `logstash_system` ::
 Grants access necessary for the Logstash system user to send system-level data
 (such as monitoring) to {es}. For more information, see

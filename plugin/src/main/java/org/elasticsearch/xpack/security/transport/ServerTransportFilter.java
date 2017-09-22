@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.user.XPackUser;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLPeerUnverifiedException;
@@ -139,6 +140,11 @@ public interface ServerTransportFilter {
                                     });
                             asyncAuthorizer.authorize(authzService);
                         }, version);
+                    } else if (authentication.getVersion().before(Version.V_5_6_1) &&
+                            XPackUser.NAME.equals(authentication.getUser().authenticatedUser().principal())) {
+                        // need to allow old version xpack user since we can get internal operations from a older node
+                        // that doesn't know about the xpack security user
+                        executeAsOldVersionXPackUser(securityAction, request, transportChannel, listener);
                     } else {
                         final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
                                 new AuthorizationUtils.AsyncAuthorizer(authentication, listener, (userRoles, runAsRoles) -> {
@@ -155,18 +161,29 @@ public interface ServerTransportFilter {
             // the authentication came from an older node - so let's replace the user with our version
             final User kibanaUser = new KibanaUser(authentication.getUser().enabled());
             if (kibanaUser.enabled()) {
-                securityContext.executeAsUser(kibanaUser, (original) -> {
-                    final Authentication replacedUserAuth = securityContext.getAuthentication();
-                    final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
+                executeAsUser(kibanaUser, securityAction, request, transportChannel, listener);
+            } else {
+                throw new IllegalStateException("a disabled user should never be sent. " + kibanaUser);
+            }
+        }
+
+        private void executeAsOldVersionXPackUser(String securityAction, TransportRequest request, TransportChannel transportChannel,
+                                                  ActionListener<Void> listener) {
+            final User xpackUser = new User(XPackUser.NAME, "superuser");
+            executeAsUser(xpackUser, securityAction, request, transportChannel, listener);
+        }
+
+        private void executeAsUser(User user, String securityAction, TransportRequest request, TransportChannel transportChannel,
+                                   ActionListener<Void> listener) {
+            securityContext.executeAsUser(user, (original) -> {
+                final Authentication replacedUserAuth = securityContext.getAuthentication();
+                final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
                         new AuthorizationUtils.AsyncAuthorizer(replacedUserAuth, listener, (userRoles, runAsRoles) -> {
                             authzService.authorize(replacedUserAuth, securityAction, request, userRoles, runAsRoles);
                             listener.onResponse(null);
                         });
-                    asyncAuthorizer.authorize(authzService);
-                }, transportChannel.getVersion());
-            } else {
-                throw new IllegalStateException("a disabled user should never be sent. " + kibanaUser);
-            }
+                asyncAuthorizer.authorize(authzService);
+            }, transportChannel.getVersion());
         }
     }
 

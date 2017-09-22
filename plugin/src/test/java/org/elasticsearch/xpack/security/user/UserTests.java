@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class UserTests extends ESTestCase {
@@ -152,5 +151,22 @@ public class UserTests extends ESTestCase {
         readFrom = User.readFrom(output.bytes().streamInput());
 
         assertEquals(kibanaUser, readFrom);
+    }
+
+    public void testWriteToWithXPackSecurityUser() throws Exception {
+        BytesStreamOutput output = new BytesStreamOutput();
+        Version version = randomFrom(Version.V_5_0_0, Version.V_5_5_0, Version.V_5_3_1, Version.V_5_6_0);
+        output.setVersion(version);
+        User.writeTo(XPackSecurityUser.INSTANCE, output);
+
+        // pre 5.6 needs to use regular user serialization, not the internal user one
+        User readFrom = User.readFrom(output.bytes().streamInput());
+        assertThat(readFrom, not(sameInstance(XPackSecurityUser.INSTANCE)));
+
+        output = new BytesStreamOutput();
+        output.setVersion(Version.V_5_6_1);
+        User.writeTo(XPackSecurityUser.INSTANCE, output);
+        readFrom = User.readFrom(output.bytes().streamInput());
+        assertThat(readFrom, sameInstance(XPackSecurityUser.INSTANCE));
     }
 }

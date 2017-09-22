@@ -261,6 +261,46 @@ public class ServerTransportFilterTests extends ESTestCase {
         assertThat(rolesRef.get(), arrayContaining("kibana_system"));
     }
 
+    public void testHandlesXPackUserCompatibility() throws Exception {
+        TransportRequest request = mock(TransportRequest.class);
+        User user = new User("_xpack");
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getVersion())
+                .thenReturn(Version.fromId(randomIntBetween(Version.V_5_0_0_ID, Version.V_5_6_0_ID)));
+        when(authentication.getUser()).thenReturn(user);
+        doAnswer((i) -> {
+            ActionListener callback =
+                    (ActionListener) i.getArguments()[3];
+            callback.onResponse(authentication);
+            return Void.TYPE;
+        }).when(authcService).authenticate(eq("_action"), eq(request), eq(null), any(ActionListener.class));
+        AtomicReference<String[]> rolesRef = new AtomicReference<>();
+        final Role empty = Role.EMPTY;
+        doAnswer((i) -> {
+            ActionListener callback =
+                    (ActionListener) i.getArguments()[1];
+            rolesRef.set(((User) i.getArguments()[0]).roles());
+            callback.onResponse(empty);
+            return Void.TYPE;
+        }).when(authzService).roles(any(User.class), any(ActionListener.class));
+        ServerTransportFilter filter = getClientOrNodeFilter();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        filter.inbound("_action", request, channel, future);
+        assertNotNull(rolesRef.get());
+        assertThat(rolesRef.get(), arrayContaining("superuser"));
+
+        // test with a version that doesn't need changing
+        filter = getClientOrNodeFilter();
+        rolesRef.set(null);
+        user = XPackUser.INSTANCE;
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getVersion()).thenReturn(Version.V_5_6_1);
+        future = new PlainActionFuture<>();
+        filter.inbound("_action", request, channel, future);
+        assertNotNull(rolesRef.get());
+        assertThat(rolesRef.get(), arrayContaining(XPackUser.ROLE_NAME));
+    }
+
     private ServerTransportFilter getClientOrNodeFilter() throws IOException {
         return randomBoolean() ? getNodeFilter(true) : getClientFilter(true);
     }

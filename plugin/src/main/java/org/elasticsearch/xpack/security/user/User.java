@@ -216,7 +216,7 @@ public class User implements ToXContentObject {
         } else if (XPackUser.is(user)) {
             output.writeBoolean(true);
             output.writeString(XPackUser.NAME);
-        } else if (XPackSecurityUser.is(user)) {
+        } else if (XPackSecurityUser.is(user) && output.getVersion().onOrAfter(Version.V_5_6_1)) {
             output.writeBoolean(true);
             output.writeString(XPackSecurityUser.NAME);
         } else {

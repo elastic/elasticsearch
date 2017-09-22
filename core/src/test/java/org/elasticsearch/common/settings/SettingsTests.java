@@ -564,4 +564,27 @@ public class SettingsTests extends ESTestCase {
                 "previous value [bar], " +
                 "current value [baz]"));
     }
+
+    public void testToXContent() throws IOException {
+        // this is just terrible but it's the existing behavior!
+        Settings test = Settings.builder().putArray("foo.bar", "1", "2", "3").put("foo.bar.baz", "test").build();
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
+        builder.endObject();
+        assertEquals("{\"foo\":{\"bar\":{\"0\":\"1\",\"1\":\"2\",\"2\":\"3\",\"baz\":\"test\"}}}", builder.string());
+
+        test = Settings.builder().putArray("foo.bar", "1", "2", "3").build();
+        builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
+        builder.endObject();
+        assertEquals("{\"foo\":{\"bar\":[\"1\",\"2\",\"3\"]}}", builder.string());
+
+        builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+        builder.endObject();
+        assertEquals("{\"foo.bar.0\":\"1\",\"foo.bar.1\":\"2\",\"foo.bar.2\":\"3\"}", builder.string());
+    }
 }

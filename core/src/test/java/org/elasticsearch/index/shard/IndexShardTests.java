@@ -730,12 +730,12 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexMetaData.Builder indexMetadata = IndexMetaData.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
         final AtomicBoolean synced = new AtomicBoolean();
         final IndexShard primaryShard = newShard(shardRouting, indexMetadata.build(), null, null, () -> { synced.set(true); });
-        // add a replicas
+        // add a replica
         recoverShardFromStore(primaryShard);
         final IndexShard replicaShard = newShard(shardId, false);
         recoverReplica(replicaShard, primaryShard);
         final int maxSeqNo = randomIntBetween(0, 128);
-        for (int i = 0; i < maxSeqNo; i++) {
+        for (int i = 0; i <= maxSeqNo; i++) {
             primaryShard.getEngine().seqNoService().generateSeqNo();
         }
         final long checkpoint = rarely() ? maxSeqNo - scaledRandomIntBetween(0, maxSeqNo) : maxSeqNo;
@@ -746,11 +746,10 @@ public class IndexShardTests extends IndexShardTestCase {
         final String replicaAllocationId = replicaShard.routingEntry().allocationId().getId();
         primaryShard.updateLocalCheckpointForShard(replicaAllocationId, replicaLocalCheckpoint);
 
-        // initialize the local knowledge on the primary of the global checkpoint on the replica shards
-        final int replicaGlobalCheckpoint = Math.toIntExact(primaryShard.getGlobalCheckpoint());
-        primaryShard.updateGlobalCheckpointForShard(
-                replicaAllocationId,
-                randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), replicaGlobalCheckpoint));
+        // initialize the local knowledge on the primary of the global checkpoint on the replica shard
+        final int replicaGlobalCheckpoint =
+                randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Math.toIntExact(primaryShard.getGlobalCheckpoint()));
+        primaryShard.updateGlobalCheckpointForShard(replicaAllocationId, replicaGlobalCheckpoint);
 
         // simulate a background maybe sync; it should only run if the knowledge on the replica of the global checkpoint lags the primary
         primaryShard.maybeSyncGlobalCheckpoint("test");

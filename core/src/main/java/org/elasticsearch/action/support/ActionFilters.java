@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.common.inject.Inject;
-
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Set;
@@ -32,7 +30,6 @@ public class ActionFilters {
 
     private final ActionFilter[] filters;
 
-    @Inject
     public ActionFilters(Set<ActionFilter> actionFilters) {
         this.filters = actionFilters.toArray(new ActionFilter[actionFilters.size()]);
         Arrays.sort(filters, new Comparator<ActionFilter>() {

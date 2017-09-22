@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.open;
 
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
 
 /**
@@ -25,7 +26,18 @@ import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
  */
 public class OpenIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<OpenIndexClusterStateUpdateRequest> {
 
+    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+
     OpenIndexClusterStateUpdateRequest() {
 
+    }
+
+    public ActiveShardCount waitForActiveShards() {
+        return waitForActiveShards;
+    }
+
+    public OpenIndexClusterStateUpdateRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
+        this.waitForActiveShards = waitForActiveShards;
+        return this;
     }
 }

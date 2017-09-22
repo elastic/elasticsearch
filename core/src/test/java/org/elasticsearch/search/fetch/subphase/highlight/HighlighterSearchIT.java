@@ -19,6 +19,7 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -39,7 +40,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
-import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -79,7 +79,6 @@ import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -1474,7 +1473,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
-                .setQuery(QueryBuilders.matchQuery("tags", "long tag").type(MatchQuery.Type.PHRASE))
+                .setQuery(QueryBuilders.matchPhraseQuery("tags", "long tag"))
                 .highlighter(
                         new HighlightBuilder().field(new HighlightBuilder.Field("tags")
                             .highlighterType("plain").fragmentSize(-1).numOfFragments(2).fragmenter("simple")))
@@ -1485,7 +1484,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 equalTo("here is another one that is very <em>long</em> <em>tag</em> and has the tag token near the end"));
 
         response = client().prepareSearch("test")
-                .setQuery(QueryBuilders.matchQuery("tags", "long tag").type(MatchQuery.Type.PHRASE))
+                .setQuery(QueryBuilders.matchPhraseQuery("tags", "long tag"))
                 .highlighter(
                         new HighlightBuilder().field(new Field("tags").highlighterType("plain").fragmentSize(-1).numOfFragments(2)
                                 .fragmenter("span"))).get();
@@ -1496,7 +1495,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 equalTo("here is another one that is very <em>long</em> <em>tag</em> and has the tag token near the end"));
 
         assertFailures(client().prepareSearch("test")
-                        .setQuery(QueryBuilders.matchQuery("tags", "long tag").type(MatchQuery.Type.PHRASE))
+                        .setQuery(QueryBuilders.matchPhraseQuery("tags", "long tag"))
                         .highlighter(
                                 new HighlightBuilder().field(new Field("tags").highlighterType("plain").fragmentSize(-1).numOfFragments(2)
                                         .fragmenter("invalid"))),
@@ -1554,7 +1553,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         // This query used to fail when the field to highlight was absent
         SearchResponse response = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchQuery("field", "highlight").type(MatchQuery.Type.BOOLEAN))
+            .setQuery(QueryBuilders.matchQuery("field", "highlight"))
             .highlighter(
                 new HighlightBuilder().field(new HighlightBuilder.Field("highlight_field").fragmentSize(-1).numOfFragments(1)
                     .fragmenter("simple"))).get();
@@ -1579,7 +1578,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
-                .setQuery(QueryBuilders.matchQuery("text", "test").type(MatchQuery.Type.BOOLEAN))
+                .setQuery(QueryBuilders.matchQuery("text", "test"))
                 .highlighter(
                         new HighlightBuilder().field("text").field("byte").field("short").field("int").field("long").field("float")
                                 .field("double"))
@@ -1604,7 +1603,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchQuery("text", "test").type(MatchQuery.Type.BOOLEAN))
+            .setQuery(QueryBuilders.matchQuery("text", "test"))
             .highlighter(new HighlightBuilder().field("text")).execute().actionGet();
         // PatternAnalyzer will throw an exception if it is resetted twice
         assertHitCount(response, 1L);

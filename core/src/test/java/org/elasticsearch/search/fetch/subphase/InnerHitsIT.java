@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
@@ -386,6 +387,9 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testInnerHitsWithObjectFieldThatHasANestedField() throws Exception {
         assertAcked(prepareCreate("articles")
+                        // number_of_shards = 1, because then we catch the expected exception in the same way.
+                        // (See expectThrows(...) below)
+                        .setSettings(Settings.builder().put("index.number_of_shards", 1))
                         .addMapping("article", jsonBuilder().startObject()
                                         .startObject("properties")
                                             .startObject("comments")
@@ -418,18 +422,18 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .endObject()));
         indexRandom(true, requests);
 
-        SearchResponse response = client().prepareSearch("articles").setQuery(nestedQuery("comments.messages",
-            matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(new InnerHitBuilder())).get();
+        Exception e = expectThrows(Exception.class, () -> client().prepareSearch("articles").setQuery(nestedQuery("comments.messages",
+            matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(new InnerHitBuilder())).get());
         assertEquals("Cannot execute inner hits. One or more parent object fields of nested field [comments.messages] are " +
-            "not nested. All parent fields need to be nested fields too", response.getShardFailures()[0].getCause().getMessage());
+            "not nested. All parent fields need to be nested fields too", e.getCause().getCause().getMessage());
 
-        response = client().prepareSearch("articles").setQuery(nestedQuery("comments.messages",
+        e = expectThrows(Exception.class, () -> client().prepareSearch("articles").setQuery(nestedQuery("comments.messages",
             matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(new InnerHitBuilder()
-            .setFetchSourceContext(new FetchSourceContext(true)))).get();
+            .setFetchSourceContext(new FetchSourceContext(true)))).get());
         assertEquals("Cannot execute inner hits. One or more parent object fields of nested field [comments.messages] are " +
-            "not nested. All parent fields need to be nested fields too", response.getShardFailures()[0].getCause().getMessage());
+            "not nested. All parent fields need to be nested fields too", e.getCause().getCause().getMessage());
 
-        response = client().prepareSearch("articles")
+        SearchResponse response = client().prepareSearch("articles")
                 .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg)
                         .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false)))).get();
         assertNoFailures(response);

@@ -209,13 +209,20 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         }
     }
 
-    synchronized ObjectLongMap<String> getGlobalCheckpoints() {
+    /**
+     * Get the local knowledge of the global checkpoints for all in-sync allocation IDs.
+     *
+     * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
+     */
+    synchronized ObjectLongMap<String> getInSyncGlobalCheckpoints() {
         assert primaryMode;
         assert handoffInProgress == false;
-        final ObjectLongMap<String> globalCheckpoints = new ObjectLongHashMap<>(checkpoints.size());
-        for (final Map.Entry<String, CheckpointState> cps : checkpoints.entrySet()) {
-            globalCheckpoints.put(cps.getKey(), cps.getValue().globalCheckpoint);
-        }
+        final ObjectLongMap<String> globalCheckpoints = new ObjectLongHashMap<>(checkpoints.size()); // upper bound on the size
+        checkpoints
+                .entrySet()
+                .stream()
+                .filter(e -> e.getValue().inSync)
+                .forEach(e -> globalCheckpoints.put(e.getKey(), e.getValue().globalCheckpoint));
         return globalCheckpoints;
     }
 
@@ -277,13 +284,6 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
                 : "global checkpoint [" + getGlobalCheckpoint() + "] "
                 + "for primary mode allocation ID [" + shardAllocationId + "] "
                 + "more than in-sync local checkpoints [" + checkpoints + "]";
-
-        // when in primary mode, the local knowledge of the global checkpoints on shard copies is bounded by the global checkpoint
-        assert !primaryMode
-                || getGlobalCheckpoint() >= inSyncCheckpointStates(checkpoints, CheckpointState::getGlobalCheckpoint, LongStream::max)
-                : "global checkpoint [" + getGlobalCheckpoint() + "] "
-                + "for primary mode allocation ID [" + shardAllocationId + "] "
-                + "less than in-sync global checkpoints [" + checkpoints + "]";
 
         // we have a routing table iff we have a replication group
         assert (routingTable == null) == (replicationGroup == null) :

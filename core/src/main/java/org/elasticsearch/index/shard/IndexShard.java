@@ -156,6 +156,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 
@@ -197,6 +198,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     protected final EngineFactory engineFactory;
 
     private final IndexingOperationListener indexingOperationListeners;
+    private final Runnable globalCheckpointSyncer;
+
+    Runnable getGlobalCheckpointSyncer() {
+        return globalCheckpointSyncer;
+    }
 
     @Nullable
     private RecoveryState recoveryState;
@@ -233,11 +239,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private final RefreshListeners refreshListeners;
 
-    public IndexShard(ShardRouting shardRouting, IndexSettings indexSettings, ShardPath path, Store store,
-                      Supplier<Sort> indexSortSupplier, IndexCache indexCache, MapperService mapperService, SimilarityService similarityService,
-                      @Nullable EngineFactory engineFactory,
-                      IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, ThreadPool threadPool, BigArrays bigArrays,
-                      Engine.Warmer warmer, List<SearchOperationListener> searchOperationListener, List<IndexingOperationListener> listeners) throws IOException {
+    public IndexShard(
+            ShardRouting shardRouting,
+            IndexSettings indexSettings,
+            ShardPath path,
+            Store store,
+            Supplier<Sort> indexSortSupplier,
+            IndexCache indexCache,
+            MapperService mapperService,
+            SimilarityService similarityService,
+            @Nullable EngineFactory engineFactory,
+            IndexEventListener indexEventListener,
+            IndexSearcherWrapper indexSearcherWrapper,
+            ThreadPool threadPool,
+            BigArrays bigArrays,
+            Engine.Warmer warmer,
+            List<SearchOperationListener> searchOperationListener,
+            List<IndexingOperationListener> listeners,
+            Runnable globalCheckpointSyncer) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -257,6 +276,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<IndexingOperationListener> listenersList = new ArrayList<>(listeners);
         listenersList.add(internalIndexingStats);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
+        this.globalCheckpointSyncer = globalCheckpointSyncer;
         final List<SearchOperationListener> searchListenersList = new ArrayList<>(searchOperationListener);
         searchListenersList.add(searchStats);
         this.searchOperationListener = new SearchOperationListener.CompositeListener(searchListenersList, logger);
@@ -1723,11 +1743,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void markAllocationIdAsInSync(final String allocationId, final long localCheckpoint) throws InterruptedException {
         verifyPrimary();
         getEngine().seqNoService().markAllocationIdAsInSync(allocationId, localCheckpoint);
-        /*
-         * We could have blocked so long waiting for the replica to catch up that we fell idle and there will not be a background sync to
-         * the replica; mark our self as active to force a future background sync.
-         */
-        active.compareAndSet(false, true);
     }
 
     /**
@@ -1748,10 +1763,44 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().seqNoService().getGlobalCheckpoint();
     }
 
-    public ObjectLongMap<String> getGlobalCheckpoints() {
+    /**
+     * Get the local knowledge of the global checkpoints for all in-sync allocation IDs.
+     *
+     * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
+     */
+    public ObjectLongMap<String> getInSyncGlobalCheckpoints() {
         verifyPrimary();
         verifyNotClosed();
-        return getEngine().seqNoService().getGlobalCheckpoints();
+        return getEngine().seqNoService().getInSyncGlobalCheckpoints();
+    }
+
+    /**
+     * Syncs the global checkpoint to the replicas if the global checkpoint on at least one replica is behind the global checkpoint on the
+     * primary.
+     */
+    public void maybeSyncGlobalCheckpoint(final String reason) {
+        verifyPrimary();
+        verifyNotClosed();
+        if (state == IndexShardState.RELOCATED) {
+            return;
+        }
+        // only sync if there are not operations in flight
+        final SeqNoStats stats = getEngine().seqNoService().stats();
+        if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint()) {
+            final ObjectLongMap<String> globalCheckpoints = getInSyncGlobalCheckpoints();
+            final String allocationId = routingEntry().allocationId().getId();
+            assert globalCheckpoints.containsKey(allocationId);
+            final long globalCheckpoint = globalCheckpoints.get(allocationId);
+            final boolean syncNeeded =
+                    StreamSupport
+                            .stream(globalCheckpoints.values().spliterator(), false)
+                            .anyMatch(v -> v.value < globalCheckpoint);
+            // only sync if there is a shard lagging the primary
+            if (syncNeeded) {
+                logger.trace("syncing global checkpoint for [{}]", reason);
+                globalCheckpointSyncer.run();
+            }
+        }
     }
 
     /**
@@ -2099,10 +2148,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode) {
         Sort indexSort = indexSortSupplier.get();
+        final boolean forceNewHistoryUUID;
+        switch (shardRouting.recoverySource().getType()) {
+            case EXISTING_STORE:
+            case PEER:
+                forceNewHistoryUUID = false;
+                break;
+            case EMPTY_STORE:
+            case SNAPSHOT:
+            case LOCAL_SHARDS:
+                forceNewHistoryUUID = true;
+                break;
+            default:
+                throw new AssertionError("unknown recovery type: [" + shardRouting.recoverySource().getType() + "]");
+        }
         return new EngineConfig(openMode, shardId, shardRouting.allocationId().getId(),
             threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,
-            indexCache.query(), cachingPolicy, translogConfig,
+            indexCache.query(), cachingPolicy, forceNewHistoryUUID, translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Arrays.asList(refreshListeners, new RefreshMetricUpdater(refreshMetric)), indexSort,
             this::runTranslogRecovery);

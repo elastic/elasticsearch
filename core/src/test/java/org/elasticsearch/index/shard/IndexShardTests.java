@@ -136,6 +136,7 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static java.util.Collections.max;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
@@ -709,6 +710,66 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         closeShards(indexShard);
+    }
+
+    public void testGlobalCheckpointSync() throws IOException {
+        // create the primary shard with a callback that sets a boolean when the global checkpoint sync is invoked
+        final ShardId shardId = new ShardId("index", "_na_", 0);
+        final ShardRouting shardRouting =
+                TestShardRouting.newShardRouting(
+                        shardId,
+                        randomAlphaOfLength(8),
+                        true,
+                        ShardRoutingState.INITIALIZING,
+                        RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE);
+        final Settings settings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .build();
+        final IndexMetaData.Builder indexMetadata = IndexMetaData.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
+        final AtomicBoolean synced = new AtomicBoolean();
+        final IndexShard primaryShard = newShard(shardRouting, indexMetadata.build(), null, null, () -> { synced.set(true); });
+        // add a replicas
+        recoverShardFromStore(primaryShard);
+        final IndexShard replicaShard = newShard(shardId, false);
+        recoverReplica(replicaShard, primaryShard);
+        final int maxSeqNo = randomIntBetween(0, 128);
+        for (int i = 0; i < maxSeqNo; i++) {
+            primaryShard.getEngine().seqNoService().generateSeqNo();
+        }
+        final long checkpoint = rarely() ? maxSeqNo - scaledRandomIntBetween(0, maxSeqNo) : maxSeqNo;
+
+        // set up local checkpoints on the shard copies
+        primaryShard.updateLocalCheckpointForShard(shardRouting.allocationId().getId(), checkpoint);
+        final int replicaLocalCheckpoint = randomIntBetween(0, Math.toIntExact(checkpoint));
+        final String replicaAllocationId = replicaShard.routingEntry().allocationId().getId();
+        primaryShard.updateLocalCheckpointForShard(replicaAllocationId, replicaLocalCheckpoint);
+
+        // initialize the local knowledge on the primary of the global checkpoint on the replica shards
+        final int replicaGlobalCheckpoint = Math.toIntExact(primaryShard.getGlobalCheckpoint());
+        primaryShard.updateGlobalCheckpointForShard(
+                replicaAllocationId,
+                randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), replicaGlobalCheckpoint));
+
+        // simulate a background maybe sync; it should only run if the knowledge on the replica of the global checkpoint lags the primary
+        primaryShard.maybeSyncGlobalCheckpoint("test");
+        assertThat(
+                synced.get(),
+                equalTo(maxSeqNo == primaryShard.getGlobalCheckpoint() && (replicaGlobalCheckpoint < checkpoint)));
+
+        // simulate that the background sync advanced the global checkpoint on the replica
+        primaryShard.updateGlobalCheckpointForShard(replicaAllocationId, primaryShard.getGlobalCheckpoint());
+
+        // reset our boolean so that we can assert after another simulated maybe sync
+        synced.set(false);
+
+        primaryShard.maybeSyncGlobalCheckpoint("test");
+
+        // this time there should not be a sync since all the replica copies are caught up with the primary
+        assertFalse(synced.get());
+
+        closeShards(replicaShard, primaryShard);
     }
 
     public void testRestoreLocalCheckpointTrackerFromTranslogOnPromotion() throws IOException, InterruptedException {
@@ -1678,7 +1739,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
         IndexShard newShard = newShard(
             ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null);
+            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null, () -> {});
 
         recoverShardFromStore(newShard);
 
@@ -1824,7 +1885,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
         IndexShard newShard = newShard(
             ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null);
+            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null, () -> {});
 
         recoverShardFromStore(newShard);
 

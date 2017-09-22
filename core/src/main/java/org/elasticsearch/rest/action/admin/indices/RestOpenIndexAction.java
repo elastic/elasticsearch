@@ -52,7 +52,10 @@ public class RestOpenIndexAction extends BaseRestHandler {
         openIndexRequest.timeout(request.paramAsTime("timeout", openIndexRequest.timeout()));
         openIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", openIndexRequest.masterNodeTimeout()));
         openIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, openIndexRequest.indicesOptions()));
-        openIndexRequest.waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
+        String waitForActiveShards = request.param("wait_for_active_shards");
+        if (waitForActiveShards != null) {
+            openIndexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
+        }
         return channel -> client.admin().indices().open(openIndexRequest, new AcknowledgedRestListener<OpenIndexResponse>(channel) {
             @Override
             protected void addCustomFields(XContentBuilder builder, OpenIndexResponse response) throws IOException {

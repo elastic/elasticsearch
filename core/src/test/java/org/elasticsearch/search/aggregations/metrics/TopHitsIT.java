@@ -703,7 +703,6 @@ public class TopHitsIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26738")
     public void testTopHitsInNestedSimple() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("articles")
                 .setQuery(matchQuery("title", "title"))

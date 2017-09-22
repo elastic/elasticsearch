@@ -807,9 +807,9 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     void shrinkIndex(ShrinkRequest request, ActionListener<ShrinkResponse> listener);
 
     /**
-     * Swaps the index pointed to by an alias given all provided conditions are satisfied
+     * Swaps the indexes  pointed to by an aliases given all provided conditions are satisfied
      */
-    RolloverRequestBuilder prepareRolloverIndex(String sourceAlias);
+    RolloverRequestBuilder prepareRolloverIndex(String... sourceAliases);
 
     /**
      * Swaps the index pointed to by an alias given all provided conditions are satisfied

@@ -1,0 +1,44 @@
+---
+"Rollover multiple aliases":
+  - skip:
+        version: "- 6.9.9"
+        reason:  "previous versions supports only single alias rollover"
+
+  # create 2 indexes and aliases
+  - do:
+      indices.create:
+        index: logs-1
+        wait_for_active_shards: 1
+        body:
+          aliases:
+            logs_search1: {}
+
+  - do:
+      indices.create:
+        index: logs-2
+        wait_for_active_shards: 1
+        body:
+          aliases:
+            logs_search2: {}
+
+  # index document only for first index
+  - do:
+      index:
+        index: logs_search1
+        type:  test
+        id:    "1"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  # perform rollover with wildcard
+  - do:
+      indices.rollover:
+        alias: "log*"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
+
+  - match: { rolled_over_aliases.logs_search1.rolled_over: true }
+  - match: { rolled_over_aliases.logs_search2.rolled_over: false }
+  - length: { failed_aliases: 0 }

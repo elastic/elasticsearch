@@ -48,9 +48,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
+import java.util.Locale;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -101,74 +105,84 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     @Override
     protected void masterOperation(final RolloverRequest rolloverRequest, final ClusterState state,
-                                   final ActionListener<RolloverResponse> listener) {
-        final MetaData metaData = state.metaData();
-        validate(metaData, rolloverRequest);
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
-        final IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);
-        final String sourceProvidedName = indexMetaData.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
-            indexMetaData.getIndex().getName());
-        final String sourceIndexName = indexMetaData.getIndex().getName();
-        final String unresolvedName = (rolloverRequest.getNewIndexName() != null)
-            ? rolloverRequest.getNewIndexName()
-            : generateRolloverIndexName(sourceProvidedName, indexNameExpressionResolver);
-        final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
-        MetaDataCreateIndexService.validateIndexName(rolloverIndexName, state); // will fail if the index already exists
-        client.admin().indices().prepareStats(sourceIndexName).clear().setDocs(true).execute(
-            new ActionListener<IndicesStatsResponse>() {
-                @Override
-                public void onResponse(IndicesStatsResponse statsResponse) {
-                    final Set<Condition.Result> conditionResults = evaluateConditions(rolloverRequest.getConditions(),
-                        metaData.index(sourceIndexName), statsResponse);
+                                   final ActionListener<RolloverResponse> mainListener) {
+        final Set<SingleAliasRolloverRequest> requests = createSingleAliasRequests(state, rolloverRequest);
 
-                    if (rolloverRequest.isDryRun()) {
-                        listener.onResponse(
-                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false, false, false));
-                        return;
+        if (requests.size() == 0) {
+            throw new IllegalArgumentException("No aliases for [" + String.join(",", rolloverRequest.getAliases()) + "] found");
+        }
+
+        if (requests.size() > 1 && rolloverRequest.getNewIndexName() != null) {
+            throw new IllegalArgumentException("new index name not supported when rolling over multiple aliases");
+        }
+
+        final ActionListener<RolloverResponse.SingleAliasRolloverResponse> aggListener = new AggRolloverResponseActionListener(
+            requests.size(), mainListener);
+        final MetaData metaData = state.getMetaData();
+
+        for (SingleAliasRolloverRequest req: requests) {
+            final EnrichErrorInfoListener listener = new EnrichErrorInfoListener(aggListener, req.alias);
+
+            client.admin().indices().prepareStats(req.sourceIndexName).clear().setDocs(true).execute(
+                new ActionListener<IndicesStatsResponse>() {
+                    @Override
+                    public void onResponse(IndicesStatsResponse statsResponse) {
+                        final Set<Condition.Result> conditionResults = evaluateConditions(rolloverRequest.getConditions(),
+                            metaData.index(req.sourceIndexName), statsResponse);
+
+                        if (rolloverRequest.isDryRun()) {
+                            listener.onResponse(
+                                new RolloverResponse.SingleAliasRolloverResponse(req.alias, req.sourceIndexName, req.rolloverIndexName,
+                                    conditionResults, true, false, false, false));
+                            return;
+                        }
+                        if (conditionResults.size() == 0 || conditionResults.stream().anyMatch(result -> result.matched)) {
+                            final CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(
+                                req.unresolvedName, req.rolloverIndexName, rolloverRequest);
+                            createIndexService.createIndex(updateRequest, ActionListener.wrap(createIndexClusterStateUpdateResponse -> {
+                                // switch the alias to point to the newly created index
+                                indexAliasesService.indicesAliases(
+                                    prepareRolloverAliasesUpdateRequest(req.sourceIndexName, req.rolloverIndexName, rolloverRequest,
+                                        req.alias),
+                                    ActionListener.wrap(aliasClusterStateUpdateResponse -> {
+                                        if (aliasClusterStateUpdateResponse.isAcknowledged()) {
+                                            activeShardsObserver.waitForActiveShards(req.rolloverIndexName,
+                                                rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
+                                                rolloverRequest.masterNodeTimeout(),
+                                                isShardsAcked -> listener.onResponse(new RolloverResponse.SingleAliasRolloverResponse(
+                                                    req.alias, req.sourceIndexName, req.rolloverIndexName, conditionResults,
+                                                    false, true, true, isShardsAcked)),
+                                                listener::onFailure);
+                                        } else {
+                                            listener.onResponse(new RolloverResponse.SingleAliasRolloverResponse(
+                                                req.alias, req.sourceIndexName, req.rolloverIndexName, conditionResults,
+                                                false, true, false, false));
+                                        }
+                                    }, listener::onFailure));
+                            }, listener::onFailure));
+                        } else {
+                            // conditions not met
+                            listener.onResponse(
+                                new RolloverResponse.SingleAliasRolloverResponse(req.alias, req.sourceIndexName, req.rolloverIndexName,
+                                    conditionResults, false, false, false, false)
+                            );
+                        }
                     }
-                    if (conditionResults.size() == 0 || conditionResults.stream().anyMatch(result -> result.matched)) {
-                        CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(unresolvedName, rolloverIndexName,
-                            rolloverRequest);
-                        createIndexService.createIndex(updateRequest, ActionListener.wrap(createIndexClusterStateUpdateResponse -> {
-                            // switch the alias to point to the newly created index
-                            indexAliasesService.indicesAliases(
-                                prepareRolloverAliasesUpdateRequest(sourceIndexName, rolloverIndexName,
-                                    rolloverRequest),
-                                ActionListener.wrap(aliasClusterStateUpdateResponse -> {
-                                    if (aliasClusterStateUpdateResponse.isAcknowledged()) {
-                                        activeShardsObserver.waitForActiveShards(rolloverIndexName,
-                                            rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
-                                            rolloverRequest.masterNodeTimeout(),
-                                            isShardsAcked -> listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName,
-                                                                                    conditionResults, false, true, true, isShardsAcked)),
-                                            listener::onFailure);
-                                    } else {
-                                        listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults,
-                                                                                    false, true, false, false));
-                                    }
-                                }, listener::onFailure));
-                        }, listener::onFailure));
-                    } else {
-                        // conditions not met
-                        listener.onResponse(
-                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, false, false, false, false)
-                        );
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
                     }
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            }
-        );
+            );
+        }
     }
 
     static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesUpdateRequest(String oldIndex, String newIndex,
-                                                                                       RolloverRequest request) {
+                                                                                       RolloverRequest request, String alias) {
         List<AliasAction> actions = unmodifiableList(Arrays.asList(
-                new AliasAction.Add(newIndex, request.getAlias(), null, null, null),
-                new AliasAction.Remove(oldIndex, request.getAlias())));
+                new AliasAction.Add(newIndex, alias, null, null, null),
+                new AliasAction.Remove(oldIndex, alias)));
         final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(actions)
             .ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout());
@@ -206,22 +220,21 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         return evaluateConditions(conditions, statsResponse.getPrimaries().getDocs(), metaData);
     }
 
-    static void validate(MetaData metaData, RolloverRequest request) {
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(request.getAlias());
+    static void validate(MetaData metaData, String alias) {
+        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(alias);
         if (aliasOrIndex == null) {
-            throw new IllegalArgumentException("source alias does not exist");
+            throw new IllegalArgumentException("source alias [" + alias + "] does not exist");
         }
         if (aliasOrIndex.isAlias() == false) {
-            throw new IllegalArgumentException("source alias is a concrete index");
+            throw new IllegalArgumentException("source alias [" + alias + "] is a concrete index");
         }
         if (aliasOrIndex.getIndices().size() != 1) {
-            throw new IllegalArgumentException("source alias maps to multiple indices");
+            throw new IllegalArgumentException("source alias [" + alias + "]  maps to multiple indices");
         }
     }
 
     static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(final String providedIndexName, final String targetIndexName,
                                                                           final RolloverRequest rolloverRequest) {
-
         final CreateIndexRequest createIndexRequest = rolloverRequest.getCreateIndexRequest();
         createIndexRequest.cause("rollover_index");
         createIndexRequest.index(targetIndexName);
@@ -235,4 +248,122 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             .mappings(createIndexRequest.mappings());
     }
 
+    private IndexMetaData getFirstIndexMetaData(MetaData metaData, String alias) {
+        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(alias);
+        return aliasOrIndex.getIndices().get(0);
+    }
+
+    private String getUnresolvedName(IndexMetaData indexMetaData, String newIndexName) {
+        final String sourceProvidedName = indexMetaData.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
+            indexMetaData.getIndex().getName());
+
+        return (newIndexName != null) ? newIndexName : generateRolloverIndexName(sourceProvidedName, indexNameExpressionResolver);
+    }
+
+    private Set<SingleAliasRolloverRequest> createSingleAliasRequests(final ClusterState state, final RolloverRequest rolloverRequest) {
+        final MetaData metaData = state.metaData();
+        return indexNameExpressionResolver
+            .resolveAliases(metaData, rolloverRequest.getAliases())
+            .stream()
+            .map(alias -> createTask(metaData, alias, rolloverRequest.getNewIndexName(), state))
+            .collect(Collectors.toSet());
+    }
+
+    private static class SingleAliasRolloverRequest {
+
+        final MetaData metaData;
+        final String sourceIndexName;
+        final String unresolvedName;
+        final String rolloverIndexName;
+        final String alias;
+
+        SingleAliasRolloverRequest(String alias, MetaData metadata, String sourceIndexName, String unresolvedName,
+                                   String rolloverIndexName) {
+            this.alias = alias;
+            this.metaData = metadata;
+            this.sourceIndexName = sourceIndexName;
+            this.unresolvedName = unresolvedName;
+            this.rolloverIndexName = rolloverIndexName;
+        }
+    }
+
+    private SingleAliasRolloverRequest createTask(MetaData metaData, String alias, String newIndexName, ClusterState state) {
+        validate(metaData, alias);
+        final IndexMetaData indexMetaData = getFirstIndexMetaData(metaData, alias);
+        final String sourceIndexName = indexMetaData.getIndex().getName();
+        final String unresolvedName = getUnresolvedName(indexMetaData, newIndexName);
+        final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
+        MetaDataCreateIndexService.validateIndexName(rolloverIndexName, state);
+        return new SingleAliasRolloverRequest(alias, metaData, sourceIndexName, unresolvedName, rolloverIndexName);
+    }
+
+    // package visible for testing
+    static class RolloverFailureException extends Exception {
+
+        RolloverFailureException(String alias, Exception cause) {
+            super(alias, cause);
+        }
+    }
+
+    private static class EnrichErrorInfoListener implements ActionListener<RolloverResponse.SingleAliasRolloverResponse> {
+
+        private final ActionListener<RolloverResponse.SingleAliasRolloverResponse> listener;
+        private final String alias;
+
+        EnrichErrorInfoListener(ActionListener<RolloverResponse.SingleAliasRolloverResponse> listener, String alias) {
+            this.listener = listener;
+            this.alias = alias;
+        }
+
+        @Override
+        public void onResponse(RolloverResponse.SingleAliasRolloverResponse rolloverResponse) {
+            listener.onResponse(rolloverResponse);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(new RolloverFailureException(alias, e));
+        }
+    }
+
+    // package visible for testing
+    static class AggRolloverResponseActionListener implements ActionListener<RolloverResponse.SingleAliasRolloverResponse> {
+
+        private final int size;
+        private final List<RolloverResponse.SingleAliasRolloverResponse> responses;
+        private final ActionListener<RolloverResponse> listener;
+        private final Map<String, Exception> failures;
+
+        AggRolloverResponseActionListener(int cnt, ActionListener<RolloverResponse> listener) {
+            this.listener = listener;
+            size = cnt;
+            responses = Collections.synchronizedList(new ArrayList<>());
+            failures = Collections.synchronizedMap(new HashMap<>());
+        }
+
+        @Override
+        public void onResponse(RolloverResponse.SingleAliasRolloverResponse rolloverResponse) {
+            responses.add(rolloverResponse);
+            notifyListenerIfAllAliasesProcessed();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            assert e instanceof RolloverFailureException;
+            if (size == 1) {
+                // keep single alias Rollover API
+                listener.onFailure((Exception)e.getCause());
+            } else {
+                failures.put(e.getMessage(), (Exception)e.getCause());
+            }
+
+            notifyListenerIfAllAliasesProcessed();
+        }
+
+        private void notifyListenerIfAllAliasesProcessed() {
+            if (responses.size() + failures.size() == size) {
+                listener.onResponse(new RolloverResponse(responses, failures));
+            }
+        }
+    }
 }

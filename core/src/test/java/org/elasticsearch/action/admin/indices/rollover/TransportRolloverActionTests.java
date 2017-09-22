@@ -117,7 +117,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         String targetIndex = randomAlphaOfLength(10);
         final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
         final IndicesAliasesClusterStateUpdateRequest updateRequest =
-            TransportRolloverAction.prepareRolloverAliasesUpdateRequest(sourceIndex, targetIndex, rolloverRequest);
+            TransportRolloverAction.prepareRolloverAliasesUpdateRequest(sourceIndex, targetIndex, rolloverRequest, sourceAlias);
 
         List<AliasAction> actions = updateRequest.actions();
         assertThat(actions, hasSize(2));
@@ -160,17 +160,10 @@ public class TransportRolloverActionTests extends ESTestCase {
                 .putAlias(AliasMetaData.builder(aliasWithMultipleIndices))
             ).build();
 
-        expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.validate(metaData, new RolloverRequest(aliasWithMultipleIndices,
-                randomAlphaOfLength(10))));
-        expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.validate(metaData, new RolloverRequest(randomFrom(index1, index2),
-                randomAlphaOfLength(10))));
-        expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.validate(metaData, new RolloverRequest(randomAlphaOfLength(5),
-                randomAlphaOfLength(10)))
-        );
-        TransportRolloverAction.validate(metaData, new RolloverRequest(alias, randomAlphaOfLength(10)));
+        expectThrows(IllegalArgumentException.class, () -> TransportRolloverAction.validate(metaData, randomAlphaOfLength(10)));
+        expectThrows(IllegalArgumentException.class, () -> TransportRolloverAction.validate(metaData, randomFrom(index1, index2)));
+        expectThrows(IllegalArgumentException.class, () -> TransportRolloverAction.validate(metaData, randomAlphaOfLength(5)));
+        TransportRolloverAction.validate(metaData, alias);
     }
 
     public void testGenerateRolloverIndexName() throws Exception {

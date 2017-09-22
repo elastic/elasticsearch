@@ -44,6 +44,13 @@
   - match: { rolled_over: true }
   - match: { dry_run: false }
   - match: { conditions: { "[max_docs: 1]": true } }
+  # multi-alias rollover part
+  - match: { rolled_over_aliases.logs_search.old_index: logs-1 }
+  - match: { rolled_over_aliases.logs_search.new_index: logs-000002 }
+  - match: { rolled_over_aliases.logs_search.rolled_over: true }
+  - match: { rolled_over_aliases.logs_search.dry_run: false }
+  - match: { rolled_over_aliases.logs_search.conditions: { "[max_docs: 1]": true } }
+  - length: { failed_aliases: 0 }
 
   # ensure new index is created
   - do:

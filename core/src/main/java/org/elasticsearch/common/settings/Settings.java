@@ -1045,12 +1045,21 @@ public final class Settings implements ToXContentFragment {
         }
 
         /**
-         * Sets all the provided settings.
+         * Sets all the provided settings including secure settings
          */
         public Builder put(Settings settings) {
+            return put(settings, true);
+        }
+
+        /**
+         * Sets all the provided settings.
+         * @param settings the settings to set
+         * @param copySecureSettings if <code>true</code> all settings including secure settings are copied.
+         */
+        public Builder put(Settings settings, boolean copySecureSettings) {
             removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings.getAsMap());
             map.putAll(settings.getAsMap());
-            if (settings.getSecureSettings() != null) {
+            if (copySecureSettings && settings.getSecureSettings() != null) {
                 setSecureSettings(settings.getSecureSettings());
             }
             return this;
@@ -1140,6 +1149,11 @@ public final class Settings implements ToXContentFragment {
                 throw new IllegalArgumentException("unable to detect content type from resource name [" + resourceName + "]");
             }
             try (XContentParser parser =  XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY, is)) {
+                if (parser.currentToken() == null) {
+                    if (parser.nextToken() == null) {
+                        return this; // empty file
+                    }
+                }
                 fromXContent(parser, this, acceptNullValues, true);
             } catch (ElasticsearchParseException e) {
                 throw e;

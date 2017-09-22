@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
@@ -511,14 +512,15 @@ public class SettingsTests extends ESTestCase {
     public void testToAndFromXContent() throws IOException {
         Settings settings = Settings.builder()
             .putArray("foo.bar.baz", "1", "2", "3")
-            .put("foo.bar", 2)
-            .put("foo", "test")
+            .put("foo.foobar", 2)
+            .put("rootfoo", "test")
             .put("foo.baz", "1,2,3,4")
             .putNull("foo.null.baz")
             .build();
+        final boolean flatSettings = randomBoolean();
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
-        settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", ""+randomBoolean())));
+        settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", ""+flatSettings)));
         builder.endObject();
         XContentParser parser = createParser(builder);
         Settings.Builder newBuilder = Settings.builder();
@@ -526,8 +528,8 @@ public class SettingsTests extends ESTestCase {
         Settings build = newBuilder.build();
         assertEquals(7, build.size()); // each list element is it's own key hence 7 and not 5
         assertArrayEquals(new String[] {"1", "2", "3"}, build.getAsArray("foo.bar.baz"));
-        assertEquals(2, build.getAsInt("foo.bar", 0).intValue());
-        assertEquals("test", build.get("foo"));
+        assertEquals(2, build.getAsInt("foo.foobar", 0).intValue());
+        assertEquals("test", build.get("rootfoo"));
         assertEquals("1,2,3,4", build.get("foo.baz"));
         assertNull(build.get("foo.null.baz"));
     }
@@ -586,5 +588,11 @@ public class SettingsTests extends ESTestCase {
         test.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
         builder.endObject();
         assertEquals("{\"foo.bar.0\":\"1\",\"foo.bar.1\":\"2\",\"foo.bar.2\":\"3\"}", builder.string());
+    }
+
+    public void testLoadEmptyStream() throws IOException {
+        Settings test = Settings.builder().loadFromStream(randomFrom("test.json", "test.yml"), new ByteArrayInputStream(new byte[0]), false)
+            .build();
+        assertEquals(0, test.size());
     }
 }

@@ -9,7 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests {@link MonitoredSystem}.
@@ -33,13 +33,7 @@ public class MonitoredSystemTests extends ESTestCase {
     }
 
     public void testFromUnknownSystem() {
-        final String unknownSystem = randomAlphaOfLengthBetween(3, 4);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            MonitoredSystem.fromSystem(unknownSystem);
-        });
-
-        assertThat(e.getMessage(), containsString(unknownSystem));
+        assertThat(MonitoredSystem.fromSystem(randomAlphaOfLengthBetween(3, 4)), equalTo(MonitoredSystem.UNKNOWN));
     }
 
 }

@@ -3,11 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.monitoring.resolver.node;
+package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -16,6 +15,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
 
@@ -78,12 +78,11 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         waitForMonitoringIndices();
 
         assertBusy(() -> {
-            String indices = MONITORING_INDICES_PREFIX + "*";
-            flush(indices);
+            flush(ALL_MONITORING_INDICES);
             refresh();
 
-            SearchResponse response = client().prepareSearch(indices)
-                    .setQuery(QueryBuilders.termQuery("type", NodeStatsResolver.TYPE))
+            SearchResponse response = client().prepareSearch(ALL_MONITORING_INDICES)
+                    .setQuery(QueryBuilders.termQuery("type", NodeStatsMonitoringDoc.TYPE))
                     .setSize(0)
                     .addAggregation(AggregationBuilders.terms("nodes_ids").field("node_stats.node_id"))
                     .get();

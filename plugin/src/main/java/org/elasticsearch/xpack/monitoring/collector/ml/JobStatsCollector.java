@@ -57,15 +57,14 @@ public class JobStatsCollector extends Collector {
     }
 
     @Override
-    protected List<MonitoringDoc> doCollect() throws Exception {
+    protected List<MonitoringDoc> doCollect(final MonitoringDoc.Node node) throws Exception {
         // fetch details about all jobs
         final GetJobsStatsAction.Response jobs =
                 client.getJobsStats(new GetJobsStatsAction.Request(MetaData.ALL))
                       .actionGet(monitoringSettings.jobStatsTimeout());
 
-        final long timestamp = System.currentTimeMillis();
+        final long timestamp = timestamp();
         final String clusterUuid = clusterUUID();
-        final DiscoveryNode node = localNode();
 
         return jobs.getResponse().results().stream()
                    .map(jobStats -> new JobStatsMonitoringDoc(clusterUuid, timestamp, node, jobStats))

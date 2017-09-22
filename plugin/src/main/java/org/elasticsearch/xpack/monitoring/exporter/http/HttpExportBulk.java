@@ -22,12 +22,13 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
-import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -51,9 +52,9 @@ class HttpExportBulk extends ExportBulk {
     private final Map<String, String> params;
 
     /**
-     * Resolvers are used to render monitoring documents into JSON.
+     * {@link DateTimeFormatter} used to resolve timestamped index name.
      */
-    private final ResolversRegistry registry;
+    private final DateTimeFormatter formatter;
 
     /**
      * The bytes payload that represents the bulk body is created via {@link #doAdd(Collection)}.
@@ -61,12 +62,12 @@ class HttpExportBulk extends ExportBulk {
     private byte[] payload = null;
 
     HttpExportBulk(final String name, final RestClient client, final Map<String, String> parameters,
-                   final ResolversRegistry registry, ThreadContext threadContext) {
+                   final DateTimeFormatter dateTimeFormatter, final ThreadContext threadContext) {
         super(name, threadContext);
 
         this.client = client;
         this.params = parameters;
-        this.registry = registry;
+        this.formatter = dateTimeFormatter;
     }
 
     @Override
@@ -131,40 +132,38 @@ class HttpExportBulk extends ExportBulk {
         final XContentType xContentType = XContentType.JSON;
         final XContent xContent = xContentType.xContent();
 
+        final String index = MonitoringTemplateUtils.indexName(formatter, doc.getSystem(), doc.getTimestamp());
+        final String id = doc.getId();
+
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            MonitoringIndexNameResolver<MonitoringDoc> resolver = registry.getResolver(doc);
-
-            if (resolver != null) {
-                String index = resolver.index(doc);
-                String id = doc.getId();
-
-                try (XContentBuilder builder = new XContentBuilder(xContent, out)) {
-                    // Builds the bulk action metadata line
-                    builder.startObject();
+            try (XContentBuilder builder = new XContentBuilder(xContent, out)) {
+                // Builds the bulk action metadata line
+                builder.startObject();
+                {
                     builder.startObject("index");
-                    builder.field("_index", index);
-                    builder.field("_type", "doc");
-                    if (id != null) {
-                        builder.field("_id", id);
+                    {
+                        builder.field("_index", index);
+                        builder.field("_type", "doc");
+                        if (id != null) {
+                            builder.field("_id", id);
+                        }
                     }
                     builder.endObject();
-                    builder.endObject();
                 }
-
-                // Adds action metadata line bulk separator
-                out.write(xContent.streamSeparator());
-
-                // Render the monitoring document
-                BytesRef bytesRef = resolver.source(doc, xContentType).toBytesRef();
-                out.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-
-                // Adds final bulk separator
-                out.write(xContent.streamSeparator());
-
-                logger.trace("added index request [index={}, type={}, id={}]", index, doc.getType(), id);
-            } else {
-                logger.error("no resolver found for monitoring document [class={}]", doc.getClass().getName());
+                builder.endObject();
             }
+
+            // Adds action metadata line bulk separator
+            out.write(xContent.streamSeparator());
+
+            // Adds the source of the monitoring document
+            final BytesRef source = XContentHelper.toXContent(doc, xContentType, false).toBytesRef();
+            out.write(source.bytes, source.offset, source.length);
+
+            // Adds final bulk separator
+            out.write(xContent.streamSeparator());
+
+            logger.trace("added index request [index={}, type={}, id={}]", index, doc.getType(), id);
 
             return BytesReference.toBytes(out.bytes());
         } catch (Exception e) {

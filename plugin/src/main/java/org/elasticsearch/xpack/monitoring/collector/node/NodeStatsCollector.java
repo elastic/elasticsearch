@@ -11,17 +11,16 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Objects;
 
 /**
  * Collector for nodes statistics.
@@ -43,15 +42,23 @@ public class NodeStatsCollector extends Collector {
 
     private final Client client;
 
-    public NodeStatsCollector(Settings settings, ClusterService clusterService,
-                              MonitoringSettings monitoringSettings,
-                              XPackLicenseState licenseState, InternalClient client) {
-        super(settings, "node-stats", clusterService, monitoringSettings, licenseState);
-        this.client = client;
+    public NodeStatsCollector(final Settings settings,
+                              final ClusterService clusterService,
+                              final MonitoringSettings monitoringSettings,
+                              final XPackLicenseState licenseState,
+                              final Client client) {
+        super(settings, NodeStatsMonitoringDoc.TYPE, clusterService, monitoringSettings, licenseState);
+        this.client = Objects.requireNonNull(client);
+    }
+
+    // For testing purpose
+    @Override
+    protected boolean shouldCollect() {
+        return super.shouldCollect();
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect() throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node) throws Exception {
         NodesStatsRequest request = new NodesStatsRequest("_local");
         request.indices(FLAGS);
         request.os(true);
@@ -60,7 +67,7 @@ public class NodeStatsCollector extends Collector {
         request.threadPool(true);
         request.fs(true);
 
-        NodesStatsResponse response = client.admin().cluster().nodesStats(request).actionGet();
+        final NodesStatsResponse response = client.admin().cluster().nodesStats(request).actionGet(monitoringSettings.nodeStatsTimeout());
 
         // if there's a failure, then we failed to work with the
         // _local node (guaranteed a single exception)
@@ -68,14 +75,10 @@ public class NodeStatsCollector extends Collector {
             throw response.failures().get(0);
         }
 
-        NodeStats nodeStats = response.getNodes().get(0);
-        DiscoveryNode sourceNode = localNode();
+        final NodeStats nodeStats = response.getNodes().get(0);
 
-        NodeStatsMonitoringDoc nodeStatsDoc = new NodeStatsMonitoringDoc(monitoringId(),
-                monitoringVersion(), clusterUUID(), sourceNode, isLocalNodeMaster(),
-                nodeStats, BootstrapInfo.isMemoryLocked());
-
-        return Collections.singletonList(nodeStatsDoc);
+        return Collections.singletonList(new NodeStatsMonitoringDoc(clusterUUID(), nodeStats.getTimestamp(), node,
+                node.getUUID(), isLocalNodeMaster(), nodeStats, BootstrapInfo.isMemoryLocked()));
     }
 
 }

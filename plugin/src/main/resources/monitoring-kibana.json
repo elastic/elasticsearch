@@ -1,6 +1,6 @@
 {
   "index_patterns": ".monitoring-kibana-${monitoring.template.version}-*",
-  "version": 6000026,
+  "version": 6000051,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 1,
@@ -37,6 +37,10 @@
             },
             "name": {
               "type": "keyword"
+            },
+            "timestamp": {
+              "type": "date",
+              "format": "date_time"
             }
           }
         },

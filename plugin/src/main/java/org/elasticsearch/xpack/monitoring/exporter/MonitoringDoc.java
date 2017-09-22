@@ -5,68 +5,61 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc.Node.fromDiscoveryNode;
 
 /**
  * Base class for all monitoring documents.
  */
-public class MonitoringDoc {
+public abstract class MonitoringDoc implements ToXContentObject {
 
-    @Deprecated private final String monitoringId;
-    @Deprecated private final String monitoringVersion;
-
+    private final String cluster;
+    private final long timestamp;
+    private final Node node;
+    private final MonitoredSystem system;
     private final String type;
     private final String id;
 
-    private final String clusterUUID;
-    private final long timestamp;
-    private final Node sourceNode;
+    public MonitoringDoc(final String cluster,
+                         final long timestamp,
+                         @Nullable final Node node,
+                         final MonitoredSystem system,
+                         final String type,
+                         @Nullable final String id) {
 
-    private final BytesReference source;
-    private final XContentType sourceXContentType;
-
-    protected MonitoringDoc(String monitoringId, String monitoringVersion,
-                            String type, @Nullable String id,
-                            String clusterUUID, long timestamp, Node node,
-                            BytesReference source, XContentType sourceXContentType) {
-        this.monitoringId = monitoringId;
-        this.monitoringVersion = monitoringVersion;
-        this.type = type;
-        // We allow strings to be "" because Logstash 5.2 - 5.3 would submit empty _id values for time-based documents
-        this.id = Strings.isNullOrEmpty(id) ? null : id;
-        this.clusterUUID = clusterUUID;
+        this.cluster = Objects.requireNonNull(cluster);
         this.timestamp = timestamp;
-        this.sourceNode = node;
-        this.source = source;
-        this.sourceXContentType = sourceXContentType;
+        this.node = node;
+        this.system = Objects.requireNonNull(system);
+        this.type = Objects.requireNonNull(type);
+        this.id = id;
     }
 
-    public MonitoringDoc(String monitoringId, String monitoringVersion, String type, String id,
-                            String clusterUUID, long timestamp, Node node) {
-        this(monitoringId, monitoringVersion, type, id, clusterUUID, timestamp, node, null, null);
+    public String getCluster() {
+        return cluster;
     }
 
-    public MonitoringDoc(String monitoringId, String monitoringVersion, String type, String id,
-                         String clusterUUID, long timestamp, DiscoveryNode discoveryNode) {
-        this(monitoringId, monitoringVersion, type, id, clusterUUID, timestamp, fromDiscoveryNode(discoveryNode));
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public Node getNode() {
+        return node;
+    }
+
+    public MonitoredSystem getSystem() {
+        return system;
     }
 
     public String getType() {
@@ -75,36 +68,6 @@ public class MonitoringDoc {
 
     public String getId() {
         return id;
-    }
-
-    public String getClusterUUID() {
-        return clusterUUID;
-    }
-
-    @Deprecated
-    public String getMonitoringId() {
-        return monitoringId;
-    }
-
-    @Deprecated
-    public String getMonitoringVersion() {
-        return monitoringVersion;
-    }
-
-    public Node getSourceNode() {
-        return sourceNode;
-    }
-
-    public long getTimestamp() {
-        return timestamp;
-    }
-
-    public BytesReference getSource() {
-        return source;
-    }
-
-    public XContentType getXContentType() {
-        return sourceXContentType;
     }
 
     @Override
@@ -116,21 +79,42 @@ public class MonitoringDoc {
             return false;
         }
         MonitoringDoc that = (MonitoringDoc) o;
-        return timestamp == that.timestamp &&
-                Objects.equals(monitoringId, that.monitoringId)
-                && Objects.equals(monitoringVersion, that.monitoringVersion)
+        return timestamp == that.timestamp
+                && Objects.equals(cluster, that.cluster)
+                && Objects.equals(node, that.node)
+                && system == that.system
                 && Objects.equals(type, that.type)
-                && Objects.equals(id, that.id)
-                && Objects.equals(clusterUUID, that.clusterUUID)
-                && Objects.equals(sourceNode, that.sourceNode)
-                && Objects.equals(sourceNode, that.sourceNode)
-                && Objects.equals(sourceXContentType, that.sourceXContentType);
+                && Objects.equals(id, that.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(monitoringId, monitoringVersion, type, id, clusterUUID, timestamp,
-                sourceNode, source, sourceXContentType);
+        return Objects.hash(cluster, timestamp, node, system, type, id);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        {
+            builder.field("cluster_uuid", cluster);
+            builder.field("timestamp", toUTC(timestamp));
+            builder.field("type", type);
+            builder.field("source_node", node);
+            innerToXContent(builder, params);
+        }
+        return builder.endObject();
+    }
+
+    protected abstract void innerToXContent(XContentBuilder builder, Params params) throws IOException;
+
+    /**
+     * Converts a timestamp in milliseconds to its {@link String} representation in UTC time.
+     *
+     * @param timestamp the timestamp to convert
+     * @return a string representing the timestamp
+     */
+    static String toUTC(final long timestamp) {
+        return new DateTime(timestamp, DateTimeZone.UTC).toString();
     }
 
     /**
@@ -139,25 +123,25 @@ public class MonitoringDoc {
      */
     public static class Node implements Writeable, ToXContentObject {
 
-        private String uuid;
-        private String host;
-        private String transportAddress;
-        private String ip;
-        private String name;
-        private Map<String, String> attributes;
+        private final String uuid;
+        private final String host;
+        private final String transportAddress;
+        private final String ip;
+        private final String name;
+        private final long timestamp;
 
-        public Node(String uuid, String host, String transportAddress, String ip, String name,
-                    Map<String, String> attributes) {
+        public Node(final String uuid,
+                    final String host,
+                    final String transportAddress,
+                    final String ip,
+                    final String name,
+                    final long timestamp) {
             this.uuid = uuid;
             this.host = host;
             this.transportAddress = transportAddress;
             this.ip = ip;
             this.name = name;
-            if (attributes == null) {
-                this.attributes = new HashMap<>();
-            } else {
-                this.attributes = Collections.unmodifiableMap(attributes);
-            }
+            this.timestamp = timestamp;
         }
 
         /**
@@ -169,10 +153,16 @@ public class MonitoringDoc {
             transportAddress = in.readOptionalString();
             ip = in.readOptionalString();
             name = in.readOptionalString();
-            int size = in.readVInt();
-            this.attributes = new HashMap<>();
-            for (int i = 0; i < size; i++) {
-                attributes.put(in.readString(), in.readString());
+            if (in.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
+                timestamp = in.readVLong();
+            } else {
+                // Read the node attributes (removed in 6.0 rc1)
+                int size = in.readVInt();
+                for (int i = 0; i < size; i++) {
+                    in.readString();
+                    in.readString();
+                }
+                timestamp = 0L;
             }
         }
 
@@ -183,17 +173,13 @@ public class MonitoringDoc {
             out.writeOptionalString(transportAddress);
             out.writeOptionalString(ip);
             out.writeOptionalString(name);
-            if (attributes != null) {
-                out.writeVInt(attributes.size());
-                for (Map.Entry<String, String> entry : attributes.entrySet()) {
-                    out.writeString(entry.getKey());
-                    out.writeString(entry.getValue());
-                }
+            if (out.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
+                out.writeVLong(timestamp);
             } else {
+                // Write an empty map of node attributes (removed in 6.0 rc1)
                 out.writeVInt(0);
             }
         }
-
 
         public String getUUID() {
             return uuid;
@@ -215,25 +201,21 @@ public class MonitoringDoc {
             return name;
         }
 
-        public Map<String, String> getAttributes() {
-            return attributes;
+        public long getTimestamp() {
+            return timestamp;
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
-                throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Fields.UUID, getUUID());
-            builder.field(Fields.HOST, getHost());
-            builder.field(Fields.TRANSPORT_ADDRESS, getTransportAddress());
-            builder.field(Fields.IP, getIp());
-            builder.field(Fields.NAME, getName());
-
-            builder.startObject(Fields.ATTRIBUTES);
-            for (Map.Entry<String, String> entry : getAttributes().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
+            {
+                builder.field("uuid", uuid);
+                builder.field("host", host);
+                builder.field("transport_address", transportAddress);
+                builder.field("ip", ip);
+                builder.field("name", name);
+                builder.field("timestamp", toUTC(timestamp));
             }
-            builder.endObject();
             return builder.endObject();
         }
 
@@ -251,39 +233,12 @@ public class MonitoringDoc {
                     && Objects.equals(transportAddress, node.transportAddress)
                     && Objects.equals(ip, node.ip)
                     && Objects.equals(name, node.name)
-                    && Objects.equals(attributes, node.attributes);
+                    && Objects.equals(timestamp, node.timestamp);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(uuid, host, transportAddress, ip, name, attributes);
-        }
-
-        /**
-         * Creates a {@link MonitoringDoc.Node} from a {@link DiscoveryNode}, copying over the
-         * required information.
-         *
-         * @param discoveryNode the {@link DiscoveryNode}
-         * @return a {@link MonitoringDoc.Node} instance, or {@code null} if the given discovery
-         *         node is null.
-         */
-        static Node fromDiscoveryNode(@Nullable DiscoveryNode discoveryNode) {
-            MonitoringDoc.Node node = null;
-            if (discoveryNode != null) {
-                node = new MonitoringDoc.Node(discoveryNode.getId(), discoveryNode.getHostName(),
-                        discoveryNode.getAddress().toString(), discoveryNode.getHostAddress(),
-                        discoveryNode.getName(), discoveryNode.getAttributes());
-            }
-            return node;
-        }
-
-        static final class Fields {
-            static final String UUID = "uuid";
-            static final String HOST = "host";
-            static final String TRANSPORT_ADDRESS = "transport_address";
-            static final String IP = "ip";
-            static final String NAME = "name";
-            static final String ATTRIBUTES = "attributes";
+            return Objects.hash(uuid, host, transportAddress, ip, name, timestamp);
         }
     }
 }

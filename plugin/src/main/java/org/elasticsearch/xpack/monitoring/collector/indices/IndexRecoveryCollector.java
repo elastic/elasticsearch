@@ -14,12 +14,12 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Collector for the Recovery API.
@@ -31,11 +31,14 @@ public class IndexRecoveryCollector extends Collector {
 
     private final Client client;
 
-    public IndexRecoveryCollector(Settings settings, ClusterService clusterService,
-                                  MonitoringSettings monitoringSettings,
-                                  XPackLicenseState licenseState, InternalClient client) {
-        super(settings, "index-recovery", clusterService, monitoringSettings, licenseState);
-        this.client = client;
+    public IndexRecoveryCollector(final Settings settings,
+                                  final ClusterService clusterService,
+                                  final MonitoringSettings monitoringSettings,
+                                  final XPackLicenseState licenseState,
+                                  final Client client) {
+
+        super(settings, IndexRecoveryMonitoringDoc.TYPE, clusterService, monitoringSettings, licenseState);
+        this.client = Objects.requireNonNull(client);
     }
 
     @Override
@@ -44,7 +47,7 @@ public class IndexRecoveryCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect() throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node) throws Exception {
         List<MonitoringDoc> results = new ArrayList<>(1);
         RecoveryResponse recoveryResponse = client.admin().indices().prepareRecoveries()
                 .setIndices(monitoringSettings.indices())
@@ -53,8 +56,7 @@ public class IndexRecoveryCollector extends Collector {
                 .get(monitoringSettings.recoveryTimeout());
 
         if (recoveryResponse.hasRecoveries()) {
-            results.add(new IndexRecoveryMonitoringDoc(monitoringId(), monitoringVersion(),
-                    clusterUUID(), System.currentTimeMillis(), localNode(), recoveryResponse));
+            results.add(new IndexRecoveryMonitoringDoc(clusterUUID(), timestamp(), node, recoveryResponse));
         }
         return Collections.unmodifiableCollection(results);
     }

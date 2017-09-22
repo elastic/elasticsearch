@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.monitoring;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
-
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
 import org.elasticsearch.Version;
@@ -28,10 +27,8 @@ import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsMonitoring
 import org.elasticsearch.xpack.monitoring.collector.indices.IndicesStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.shards.ShardMonitoringDoc;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
-import org.elasticsearch.xpack.monitoring.resolver.indices.IndexStatsResolver;
 import org.hamcrest.Matcher;
+import org.joda.time.format.DateTimeFormat;
 
 import java.net.InetSocketAddress;
 import java.util.Arrays;
@@ -43,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -110,11 +108,12 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
             Settings.Builder settings = Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), timeValueSeconds(3).getStringRep());
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
 
+            final String prefix = ".monitoring-" + MonitoredSystem.ES.getSystem() + "-" + TEMPLATE_VERSION + "-";
+
             // And we wait until data have been indexed locally using either by the local or http exporter
-            MonitoringIndexNameResolver.Timestamped resolver = new IndexStatsResolver(MonitoredSystem.ES, Settings.EMPTY);
-            MonitoringDoc monitoringDoc = new IndexStatsMonitoringDoc(MonitoredSystem.ES.getSystem(), null, null, System.currentTimeMillis(), null, null);
-            final String expectedIndex = resolver.index(monitoringDoc);
-            final String indexPattern = resolver.indexPattern();
+            final String dateTime = DateTimeFormat.forPattern("YYYY.MM.dd").print(System.currentTimeMillis());
+            final String expectedIndex = prefix + dateTime;
+            final String indexPattern = prefix + "*";
 
             logger.info("--> {} Waiting for [{}] to be ready", Thread.currentThread().getName(), expectedIndex);
             assertBusy(() -> {

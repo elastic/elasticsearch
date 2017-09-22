@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -15,16 +14,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
+import org.elasticsearch.xpack.monitoring.action.MonitoringBulkDoc;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
+import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -265,9 +267,8 @@ public class ExportersTests extends ESTestCase {
                 protected void doRun() throws Exception {
                     List<MonitoringDoc> docs = new ArrayList<>();
                     for (int n = 0; n < threadDocs; n++) {
-                        docs.add(new MonitoringDoc(MonitoredSystem.ES.getSystem(),
-                                Version.CURRENT.toString(), null, null, null, 0L,
-                                (MonitoringDoc.Node) null));
+                        docs.add(new TestMonitoringDoc(randomAlphaOfLength(5), randomNonNegativeLong(), null, MonitoredSystem.ES,
+                                                       randomAlphaOfLength(5), null, String.valueOf(n)));
                     }
                     barrier.await(10, TimeUnit.SECONDS);
                     exporters.export(docs, ActionListener.wrap(
@@ -387,6 +388,21 @@ public class ExportersTests extends ESTestCase {
 
         int getCount() {
             return count.get();
+        }
+    }
+
+    static class TestMonitoringDoc extends MonitoringDoc {
+
+        private final String value;
+
+        TestMonitoringDoc(String cluster, long timestamp, Node node, MonitoredSystem system, String type, String id, String value) {
+            super(cluster, timestamp, node, system, type, id);
+            this.value = value;
+        }
+
+        @Override
+        protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field("test", value);
         }
     }
 }

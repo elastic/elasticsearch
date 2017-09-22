@@ -35,15 +35,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
-import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.joda.time.format.DateTimeFormatter;
 
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -162,8 +160,8 @@ public class HttpExporter extends Exporter {
      */
     private final AtomicBoolean clusterAlertsAllowed = new AtomicBoolean(false);
 
-    private final ResolversRegistry resolvers;
     private final ThreadContext threadContext;
+    private final DateTimeFormatter dateTimeFormatter;
 
     /**
      * Create an {@link HttpExporter}.
@@ -197,7 +195,7 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if any setting is malformed
      */
     HttpExporter(final Config config, final RestClient client, final ThreadContext threadContext, final NodeFailureListener listener) {
-        this(config, client, createSniffer(config, client, listener), threadContext, listener, new ResolversRegistry(config.settings()));
+        this(config, client, createSniffer(config, client, listener), threadContext, listener);
     }
 
     /**
@@ -206,12 +204,11 @@ public class HttpExporter extends Exporter {
      * @param config The HTTP Exporter's configuration
      * @param client The REST Client used to make all requests to the remote Elasticsearch cluster
      * @param listener The node failure listener used to notify an optional sniffer and resources
-     * @param resolvers The resolver registry used to load templates and resolvers
      * @throws SettingsException if any setting is malformed
      */
     HttpExporter(final Config config, final RestClient client, @Nullable final Sniffer sniffer, final ThreadContext threadContext,
-                 final NodeFailureListener listener, final ResolversRegistry resolvers) {
-        this(config, client, sniffer, threadContext, listener, resolvers, createResources(config, resolvers));
+                 final NodeFailureListener listener) {
+        this(config, client, sniffer, threadContext, listener, createResources(config));
     }
 
     /**
@@ -221,20 +218,19 @@ public class HttpExporter extends Exporter {
      * @param client The REST Client used to make all requests to the remote Elasticsearch cluster
      * @param sniffer The optional sniffer, which has already been associated with the {@code listener}
      * @param listener The node failure listener used to notify resources
-     * @param resolvers The resolver registry used to load templates and resolvers
      * @param resource Blocking HTTP resource to prevent bulks until all requirements are met
      * @throws SettingsException if any setting is malformed
      */
     HttpExporter(final Config config, final RestClient client, @Nullable final Sniffer sniffer, final ThreadContext threadContext,
-                 final NodeFailureListener listener, final ResolversRegistry resolvers, final HttpResource resource) {
+                 final NodeFailureListener listener, final HttpResource resource) {
         super(config);
 
         this.client = Objects.requireNonNull(client);
         this.sniffer = sniffer;
-        this.resolvers = resolvers;
         this.resource = resource;
         this.defaultParams = createDefaultParams(config);
         this.threadContext = threadContext;
+        this.dateTimeFormatter = dateTimeFormatter(config);
 
         // mark resources as dirty after any node failure or license change
         listener.setResource(resource);
@@ -308,10 +304,9 @@ public class HttpExporter extends Exporter {
      * Create a {@link MultiHttpResource} that can be used to block bulk exporting until all expected resources are available.
      *
      * @param config The HTTP Exporter's configuration
-     * @param resolvers The resolvers that contain all known templates.
      * @return Never {@code null}.
      */
-    static MultiHttpResource createResources(final Config config, final ResolversRegistry resolvers) {
+    static MultiHttpResource createResources(final Config config) {
         final String resourceOwnerName = settingFQN(config);
         // order controls the order that each is checked; more direct checks should always happen first (e.g., version checks)
         final List<HttpResource> resources = new ArrayList<>();
@@ -319,7 +314,7 @@ public class HttpExporter extends Exporter {
         // block the exporter from working against a monitoring cluster with the wrong version
         resources.add(new VersionHttpResource(resourceOwnerName, MIN_SUPPORTED_CLUSTER_VERSION));
         // load all templates (template bodies are lazily loaded on demand)
-        configureTemplateResources(config, resolvers, resourceOwnerName, resources);
+        configureTemplateResources(config, resourceOwnerName, resources);
         // load the pipeline (this will get added to as the monitoring API version increases)
         configurePipelineResources(config, resourceOwnerName, resources);
 
@@ -521,15 +516,14 @@ public class HttpExporter extends Exporter {
      * Adds the {@code resources} necessary for checking and publishing monitoring templates.
      *
      * @param config The HTTP Exporter's configuration
-     * @param resolvers The resolvers that contain all known templates.
      * @param resourceOwnerName The resource owner name to display for any logging messages.
      * @param resources The resources to add too.
      */
-    private static void configureTemplateResources(final Config config, final ResolversRegistry resolvers, final String resourceOwnerName,
+    private static void configureTemplateResources(final Config config,
+                                                   final String resourceOwnerName,
                                                    final List<HttpResource> resources) {
         final Settings settings = config.settings();
         final TimeValue templateTimeout = settings.getAsTime(TEMPLATE_CHECK_TIMEOUT_SETTING, null);
-        final Set<String> templateNames = new HashSet<>();
 
         // add templates not managed by resolvers
         for (final String templateId : MonitoringTemplateUtils.TEMPLATE_IDS) {
@@ -537,16 +531,6 @@ public class HttpExporter extends Exporter {
             final Supplier<String> templateLoader = () -> MonitoringTemplateUtils.loadTemplate(templateId);
 
             resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, templateLoader));
-        }
-
-        // TODO: when resolvers are removed, all templates managed by this loop should be included in the TEMPLATE_IDS loop above
-        for (final MonitoringIndexNameResolver resolver : resolvers) {
-            final String templateName = resolver.templateName();
-
-            // ignore duplicates
-            if (templateNames.add(templateName)) {
-                resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, resolver::template));
-            }
         }
 
         // add old templates, like ".monitoring-data-2" and ".monitoring-es-2" so that other versions can continue to work
@@ -639,7 +623,7 @@ public class HttpExporter extends Exporter {
     public HttpExportBulk openBulk() {
         // block until all resources are verified to exist
         if (isExporterReady()) {
-            return new HttpExportBulk(settingFQN(config), client, defaultParams, resolvers, threadContext);
+            return new HttpExportBulk(settingFQN(config), client, defaultParams, dateTimeFormatter, threadContext);
         }
 
         return null;

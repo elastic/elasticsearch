@@ -5,18 +5,10 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Request;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Response;
@@ -24,16 +16,19 @@ import org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Response.JobStats;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.monitoring.collector.BaseCollectorTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.monitoring.MonitoringTestUtils.randomMonitoringNode;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -42,14 +37,7 @@ import static org.mockito.Mockito.when;
 /**
  * Tests {@link JobStatsCollector}.
  */
-public class JobStatsCollectorTests extends ESTestCase {
-
-    private final ClusterService clusterService = mock(ClusterService.class);
-    private final ClusterState clusterState = mock(ClusterState.class);
-    private final DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-    private final MonitoringSettings monitoringSettings = mock(MonitoringSettings.class);
-    private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-    private final InternalClient client = mock(InternalClient.class);
+public class JobStatsCollectorTests extends BaseCollectorTestCase {
 
     public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
         final Settings settings = randomFrom(mlEnabledSettings(), mlDisabledSettings());
@@ -130,8 +118,7 @@ public class JobStatsCollectorTests extends ESTestCase {
         final TimeValue timeout = mock(TimeValue.class);
         final MetaData metaData = mock(MetaData.class);
         final String clusterUuid = randomAlphaOfLength(5);
-        final String nodeUuid = randomAlphaOfLength(5);
-        final DiscoveryNode localNode = localNode(nodeUuid);
+        final MonitoringDoc.Node node = randomMonitoringNode(random());
         final MachineLearningClient client = mock(MachineLearningClient.class);
 
         when(monitoringSettings.jobStatsTimeout()).thenReturn(timeout);
@@ -139,8 +126,6 @@ public class JobStatsCollectorTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterState.metaData()).thenReturn(metaData);
         when(metaData.clusterUUID()).thenReturn(clusterUuid);
-
-        when(clusterService.localNode()).thenReturn(localNode);
 
         final JobStatsCollector collector =
                 new JobStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
@@ -154,7 +139,7 @@ public class JobStatsCollectorTests extends ESTestCase {
         when(client.getJobsStats(eq(new Request(MetaData.ALL)))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(response);
 
-        final List<MonitoringDoc> monitoringDocs = collector.doCollect();
+        final List<MonitoringDoc> monitoringDocs = collector.doCollect(node);
 
         assertThat(monitoringDocs, hasSize(jobStats.size()));
 
@@ -162,10 +147,12 @@ public class JobStatsCollectorTests extends ESTestCase {
             final JobStatsMonitoringDoc jobStatsMonitoringDoc = (JobStatsMonitoringDoc)monitoringDocs.get(i);
             final JobStats jobStat = jobStats.get(i);
 
+            assertThat(jobStatsMonitoringDoc.getCluster(), is(clusterUuid));
+            assertThat(jobStatsMonitoringDoc.getTimestamp(), greaterThan(0L));
+            assertThat(jobStatsMonitoringDoc.getNode(), equalTo(node));
+            assertThat(jobStatsMonitoringDoc.getSystem(), is(MonitoredSystem.ES));
             assertThat(jobStatsMonitoringDoc.getType(), is(JobStatsMonitoringDoc.TYPE));
-            assertThat(jobStatsMonitoringDoc.getSourceNode(), notNullValue());
-            assertThat(jobStatsMonitoringDoc.getSourceNode().getUUID(), is(nodeUuid));
-            assertThat(jobStatsMonitoringDoc.getClusterUUID(), is(clusterUuid));
+            assertThat(jobStatsMonitoringDoc.getId(), nullValue());
 
             assertThat(jobStatsMonitoringDoc.getJobStats(), is(jobStat));
         }
@@ -180,16 +167,6 @@ public class JobStatsCollectorTests extends ESTestCase {
         }
 
         return jobStats;
-    }
-
-    private DiscoveryNode localNode(final String uuid) {
-        return new DiscoveryNode(uuid, new TransportAddress(TransportAddress.META_ADDRESS, 9300), Version.CURRENT);
-    }
-
-    private void whenLocalNodeElectedMaster(final boolean electedMaster) {
-        when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.nodes()).thenReturn(nodes);
-        when(nodes.isLocalNodeElectedMaster()).thenReturn(electedMaster);
     }
 
     private Settings mlEnabledSettings() {

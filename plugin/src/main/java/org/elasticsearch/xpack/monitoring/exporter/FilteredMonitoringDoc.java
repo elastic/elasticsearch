@@ -1,0 +1,65 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.monitoring.exporter;
+
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+
+import java.io.IOException;
+import java.util.Set;
+
+import static org.elasticsearch.common.xcontent.NamedXContentRegistry.EMPTY;
+
+/**
+ * {@link FilteredMonitoringDoc} are a kind of {@link MonitoringDoc} whose XContent
+ * is filtered when the document is printed out.
+ */
+public abstract class FilteredMonitoringDoc extends MonitoringDoc {
+
+    /**
+     * List of common XContent fields that exist in all monitoring documents
+     */
+    static final Set<String> COMMON_XCONTENT_FILTERS = Sets.newHashSet("cluster_uuid", "timestamp", "type", "source_node");
+
+    private final Set<String> filters;
+
+    public FilteredMonitoringDoc(final String cluster,
+                                 final long timestamp,
+                                 @Nullable final Node node,
+                                 final MonitoredSystem system,
+                                 final String type,
+                                 @Nullable final String id,
+                                 final Set<String> xContentFilters) {
+        super(cluster, timestamp, node, system, type, id);
+        if (xContentFilters.isEmpty()) {
+            throw new IllegalArgumentException("xContentFilters must not be empty");
+        }
+
+        filters = Sets.union(COMMON_XCONTENT_FILTERS, xContentFilters);
+    }
+
+    Set<String> getFilters() {
+        return filters;
+    }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        final XContent xContent = builder.contentType().xContent();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            try (XContentBuilder filteredBuilder = new XContentBuilder(xContent, out, filters)) {
+                super.toXContent(filteredBuilder, params);
+            }
+            try (XContentParser parser = xContent.createParser(EMPTY, out.bytes())) {
+                return builder.copyCurrentStructure(parser);
+            }
+        }
+    }
+}

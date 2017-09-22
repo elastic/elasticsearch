@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.test.RunTask
-
 apply plugin: 'elasticsearch.build'
 /* We don't use the 'application' plugin because it builds a zip and tgz which
  * we don't want. */

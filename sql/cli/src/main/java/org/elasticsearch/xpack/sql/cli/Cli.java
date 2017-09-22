@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
-import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 import org.elasticsearch.xpack.sql.net.client.util.IOUtils;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
-import org.jline.keymap.BindingReader;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
@@ -54,26 +52,13 @@ public class Cli {
         }
     }
 
-    @SuppressForbidden(reason = "CLI application")
-    private static void terminateWithError() {
-        System.exit(1);
-    }
-
     private final Terminal term;
-    private final BindingReader bindingReader;
-    private final Keys keys;
-    private final CliConfiguration cfg;
     private final CliHttpClient cliClient;
     private int fetchSize = AbstractQueryInitRequest.DEFAULT_FETCH_SIZE;
     private String fetchSeparator = "";
 
     Cli(CliConfiguration cfg, Terminal terminal) {
         term = terminal;
-        // NOCOMMIT figure out if we need to build these for side effects or not. We don't currently use them.
-        bindingReader = new BindingReader(term.reader());
-        keys = new Keys(term);
-        
-        this.cfg = cfg;
         cliClient = new CliHttpClient(cfg);
     }
 
@@ -85,13 +70,11 @@ public class Cli {
                 .completer(Completers.INSTANCE)
                 .build();
         
-        String prompt = null;
-
         String DEFAULT_PROMPT = new AttributedString("sql> ", DEFAULT.foreground(YELLOW)).toAnsi(term);
         String MULTI_LINE_PROMPT = new AttributedString("   | ", DEFAULT.foreground(YELLOW)).toAnsi(term);
 
         StringBuilder multiLine = new StringBuilder();
-        prompt = DEFAULT_PROMPT;
+        String prompt = DEFAULT_PROMPT;
 
         out.flush();
         printLogo();

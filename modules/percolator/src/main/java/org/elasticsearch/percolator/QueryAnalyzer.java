@@ -43,6 +43,7 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -78,6 +79,7 @@ public final class QueryAnalyzer {
         map.put(DisjunctionMaxQuery.class, disjunctionMaxQuery());
         map.put(SynonymQuery.class, synonymQuery());
         map.put(FunctionScoreQuery.class, functionScoreQuery());
+        map.put(ESToParentBlockJoinQuery.class, toParentBlockJoinQuery());
         queryProcessors = Collections.unmodifiableMap(map);
     }
 
@@ -341,7 +343,15 @@ public final class QueryAnalyzer {
         };
     }
 
-    static Result handleDisjunction(List<Query> disjunctions, int minimumShouldMatch, boolean otherClauses) {
+    static Function<Query, Result> toParentBlockJoinQuery() {
+        return query -> {
+            ESToParentBlockJoinQuery toParentBlockJoinQuery = (ESToParentBlockJoinQuery) query;
+            Result result = analyze(toParentBlockJoinQuery.getChildQuery());
+            return new Result(false, result.terms);
+        };
+    }
+
+    private static Result handleDisjunction(List<Query> disjunctions, int minimumShouldMatch, boolean otherClauses) {
         boolean verified = minimumShouldMatch <= 1 && otherClauses == false;
         Set<Term> terms = new HashSet<>();
         for (Query disjunct : disjunctions) {

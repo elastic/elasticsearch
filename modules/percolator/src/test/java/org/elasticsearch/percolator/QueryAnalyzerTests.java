@@ -34,6 +34,8 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanNotQuery;
@@ -43,6 +45,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.percolator.QueryAnalyzer.Result;
 import org.elasticsearch.test.ESTestCase;
 
@@ -529,6 +532,16 @@ public class QueryAnalyzerTests extends ESTestCase {
         result = analyze(functionScoreQuery);
         assertThat(result.verified, is(false));
         assertTermsEqual(result.terms, new Term("_field", "_value"));
+    }
+
+    public void testToParentBlockJoinQuery() {
+        TermQuery termQuery = new TermQuery(new Term("field", "value"));
+        QueryBitSetProducer queryBitSetProducer = new QueryBitSetProducer(new TermQuery(new Term("_type", "child")));
+        ESToParentBlockJoinQuery query = new ESToParentBlockJoinQuery(termQuery, queryBitSetProducer, ScoreMode.None, "child");
+        Result result = analyze(query);
+        assertFalse(result.verified);
+        assertEquals(1, result.terms.size());
+        assertEquals(new Term("field", "value"), result.terms.toArray(new Term[0])[0]);
     }
 
     public void testSelectTermsListWithHighestSumOfTermLength() {

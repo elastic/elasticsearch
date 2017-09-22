@@ -410,7 +410,7 @@ public class MonitoringIT extends ESRestTestCase {
         assertEquals(5, source.size());
 
         final Map<String, Object> nodeStats = (Map<String, Object>) source.get(NodeStatsMonitoringDoc.TYPE);
-        assertEquals(9, nodeStats.size());
+        assertEquals(Constants.WINDOWS ? 8 : 9, nodeStats.size());
 
         NodeStatsMonitoringDoc.XCONTENT_FILTERS.forEach(filter -> {
             if (Constants.WINDOWS && filter.startsWith("node_stats.os.cpu.load_average")) {

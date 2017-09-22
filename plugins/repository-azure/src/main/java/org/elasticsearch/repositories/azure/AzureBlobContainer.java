@@ -58,9 +58,9 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     public boolean blobExists(String blobName) {
         logger.trace("blobExists({})", blobName);
         try {
-            return blobStore.blobExists(blobStore.container(), buildKey(blobName));
+            return blobStore.blobExists(buildKey(blobName));
         } catch (URISyntaxException | StorageException e) {
-            logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore.container(), e.getMessage());
+            logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore, e.getMessage());
         }
         return false;
     }
@@ -80,7 +80,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         }
 
         try {
-            return blobStore.getInputStream(blobStore.container(), buildKey(blobName));
+            return blobStore.getInputStream(buildKey(blobName));
         } catch (StorageException e) {
             if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
                 throw new NoSuchFileException(e.getMessage());
@@ -104,7 +104,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     private OutputStream createOutput(String blobName) throws IOException {
         try {
-            return new AzureOutputStream(blobStore.getOutputStream(blobStore.container(), buildKey(blobName)));
+            return new AzureOutputStream(blobStore.getOutputStream(buildKey(blobName)));
         } catch (StorageException e) {
             if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
                 throw new NoSuchFileException(e.getMessage());
@@ -126,9 +126,9 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         }
 
         try {
-            blobStore.deleteBlob(blobStore.container(), buildKey(blobName));
+            blobStore.deleteBlob(buildKey(blobName));
         } catch (URISyntaxException | StorageException e) {
-            logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore.container(), e.getMessage());
+            logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore, e.getMessage());
             throw new IOException(e);
         }
     }
@@ -138,9 +138,9 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         logger.trace("listBlobsByPrefix({})", prefix);
 
         try {
-            return blobStore.listBlobsByPrefix(blobStore.container(), keyPath, prefix);
+            return blobStore.listBlobsByPrefix(keyPath, prefix);
         } catch (URISyntaxException | StorageException e) {
-            logger.warn("can not access [{}] in container {{}}: {}", prefix, blobStore.container(), e.getMessage());
+            logger.warn("can not access [{}] in container {{}}: {}", prefix, blobStore, e.getMessage());
             throw new IOException(e);
         }
     }
@@ -152,12 +152,11 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             String source = keyPath + sourceBlobName;
             String target = keyPath + targetBlobName;
 
-            logger.debug("moving blob [{}] to [{}] in container {{}}", source, target, blobStore.container());
+            logger.debug("moving blob [{}] to [{}] in container {{}}", source, target, blobStore);
 
-            blobStore.moveBlob(blobStore.container(), source, target);
+            blobStore.moveBlob(source, target);
         } catch (URISyntaxException | StorageException e) {
-            logger.warn("can not move blob [{}] to [{}] in container {{}}: {}", sourceBlobName, targetBlobName, blobStore.container(),
-                e.getMessage());
+            logger.warn("can not move blob [{}] to [{}] in container {{}}: {}", sourceBlobName, targetBlobName, blobStore, e.getMessage());
             throw new IOException(e);
         }
     }

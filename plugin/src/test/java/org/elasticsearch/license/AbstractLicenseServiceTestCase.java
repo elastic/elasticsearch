@@ -49,16 +49,20 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
     }
 
     protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings) {
+        setInitialState(license, licenseState, settings, randomBoolean() ? "trial" : "basic");
+    }
+
+    protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings, String selfGeneratedType) {
         Path tempDir = createTempDir();
         when(environment.configFile()).thenReturn(tempDir);
-        licenseType = randomBoolean() ? "trial" : "basic";
+        licenseType = selfGeneratedType;
         settings = Settings.builder().put(settings).put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), licenseType).build();
         licenseService = new LicenseService(settings, clusterService, clock, environment, resourceWatcherService, licenseState);
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();
         when(state.blocks()).thenReturn(noBlock);
         MetaData metaData = mock(MetaData.class);
-        when(metaData.custom(LicensesMetaData.TYPE)).thenReturn(new LicensesMetaData(license));
+        when(metaData.custom(LicensesMetaData.TYPE)).thenReturn(new LicensesMetaData(license, null));
         when(state.metaData()).thenReturn(metaData);
         final DiscoveryNode mockNode = new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         when(discoveryNodes.getMasterNode()).thenReturn(mockNode);

@@ -158,3 +158,5 @@ indices:data/write/delete/byquery
 indices:data/write/reindex
 cluster:admin/xpack/deprecation/info
 cluster:admin/xpack/ml/job/forecast
+cluster:admin/xpack/license/start_trial
+cluster:admin/xpack/license/trial_status

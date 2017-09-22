@@ -36,7 +36,7 @@ public class Licensing implements ActionPlugin {
 
     public static final String NAME = "license";
     protected final Settings settings;
-    protected final boolean isTransportClient;
+    private final boolean isTransportClient;
     private final boolean isTribeNode;
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -53,6 +53,7 @@ public class Licensing implements ActionPlugin {
                 LicensesMetaData::fromXContent));
         return entries;
     }
+
     public Licensing(Settings settings) {
         this.settings = settings;
         isTransportClient = transportClientMode(settings);
@@ -66,7 +67,9 @@ public class Licensing implements ActionPlugin {
         }
         return Arrays.asList(new ActionHandler<>(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class),
                 new ActionHandler<>(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class),
-                new ActionHandler<>(DeleteLicenseAction.INSTANCE, TransportDeleteLicenseAction.class));
+                new ActionHandler<>(DeleteLicenseAction.INSTANCE, TransportDeleteLicenseAction.class),
+                new ActionHandler<>(PostStartTrialAction.INSTANCE, TransportPostStartTrialAction.class),
+                new ActionHandler<>(GetTrialStatusAction.INSTANCE, TransportGetTrialStatusAction.class));
     }
 
     @Override
@@ -78,6 +81,8 @@ public class Licensing implements ActionPlugin {
         if (false == isTribeNode) {
             handlers.add(new RestPutLicenseAction(settings, restController));
             handlers.add(new RestDeleteLicenseAction(settings, restController));
+            handlers.add(new RestGetTrialStatus(settings, restController));
+            handlers.add(new RestPostStartTrialLicense(settings, restController));
         }
         return handlers;
     }

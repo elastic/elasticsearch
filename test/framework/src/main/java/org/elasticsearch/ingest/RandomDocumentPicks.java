@@ -23,6 +23,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
+import org.elasticsearch.common.Strings;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -59,7 +61,7 @@ public final class RandomDocumentPicks {
         String fieldName;
         do {
             fieldName = randomString(random);
-        } while (fieldName.contains("."));
+        } while (fieldName.contains(".") || Strings.hasText(fieldName) == false);
         return fieldName;
     }
 

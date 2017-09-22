@@ -13,8 +13,8 @@ public enum MonitoredSystem {
 
     ES("es"),
     KIBANA("kibana"),
+    // TODO: when "BEATS" is re-added, add it to tests where we randomly select "LOGSTASH"
     LOGSTASH("logstash"),
-    BEATS("beats"),
     UNKNOWN("unknown");
 
     private final String system;
@@ -35,8 +35,6 @@ public enum MonitoredSystem {
                 return KIBANA;
             case "logstash":
                 return LOGSTASH;
-            case "beats":
-                return BEATS;
             default:
                 // Return an "unknown" monitored system
                 // that can easily be filtered out if

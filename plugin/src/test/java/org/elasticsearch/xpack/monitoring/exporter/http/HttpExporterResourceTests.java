@@ -61,9 +61,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     private final boolean createOldTemplates = randomBoolean();
 
     /**
-     * kibana, logstash, beats
+     * kibana, logstash (and beats in the future)
      */
-    private final int EXPECTED_TEMPLATES = 5 + (createOldTemplates ? OLD_TEMPLATE_IDS.length : 0);
+    private final int EXPECTED_TEMPLATES = TEMPLATE_IDS.length + (createOldTemplates ? OLD_TEMPLATE_IDS.length : 0);
     private final int EXPECTED_PIPELINES = PIPELINE_IDS.length;
     private final int EXPECTED_WATCHES = ClusterAlertsUtil.WATCH_IDS.length;
 

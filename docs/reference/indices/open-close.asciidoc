@@ -32,3 +32,13 @@ This setting can also be changed via the cluster update settings api.
 
 Closed indices consume a significant amount of disk-space which can cause problems in managed environments. Closing indices can be disabled via the cluster settings
 API by setting `cluster.indices.close.enable` to `false`. The default is `true`.
+
+[float]
+=== Wait For Active Shards
+
+Because opening an index allocates its shards, the
+<<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting on
+index creation applies to the index opening action as well. The default value
+for the <<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting
+on the open index API is 0, which means that the command won't wait for the shards
+to be allocated.

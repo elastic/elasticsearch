@@ -209,7 +209,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             final ActionListener<CreateIndexClusterStateUpdateResponse> listener) {
         onlyCreateIndex(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
-                activeShardsObserver.waitForActiveShards(request.index(), request.waitForActiveShards(), request.ackTimeout(),
+                activeShardsObserver.waitForActiveShards(new String[]{request.index()}, request.waitForActiveShards(), request.ackTimeout(),
                     shardsAcked -> {
                         if (shardsAcked == false) {
                             logger.debug("[{}] index created, but the operation timed out while waiting for " +

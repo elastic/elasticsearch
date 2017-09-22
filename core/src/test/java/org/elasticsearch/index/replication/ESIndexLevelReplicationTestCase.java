@@ -141,7 +141,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
-            primary = newShard(primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting));
+            primary = newShard(primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting), () -> {});
             replicas = new ArrayList<>();
             this.indexMetaData = indexMetaData;
             updateAllocationIDsOnPrimary();
@@ -238,7 +238,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public IndexShard addReplica() throws IOException {
             final ShardRouting replicaRouting = createShardRouting("s" + replicaId.incrementAndGet(), false);
             final IndexShard replica =
-                newShard(replicaRouting, indexMetaData, null, getEngineFactory(replicaRouting));
+                newShard(replicaRouting, indexMetaData, null, getEngineFactory(replicaRouting), () -> {});
             addReplica(replica);
             return replica;
         }
@@ -259,8 +259,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 false, ShardRoutingState.INITIALIZING,
                 RecoverySource.PeerRecoverySource.INSTANCE);
 
-            final IndexShard newReplica = newShard(shardRouting, shardPath, indexMetaData, null,
-                    getEngineFactory(shardRouting));
+            final IndexShard newReplica =
+                    newShard(shardRouting, shardPath, indexMetaData, null, getEngineFactory(shardRouting), () -> {});
             replicas.add(newReplica);
             updateAllocationIDsOnPrimary();
             return newReplica;

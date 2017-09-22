@@ -72,7 +72,6 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import static org.elasticsearch.cli.Terminal.Verbosity.NORMAL;
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**

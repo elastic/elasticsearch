@@ -47,6 +47,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -88,6 +89,7 @@ final class QueryAnalyzer {
         map.put(FunctionScoreQuery.class, functionScoreQuery());
         map.put(PointRangeQuery.class, pointRangeQuery());
         map.put(IndexOrDocValuesQuery.class, indexOrDocValuesQuery());
+        map.put(ESToParentBlockJoinQuery.class, toParentBlockJoinQuery());
         queryProcessors = Collections.unmodifiableMap(map);
     }
 
@@ -387,6 +389,14 @@ final class QueryAnalyzer {
         return (query, boosts) -> {
             IndexOrDocValuesQuery indexOrDocValuesQuery = (IndexOrDocValuesQuery) query;
             return analyze(indexOrDocValuesQuery.getIndexQuery(), boosts);
+        };
+    }
+
+    private static BiFunction<Query, Map<String, Float>, Result> toParentBlockJoinQuery() {
+        return (query, boosts) -> {
+            ESToParentBlockJoinQuery toParentBlockJoinQuery = (ESToParentBlockJoinQuery) query;
+            Result result = analyze(toParentBlockJoinQuery.getChildQuery(), boosts);
+            return new Result(false, result.extractions);
         };
     }
 

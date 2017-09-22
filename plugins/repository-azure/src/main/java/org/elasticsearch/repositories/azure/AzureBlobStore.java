@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.util.Locale;
 import java.util.Map;
@@ -124,11 +123,6 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         return this.client.getInputStream(this.clientName, this.locMode, container, blob);
     }
 
-    public OutputStream getOutputStream(String container, String blob) throws URISyntaxException, StorageException
-    {
-        return this.client.getOutputStream(this.clientName, this.locMode, container, blob);
-    }
-
     public Map<String,BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix)
         throws URISyntaxException, StorageException {
         return this.client.listBlobsByPrefix(this.clientName, this.locMode, container, keyPath, prefix);
@@ -137,5 +131,9 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     public void moveBlob(String container, String sourceBlob, String targetBlob) throws URISyntaxException, StorageException
     {
         this.client.moveBlob(this.clientName, this.locMode, container, sourceBlob, targetBlob);
+    }
+
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws URISyntaxException, StorageException {
+        this.client.writeBlob(this.clientName, this.locMode, container, blobName, inputStream, blobSize);
     }
 }

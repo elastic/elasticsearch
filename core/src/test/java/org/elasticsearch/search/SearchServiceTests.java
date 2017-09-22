@@ -302,7 +302,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             searchSourceBuilder.docValueField("one_field_too_much");
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                     () -> service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+//<<<<<<< HEAD
                             searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, false)));
+//=======
+//                            searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, false), null));
+//>>>>>>> Fix new test in master that was missing checkFieldnames arg
             assertEquals(
                     "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [100] but was [101]. "
                             + "This limit can be set by changing the [index.max_docvalue_fields_search] index level setting.",

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import java.net.ConnectException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -181,14 +182,28 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         final MockChannel[] mockChannels = new MockChannel[1];
         final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, LIGHT_PROFILE); // we always use light here
         boolean success = false;
-        final MockSocket socket = new MockSocket();
+        MockSocket socket = new MockSocket();
         try {
             final InetSocketAddress address = node.getAddress().address();
             // we just use a single connections
             configureSocket(socket);
             final TimeValue connectTimeout = profile.getConnectTimeout();
             try {
-                socket.connect(address, Math.toIntExact(connectTimeout.millis()));
+                int retries = 0;
+                while (true) {
+                    ++retries;
+                    try {
+                        socket.connect(address, Math.toIntExact(connectTimeout.millis()));
+                        break;
+                    } catch (final ConnectException ex) {
+                        if (retries > 10) {
+                            throw ex;
+                        }
+                        IOUtils.close(socket);
+                        socket = new MockSocket();
+                        configureSocket(socket);
+                    }
+                }
             } catch (SocketTimeoutException ex) {
                 throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", ex);
             }

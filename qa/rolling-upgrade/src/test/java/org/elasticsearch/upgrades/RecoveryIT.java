@@ -71,6 +71,16 @@ public class RecoveryIT extends ESRestTestCase {
 
     private final CLUSTER_TYPE clusterType = CLUSTER_TYPE.parse(System.getProperty("tests.rest.suite"));
 
+    @Override
+    protected Settings restClientSettings() {
+        return Settings.builder().put(super.restClientSettings())
+            // increase the timeout so that we can actually see the result of failed cluster health
+            // calls that have a default timeout of 30s
+            .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "40s")
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "40s")
+            .build();
+    }
+
     private void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }

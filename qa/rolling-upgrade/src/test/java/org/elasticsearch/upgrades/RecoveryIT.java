@@ -105,6 +105,7 @@ public class RecoveryIT extends ESRestTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
             createIndex(index, settings.build());
+            ensureGreen();
         } else if (clusterType == CLUSTER_TYPE.UPGRADED) {
             ensureGreen();
             Response response = client().performRequest("GET", index + "/_stats", Collections.singletonMap("level", "shards"));
@@ -123,6 +124,11 @@ public class RecoveryIT extends ESRestTestCase {
                     assertThat("different history uuid found for shard on " + nodeID, historyUUID, equalTo(expectHistoryUUID));
                 }
             }
+        } else {
+            // we are now in mixed cluster mode. we want to make sure the shard is fully allocated on the new node that was just
+            // started in order not to run into delayed unassigned shards when we bring down the old node (there must be a fully valid
+            // copy)
+            ensureGreen();
         }
     }
 

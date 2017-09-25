@@ -31,6 +31,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.MultiValueMode;
 
+import java.io.IOException;
 import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -77,8 +78,8 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
             SortedBinaryDocValues values = fieldData.getBytesValues();
             for (int i = 0; i < readerContext.reader().maxDoc(); ++i) {
-                values.setDocument(i);
-                assertThat(values.count(), greaterThanOrEqualTo(1));
+                assertTrue(values.advanceExact(i));
+                assertThat(values.docValueCount(), greaterThanOrEqualTo(1));
             }
         }
     }
@@ -93,26 +94,27 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
 
-            bytesValues.setDocument(0);
-            assertThat(bytesValues.count(), equalTo(1));
-            assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(two())));
-            bytesValues.setDocument(1);
-            assertThat(bytesValues.count(), equalTo(1));
-            assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(one())));
-            bytesValues.setDocument(2);
-            assertThat(bytesValues.count(), equalTo(1));
-            assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(three())));
+            assertTrue(bytesValues.advanceExact(0));
+            assertThat(bytesValues.docValueCount(), equalTo(1));
+            assertThat(bytesValues.nextValue(), equalTo(new BytesRef(two())));
+            assertTrue(bytesValues.advanceExact(1));
+            assertThat(bytesValues.docValueCount(), equalTo(1));
+            assertThat(bytesValues.nextValue(), equalTo(new BytesRef(one())));
+            assertTrue(bytesValues.advanceExact(2));
+            assertThat(bytesValues.docValueCount(), equalTo(1));
+            assertThat(bytesValues.nextValue(), equalTo(new BytesRef(three())));
 
+            bytesValues = fieldData.getBytesValues();
             assertValues(bytesValues, 0, two());
             assertValues(bytesValues, 1, one());
             assertValues(bytesValues, 2, three());
 
             IndexSearcher searcher = new IndexSearcher(readerContext.reader());
             TopFieldDocs topDocs;
-
+            SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                    new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MIN, null))));
-            assertThat(topDocs.totalHits, equalTo(3));
+                    new Sort(sortField));
+            assertThat(topDocs.totalHits, equalTo(3L));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
             assertThat(toString(((FieldDoc) topDocs.scoreDocs[0]).fields[0]), equalTo(one()));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
@@ -120,9 +122,10 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(topDocs.scoreDocs[2].doc, equalTo(2));
             assertThat(toString(((FieldDoc) topDocs.scoreDocs[2]).fields[0]), equalTo(three()));
 
+            sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                    new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MAX, null), true)));
-            assertThat(topDocs.totalHits, equalTo(3));
+                    new Sort(sortField));
+            assertThat(topDocs.totalHits, equalTo(3L));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(2));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
@@ -131,19 +134,23 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     protected abstract void fillSingleValueWithMissing() throws Exception;
 
-    public void assertValues(SortedBinaryDocValues values, int docId, BytesRef... actualValues) {
-        values.setDocument(docId);
-        assertThat(values.count(), equalTo(actualValues.length));
-        for (int i = 0; i < actualValues.length; i++) {
-            assertThat(values.valueAt(i), equalTo(actualValues[i]));
+    public void assertValues(SortedBinaryDocValues values, int docId, BytesRef... actualValues) throws IOException {
+        assertEquals(actualValues.length > 0, values.advanceExact(docId));
+        if (actualValues.length > 0) {
+            assertThat(values.docValueCount(), equalTo(actualValues.length));
+            for (int i = 0; i < actualValues.length; i++) {
+                assertThat(values.nextValue(), equalTo(actualValues[i]));
+            }
         }
     }
 
-    public void assertValues(SortedBinaryDocValues values, int docId, String... actualValues) {
-        values.setDocument(docId);
-        assertThat(values.count(), equalTo(actualValues.length));
-        for (int i = 0; i < actualValues.length; i++) {
-            assertThat(values.valueAt(i), equalTo(new BytesRef(actualValues[i])));
+    public void assertValues(SortedBinaryDocValues values, int docId, String... actualValues) throws IOException {
+        assertEquals(actualValues.length > 0, values.advanceExact(docId));
+        if (actualValues.length > 0) {
+            assertThat(values.docValueCount(), equalTo(actualValues.length));
+            for (int i = 0; i < actualValues.length; i++) {
+                assertThat(values.nextValue(), equalTo(new BytesRef(actualValues[i])));
+            }
         }
     }
 
@@ -182,15 +189,17 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertValues(bytesValues, 2, three());
 
             IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
-            TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MIN, null))));
-            assertThat(topDocs.totalHits, equalTo(3));
+            SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
+            TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
+            assertThat(topDocs.totalHits, equalTo(3L));
             assertThat(topDocs.scoreDocs.length, equalTo(3));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
-            assertThat(topDocs.scoreDocs[2].doc, equalTo(2));
-
-            topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MAX, null), true)));
-            assertThat(topDocs.totalHits, equalTo(3));
+            assertThat(topDocs.scoreDocs[2].doc, equalTo(2))
+            ;
+            sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
+            topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
+            assertThat(topDocs.totalHits, equalTo(3L));
             assertThat(topDocs.scoreDocs.length, equalTo(3));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(2));
@@ -245,9 +254,11 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         IndexFieldData indexFieldData = getForField("value");
 
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
+        SortField sortField =
+            indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MIN, null))));
-        assertThat(topDocs.totalHits, equalTo(8));
+                new Sort(sortField));
+        assertThat(topDocs.totalHits, equalTo(8L));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(7));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("!08"));
@@ -266,9 +277,10 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         assertThat(topDocs.scoreDocs[7].doc, equalTo(5));
         assertThat((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0], equalTo(null));
 
+        sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
         topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MAX, null), true)));
-        assertThat(topDocs.totalHits, equalTo(8));
+                new Sort(sortField));
+        assertThat(topDocs.totalHits, equalTo(8L));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(6));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("10"));

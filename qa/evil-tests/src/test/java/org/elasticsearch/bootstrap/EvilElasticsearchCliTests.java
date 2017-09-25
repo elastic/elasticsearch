@@ -33,7 +33,7 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testPathHome() throws Exception {
         final String pathHome = System.getProperty("es.path.home");
-        final String value = randomAsciiOfLength(16);
+        final String value = randomAlphaOfLength(16);
         System.setProperty("es.path.home", value);
 
         runTest(
@@ -48,7 +48,7 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 });
 
         System.clearProperty("es.path.home");
-        final String commandLineValue = randomAsciiOfLength(16);
+        final String commandLineValue = randomAlphaOfLength(16);
         runTest(
                 ExitCodes.OK,
                 true,

@@ -52,7 +52,7 @@ public class SearchSortValuesTests extends ESTestCase {
         valueSuppliers.add(() -> randomByte());
         valueSuppliers.add(() -> randomShort());
         valueSuppliers.add(() -> randomBoolean());
-        valueSuppliers.add(() -> frequently() ? randomAsciiOfLengthBetween(1, 30) : randomRealisticUnicodeOfCodepointLength(30));
+        valueSuppliers.add(() -> frequently() ? randomAlphaOfLengthBetween(1, 30) : randomRealisticUnicodeOfCodepointLength(30));
 
         int size = randomIntBetween(1, 20);
         Object[] values = new Object[size];
@@ -67,7 +67,7 @@ public class SearchSortValuesTests extends ESTestCase {
         SearchSortValues sortValues = createTestItem();
         XContentType xcontentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(sortValues, xcontentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(sortValues, xcontentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         SearchSortValues parsed;
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {

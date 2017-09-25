@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
     "methods": ["PUT", "POST"],
     "url": {
-      "path": "/_scripts/{lang}",
-      "paths": [ "/_scripts/{lang}", "/_scripts/{lang}/{id}" ],
+      "path": "/_scripts/{id}",
+      "paths": [ "/_scripts/{id}", "/_scripts/{id}/{context}" ],
       "parts": {
         "id": {
           "type" : "string",
@@ -18,6 +18,18 @@
         }
       },
       "params" : {
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout"
+        },
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Specify timeout for connection to master"
+        },
+        "context": {
+          "type" : "string",
+          "description" : "Context name to compile script against"
+        }
       }
     },
     "body": {

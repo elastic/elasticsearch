@@ -52,7 +52,7 @@ public class URLBlobStoreTests extends ESTestCase {
         for (int i = 0; i < message.length; ++i) {
             message[i] = randomByte();
         }
-        blobName = randomAsciiOfLength(8);
+        blobName = randomAlphaOfLength(8);
 
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 6001), 0);
 

@@ -23,7 +23,6 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -49,8 +48,7 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData {
     public SortedBinaryDocValues getBytesValues() {
         try {
             final BinaryDocValues values = DocValues.getBinary(reader, field);
-            final Bits docsWithField = DocValues.getDocsWithField(reader, field);
-            return FieldData.singleton(values, docsWithField);
+            return FieldData.singleton(values);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

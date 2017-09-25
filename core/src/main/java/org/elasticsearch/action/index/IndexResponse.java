@@ -21,7 +21,6 @@ package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -38,13 +37,11 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class IndexResponse extends DocWriteResponse {
 
-    private static final String CREATED = "created";
-
     public IndexResponse() {
     }
 
-    public IndexResponse(ShardId shardId, String type, String id, long seqNo, long version, boolean created) {
-        super(shardId, type, id, seqNo, version, created ? Result.CREATED : Result.UPDATED);
+    public IndexResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, boolean created) {
+        super(shardId, type, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED);
     }
 
     @Override
@@ -62,15 +59,9 @@ public class IndexResponse extends DocWriteResponse {
         builder.append(",version=").append(getVersion());
         builder.append(",result=").append(getResult().getLowercase());
         builder.append(",seqNo=").append(getSeqNo());
+        builder.append(",primaryTerm=").append(getPrimaryTerm());
         builder.append(",shards=").append(Strings.toString(getShardInfo()));
         return builder.append("]").toString();
-    }
-
-    @Override
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        super.innerToXContent(builder, params);
-        builder.field(CREATED, result == Result.CREATED);
-        return builder;
     }
 
     public static IndexResponse fromXContent(XContentParser parser) throws IOException {
@@ -87,16 +78,7 @@ public class IndexResponse extends DocWriteResponse {
      * Parse the current token and update the parsing context appropriately.
      */
     public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        String currentFieldName = parser.currentName();
-
-        if (CREATED.equals(currentFieldName)) {
-            if (token.isValue()) {
-                context.setCreated(parser.booleanValue());
-            }
-        } else {
-            DocWriteResponse.parseInnerToXContent(parser, context);
-        }
+        DocWriteResponse.parseInnerToXContent(parser, context);
     }
 
     /**
@@ -106,15 +88,10 @@ public class IndexResponse extends DocWriteResponse {
      */
     public static class Builder extends DocWriteResponse.Builder {
 
-        private boolean created = false;
-
-        public void setCreated(boolean created) {
-            this.created = created;
-        }
-
         @Override
         public IndexResponse build() {
-            IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, version, created);
+            IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, primaryTerm, version,
+                    result == Result.CREATED ? true : false);
             indexResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 indexResponse.setShardInfo(shardInfo);

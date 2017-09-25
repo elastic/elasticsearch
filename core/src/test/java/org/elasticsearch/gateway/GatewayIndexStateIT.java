@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -330,26 +331,11 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         final int numNodes = 2;
 
         final List<String> nodes;
-        if (randomBoolean()) {
-            // test with a regular index
-            logger.info("--> starting a cluster with " + numNodes + " nodes");
-            nodes = internalCluster().startNodes(numNodes);
-            logger.info("--> create an index");
-            createIndex(indexName);
-        } else {
-            // test with a shadow replica index
-            final Path dataPath = createTempDir();
-            logger.info("--> created temp data path for shadow replicas [{}]", dataPath);
-            logger.info("--> starting a cluster with " + numNodes + " nodes");
-            final Settings nodeSettings = Settings.builder()
-                                                  .put("node.add_lock_id_to_custom_path", false)
-                                                  .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath.toString())
-                                                  .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
-                                                  .build();
-            nodes = internalCluster().startNodes(numNodes, nodeSettings);
-            logger.info("--> create a shadow replica index");
-            createShadowReplicaIndex(indexName, dataPath, numNodes - 1);
-        }
+        logger.info("--> starting a cluster with " + numNodes + " nodes");
+        nodes = internalCluster().startNodes(numNodes,
+            Settings.builder().put(IndexGraveyard.SETTING_MAX_TOMBSTONES.getKey(), randomIntBetween(10, 100)).build());
+        logger.info("--> create an index");
+        createIndex(indexName);
 
         logger.info("--> waiting for green status");
         ensureGreen();
@@ -535,23 +521,4 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()));
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
     }
-
-
-    /**
-     * Creates a shadow replica index and asserts that the index creation was acknowledged.
-     * Can only be invoked on a cluster where each node has been configured with shared data
-     * paths and the other necessary settings for shadow replicas.
-     */
-    private void createShadowReplicaIndex(final String name, final Path dataPath, final int numReplicas) {
-        assert Files.exists(dataPath);
-        assert numReplicas >= 0;
-        final Settings idxSettings = Settings.builder()
-                                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                                         .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
-                                         .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                                         .build();
-        assertAcked(prepareCreate(name).setSettings(idxSettings).get());
-    }
-
 }

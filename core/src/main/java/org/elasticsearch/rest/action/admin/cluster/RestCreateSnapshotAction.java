@@ -44,6 +44,11 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "create_snapshot_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         CreateSnapshotRequest createSnapshotRequest = createSnapshotRequest(request.param("repository"), request.param("snapshot"));
         request.applyContentParser(p -> createSnapshotRequest.source(p.mapOrdered()));

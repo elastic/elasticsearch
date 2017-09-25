@@ -36,8 +36,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
 
 import java.lang.reflect.InvocationTargetException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -49,7 +47,7 @@ public final class Allocators {
         public static final NoopGatewayAllocator INSTANCE = new NoopGatewayAllocator();
 
         protected NoopGatewayAllocator() {
-            super(Settings.EMPTY, null, null);
+            super(Settings.EMPTY);
         }
 
         @Override

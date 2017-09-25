@@ -1,0 +1,123 @@
+[[variables]]
+=== Variables
+
+Variables in Painless must be declared and can be statically or <<dynamic-types,
+dynamically typed>>.
+
+[[variable-identifiers]]
+==== Variable Identifiers
+
+Specify variable identifiers using the following grammar. Variable identifiers
+must start with a letter or underscore. You cannot use <<keywords, keywords>> or
+<<types, types>> as identifiers.
+
+*Grammar:*
+[source,ANTLR4]
+----
+ID: [_a-zA-Z] [_a-zA-Z-0-9]*;
+----
+
+*Examples:*
+[source,Java]
+----
+_
+a
+Z
+id
+list
+list0
+MAP25
+_map25
+----
+
+[[variable-declaration]]
+==== Variable Declaration
+
+Variables must be declared before you use them. The format is `type-name
+identifier-name`. To declare multiple variables of the same type, specify a
+comma-separated list of identifier names. You can immediately assign a value to
+a variable when you declare it.
+
+*Grammar:*
+[source,ANTLR4]
+----
+type: ID ('[' ']')*;
+declaration : type ID (',' ID)*;
+----
+
+*Examples:*
+[source,Java]
+----
+int x;        // Declare a variable with type int and id x
+List y;       // Declare a variable with type List and id y
+int x, y, z;  // Declare variables with type int and ids x, y, and z
+def[] d;      // Declare the variable d with type def[]
+int i = 10;   // Declare the int variable i and set it to the int literal 10
+----
+
+[[variable-assignment]]
+==== Variable Assignment
+
+Use the equals operator (`=`) to assign a value to a variable. The format is
+`identifier-name = value`. Any value expression can be assigned to any variable
+as long as the types match or the expression's type can be implicitly cast to
+the variable's type. An error occurs if the types do not match.
+
+*Grammar:*
+[source,ANTLR4]
+----
+assignment: ID '=' expression
+----
+
+
+*Examples:*
+
+Assigning a literal of the appropriate type directly to a declared variable.
+
+[source,Java]
+----
+int i;   // Declare an int i
+i = 10;  // Set the int i to the int literal 10
+----
+
+Immediately assigning a value when declaring a variable. 
+
+[source,Java]
+----
+int i = 10;     // Declare the int variable i and set it the int literal 1
+double j = 2.0; // Declare the double variable j and set it to the double
+                //   literal 2.0
+----
+
+Assigning a variable of one primitive type to another variable of the same
+type.
+
+[source,Java]
+----
+int i = 10; // Declare the int variable i and set it to the int literal 10
+int j = i;  // Declare the int variable j and set it to the int variable i
+----
+
+Assigning a reference type to a new heap allocation with the `new` operator.
+
+[source,Java]
+----
+ArrayList l = new ArrayList();  // Declare an ArrayList variable l and set it
+                                //   to a newly allocated ArrayList
+Map m = new HashMap();          // Declare a Map variable m and set it
+                                //   to a newly allocated HashMap
+----
+
+Assigning a variable of one reference type to another variable of the same type.
+
+[source,Java]
+----
+List l = new ArrayList(); // Declare List variable l and set it a newly
+                          //    allocated ArrayList
+List k = l;               // Declare List variable k and set it to the
+                          //    value of the List variable l
+List m;                   // Declare List variable m and set it the
+                          //    default value null
+m = k;                    // Set the value of List variable m to the value
+                          //    of List variable k
+----

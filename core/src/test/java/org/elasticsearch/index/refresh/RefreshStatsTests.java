@@ -19,10 +19,8 @@
 
 package org.elasticsearch.index.refresh;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-
-import java.io.IOException;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
 public class RefreshStatsTests extends AbstractStreamableTestCase<RefreshStats> {
     @Override
@@ -35,14 +33,25 @@ public class RefreshStatsTests extends AbstractStreamableTestCase<RefreshStats> 
         return new RefreshStats();
     }
 
-    public void testPre5Dot2() throws IOException {
-        // We can drop the compatibility once the assertion just below this list fails
-        assertTrue(Version.CURRENT.minimumCompatibilityVersion().before(Version.V_5_2_0_UNRELEASED));
-
-        RefreshStats instance = createTestInstance();
-        RefreshStats copied = copyInstance(instance, Version.V_5_1_1_UNRELEASED);
-        assertEquals(instance.getTotal(), copied.getTotal());
-        assertEquals(instance.getTotalTimeInMillis(), copied.getTotalTimeInMillis());
-        assertEquals(0, copied.getListeners());
+    @Override
+    protected MutateFunction<RefreshStats> getMutateFunction() {
+        return instance -> {
+            long total = instance.getTotal();
+            long totalInMillis = instance.getTotalTimeInMillis();
+            int listeners = instance.getListeners();
+            switch (randomInt(2)) {
+            case 0:
+                total += between(1, 2000);
+                break;
+            case 1:
+                totalInMillis += between(1, 2000);
+                break;
+            case 2:
+            default:
+                listeners += between(1, 2000);
+                break;
+            }
+            return new RefreshStats(total, totalInMillis, listeners);
+        };
     }
 }

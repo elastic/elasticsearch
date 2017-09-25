@@ -69,7 +69,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 UnassignedInfo.Reason.REINITIALIZED,
                 UnassignedInfo.Reason.REALLOCATED_REPLICA,
                 UnassignedInfo.Reason.PRIMARY_FAILED,
-                UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY};
+                UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
+                UnassignedInfo.Reason.MANUAL_ALLOCATION,};
         for (int i = 0; i < order.length; i++) {
             assertThat(order[i].ordinal(), equalTo(i));
         }
@@ -79,9 +80,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testSerialization() throws Exception {
         UnassignedInfo.Reason reason = RandomPicks.randomFrom(random(), UnassignedInfo.Reason.values());
         UnassignedInfo meta = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ?
-            new UnassignedInfo(reason, randomBoolean() ? randomAsciiOfLength(4) : null, null, randomIntBetween(1, 100), System.nanoTime(),
+            new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null, null, randomIntBetween(1, 100), System.nanoTime(),
                                System.currentTimeMillis(), false, AllocationStatus.NO_ATTEMPT):
-            new UnassignedInfo(reason, randomBoolean() ? randomAsciiOfLength(4) : null);
+            new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null);
         BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
         out.close();

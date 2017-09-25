@@ -97,9 +97,9 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 assertEquals(new BytesRef("T"), leaf.terms("field").iterator().next());
                 SortedNumericDocValues values = leaf.getSortedNumericDocValues("field");
                 assertNotNull(values);
-                values.setDocument(0);
-                assertEquals(1, values.count());
-                assertEquals(1, values.valueAt(0));
+                assertTrue(values.advanceExact(0));
+                assertEquals(1, values.docValueCount());
+                assertEquals(1, values.nextValue());
             }
         }
     }

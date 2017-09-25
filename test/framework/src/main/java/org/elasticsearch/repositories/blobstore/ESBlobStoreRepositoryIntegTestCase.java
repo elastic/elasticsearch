@@ -222,7 +222,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             indexRequestBuilders[i] = client().prepareIndex(name, name, Integer.toString(i))
-                .setRouting(randomAsciiOfLength(randomIntBetween(1, 10))).setSource("field", "value");
+                .setRouting(randomAlphaOfLength(randomIntBetween(1, 10))).setSource("field", "value");
         }
         indexRandom(true, indexRequestBuilders);
     }
@@ -262,6 +262,6 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     public static String randomAsciiName() {
-        return randomAsciiOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        return randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
     }
 }

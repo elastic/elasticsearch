@@ -24,13 +24,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.UnaryOperator;
 
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
@@ -40,14 +36,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
 
-import static org.elasticsearch.common.Strings.cleanPath;
-
 public class InternalSettingsPreparer {
 
     private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json"};
-    private static final String PROPERTY_DEFAULTS_PREFIX = "default.";
-    private static final Predicate<String> PROPERTY_DEFAULTS_PREDICATE = key -> key.startsWith(PROPERTY_DEFAULTS_PREFIX);
-    private static final UnaryOperator<String> STRIP_PROPERTY_DEFAULTS_PREFIX = key -> key.substring(PROPERTY_DEFAULTS_PREFIX.length());
 
     public static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
     public static final String TEXT_PROMPT_VALUE = "${prompt.text}";
@@ -72,7 +63,7 @@ public class InternalSettingsPreparer {
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
     public static Environment prepareEnvironment(Settings input, Terminal terminal) {
-        return prepareEnvironment(input, terminal, Collections.emptyMap());
+        return prepareEnvironment(input, terminal, Collections.emptyMap(), null);
     }
 
     /**
@@ -80,60 +71,59 @@ public class InternalSettingsPreparer {
      * and then replacing all property placeholders. If a {@link Terminal} is provided and configuration settings are loaded,
      * settings with a value of <code>${prompt.text}</code> or <code>${prompt.secret}</code> will result in a prompt for
      * the setting to the user.
-     * @param input The custom settings to use. These are not overwritten by settings in the configuration file.
-     * @param terminal the Terminal to use for input/output
-     * @param properties Map of properties key/value pairs (usually from the command-line)
+     *
+     * @param input      the custom settings to use; these are not overwritten by settings in the configuration file
+     * @param terminal   the Terminal to use for input/output
+     * @param properties map of properties key/value pairs (usually from the command-line)
+     * @param configPath path to config directory; (use null to indicate the default)
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
-    public static Environment prepareEnvironment(Settings input, Terminal terminal, Map<String, String> properties) {
+    public static Environment prepareEnvironment(Settings input, Terminal terminal, Map<String, String> properties, Path configPath) {
         // just create enough settings to build the environment, to get the config dir
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, properties);
-        Environment environment = new Environment(output.build());
+        Environment environment = new Environment(output.build(), configPath);
+
+        if (Files.exists(environment.configFile().resolve("elasticsearch.yaml"))) {
+            throw new SettingsException("elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml");
+        }
+
+        if (Files.exists(environment.configFile().resolve("elasticsearch.json"))) {
+            throw new SettingsException("elasticsearch.json was deprecated in 5.5.0 and must be converted to elasticsearch.yml");
+        }
 
         output = Settings.builder(); // start with a fresh output
-        boolean settingsFileFound = false;
-        Set<String> foundSuffixes = new HashSet<>();
-        for (String allowedSuffix : ALLOWED_SUFFIXES) {
-            Path path = environment.configFile().resolve("elasticsearch" + allowedSuffix);
-            if (Files.exists(path)) {
-                if (!settingsFileFound) {
-                    try {
-                        output.loadFromPath(path);
-                    } catch (IOException e) {
-                        throw new SettingsException("Failed to load settings from " + path.toString(), e);
-                    }
-                }
-                settingsFileFound = true;
-                foundSuffixes.add(allowedSuffix);
+        Path path = environment.configFile().resolve("elasticsearch.yml");
+        if (Files.exists(path)) {
+            try {
+                output.loadFromPath(path);
+            } catch (IOException e) {
+                throw new SettingsException("Failed to load settings from " + path.toString(), e);
             }
-        }
-        if (foundSuffixes.size() > 1) {
-            throw new SettingsException("multiple settings files found with suffixes: "
-                + Strings.collectionToDelimitedString(foundSuffixes, ","));
         }
 
         // re-initialize settings now that the config file has been loaded
         initializeSettings(output, input, properties);
         finalizeSettings(output, terminal);
 
-        environment = new Environment(output.build());
+        environment = new Environment(output.build(), configPath);
 
         // we put back the path.logs so we can use it in the logging configuration file
-        output.put(Environment.PATH_LOGS_SETTING.getKey(), cleanPath(environment.logsFile().toAbsolutePath().toString()));
-        return new Environment(output.build());
+        output.put(Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile().toAbsolutePath().normalize().toString());
+        return new Environment(output.build(), configPath);
     }
 
     /**
-     * Initializes the builder with the given input settings, and loads system properties settings if allowed.
-     * If loadDefaults is true, system property default settings are loaded.
+     * Initializes the builder with the given input settings, and applies settings from the specified map (these settings typically come
+     * from the command line).
+     *
+     * @param output the settings builder to apply the input and default settings to
+     * @param input the input settings
+     * @param esSettings a map from which to apply settings
      */
-    private static void initializeSettings(Settings.Builder output, Settings input, Map<String, String> esSettings) {
+    static void initializeSettings(final Settings.Builder output, final Settings input, final Map<String, String> esSettings) {
         output.put(input);
-        output.putProperties(esSettings,
-            PROPERTY_DEFAULTS_PREDICATE.and(key -> output.get(STRIP_PROPERTY_DEFAULTS_PREFIX.apply(key)) == null),
-            STRIP_PROPERTY_DEFAULTS_PREFIX);
-        output.putProperties(esSettings, PROPERTY_DEFAULTS_PREDICATE.negate(), Function.identity());
+        output.putProperties(esSettings, Function.identity());
         output.replacePropertyPlaceholders();
     }
 

@@ -117,8 +117,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         maxConcurrentSearchRequests = in.readVInt();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            SearchRequest request = new SearchRequest();
-            request.readFrom(in);
+            SearchRequest request = new SearchRequest(in);
             requests.add(request);
         }
     }

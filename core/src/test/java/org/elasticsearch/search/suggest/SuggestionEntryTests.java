@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
@@ -35,10 +36,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SuggestionEntryTests extends ESTestCase {
@@ -55,7 +58,7 @@ public class SuggestionEntryTests extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     public static <O extends Option> Entry<O> createTestItem(Class<? extends Entry> entryType) {
-        Text entryText = new Text(randomAsciiOfLengthBetween(5, 15));
+        Text entryText = new Text(randomAlphaOfLengthBetween(5, 15));
         int offset = randomInt();
         int length = randomInt();
         Entry entry;
@@ -79,15 +82,35 @@ public class SuggestionEntryTests extends ESTestCase {
         return entry;
     }
 
-    @SuppressWarnings("unchecked")
     public void testFromXContent() throws IOException {
+        doTestFromXContent(false);
+    }
+
+    public void testFromXContentWithRandomFields() throws IOException {
+        doTestFromXContent(true);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void doTestFromXContent(boolean addRandomFields) throws IOException {
         for (Class<? extends Entry> entryType : ENTRY_PARSERS.keySet()) {
             Entry<Option> entry = createTestItem(entryType);
             XContentType xContentType = randomFrom(XContentType.values());
             boolean humanReadable = randomBoolean();
-            BytesReference originalBytes = toXContent(entry, xContentType, humanReadable);
+            BytesReference originalBytes = toShuffledXContent(entry, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+            BytesReference mutated;
+            if (addRandomFields) {
+                // "contexts" is an object consisting of key/array pairs, we shouldn't add anything random there
+                // also there can be inner search hits fields inside this option, we need to exclude another couple of paths
+                // where we cannot add random stuff
+                Predicate<String> excludeFilter = (
+                        path) -> (path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName()) || path.endsWith("highlight")
+                                || path.endsWith("fields") || path.contains("_source") || path.contains("inner_hits"));
+                mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
+            } else {
+                mutated = originalBytes;
+            }
             Entry<Option> parsed;
-            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
                 parsed = ENTRY_PARSERS.get(entry.getClass()).apply(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());

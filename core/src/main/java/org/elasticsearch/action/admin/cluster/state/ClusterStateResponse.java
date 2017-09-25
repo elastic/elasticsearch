@@ -79,7 +79,7 @@ public class ClusterStateResponse extends ActionResponse {
         super.readFrom(in);
         clusterName = new ClusterName(in);
         clusterState = ClusterState.readFrom(in, null);
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             totalCompressedSize = new ByteSizeValue(in);
         } else {
             // in a mixed cluster, if a pre 6.0 node processes the get cluster state
@@ -95,7 +95,7 @@ public class ClusterStateResponse extends ActionResponse {
         super.writeTo(out);
         clusterName.writeTo(out);
         clusterState.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             totalCompressedSize.writeTo(out);
         }
     }

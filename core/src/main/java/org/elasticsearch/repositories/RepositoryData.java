@@ -20,14 +20,18 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotState;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -51,8 +55,8 @@ public final class RepositoryData {
     /**
      * An instance initialized for an empty repository.
      */
-    public static final RepositoryData EMPTY =
-        new RepositoryData(EMPTY_REPO_GEN, Collections.emptyList(), Collections.emptyMap(), Collections.emptyList());
+    public static final RepositoryData EMPTY = new RepositoryData(EMPTY_REPO_GEN,
+        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyList());
 
     /**
      * The generational id of the index file from which the repository data was read.
@@ -61,7 +65,11 @@ public final class RepositoryData {
     /**
      * The ids of the snapshots in the repository.
      */
-    private final List<SnapshotId> snapshotIds;
+    private final Map<String, SnapshotId> snapshotIds;
+    /**
+     * The states of each snapshot in the repository.
+     */
+    private final Map<String, SnapshotState> snapshotStates;
     /**
      * The indices found in the repository across all snapshots, as a name to {@link IndexId} mapping
      */
@@ -75,19 +83,22 @@ public final class RepositoryData {
      */
     private final List<SnapshotId> incompatibleSnapshotIds;
 
-    public RepositoryData(long genId, List<SnapshotId> snapshotIds, Map<IndexId, Set<SnapshotId>> indexSnapshots,
+    public RepositoryData(long genId,
+                          Map<String, SnapshotId> snapshotIds,
+                          Map<String, SnapshotState> snapshotStates,
+                          Map<IndexId, Set<SnapshotId>> indexSnapshots,
                           List<SnapshotId> incompatibleSnapshotIds) {
         this.genId = genId;
-        this.snapshotIds = Collections.unmodifiableList(snapshotIds);
-        this.indices = Collections.unmodifiableMap(indexSnapshots.keySet()
-                                                       .stream()
-                                                       .collect(Collectors.toMap(IndexId::getName, Function.identity())));
+        this.snapshotIds = Collections.unmodifiableMap(snapshotIds);
+        this.snapshotStates = Collections.unmodifiableMap(snapshotStates);
+        this.indices = Collections.unmodifiableMap(indexSnapshots.keySet().stream()
+            .collect(Collectors.toMap(IndexId::getName, Function.identity())));
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
         this.incompatibleSnapshotIds = Collections.unmodifiableList(incompatibleSnapshotIds);
     }
 
     protected RepositoryData copy() {
-        return new RepositoryData(genId, snapshotIds, indexSnapshots, incompatibleSnapshotIds);
+        return new RepositoryData(genId, snapshotIds, snapshotStates, indexSnapshots, incompatibleSnapshotIds);
     }
 
     /**
@@ -98,17 +109,17 @@ public final class RepositoryData {
     }
 
     /**
-     * Returns an unmodifiable list of the snapshot ids.
+     * Returns an unmodifiable collection of the snapshot ids.
      */
-    public List<SnapshotId> getSnapshotIds() {
-        return snapshotIds;
+    public Collection<SnapshotId> getSnapshotIds() {
+        return Collections.unmodifiableCollection(snapshotIds.values());
     }
 
     /**
      * Returns an immutable collection of the snapshot ids in the repository that are incompatible with the
      * current ES version.
      */
-    public List<SnapshotId> getIncompatibleSnapshotIds() {
+    public Collection<SnapshotId> getIncompatibleSnapshotIds() {
         return incompatibleSnapshotIds;
     }
 
@@ -116,11 +127,20 @@ public final class RepositoryData {
      * Returns an immutable collection of all the snapshot ids in the repository, both active and
      * incompatible snapshots.
      */
-    public List<SnapshotId> getAllSnapshotIds() {
+    public Collection<SnapshotId> getAllSnapshotIds() {
         List<SnapshotId> allSnapshotIds = new ArrayList<>(snapshotIds.size() + incompatibleSnapshotIds.size());
-        allSnapshotIds.addAll(snapshotIds);
+        allSnapshotIds.addAll(snapshotIds.values());
         allSnapshotIds.addAll(incompatibleSnapshotIds);
         return Collections.unmodifiableList(allSnapshotIds);
+    }
+
+    /**
+     * Returns the {@link SnapshotState} for the given snapshot.  Returns {@code null} if
+     * there is no state for the snapshot.
+     */
+    @Nullable
+    public SnapshotState getSnapshotState(final SnapshotId snapshotId) {
+        return snapshotStates.get(snapshotId.getUUID());
     }
 
     /**
@@ -134,15 +154,19 @@ public final class RepositoryData {
      * Add a snapshot and its indices to the repository; returns a new instance.  If the snapshot
      * already exists in the repository data, this method throws an IllegalArgumentException.
      */
-    public RepositoryData addSnapshot(final SnapshotId snapshotId, final List<IndexId> snapshottedIndices) {
-        if (snapshotIds.contains(snapshotId)) {
+    public RepositoryData addSnapshot(final SnapshotId snapshotId,
+                                      final SnapshotState snapshotState,
+                                      final List<IndexId> snapshottedIndices) {
+        if (snapshotIds.containsKey(snapshotId.getUUID())) {
             // if the snapshot id already exists in the repository data, it means an old master
             // that is blocked from the cluster is trying to finalize a snapshot concurrently with
             // the new master, so we make the operation idempotent
             return this;
         }
-        List<SnapshotId> snapshots = new ArrayList<>(snapshotIds);
-        snapshots.add(snapshotId);
+        Map<String, SnapshotId> snapshots = new HashMap<>(snapshotIds);
+        snapshots.put(snapshotId.getUUID(), snapshotId);
+        Map<String, SnapshotState> newSnapshotStates = new HashMap<>(snapshotStates);
+        newSnapshotStates.put(snapshotId.getUUID(), snapshotState);
         Map<IndexId, Set<SnapshotId>> allIndexSnapshots = new HashMap<>(indexSnapshots);
         for (final IndexId indexId : snapshottedIndices) {
             if (allIndexSnapshots.containsKey(indexId)) {
@@ -158,17 +182,21 @@ public final class RepositoryData {
                 allIndexSnapshots.put(indexId, ids);
             }
         }
-        return new RepositoryData(genId, snapshots, allIndexSnapshots, incompatibleSnapshotIds);
+        return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots, incompatibleSnapshotIds);
     }
 
     /**
      * Remove a snapshot and remove any indices that no longer exist in the repository due to the deletion of the snapshot.
      */
     public RepositoryData removeSnapshot(final SnapshotId snapshotId) {
-        List<SnapshotId> newSnapshotIds = snapshotIds
-                                              .stream()
-                                              .filter(id -> snapshotId.equals(id) == false)
-                                              .collect(Collectors.toList());
+        Map<String, SnapshotId> newSnapshotIds = snapshotIds.values().stream()
+            .filter(id -> !snapshotId.equals(id))
+            .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));
+        if (newSnapshotIds.size() == snapshotIds.size()) {
+            throw new ResourceNotFoundException("Attempting to remove non-existent snapshot [{}] from repository data", snapshotId);
+        }
+        Map<String, SnapshotState> newSnapshotStates = new HashMap<>(snapshotStates);
+        newSnapshotStates.remove(snapshotId.getUUID());
         Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
         for (final IndexId indexId : indices.values()) {
             Set<SnapshotId> set;
@@ -176,7 +204,8 @@ public final class RepositoryData {
             assert snapshotIds != null;
             if (snapshotIds.contains(snapshotId)) {
                 if (snapshotIds.size() == 1) {
-                    // removing the snapshot will mean no more snapshots have this index, so just skip over it
+                    // removing the snapshot will mean no more snapshots
+                    // have this index, so just skip over it
                     continue;
                 }
                 set = new LinkedHashSet<>(snapshotIds);
@@ -187,21 +216,7 @@ public final class RepositoryData {
             indexSnapshots.put(indexId, set);
         }
 
-        return new RepositoryData(genId, newSnapshotIds, indexSnapshots, incompatibleSnapshotIds);
-    }
-
-    /**
-     * Returns a new {@link RepositoryData} instance containing the same snapshot data as the
-     * invoking instance, with the given incompatible snapshots added to the new instance.
-     */
-    public RepositoryData addIncompatibleSnapshots(final List<SnapshotId> incompatibleSnapshotIds) {
-        List<SnapshotId> newSnapshotIds = new ArrayList<>(this.snapshotIds);
-        List<SnapshotId> newIncompatibleSnapshotIds = new ArrayList<>(this.incompatibleSnapshotIds);
-        for (SnapshotId snapshotId : incompatibleSnapshotIds) {
-            newSnapshotIds.remove(snapshotId);
-            newIncompatibleSnapshotIds.add(snapshotId);
-        }
-        return new RepositoryData(this.genId, newSnapshotIds, this.indexSnapshots, newIncompatibleSnapshotIds);
+        return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots, incompatibleSnapshotIds);
     }
 
     /**
@@ -210,7 +225,7 @@ public final class RepositoryData {
     public Set<SnapshotId> getSnapshots(final IndexId indexId) {
         Set<SnapshotId> snapshotIds = indexSnapshots.get(indexId);
         if (snapshotIds == null) {
-            throw new IllegalArgumentException("unknown snapshot index " + indexId + "");
+            throw new IllegalArgumentException("unknown snapshot index " + indexId);
         }
         return snapshotIds;
     }
@@ -219,7 +234,7 @@ public final class RepositoryData {
      * Initializes the indices in the repository metadata; returns a new instance.
      */
     public RepositoryData initIndices(final Map<IndexId, Set<SnapshotId>> indexSnapshots) {
-        return new RepositoryData(genId, snapshotIds, indexSnapshots, incompatibleSnapshotIds);
+        return new RepositoryData(genId, snapshotIds, snapshotStates, indexSnapshots, incompatibleSnapshotIds);
     }
 
     @Override
@@ -232,6 +247,7 @@ public final class RepositoryData {
         }
         @SuppressWarnings("unchecked") RepositoryData that = (RepositoryData) obj;
         return snapshotIds.equals(that.snapshotIds)
+                   && snapshotStates.equals(that.snapshotStates)
                    && indices.equals(that.indices)
                    && indexSnapshots.equals(that.indexSnapshots)
                    && incompatibleSnapshotIds.equals(that.incompatibleSnapshotIds);
@@ -239,7 +255,7 @@ public final class RepositoryData {
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotIds, indices, indexSnapshots, incompatibleSnapshotIds);
+        return Objects.hash(snapshotIds, snapshotStates, indices, indexSnapshots, incompatibleSnapshotIds);
     }
 
     /**
@@ -291,6 +307,9 @@ public final class RepositoryData {
     private static final String INCOMPATIBLE_SNAPSHOTS = "incompatible-snapshots";
     private static final String INDICES = "indices";
     private static final String INDEX_ID = "id";
+    private static final String NAME = "name";
+    private static final String UUID = "uuid";
+    private static final String STATE = "state";
 
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content, omitting the
@@ -301,7 +320,13 @@ public final class RepositoryData {
         // write the snapshots list
         builder.startArray(SNAPSHOTS);
         for (final SnapshotId snapshot : getSnapshotIds()) {
-            snapshot.toXContent(builder, params);
+            builder.startObject();
+            builder.field(NAME, snapshot.getName());
+            builder.field(UUID, snapshot.getUUID());
+            if (snapshotStates.containsKey(snapshot.getUUID())) {
+                builder.field(STATE, snapshotStates.get(snapshot.getUUID()).value());
+            }
+            builder.endObject();
         }
         builder.endArray();
         // write the indices map
@@ -313,7 +338,7 @@ public final class RepositoryData {
             Set<SnapshotId> snapshotIds = indexSnapshots.get(indexId);
             assert snapshotIds != null;
             for (final SnapshotId snapshotId : snapshotIds) {
-                snapshotId.toXContent(builder, params);
+                builder.value(snapshotId.getUUID());
             }
             builder.endArray();
             builder.endObject();
@@ -327,20 +352,47 @@ public final class RepositoryData {
      * Reads an instance of {@link RepositoryData} from x-content, loading the snapshots and indices metadata.
      */
     public static RepositoryData snapshotsFromXContent(final XContentParser parser, long genId) throws IOException {
-        List<SnapshotId> snapshots = new ArrayList<>();
+        Map<String, SnapshotId> snapshots = new HashMap<>();
+        Map<String, SnapshotState> snapshotStates = new HashMap<>();
         Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                String currentFieldName = parser.currentName();
-                if (SNAPSHOTS.equals(currentFieldName)) {
+                String field = parser.currentName();
+                if (SNAPSHOTS.equals(field)) {
                     if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            snapshots.add(SnapshotId.fromXContent(parser));
+                            final SnapshotId snapshotId;
+                            // the new format from 5.0 which contains the snapshot name and uuid
+                            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                                String name = null;
+                                String uuid = null;
+                                SnapshotState state = null;
+                                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                    String currentFieldName = parser.currentName();
+                                    parser.nextToken();
+                                    if (NAME.equals(currentFieldName)) {
+                                        name = parser.text();
+                                    } else if (UUID.equals(currentFieldName)) {
+                                        uuid = parser.text();
+                                    } else if (STATE.equals(currentFieldName)) {
+                                        state = SnapshotState.fromValue(parser.numberValue().byteValue());
+                                    }
+                                }
+                                snapshotId = new SnapshotId(name, uuid);
+                                if (state != null) {
+                                    snapshotStates.put(uuid, state);
+                                }
+                            } else {
+                                // the old format pre 5.0 that only contains the snapshot name, use the name as the uuid too
+                                final String name = parser.text();
+                                snapshotId = new SnapshotId(name, name);
+                            }
+                            snapshots.put(snapshotId.getUUID(), snapshotId);
                         }
                     } else {
-                        throw new ElasticsearchParseException("expected array for [" + currentFieldName + "]");
+                        throw new ElasticsearchParseException("expected array for [" + field + "]");
                     }
-                } else if (INDICES.equals(currentFieldName)) {
+                } else if (INDICES.equals(field)) {
                     if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                         throw new ElasticsearchParseException("start object expected [indices]");
                     }
@@ -361,7 +413,22 @@ public final class RepositoryData {
                                     throw new ElasticsearchParseException("start array expected [snapshots]");
                                 }
                                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                    snapshotIds.add(SnapshotId.fromXContent(parser));
+                                    String uuid = null;
+                                    // the old format pre 5.4.1 which contains the snapshot name and uuid
+                                    if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                            String currentFieldName = parser.currentName();
+                                            parser.nextToken();
+                                            if (UUID.equals(currentFieldName)) {
+                                                uuid = parser.text();
+                                            }
+                                        }
+                                    } else {
+                                        // the new format post 5.4.1 that only contains the snapshot uuid,
+                                        // since we already have the name/uuid combo in the snapshots array
+                                        uuid = parser.text();
+                                    }
+                                    snapshotIds.add(snapshots.get(uuid));
                                 }
                             }
                         }
@@ -369,13 +436,13 @@ public final class RepositoryData {
                         indexSnapshots.put(new IndexId(indexName, indexId), snapshotIds);
                     }
                 } else {
-                    throw new ElasticsearchParseException("unknown field name  [" + currentFieldName + "]");
+                    throw new ElasticsearchParseException("unknown field name  [" + field + "]");
                 }
             }
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
-        return new RepositoryData(genId, snapshots, indexSnapshots, Collections.emptyList());
+        return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots, Collections.emptyList());
     }
 
     /**
@@ -419,7 +486,7 @@ public final class RepositoryData {
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
-        return new RepositoryData(this.genId, this.snapshotIds, this.indexSnapshots, incompatibleSnapshotIds);
+        return new RepositoryData(this.genId, this.snapshotIds, this.snapshotStates, this.indexSnapshots, incompatibleSnapshotIds);
     }
 
 }

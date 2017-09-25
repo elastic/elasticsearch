@@ -22,8 +22,9 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.UTF8StreamWriter;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
@@ -82,7 +83,7 @@ public class RestTable {
         List<DisplayHeader> headers = buildDisplayHeaders(table, request);
         int[] width = buildWidths(table, request, verbose, headers);
 
-        BytesStreamOutput bytesOut = channel.bytesOutput();
+        BytesStream bytesOut = Streams.flushOnCloseStream(channel.bytesOutput());
         UTF8StreamWriter out = new UTF8StreamWriter().setOutput(bytesOut);
         int lastHeader = headers.size() - 1;
         if (verbose) {

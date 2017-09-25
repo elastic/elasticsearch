@@ -19,12 +19,14 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -35,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -499,7 +502,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             Collections.singletonList(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(0)));
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
-        ShardRouting startedReplica = clusterState.getRoutingNodes().activeReplica(shardId);
+        ShardRouting startedReplica = clusterState.getRoutingNodes().activeReplicaWithHighestVersion(shardId);
 
 
         // fail the primary shard, check replicas get removed as well...
@@ -555,5 +558,120 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         ShardRouting newPrimaryShard = clusterState.routingTable().index("test").shard(0).primaryShard();
         assertThat(newPrimaryShard, not(equalTo(primaryShardToFail)));
+    }
+
+    public void testReplicaOnNewestVersionIsPromoted() {
+        AllocationService allocation = createAllocationService(Settings.builder().build());
+
+        MetaData metaData = MetaData.builder().put(IndexMetaData.builder("test")
+                .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(3)) .build();
+
+        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
+
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metaData(metaData).routingTable(initialRoutingTable).build();
+
+        ShardId shardId = new ShardId(metaData.index("test").getIndex(), 0);
+
+        // add a single node
+        clusterState = ClusterState.builder(clusterState).nodes(
+                DiscoveryNodes.builder()
+                .add(newNode("node1-5.x", Version.V_5_6_0)))
+                .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(allocation.reroute(clusterState, "reroute").routingTable()).build();
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(3));
+
+        // start primary shard
+        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(3));
+
+        // add another 5.6 node
+        clusterState = ClusterState.builder(clusterState).nodes(
+                DiscoveryNodes.builder(clusterState.nodes())
+                .add(newNode("node2-5.x", Version.V_5_6_0)))
+                .build();
+
+        // start the shards, should have 1 primary and 1 replica available
+        clusterState = allocation.reroute(clusterState, "reroute");
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(2));
+
+        clusterState = ClusterState.builder(clusterState).nodes(
+                DiscoveryNodes.builder(clusterState.nodes())
+                .add(newNode("node3-6.x", VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_alpha1, null)))
+                .add(newNode("node4-6.x", VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_alpha1, null))))
+                .build();
+
+        // start all the replicas
+        clusterState = allocation.reroute(clusterState, "reroute");
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
+        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(4));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(0));
+
+        ShardRouting startedReplica = clusterState.getRoutingNodes().activeReplicaWithHighestVersion(shardId);
+        logger.info("--> all shards allocated, replica that should be promoted: {}", startedReplica);
+
+        // fail the primary shard again and make sure the correct replica is promoted
+        ShardRouting primaryShardToFail = clusterState.routingTable().index("test").shard(0).primaryShard();
+        ClusterState newState = allocation.applyFailedShard(clusterState, primaryShardToFail);
+        assertThat(newState, not(equalTo(clusterState)));
+        clusterState = newState;
+        // the primary gets allocated on another node
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(3));
+
+        ShardRouting newPrimaryShard = clusterState.routingTable().index("test").shard(0).primaryShard();
+        assertThat(newPrimaryShard, not(equalTo(primaryShardToFail)));
+        assertThat(newPrimaryShard.allocationId(), equalTo(startedReplica.allocationId()));
+
+        Version replicaNodeVersion = clusterState.nodes().getDataNodes().get(startedReplica.currentNodeId()).getVersion();
+        assertNotNull(replicaNodeVersion);
+        logger.info("--> shard {} got assigned to node with version {}", startedReplica, replicaNodeVersion);
+
+        for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
+            if ("node1".equals(cursor.value.getId())) {
+                // Skip the node that the primary was on, it doesn't have a replica so doesn't need a version check
+                continue;
+            }
+            Version nodeVer = cursor.value.getVersion();
+            assertTrue("expected node [" + cursor.value.getId() + "] with version " + nodeVer + " to be before " + replicaNodeVersion,
+                    replicaNodeVersion.onOrAfter(nodeVer));
+        }
+
+        startedReplica = clusterState.getRoutingNodes().activeReplicaWithHighestVersion(shardId);
+        logger.info("--> failing primary shard a second time, should select: {}", startedReplica);
+
+        // fail the primary shard again, and ensure the same thing happens
+        ShardRouting secondPrimaryShardToFail = clusterState.routingTable().index("test").shard(0).primaryShard();
+        newState = allocation.applyFailedShard(clusterState, secondPrimaryShardToFail);
+        assertThat(newState, not(equalTo(clusterState)));
+        clusterState = newState;
+        // the primary gets allocated on another node
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
+
+        newPrimaryShard = clusterState.routingTable().index("test").shard(0).primaryShard();
+        assertThat(newPrimaryShard, not(equalTo(secondPrimaryShardToFail)));
+        assertThat(newPrimaryShard.allocationId(), equalTo(startedReplica.allocationId()));
+
+        replicaNodeVersion = clusterState.nodes().getDataNodes().get(startedReplica.currentNodeId()).getVersion();
+        assertNotNull(replicaNodeVersion);
+        logger.info("--> shard {} got assigned to node with version {}", startedReplica, replicaNodeVersion);
+
+        for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
+            if (primaryShardToFail.currentNodeId().equals(cursor.value.getId()) ||
+                    secondPrimaryShardToFail.currentNodeId().equals(cursor.value.getId())) {
+                // Skip the node that the primary was on, it doesn't have a replica so doesn't need a version check
+                continue;
+            }
+            Version nodeVer = cursor.value.getVersion();
+            assertTrue("expected node [" + cursor.value.getId() + "] with version " + nodeVer + " to be before " + replicaNodeVersion,
+                    replicaNodeVersion.onOrAfter(nodeVer));
+        }
     }
 }

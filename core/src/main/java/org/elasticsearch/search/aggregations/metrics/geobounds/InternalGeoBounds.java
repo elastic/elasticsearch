@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,6 +33,14 @@ import java.util.Map;
 import java.util.Objects;
 
 public class InternalGeoBounds extends InternalAggregation implements GeoBounds {
+
+    static final ParseField BOUNDS_FIELD = new ParseField("bounds");
+    static final ParseField TOP_LEFT_FIELD = new ParseField("top_left");
+    static final ParseField BOTTOM_RIGHT_FIELD = new ParseField("bottom_right");
+    static final ParseField LAT_FIELD = new ParseField("lat");
+    static final ParseField LON_FIELD = new ParseField("lon");
+
+
     final double top;
     final double bottom;
     final double posLeft;
@@ -170,14 +179,14 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
         GeoPoint topLeft = topLeft();
         GeoPoint bottomRight = bottomRight();
         if (topLeft != null) {
-            builder.startObject("bounds");
-            builder.startObject("top_left");
-            builder.field("lat", topLeft.lat());
-            builder.field("lon", topLeft.lon());
+            builder.startObject(BOUNDS_FIELD.getPreferredName());
+            builder.startObject(TOP_LEFT_FIELD.getPreferredName());
+            builder.field(LAT_FIELD.getPreferredName(), topLeft.lat());
+            builder.field(LON_FIELD.getPreferredName(), topLeft.lon());
             builder.endObject();
-            builder.startObject("bottom_right");
-            builder.field("lat", bottomRight.lat());
-            builder.field("lon", bottomRight.lon());
+            builder.startObject(BOTTOM_RIGHT_FIELD.getPreferredName());
+            builder.field(LAT_FIELD.getPreferredName(), bottomRight.lat());
+            builder.field(LON_FIELD.getPreferredName(), bottomRight.lon());
             builder.endObject();
             builder.endObject();
         }
@@ -245,7 +254,8 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
     @Override
     protected boolean doEquals(Object obj) {
         InternalGeoBounds other = (InternalGeoBounds) obj;
-        return bottom == other.bottom &&
+        return top == other.top &&
+            bottom == other.bottom &&
             posLeft == other.posLeft &&
             posRight == other.posRight &&
             negLeft == other.negLeft &&

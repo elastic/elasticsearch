@@ -32,12 +32,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class NestedAggregatorFactory extends AggregatorFactory<NestedAggregatorFactory> {
+class NestedAggregatorFactory extends AggregatorFactory<NestedAggregatorFactory> {
 
     private final ObjectMapper parentObjectMapper;
     private final ObjectMapper childObjectMapper;
 
-    public NestedAggregatorFactory(String name, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
+    NestedAggregatorFactory(String name, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
             SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories,
                                    Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactories, metaData);
@@ -48,13 +48,11 @@ public class NestedAggregatorFactory extends AggregatorFactory<NestedAggregatorF
     @Override
     public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, context, parent);
-        }
         if (childObjectMapper == null) {
             return new Unmapped(name, context, parent, pipelineAggregators, metaData);
         }
-        return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, context, parent, pipelineAggregators, metaData);
+        return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, context, parent,
+            pipelineAggregators, metaData, collectsFromSingleBucket);
     }
 
     private static final class Unmapped extends NonCollectingAggregator {

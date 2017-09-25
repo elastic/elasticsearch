@@ -26,7 +26,6 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.all.AllTokenStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -41,6 +40,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SynonymsAnalysisTests extends ESTestCase {
     protected final Logger logger = Loggers.getLogger(getClass());
@@ -57,7 +58,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
         String json = "/org/elasticsearch/index/analysis/synonyms/synonyms.json";
         Settings settings = Settings.builder().
-            loadFromStream(json, getClass().getResourceAsStream(json))
+            loadFromStream(json, getClass().getResourceAsStream(json), false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), home)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
@@ -69,12 +70,61 @@ public class SynonymsAnalysisTests extends ESTestCase {
         match("synonymAnalyzerWordnet", "abstain", "abstain refrain desist");
         match("synonymAnalyzerWordnet_file", "abstain", "abstain refrain desist");
         match("synonymAnalyzerWithsettings", "kimchy", "sha hay");
+        match("synonymAnalyzerWithStopAfterSynonym", "kimchy is the dude abides , stop", "shay is the elasticsearch man! ,");
+        match("synonymAnalyzerWithStopBeforeSynonym", "kimchy is the dude abides , stop", "shay is the elasticsearch man! ,");
+        match("synonymAnalyzerWithStopSynonymAfterSynonym", "kimchy is the dude abides", "shay is the man!");
+        match("synonymAnalyzerExpand", "kimchy is the dude abides", "kimchy shay is the dude elasticsearch abides man!");
+        match("synonymAnalyzerExpandWithStopAfterSynonym", "kimchy is the dude abides", "shay is the dude abides man!");
+
     }
+
+    public void testSynonymWordDeleteByAnalyzer() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.synonym.type", "synonym")
+            .putArray("index.analysis.filter.synonym.synonyms", "kimchy => shay", "dude => elasticsearch", "abides => man!")
+            .put("index.analysis.filter.stop_within_synonym.type", "stop")
+            .putArray("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
+            .put("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.tokenizer", "whitespace")
+            .putArray("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.filter", "stop_within_synonym","synonym")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        try {
+            indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;
+            fail("fail! due to synonym word deleted by analyzer");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), startsWith("failed to build synonyms"));
+        }
+    }
+
+    public void testExpandSynonymWordDeleteByAnalyzer() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.synonym_expand.type", "synonym")
+            .putArray("index.analysis.filter.synonym_expand.synonyms", "kimchy, shay", "dude, elasticsearch", "abides, man!")
+            .put("index.analysis.filter.stop_within_synonym.type", "stop")
+            .putArray("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
+            .put("index.analysis.analyzer.synonymAnalyzerExpandWithStopBeforeSynonym.tokenizer", "whitespace")
+            .putArray("index.analysis.analyzer.synonymAnalyzerExpandWithStopBeforeSynonym.filter", "stop_within_synonym","synonym_expand")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        try {
+            indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;
+            fail("fail! due to synonym word deleted by analyzer");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), startsWith("failed to build synonyms"));
+        }
+    }
+
 
     private void match(String analyzerName, String source, String target) throws IOException {
         Analyzer analyzer = indexAnalyzers.get(analyzerName).analyzer();
 
-        TokenStream stream = AllTokenStream.allTokenStream("_all", source, 1.0f, analyzer);
+        TokenStream stream = analyzer.tokenStream("", source);
         stream.reset();
         CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
 

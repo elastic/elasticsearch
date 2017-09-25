@@ -87,10 +87,11 @@ public abstract class AbstractTDigestPercentilesAggregator extends NumericMetric
                     states.set(bucket, state);
                 }
 
-                values.setDocument(doc);
-                final int valueCount = values.count();
-                for (int i = 0; i < valueCount; i++) {
-                    state.add(values.valueAt(i));
+                if (values.advanceExact(doc)) {
+                    final int valueCount = values.docValueCount();
+                    for (int i = 0; i < valueCount; i++) {
+                        state.add(values.nextValue());
+                    }
                 }
             }
         };

@@ -21,8 +21,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
@@ -73,7 +71,7 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
                 int fieldsSize = randomInt(25);
                 List<String> fields = new ArrayList<>(fieldsSize);
                 for (int i = 0; i < fieldsSize; i++) {
-                    fields.add(randomAsciiOfLengthBetween(5, 50));
+                    fields.add(randomAlphaOfLengthBetween(5, 50));
                 }
                 factory.storedFields(fields);
                 break;
@@ -83,16 +81,16 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
         if (randomBoolean()) {
             int fieldDataFieldsSize = randomInt(25);
             for (int i = 0; i < fieldDataFieldsSize; i++) {
-                factory.fieldDataField(randomAsciiOfLengthBetween(5, 50));
+                factory.fieldDataField(randomAlphaOfLengthBetween(5, 50));
             }
         }
         if (randomBoolean()) {
             int scriptFieldsSize = randomInt(25);
             for (int i = 0; i < scriptFieldsSize; i++) {
                 if (randomBoolean()) {
-                    factory.scriptField(randomAsciiOfLengthBetween(5, 50), new Script("foo"), randomBoolean());
+                    factory.scriptField(randomAlphaOfLengthBetween(5, 50), mockScript("foo"), randomBoolean());
                 } else {
-                    factory.scriptField(randomAsciiOfLengthBetween(5, 50), new Script("foo"));
+                    factory.scriptField(randomAlphaOfLengthBetween(5, 50), mockScript("foo"));
                 }
             }
         }
@@ -101,11 +99,11 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
             int branch = randomInt(5);
             String[] includes = new String[randomIntBetween(0, 20)];
             for (int i = 0; i < includes.length; i++) {
-                includes[i] = randomAsciiOfLengthBetween(5, 20);
+                includes[i] = randomAlphaOfLengthBetween(5, 20);
             }
             String[] excludes = new String[randomIntBetween(0, 20)];
             for (int i = 0; i < excludes.length; i++) {
-                excludes[i] = randomAsciiOfLengthBetween(5, 20);
+                excludes[i] = randomAlphaOfLengthBetween(5, 20);
             }
             switch (branch) {
                 case 0:
@@ -115,8 +113,8 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
                     fetchSourceContext = new FetchSourceContext(true, includes, excludes);
                     break;
                 case 2:
-                    fetchSourceContext = new FetchSourceContext(true, new String[]{randomAsciiOfLengthBetween(5, 20)},
-                        new String[]{randomAsciiOfLengthBetween(5, 20)});
+                    fetchSourceContext = new FetchSourceContext(true, new String[]{randomAlphaOfLengthBetween(5, 20)},
+                        new String[]{randomAlphaOfLengthBetween(5, 20)});
                     break;
                 case 3:
                     fetchSourceContext = new FetchSourceContext(true, includes, excludes);
@@ -125,7 +123,7 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
                     fetchSourceContext = new FetchSourceContext(true, includes, null);
                     break;
                 case 5:
-                    fetchSourceContext = new FetchSourceContext(true, new String[] {randomAsciiOfLengthBetween(5, 20)}, null);
+                    fetchSourceContext = new FetchSourceContext(true, new String[] {randomAlphaOfLengthBetween(5, 20)}, null);
                     break;
                 default:
                     throw new IllegalStateException();
@@ -138,29 +136,31 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
                 int branch = randomInt(5);
                 switch (branch) {
                 case 0:
-                    factory.sort(SortBuilders.fieldSort(randomAsciiOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
+                    factory.sort(SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
                     break;
                 case 1:
-                    factory.sort(SortBuilders.geoDistanceSort(randomAsciiOfLengthBetween(5, 20), AbstractQueryTestCase.randomGeohash(1, 12))
+                    factory.sort(SortBuilders.geoDistanceSort(randomAlphaOfLengthBetween(5, 20), AbstractQueryTestCase.randomGeohash(1, 12))
                             .order(randomFrom(SortOrder.values())));
                     break;
                 case 2:
                     factory.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
                     break;
                 case 3:
-                    factory.sort(SortBuilders.scriptSort(new Script("foo"), ScriptSortType.NUMBER).order(randomFrom(SortOrder.values())));
+                    factory.sort(SortBuilders.scriptSort(mockScript("foo"), ScriptSortType.NUMBER).order(randomFrom(SortOrder.values())));
                     break;
                 case 4:
-                    factory.sort(randomAsciiOfLengthBetween(5, 20));
+                    factory.sort(randomAlphaOfLengthBetween(5, 20));
                     break;
                 case 5:
-                    factory.sort(randomAsciiOfLengthBetween(5, 20), randomFrom(SortOrder.values()));
+                    factory.sort(randomAlphaOfLengthBetween(5, 20), randomFrom(SortOrder.values()));
                     break;
                 }
             }
         }
         if (randomBoolean()) {
-            factory.highlighter(HighlightBuilderTests.randomHighlighterBuilder());
+            // parent test shuffles xContent, we need to make sure highlight fields are ordered
+            factory.highlighter(
+                    HighlightBuilderTests.randomHighlighterBuilder().useExplicitFieldOrder(true));
         }
         return factory;
     }
@@ -187,9 +187,8 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
             "    }\n" +
             "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(AggregationInitializationException.class, () -> AggregatorFactories.parseAggregators(parseContext));
+        Exception e = expectThrows(AggregationInitializationException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
     }
 

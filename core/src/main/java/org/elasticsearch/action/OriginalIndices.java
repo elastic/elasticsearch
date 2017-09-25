@@ -24,11 +24,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Used to keep track of original indices within internal (e.g. shard level) requests
  */
-public class OriginalIndices implements IndicesRequest {
+public final class OriginalIndices implements IndicesRequest {
+
+    //constant to use when original indices are not applicable and will not be serialized across the wire
+    public static final OriginalIndices NONE = new OriginalIndices(null, null);
 
     private final String[] indices;
     private final IndicesOptions indicesOptions;
@@ -39,7 +43,6 @@ public class OriginalIndices implements IndicesRequest {
 
     public OriginalIndices(String[] indices, IndicesOptions indicesOptions) {
         this.indices = indices;
-        assert indicesOptions != null;
         this.indicesOptions = indicesOptions;
     }
 
@@ -57,9 +60,17 @@ public class OriginalIndices implements IndicesRequest {
         return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
     }
 
-
     public static void writeOriginalIndices(OriginalIndices originalIndices, StreamOutput out) throws IOException {
+        assert originalIndices != NONE;
         out.writeStringArrayNullable(originalIndices.indices);
         originalIndices.indicesOptions.writeIndicesOptions(out);
+    }
+
+    @Override
+    public String toString() {
+        return "OriginalIndices{" +
+            "indices=" + Arrays.toString(indices) +
+            ", indicesOptions=" + indicesOptions +
+            '}';
     }
 }

@@ -20,18 +20,33 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class ClearScrollResponse extends ActionResponse implements StatusToXContentObject {
+
+    private static final ParseField SUCCEEDED = new ParseField("succeeded");
+    private static final ParseField NUMFREED = new ParseField("num_freed");
+
+    private static final ConstructingObjectParser<ClearScrollResponse, Void> PARSER = new ConstructingObjectParser<>("clear_scroll",
+            true, a -> new ClearScrollResponse((boolean)a[0], (int)a[1]));
+    static {
+        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), SUCCEEDED, ObjectParser.ValueType.BOOLEAN);
+        PARSER.declareField(constructorArg(), (parser, context) -> parser.intValue(), NUMFREED, ObjectParser.ValueType.INT);
+    }
 
     private boolean succeeded;
     private int numFreed;
@@ -67,10 +82,17 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Fields.SUCCEEDED, succeeded);
-        builder.field(Fields.NUMFREED, numFreed);
+        builder.field(SUCCEEDED.getPreferredName(), succeeded);
+        builder.field(NUMFREED.getPreferredName(), numFreed);
         builder.endObject();
         return builder;
+    }
+
+    /**
+     * Parse the clear scroll response body into a new {@link ClearScrollResponse} object
+     */
+    public static ClearScrollResponse fromXContent(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
     }
 
     @Override
@@ -85,10 +107,5 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
         super.writeTo(out);
         out.writeBoolean(succeeded);
         out.writeVInt(numFreed);
-    }
-
-    static final class Fields {
-        static final String SUCCEEDED = "succeeded";
-        static final String NUMFREED = "num_freed";
     }
 }

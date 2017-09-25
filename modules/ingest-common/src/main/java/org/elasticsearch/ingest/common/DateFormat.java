@@ -38,7 +38,7 @@ enum DateFormat {
     Unix {
         @Override
         Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return (date) -> new DateTime((long)(Float.parseFloat(date) * 1000), timezone);
+            return (date) -> new DateTime((long)(Double.parseDouble(date) * 1000), timezone);
         }
     },
     UnixMs {

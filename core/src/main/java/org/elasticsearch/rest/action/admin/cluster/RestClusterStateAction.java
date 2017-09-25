@@ -57,6 +57,11 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "cluster_state_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));

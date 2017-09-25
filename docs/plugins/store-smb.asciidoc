@@ -3,35 +3,8 @@
 
 The Store SMB plugin works around for a bug in Windows SMB and Java on windows.
 
-[[store-smb-install]]
-[float]
-==== Installation
-
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install store-smb
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/store-smb/store-smb-{version}.zip.
-
-[[store-smb-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove store-smb
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
+:plugin_name: store-smb
+include::install_remove.asciidoc[]
 
 [[store-smb-usage]]
 ==== Working around a bug in Windows SMB and Java on windows

@@ -21,11 +21,8 @@ package org.elasticsearch.discovery.file;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-
-import java.io.IOException;
 
 /**
  * Integration tests to make sure the file-based discovery plugin works in a cluster.
@@ -37,7 +34,7 @@ public class FileBasedDiscoveryClientYamlTestSuiteIT extends ESClientYamlSuiteTe
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException {
+    public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
     }
 }

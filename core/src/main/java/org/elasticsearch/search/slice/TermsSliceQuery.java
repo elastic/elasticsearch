@@ -55,8 +55,8 @@ public final class TermsSliceQuery extends SliceQuery {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-        return new ConstantScoreWeight(this) {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
+        return new ConstantScoreWeight(this, boost) {
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 final DocIdSet disi = build(context.reader());

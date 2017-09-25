@@ -24,7 +24,6 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.internal.tasks.options.Option
-import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskState
 
@@ -51,8 +50,6 @@ public class RestIntegTestTask extends DefaultTask {
     boolean includePackaged = false
 
     public RestIntegTestTask() {
-        description = 'Runs rest tests against an elasticsearch cluster.'
-        group = JavaBasePlugin.VERIFICATION_GROUP
         runner = project.tasks.create("${name}Runner", RandomizedTestingTask.class)
         super.dependsOn(runner)
         clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
@@ -70,7 +67,7 @@ public class RestIntegTestTask extends DefaultTask {
         // we pass all nodes to the rest cluster to allow the clients to round-robin between them
         // this is more realistic than just talking to a single node
         runner.systemProperty('tests.rest.cluster', "${-> nodes.collect{it.httpUri()}.join(",")}")
-        runner.systemProperty('tests.config.dir', "${-> nodes[0].confDir}")
+        runner.systemProperty('tests.config.dir', "${-> nodes[0].pathConf}")
         // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
         // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
         // both as separate sysprops
@@ -129,7 +126,7 @@ public class RestIntegTestTask extends DefaultTask {
         runner.dependsOn(dependencies)
         for (Object dependency : dependencies) {
             if (dependency instanceof Fixture) {
-                runner.finalizedBy(((Fixture)dependency).stopTask)
+                runner.finalizedBy(((Fixture)dependency).getStopTask())
             }
         }
         return this
@@ -140,7 +137,7 @@ public class RestIntegTestTask extends DefaultTask {
         runner.setDependsOn(dependencies)
         for (Object dependency : dependencies) {
             if (dependency instanceof Fixture) {
-                runner.finalizedBy(((Fixture)dependency).stopTask)
+                runner.finalizedBy(((Fixture)dependency).getStopTask())
             }
         }
     }

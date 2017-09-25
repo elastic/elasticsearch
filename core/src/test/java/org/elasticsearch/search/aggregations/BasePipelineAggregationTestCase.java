@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
@@ -87,7 +86,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
-            String type = randomAsciiOfLengthBetween(1, 10);
+            String type = randomAlphaOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
     }
@@ -117,9 +116,8 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
     }
 
     protected PipelineAggregationBuilder parse(XContentParser parser) throws IOException {
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parseContext);
+        AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parser);
         assertThat(parsed.getAggregatorFactories(), hasSize(0));
         assertThat(parsed.getPipelineAggregatorFactories(), hasSize(1));
         PipelineAggregationBuilder newAgg = parsed.getPipelineAggregatorFactories().get(0);

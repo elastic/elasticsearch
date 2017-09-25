@@ -176,7 +176,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         Request request = new Request();
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ClusterBlocks.Builder block = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(1, "", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
+                .addGlobalBlock(new ClusterBlock(1, "", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
         try {
             action.new AsyncSingleAction(request, listener).start();
@@ -275,12 +275,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         transport.handleLocalError(requestId, new ConnectTransportException(node, "test exception"));
 
         // wait until the timeout was triggered and we actually tried to send for the second time
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(transport.capturedRequests().length, equalTo(1));
-            }
-        });
+        assertBusy(() -> assertThat(transport.capturedRequests().length, equalTo(1)));
 
         // let it fail the second time too
         requestId = transport.capturedRequests()[0].requestId;

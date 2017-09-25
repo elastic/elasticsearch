@@ -38,8 +38,8 @@ public final class VersionFetchSubPhase implements FetchSubPhase {
         long version = Versions.NOT_FOUND;
         try {
             NumericDocValues versions = hitContext.reader().getNumericDocValues(VersionFieldMapper.NAME);
-            if (versions != null) {
-                version = versions.get(hitContext.docId());
+            if (versions != null && versions.advanceExact(hitContext.docId())) {
+                version = versions.longValue();
             }
         } catch (IOException e) {
             throw new ElasticsearchException("Could not retrieve version", e);

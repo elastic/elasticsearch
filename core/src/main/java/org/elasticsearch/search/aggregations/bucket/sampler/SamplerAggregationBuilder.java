@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -86,12 +85,11 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
         return builder;
     }
 
-    public static SamplerAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+    public static SamplerAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         Integer shardSize = null;
 
-        XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();

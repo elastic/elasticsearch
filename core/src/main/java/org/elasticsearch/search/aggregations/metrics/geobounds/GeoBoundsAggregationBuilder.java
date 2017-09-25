@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -41,15 +41,15 @@ import java.util.Objects;
 public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoBoundsAggregationBuilder> {
     public static final String NAME = "geo_bounds";
 
-    private static final ObjectParser<GeoBoundsAggregationBuilder, QueryParseContext> PARSER;
+    private static final ObjectParser<GeoBoundsAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(GeoBoundsAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareGeoFields(PARSER, false, false);
         PARSER.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
     }
 
-    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        return PARSER.parse(context.parser(), new GeoBoundsAggregationBuilder(aggregationName), context);
+    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new GeoBoundsAggregationBuilder(aggregationName), null);
     }
 
     private boolean wrapLongitude = true;

@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -67,12 +68,12 @@ public class ScriptTests extends ESTestCase {
         if (scriptType == ScriptType.INLINE) {
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
-                builder.field("field", randomAsciiOfLengthBetween(1, 5));
+                builder.field("field", randomAlphaOfLengthBetween(1, 5));
                 builder.endObject();
                 script = builder.string();
             }
         } else {
-            script = randomAsciiOfLengthBetween(1, 5);
+            script = randomAlphaOfLengthBetween(1, 5);
         }
         return new Script(
             scriptType,
@@ -83,5 +84,13 @@ public class ScriptTests extends ESTestCase {
         );
     }
 
-
+    public void testParse() throws IOException {
+        Script expectedScript = createScript();
+        try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
+            expectedScript.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            Settings settings = Settings.fromXContent(createParser(builder));
+            Script actualScript = Script.parse(settings);
+            assertThat(actualScript, equalTo(expectedScript));
+        }
+    }
 }

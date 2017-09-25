@@ -33,8 +33,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * A container class to hold the profile results for a single shard in the request.
@@ -127,7 +125,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
                 if (REWRITE_TIME.equals(currentFieldName)) {
                     rewriteTime = parser.longValue();
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (QUERY_ARRAY.equals(currentFieldName)) {
@@ -139,10 +137,10 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
                         collector = CollectorResult.fromXContent(parser);
                     }
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    parser.skipChildren();
                 }
             } else {
-                throwUnknownToken(token, parser.getTokenLocation());
+                parser.skipChildren();
             }
         }
         return new QueryProfileShardResult(queryProfileResults, rewriteTime, collector);

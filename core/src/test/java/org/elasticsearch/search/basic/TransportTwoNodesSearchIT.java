@@ -97,7 +97,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
     }
 
     private void index(String id, String nameValue, int age) throws IOException {
-        client().index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age))).actionGet();
+        client().index(Requests.indexRequest("test").type("type").id(id).source(source(id, nameValue, age))).actionGet();
     }
 
     private XContentBuilder source(String id, String nameValue, int age) throws IOException {
@@ -126,8 +126,10 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         // to produce the same 8-bit norm for all docs here, so that
         // the tf is basically the entire score (assuming idf is fixed, which
         // it should be if dfs is working correctly)
-        for (int i = 1024; i < 1124; i++) {
-            index(Integer.toString(i - 1024), "test", i);
+        // With the current way of encoding norms, every length between 1048 and 1176
+        // are encoded into the same byte
+        for (int i = 1048; i < 1148; i++) {
+            index(Integer.toString(i - 1048), "test", i);
         }
         refresh();
 

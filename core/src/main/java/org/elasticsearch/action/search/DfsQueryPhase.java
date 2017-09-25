@@ -41,16 +41,16 @@ import java.util.function.Function;
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
  */
 final class DfsQueryPhase extends SearchPhase {
-    private final InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> queryResult;
+    private final InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> queryResult;
     private final SearchPhaseController searchPhaseController;
     private final AtomicArray<DfsSearchResult> dfsSearchResults;
-    private final Function<InitialSearchPhase.SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
+    private final Function<InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final SearchTransportService searchTransportService;
 
     DfsQueryPhase(AtomicArray<DfsSearchResult> dfsSearchResults,
                   SearchPhaseController searchPhaseController,
-                  Function<InitialSearchPhase.SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
+                  Function<InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
                   SearchPhaseContext context) {
         super("dfs_query");
         this.queryResult = searchPhaseController.newSearchPhaseResults(context.getRequest(), context.getNumShards());
@@ -72,8 +72,9 @@ final class DfsQueryPhase extends SearchPhase {
             () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)), context);
         for (final DfsSearchResult dfsResult : resultList) {
             final SearchShardTarget searchShardTarget = dfsResult.getSearchShardTarget();
-            Transport.Connection connection = context.getConnection(searchShardTarget.getNodeId());
-            QuerySearchRequest querySearchRequest = new QuerySearchRequest(context.getRequest(), dfsResult.getRequestId(), dfs);
+            Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
+            QuerySearchRequest querySearchRequest = new QuerySearchRequest(searchShardTarget.getOriginalIndices(),
+                    dfsResult.getRequestId(), dfs);
             final int shardIndex = dfsResult.getShardIndex();
             searchTransportService.sendExecuteQuery(connection, querySearchRequest, context.getTask(),
                 new SearchActionListener<QuerySearchResult>(searchShardTarget, shardIndex) {
@@ -95,7 +96,7 @@ final class DfsQueryPhase extends SearchPhase {
                             // the query might not have been executed at all (for example because thread pool rejected
                             // execution) and the search context that was created in dfs phase might not be released.
                             // release it again to be in the safe side
-                            context.sendReleaseSearchContext(querySearchRequest.id(), connection);
+                            context.sendReleaseSearchContext(querySearchRequest.id(), connection, searchShardTarget.getOriginalIndices());
                         }
                     }
                 });

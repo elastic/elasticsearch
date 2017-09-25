@@ -61,7 +61,7 @@ public class NodeAllocationResultTests extends ESTestCase {
         assertFalse(explanation.getShardStoreInfo().isInSync());
         assertFalse(explanation.getShardStoreInfo().hasMatchingSyncId());
 
-        String allocId = randomAsciiOfLength(5);
+        String allocId = randomAlphaOfLength(5);
         boolean inSync = randomBoolean();
         shardStoreInfo = new ShardStoreInfo(allocId, inSync, randomBoolean() ? new Exception("bad stuff") : null);
         explanation = new NodeAllocationResult(node, shardStoreInfo, decision);

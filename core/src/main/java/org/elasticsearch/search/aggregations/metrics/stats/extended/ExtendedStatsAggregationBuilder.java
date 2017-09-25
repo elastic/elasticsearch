@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -43,15 +43,15 @@ public class ExtendedStatsAggregationBuilder
         extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, ExtendedStatsAggregationBuilder> {
     public static final String NAME = "extended_stats";
 
-    private static final ObjectParser<ExtendedStatsAggregationBuilder, QueryParseContext> PARSER;
+    private static final ObjectParser<ExtendedStatsAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(ExtendedStatsAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
         PARSER.declareDouble(ExtendedStatsAggregationBuilder::sigma, ExtendedStatsAggregator.SIGMA_FIELD);
     }
 
-    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        return PARSER.parse(context.parser(), new ExtendedStatsAggregationBuilder(aggregationName), context);
+    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new ExtendedStatsAggregationBuilder(aggregationName), null);
     }
 
     private double sigma = 2.0;

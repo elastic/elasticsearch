@@ -53,6 +53,11 @@ public class RestShardsAction extends AbstractCatAction {
     }
 
     @Override
+    public String getName() {
+        return "cat_shards_action";
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/shards\n");
         sb.append("/_cat/shards/{index}\n");
@@ -190,18 +195,10 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shard.id());
 
             IndexMetaData indexMeta = state.getState().getMetaData().getIndexSafe(shard.index());
-            boolean usesShadowReplicas = false;
-            if (indexMeta != null) {
-                usesShadowReplicas = indexMeta.isIndexUsingShadowReplicas();
-            }
             if (shard.primary()) {
                 table.addCell("p");
             } else {
-                if (usesShadowReplicas) {
-                    table.addCell("s");
-                } else {
-                    table.addCell("r");
-                }
+                table.addCell("r");
             }
             table.addCell(shard.state());
             table.addCell(commonStats == null ? null : commonStats.getDocs().getCount());

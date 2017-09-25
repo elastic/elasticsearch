@@ -26,10 +26,14 @@ import java.util.Map;
 /**
  * Generic script interface that Painless implements for all Elasticsearch scripts.
  */
-public interface GenericElasticsearchScript {
-    String[] ARGUMENTS = new String[] {"params", "_score", "doc", "_value", "ctx"};
-    Object execute(Map<String, Object> params, double _score, Map<String, ScriptDocValues<?>> doc, Object _value, Map<?, ?> ctx);
+public abstract class GenericElasticsearchScript {
 
-    boolean uses$_score();
-    boolean uses$ctx();
+    public GenericElasticsearchScript() {}
+
+    public static final String[] PARAMETERS = new String[] {"params", "_score", "doc", "_value", "ctx"};
+    public abstract Object execute(
+        Map<String, Object> params, double _score, Map<String, ScriptDocValues<?>> doc, Object _value, Map<?, ?> ctx);
+
+    public abstract boolean needs_score();
+    public abstract boolean needsCtx();
 }

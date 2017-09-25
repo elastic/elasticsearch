@@ -22,6 +22,7 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Map;
@@ -29,7 +30,7 @@ import java.util.Map;
 /**
  * Response for {@link FieldCapabilitiesIndexRequest} requests.
  */
-public class FieldCapabilitiesIndexResponse extends ActionResponse {
+public class FieldCapabilitiesIndexResponse extends ActionResponse implements Writeable {
     private String indexName;
     private Map<String, FieldCapabilities> responseMap;
 
@@ -39,6 +40,10 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse {
     }
 
     FieldCapabilitiesIndexResponse() {
+    }
+
+    FieldCapabilitiesIndexResponse(StreamInput input) throws IOException {
+        this.readFrom(input);
     }
 
 

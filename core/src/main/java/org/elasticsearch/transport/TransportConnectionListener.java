@@ -34,7 +34,13 @@ public interface TransportConnectionListener {
     default void onNodeDisconnected(DiscoveryNode node) {}
 
     /**
+     * Called once a node connection is closed. The connection might not have been registered in the
+     * transport as a shared connection to a specific node
+     */
+    default void onConnectionClosed(Transport.Connection connection) {}
+
+    /**
      * Called once a node connection is opened.
      */
-    default void onConnectionOpened(DiscoveryNode node) {}
+    default void onConnectionOpened(Transport.Connection connection) {}
 }

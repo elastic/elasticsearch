@@ -27,6 +27,7 @@ And here is a sample response:
     "_shards":{
         "total" : 1,
         "successful" : 1,
+        "skipped" : 0,
         "failed" : 0
     },
     "hits":{
@@ -93,6 +94,14 @@ And here is a sample response:
     the query execution has actually terminated_early. Defaults to no
     terminate_after.
 
+`batched_reduce_size`::
+
+    The number of shard results that should be reduced  at once on the
+    coordinating node. This value should be used as a protection  mechanism to
+    reduce the memory overhead per search request if the potential  number of
+    shards in the request can be large.
+
+
 
 Out of the above, the `search_type` and the `request_cache` must be passed as
 query-string parameters. The rest of the search request should be passed
@@ -134,6 +143,7 @@ be set to `true` in the response.
   "_shards": {
     "total": 1,
     "successful": 1,
+    "skipped" : 0,
     "failed": 0
   },
   "hits": {
@@ -144,6 +154,13 @@ be set to `true` in the response.
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 3/"took": $body.took/]
+
+The `took` time in the response contains the milliseconds that this request
+took for processing, beginning quickly after the node received the query, up
+until all search related work is done and before the above JSON is returned
+to the client. This means it includes the time spent waiting in thread pools,
+executing a distributed search across the whole cluster and gathering all the
+results.
 
 include::request/query.asciidoc[]
 

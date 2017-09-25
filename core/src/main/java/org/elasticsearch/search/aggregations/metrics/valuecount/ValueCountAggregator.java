@@ -73,8 +73,9 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 counts = bigArrays.grow(counts, bucket + 1);
-                values.setDocument(doc);
-                counts.increment(bucket, values.count());
+                if (values.advanceExact(doc)) {
+                    counts.increment(bucket, values.docValueCount());
+                }
             }
 
         };
@@ -82,7 +83,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        return valuesSource == null ? 0 : counts.get(owningBucketOrd);
+        return (valuesSource == null || owningBucketOrd >= counts.size()) ? 0 : counts.get(owningBucketOrd);
     }
 
     @Override

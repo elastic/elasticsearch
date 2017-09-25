@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregationBuilder;
 
@@ -27,16 +26,16 @@ public class PercentileRanksTests extends BaseAggregationTestCase<PercentileRank
 
     @Override
     protected PercentileRanksAggregationBuilder createTestAggregatorBuilder() {
-        PercentileRanksAggregationBuilder factory = new PercentileRanksAggregationBuilder(randomAsciiOfLengthBetween(1, 20));
-        if (randomBoolean()) {
-            factory.keyed(randomBoolean());
-        }
         int valuesSize = randomIntBetween(1, 20);
         double[] values = new double[valuesSize];
         for (int i = 0; i < valuesSize; i++) {
             values[i] = randomDouble() * 100;
         }
-        factory.values(values);
+        PercentileRanksAggregationBuilder factory = new PercentileRanksAggregationBuilder(randomAlphaOfLengthBetween(1, 20), values);
+        if (randomBoolean()) {
+            factory.keyed(randomBoolean());
+        }
+
         if (randomBoolean()) {
             factory.numberOfSignificantValueDigits(randomIntBetween(0, 5));
         }
@@ -44,19 +43,7 @@ public class PercentileRanksTests extends BaseAggregationTestCase<PercentileRank
             factory.compression(randomIntBetween(1, 50000));
         }
         String field = randomNumericField();
-        int randomFieldBranch = randomInt(3);
-        switch (randomFieldBranch) {
-        case 0:
-            factory.field(field);
-            break;
-        case 1:
-            factory.field(field);
-            factory.script(new Script("_value + 1"));
-            break;
-        case 2:
-            factory.script(new Script("doc[" + field + "] + 1"));
-            break;
-        }
+        randomFieldOrScript(factory, field);
         if (randomBoolean()) {
             factory.missing("MISSING");
         }

@@ -27,8 +27,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -177,7 +177,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         assertThat(testTerms, notNullValue());
         assertThat(testTerms.getName(), equalTo("terms"));
         assertThat(testTerms.getDocCountError(), greaterThanOrEqualTo(0L));
-        Collection<Bucket> testBuckets = testTerms.getBuckets();
+        List<? extends Bucket> testBuckets = testTerms.getBuckets();
         assertThat(testBuckets.size(), lessThanOrEqualTo(size));
         assertThat(accurateTerms.getBuckets().size(), greaterThanOrEqualTo(testBuckets.size()));
 
@@ -211,7 +211,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         assertThat(testTerms, notNullValue());
         assertThat(testTerms.getName(), equalTo("terms"));
         assertThat(testTerms.getDocCountError(), equalTo(0L));
-        Collection<Bucket> testBuckets = testTerms.getBuckets();
+        List<? extends Bucket> testBuckets = testTerms.getBuckets();
         assertThat(testBuckets.size(), lessThanOrEqualTo(size));
         assertThat(accurateTerms.getBuckets().size(), greaterThanOrEqualTo(testBuckets.size()));
 
@@ -229,7 +229,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         assertThat(testTerms, notNullValue());
         assertThat(testTerms.getName(), equalTo("terms"));
         assertThat(testTerms.getDocCountError(), equalTo(0L));
-        Collection<Bucket> testBuckets = testTerms.getBuckets();
+        List<? extends Bucket> testBuckets = testTerms.getBuckets();
         assertThat(testBuckets.size(), lessThanOrEqualTo(size));
 
         for (Terms.Bucket testBucket : testBuckets) {
@@ -248,7 +248,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         assertThat(testTerms, notNullValue());
         assertThat(testTerms.getName(), equalTo("terms"));
         assertThat(testTerms.getDocCountError(),anyOf(equalTo(-1L), equalTo(0L)));
-        Collection<Bucket> testBuckets = testTerms.getBuckets();
+        List<? extends Bucket> testBuckets = testTerms.getBuckets();
         assertThat(testBuckets.size(), lessThanOrEqualTo(size));
         assertThat(accurateTerms.getBuckets().size(), greaterThanOrEqualTo(testBuckets.size()));
 
@@ -347,7 +347,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.count(true))
+                        .order(BucketOrder.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -360,7 +360,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.count(true))
+                        .order(BucketOrder.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -378,7 +378,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.term(true))
+                        .order(BucketOrder.key(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -391,7 +391,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.term(true))
+                        .order(BucketOrder.key(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -409,7 +409,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.term(false))
+                        .order(BucketOrder.key(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -422,7 +422,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.term(false))
+                        .order(BucketOrder.key(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -440,7 +440,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.aggregation("sortAgg", true))
+                        .order(BucketOrder.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
                 .execute().actionGet();
@@ -454,7 +454,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.aggregation("sortAgg", true))
+                        .order(BucketOrder.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
                 .execute().actionGet();
@@ -473,7 +473,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.aggregation("sortAgg", false))
+                        .order(BucketOrder.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
                 .execute().actionGet();
@@ -487,7 +487,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.aggregation("sortAgg", false))
+                        .order(BucketOrder.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
                 .execute().actionGet();
@@ -583,7 +583,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(LONG_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.count(true))
+                        .order(BucketOrder.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -596,7 +596,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.count(true))
+                        .order(BucketOrder.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -614,7 +614,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(LONG_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.term(true))
+                        .order(BucketOrder.key(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -627,7 +627,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.term(true))
+                        .order(BucketOrder.key(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -645,7 +645,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(LONG_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.term(false))
+                        .order(BucketOrder.key(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -658,7 +658,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.term(false))
+                        .order(BucketOrder.key(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -676,7 +676,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(LONG_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.aggregation("sortAgg", true))
+                        .order(BucketOrder.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
                 .execute().actionGet();
@@ -690,7 +690,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.aggregation("sortAgg", true))
+                        .order(BucketOrder.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
                 .execute().actionGet();
@@ -709,7 +709,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(LONG_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.aggregation("sortAgg", false))
+                        .order(BucketOrder.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(DOUBLE_FIELD_NAME)))
                 .execute().actionGet();
@@ -723,7 +723,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.aggregation("sortAgg", false))
+                        .order(BucketOrder.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(DOUBLE_FIELD_NAME)))
                 .execute().actionGet();
@@ -819,7 +819,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(DOUBLE_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.count(true))
+                        .order(BucketOrder.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -832,7 +832,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.count(true))
+                        .order(BucketOrder.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -850,7 +850,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(DOUBLE_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.term(true))
+                        .order(BucketOrder.key(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -863,7 +863,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.term(true))
+                        .order(BucketOrder.key(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -881,7 +881,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(DOUBLE_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.term(false))
+                        .order(BucketOrder.key(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -894,7 +894,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.term(false))
+                        .order(BucketOrder.key(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -912,7 +912,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(DOUBLE_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.aggregation("sortAgg", true))
+                        .order(BucketOrder.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
                 .execute().actionGet();
@@ -926,7 +926,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.aggregation("sortAgg", true))
+                        .order(BucketOrder.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
                 .execute().actionGet();
@@ -945,7 +945,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .field(DOUBLE_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
-                        .order(Order.aggregation("sortAgg", false))
+                        .order(BucketOrder.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
                 .execute().actionGet();
@@ -959,7 +959,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .showTermDocCountError(true)
                         .size(size)
                         .shardSize(shardSize)
-                        .order(Order.aggregation("sortAgg", false))
+                        .order(BucketOrder.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
                 .execute().actionGet();
@@ -968,7 +968,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
 
         assertUnboundedDocCountError(size, accurateResponse, testResponse);
     }
-    
+
     /**
      * Test a case where we know exactly how many of each term is on each shard
      * so we know the exact error value for each term. To do this we search over
@@ -984,39 +984,39 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
         assertSearchResponse(response);
-        
+
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getDocCountError(), equalTo(46L));
-        List<Bucket> buckets = terms.getBuckets();
+        List<? extends Bucket> buckets = terms.getBuckets();
         assertThat(buckets, notNullValue());
         assertThat(buckets.size(), equalTo(5));
-        
+
         Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("A"));
         assertThat(bucket.getDocCount(), equalTo(100L));
         assertThat(bucket.getDocCountError(), equalTo(0L));
-        
+
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("Z"));
         assertThat(bucket.getDocCount(), equalTo(52L));
         assertThat(bucket.getDocCountError(), equalTo(2L));
-        
+
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("C"));
         assertThat(bucket.getDocCount(), equalTo(50L));
         assertThat(bucket.getDocCountError(), equalTo(15L));
-        
-        
+
+
         bucket = buckets.get(3);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("G"));
         assertThat(bucket.getDocCount(), equalTo(45L));
         assertThat(bucket.getDocCountError(), equalTo(2L));
-        
+
         bucket = buckets.get(4);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("B"));

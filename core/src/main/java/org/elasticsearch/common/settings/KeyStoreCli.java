@@ -32,6 +32,7 @@ public class KeyStoreCli extends MultiCommand {
         subcommands.put("create", new CreateKeyStoreCommand());
         subcommands.put("list", new ListKeyStoreCommand());
         subcommands.put("add", new AddStringKeyStoreCommand());
+        subcommands.put("add-file", new AddFileKeyStoreCommand());
         subcommands.put("remove", new RemoveSettingKeyStoreCommand());
     }
 

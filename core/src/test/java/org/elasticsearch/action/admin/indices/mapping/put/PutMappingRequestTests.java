@@ -31,7 +31,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Base64;
 
 public class PutMappingRequestTests extends ESTestCase {
 
@@ -81,26 +80,18 @@ public class PutMappingRequestTests extends ESTestCase {
         request.source(mapping, XContentType.YAML);
         assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.source());
 
-        BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-        request.writeTo(bytesStreamOutput);
-        StreamInput in = StreamInput.wrap(bytesStreamOutput.bytes().toBytesRef().bytes);
-        PutMappingRequest serialized = new PutMappingRequest();
-        serialized.readFrom(in);
+        final Version version = randomFrom(Version.CURRENT, Version.V_5_3_0, Version.V_5_3_1, Version.V_5_3_2, Version.V_5_4_0);
+        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
+            bytesStreamOutput.setVersion(version);
+            request.writeTo(bytesStreamOutput);
+            try (StreamInput in = StreamInput.wrap(bytesStreamOutput.bytes().toBytesRef().bytes)) {
+                in.setVersion(version);
+                PutMappingRequest serialized = new PutMappingRequest();
+                serialized.readFrom(in);
 
-        String source = serialized.source();
-        assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), source);
-    }
-
-    public void testSerializationBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("ADwDAQNmb28MAA8tLS0KZm9vOiAiYmFyIgoAPAMAAAA=");
-        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            PutMappingRequest request = new PutMappingRequest();
-            request.readFrom(in);
-            String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
-            assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.source());
+                String source = serialized.source();
+                assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), source);
+            }
         }
     }
 }

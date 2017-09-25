@@ -19,12 +19,16 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.AnalysisFactoryTestCase;
+import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
+import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class AnalysisICUFactoryTests extends AnalysisFactoryTestCase {
+    public AnalysisICUFactoryTests() {
+        super(new AnalysisICUPlugin());
+    }
 
     @Override
     protected Map<String, Class<?>> getTokenizers() {

@@ -20,11 +20,12 @@
 package org.elasticsearch.index.query;
 
 
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -38,14 +39,14 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     @Override
     protected IdsQueryBuilder doCreateTestQueryBuilder() {
         String[] types;
-        if (getCurrentTypes().length > 0 && randomBoolean()) {
+        if (getCurrentTypes() != null && getCurrentTypes().length > 0 && randomBoolean()) {
             int numberOfTypes = randomIntBetween(1, getCurrentTypes().length);
             types = new String[numberOfTypes];
             for (int i = 0; i < numberOfTypes; i++) {
                 if (frequently()) {
                     types[i] = randomFrom(getCurrentTypes());
                 } else {
-                    types[i] = randomAsciiOfLengthBetween(1, 10);
+                    types[i] = randomAlphaOfLengthBetween(1, 10);
                 }
             }
         } else {
@@ -58,7 +59,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         int numberOfIds = randomIntBetween(0, 10);
         String[] ids = new String[numberOfIds];
         for (int i = 0; i < numberOfIds; i++) {
-            ids[i] = randomAsciiOfLengthBetween(1, 10);
+            ids[i] = randomAlphaOfLengthBetween(1, 10);
         }
         IdsQueryBuilder query;
         if (types.length > 0 || randomBoolean()) {
@@ -73,7 +74,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     @Override
     protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        if (queryBuilder.ids().size() == 0) {
+        if (queryBuilder.ids().size() == 0 || context.getQueryShardContext().fieldMapper(UidFieldMapper.NAME) == null) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, instanceOf(TermInSetQuery.class));
@@ -147,36 +148,5 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         parsed = (IdsQueryBuilder) parseQuery(json);
         assertThat(parsed.ids(), contains("1","100","4"));
         assertEquals(json, 0, parsed.types().length);
-    }
-
-    public void testFromJsonDeprecatedSyntax() throws IOException {
-        IdsQueryBuilder testQuery = new IdsQueryBuilder().types("my_type");
-
-        //single value type can also be called _type
-        final String contentString = "{\n" +
-                "    \"ids\" : {\n" +
-                "        \"_type\" : \"my_type\",\n" +
-                "        \"values\" : [ ]\n" +
-                "    }\n" +
-                "}";
-
-        IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(contentString);
-        assertEquals(testQuery, parsed);
-
-        parseQuery(contentString);
-        assertWarnings("Deprecated field [_type] used, expected [type] instead");
-
-        //array of types can also be called types rather than type
-        final String contentString2 = "{\n" +
-                "    \"ids\" : {\n" +
-                "        \"types\" : [\"my_type\"],\n" +
-                "        \"values\" : [ ]\n" +
-                "    }\n" +
-                "}";
-        parsed = (IdsQueryBuilder) parseQuery(contentString2);
-        assertEquals(testQuery, parsed);
-
-        parseQuery(contentString2);
-        assertWarnings("Deprecated field [types] used, expected [type] instead");
     }
 }

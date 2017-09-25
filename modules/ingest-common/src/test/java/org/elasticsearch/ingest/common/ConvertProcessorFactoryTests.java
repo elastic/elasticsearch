@@ -38,7 +38,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         ConvertProcessor.Type type = randomFrom(ConvertProcessor.Type.values());
         config.put("field", "field1");
         config.put("type", type.toString());
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         ConvertProcessor convertProcessor = factory.create(null, processorTag, config);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
         assertThat(convertProcessor.getField(), equalTo("field1"));
@@ -50,7 +50,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
     public void testCreateUnsupportedType() throws Exception {
         ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String type = "type-" + randomAsciiOfLengthBetween(1, 10);
+        String type = "type-" + randomAlphaOfLengthBetween(1, 10);
         config.put("field", "field1");
         config.put("type", type);
         try {
@@ -67,7 +67,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
     public void testCreateNoFieldPresent() throws Exception {
         ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String type = "type-" + randomAsciiOfLengthBetween(1, 10);
+        String type = "type-" + randomAlphaOfLengthBetween(1, 10);
         config.put("type", type);
         try {
             factory.create(null, null, config);
@@ -96,7 +96,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("target_field", "field2");
         config.put("type", type.toString());
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         ConvertProcessor convertProcessor = factory.create(null, processorTag, config);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
         assertThat(convertProcessor.getField(), equalTo("field1"));
@@ -112,7 +112,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("type", type.toString());
         config.put("ignore_missing", true);
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         ConvertProcessor convertProcessor = factory.create(null, processorTag, config);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
         assertThat(convertProcessor.getField(), equalTo("field1"));

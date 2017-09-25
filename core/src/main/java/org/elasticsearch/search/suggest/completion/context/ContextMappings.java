@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping.Type;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +44,6 @@ import java.util.Set;
 
 import static org.elasticsearch.search.suggest.completion.context.ContextMapping.FIELD_NAME;
 import static org.elasticsearch.search.suggest.completion.context.ContextMapping.FIELD_TYPE;
-import static org.elasticsearch.search.suggest.completion.context.ContextMapping.Type;
 
 /**
  * ContextMappings indexes context-enabled suggestion fields
@@ -81,7 +81,9 @@ public class ContextMappings implements ToXContent {
     public ContextMapping get(String name) {
         ContextMapping contextMapping = contextNameMap.get(name);
         if (contextMapping == null) {
-            throw new IllegalArgumentException("Unknown context name[" + name + "], must be one of " + contextNameMap.size());
+            List<String> keys = new ArrayList<>(contextNameMap.keySet());
+            Collections.sort(keys);
+            throw new IllegalArgumentException("Unknown context name [" + name + "], must be one of " + keys.toString());
         }
         return contextMapping;
     }

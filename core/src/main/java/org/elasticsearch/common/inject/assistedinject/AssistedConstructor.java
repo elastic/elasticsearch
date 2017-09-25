@@ -49,7 +49,7 @@ class AssistedConstructor<T> {
         Annotation[][] annotations = constructor.getParameterAnnotations();
 
         List<Type> typeList = new ArrayList<>();
-        allParameters = new ArrayList<>();
+        allParameters = new ArrayList<>(parameterTypes.size());
 
         // categorize params as @Assisted or @Injected
         for (int i = 0; i < parameterTypes.size(); i++) {

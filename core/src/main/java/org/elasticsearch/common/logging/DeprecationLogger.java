@@ -31,8 +31,10 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.SignStyle;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -118,10 +120,30 @@ public class DeprecationLogger {
     }
 
     /**
-     * Logs a deprecated message.
+     * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
      */
     public void deprecated(String msg, Object... params) {
         deprecated(THREAD_CONTEXT, msg, params);
+    }
+
+    // LRU set of keys used to determine if a deprecation message should be emitted to the deprecation logs
+    private Set<String> keys = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<String, Boolean>() {
+        @Override
+        protected boolean removeEldestEntry(final Map.Entry eldest) {
+            return size() > 128;
+        }
+    }));
+
+    /**
+     * Adds a formatted warning message as a response header on the thread context, and logs a deprecation message if the associated key has
+     * not recently been seen.
+     *
+     * @param key    the key used to determine if this deprecation should be logged
+     * @param msg    the message to log
+     * @param params parameters to the message
+     */
+    public void deprecatedAndMaybeLog(final String key, final String msg, final Object... params) {
+        deprecated(THREAD_CONTEXT, msg, keys.add(key), params);
     }
 
     /*
@@ -226,10 +248,41 @@ public class DeprecationLogger {
      * @return the extracted warning value
      */
     public static String extractWarningValueFromWarningHeader(final String s) {
+        /*
+         * We know the exact format of the warning header, so to extract the warning value we can skip forward from the front to the first
+         * quote, and skip backwards from the end to the penultimate quote:
+         *
+         *   299 Elasticsearch-6.0.0 "warning value" "Sat, 25, Feb 2017 10:27:43 GMT"
+         *                           ^               ^                              ^
+         *                           firstQuote      penultimateQuote               lastQuote
+         *
+         * We do it this way rather than seeking forward after the first quote because there could be escaped quotes in the warning value
+         * but since there are none in the warning date, we can skip backwards to find the quote that closes the quoted warning value.
+         *
+         * We parse this manually rather than using the capturing regular expression because the regular expression involves a lot of
+         * backtracking and carries a performance penalty. However, when assertions are enabled, we still use the regular expression to
+         * verify that we are maintaining the warning header format.
+         */
+        final int firstQuote = s.indexOf('\"');
+        final int lastQuote = s.lastIndexOf('\"');
+        final int penultimateQuote = s.lastIndexOf('\"', lastQuote - 1);
+        final String warningValue = s.substring(firstQuote + 1, penultimateQuote - 2);
+        assert assertWarningValue(s, warningValue);
+        return warningValue;
+    }
+
+    /**
+     * Assert that the specified string has the warning value equal to the provided warning value.
+     *
+     * @param s            the string representing a full warning header
+     * @param warningValue the expected warning header
+     * @return {@code true} if the specified string has the expected warning value
+     */
+    private static boolean assertWarningValue(final String s, final String warningValue) {
         final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);
         final boolean matches = matcher.matches();
         assert matches;
-        return matcher.group(1);
+        return matcher.group(1).equals(warningValue);
     }
 
     /**
@@ -239,8 +292,12 @@ public class DeprecationLogger {
      * @param message The deprecation message.
      * @param params The parameters used to fill in the message, if any exist.
      */
-    @SuppressLoggerChecks(reason = "safely delegates to logger")
     void deprecated(final Set<ThreadContext> threadContexts, final String message, final Object... params) {
+        deprecated(threadContexts, message, true, params);
+    }
+
+    @SuppressLoggerChecks(reason = "safely delegates to logger")
+    void deprecated(final Set<ThreadContext> threadContexts, final String message, final boolean log, final Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
 
         if (iterator.hasNext()) {
@@ -256,8 +313,9 @@ public class DeprecationLogger {
                     // ignored; it should be removed shortly
                 }
             }
-            logger.warn(formattedMessage);
-        } else {
+        }
+
+        if (log) {
             logger.warn(message, params);
         }
     }
@@ -280,7 +338,7 @@ public class DeprecationLogger {
      * @return the escaped string
      */
     public static String escape(String s) {
-        return s.replaceAll("(\\\\|\")", "\\\\$1");
+        return s.replaceAll("([\"\\\\])", "\\\\$1");
     }
 
 }

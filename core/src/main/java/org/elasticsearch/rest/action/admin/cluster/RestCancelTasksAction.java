@@ -47,6 +47,11 @@ public class RestCancelTasksAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "cancel_tasks_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodes"));
         final TaskId taskId = new TaskId(request.param("task_id"));

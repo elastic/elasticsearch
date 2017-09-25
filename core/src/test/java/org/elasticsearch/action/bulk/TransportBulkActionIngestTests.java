@@ -28,15 +28,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineExecutionService;
 import org.elasticsearch.tasks.Task;
@@ -51,10 +49,10 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
@@ -114,8 +112,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             return false;
         }
         @Override
-        void executeBulk(Task task, final BulkRequest bulkRequest, final long startTimeNanos,
-                         final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses) {
+        void executeBulk(Task task, final BulkRequest bulkRequest, final long startTimeNanos, final ActionListener<BulkResponse> listener,
+                final AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
             isExecuted = true;
         }
     }
@@ -123,7 +121,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     class TestSingleItemBulkWriteAction extends TransportSingleItemBulkWriteAction<IndexRequest, IndexResponse> {
 
         TestSingleItemBulkWriteAction(TestTransportBulkAction bulkAction) {
-            super(Settings.EMPTY, IndexAction.NAME, transportService, TransportBulkActionIngestTests.this.clusterService,
+            super(Settings.EMPTY, IndexAction.NAME, TransportBulkActionIngestTests.this.transportService,
+                    TransportBulkActionIngestTests.this.clusterService,
                     null, null, null, new ActionFilters(Collections.emptySet()), null,
                     IndexRequest::new, IndexRequest::new, ThreadPool.Names.INDEX, bulkAction, null);
         }

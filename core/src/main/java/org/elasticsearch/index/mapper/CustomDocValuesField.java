@@ -28,8 +28,8 @@ import org.apache.lucene.index.IndexableFieldType;
 
 import java.io.Reader;
 
-// used for binary and geo fields
-abstract class CustomDocValuesField implements IndexableField {
+// used for binary, geo and range fields
+public abstract class CustomDocValuesField implements IndexableField {
 
     public static final FieldType TYPE = new FieldType();
     static {
@@ -39,7 +39,7 @@ abstract class CustomDocValuesField implements IndexableField {
 
     private final String name;
 
-    CustomDocValuesField(String  name) {
+    protected CustomDocValuesField(String  name) {
         this.name = name;
     }
 
@@ -51,11 +51,6 @@ abstract class CustomDocValuesField implements IndexableField {
     @Override
     public IndexableFieldType fieldType() {
         return TYPE;
-    }
-
-    @Override
-    public float boost() {
-        return 1f;
     }
 
     @Override

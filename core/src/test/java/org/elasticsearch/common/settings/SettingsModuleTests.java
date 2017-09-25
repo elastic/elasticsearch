@@ -21,13 +21,10 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.joda.time.MonthDay;
 
 import java.util.Arrays;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
 
 public class SettingsModuleTests extends ModuleTestCase {
 
@@ -86,54 +83,6 @@ public class SettingsModuleTests extends ModuleTestCase {
             }
         }
     }
-
-    public void testTribeSetting() {
-        {
-            Settings settings = Settings.builder().put("tribe.t1.cluster.routing.allocation.balance.shard", "2.0").build();
-            SettingsModule module = new SettingsModule(settings);
-            assertInstanceBinding(module, Settings.class, (s) -> s == settings);
-        }
-        {
-            Settings settings = Settings.builder().put("tribe.t1.cluster.routing.allocation.balance.shard", "[2.0]").build();
-            try {
-                new SettingsModule(settings);
-                fail();
-            } catch (IllegalArgumentException ex) {
-                assertEquals(
-                        "tribe.t1 validation failed: Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]",
-                        ex.getMessage());
-            }
-        }
-    }
-
-    public void testSpecialTribeSetting() {
-        {
-            Settings settings = Settings.builder().put("tribe.blocks.write", "false").build();
-            SettingsModule module = new SettingsModule(settings);
-            assertInstanceBinding(module, Settings.class, (s) -> s == settings);
-        }
-        {
-            Settings settings = Settings.builder().put("tribe.blocks.write", "BOOM").build();
-            try {
-                new SettingsModule(settings);
-                fail();
-            } catch (IllegalArgumentException ex) {
-                assertEquals("Failed to parse value [BOOM] as only [true] or [false] are allowed.",
-                        ex.getMessage());
-            }
-        }
-        {
-            Settings settings = Settings.builder().put("tribe.blocks.wtf", "BOOM").build();
-            try {
-                new SettingsModule(settings);
-                fail();
-            } catch (IllegalArgumentException ex) {
-                assertEquals("tribe.blocks validation failed: unknown setting [wtf] please check that any required plugins are" +
-                    " installed, or check the breaking changes documentation for removed settings", ex.getMessage());
-            }
-        }
-    }
-
 
     public void testLoggerSettings() {
         {
@@ -206,24 +155,5 @@ public class SettingsModuleTests extends ModuleTestCase {
                 () -> new SettingsModule(settings));
             assertEquals("unknown setting [index.query.bool.max_clause_count] did you mean [indices.query.bool.max_clause_count]?",
                 ex.getMessage());
-    }
-
-    public void testRegisterShared() {
-        Property scope = randomFrom(Property.NodeScope, Property.IndexScope);
-        expectThrows(IllegalArgumentException.class, () ->
-            new SettingsModule(Settings.EMPTY,
-                Setting.simpleString("index.foo.bar", scope), Setting.simpleString("index.foo.bar", scope))
-        );
-        expectThrows(IllegalArgumentException.class, () ->
-            new SettingsModule(Settings.EMPTY,
-                Setting.simpleString("index.foo.bar", scope, Property.Shared), Setting.simpleString("index.foo.bar", scope))
-        );
-        expectThrows(IllegalArgumentException.class, () ->
-            new SettingsModule(Settings.EMPTY,
-                Setting.simpleString("index.foo.bar", scope), Setting.simpleString("index.foo.bar", scope, Property.Shared))
-        );
-        new SettingsModule(Settings.EMPTY,
-            Setting.simpleString("index.foo.bar", scope, Property.Shared),
-            Setting.simpleString("index.foo.bar", scope, Property.Shared));
     }
 }

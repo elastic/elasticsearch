@@ -32,6 +32,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggesterBuilderTes
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilderTests;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -87,7 +88,8 @@ public class SuggestBuilderTests extends ESTestCase {
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
-            checkEqualsAndHashCode(randomSuggestBuilder(), original -> {
+            // explicit about type parameters, see: https://bugs.eclipse.org/bugs/show_bug.cgi?id=481649
+            EqualsHashCodeTestUtils.<SuggestBuilder>checkEqualsAndHashCode(randomSuggestBuilder(), original -> {
                 return copyWriteable(original, namedWriteableRegistry, SuggestBuilder::new);
             }, this::createMutation);
         }
@@ -129,9 +131,9 @@ public class SuggestBuilderTests extends ESTestCase {
             mutation.addSuggestion(suggestionBuilder.getKey(), suggestionBuilder.getValue());
         }
         if (randomBoolean()) {
-            mutation.setGlobalText(randomAsciiOfLengthBetween(5, 60));
+            mutation.setGlobalText(randomAlphaOfLengthBetween(5, 60));
         } else {
-            mutation.addSuggestion(randomAsciiOfLength(10), PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
+            mutation.addSuggestion(randomAlphaOfLength(10), PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
         }
         return mutation;
     }
@@ -139,11 +141,11 @@ public class SuggestBuilderTests extends ESTestCase {
     public static SuggestBuilder randomSuggestBuilder() {
         SuggestBuilder builder = new SuggestBuilder();
         if (randomBoolean()) {
-            builder.setGlobalText(randomAsciiOfLengthBetween(1, 20));
+            builder.setGlobalText(randomAlphaOfLengthBetween(1, 20));
         }
         final int numSuggestions = randomIntBetween(1, 5);
         for (int i = 0; i < numSuggestions; i++) {
-            builder.addSuggestion(randomAsciiOfLengthBetween(5, 10), randomSuggestionBuilder());
+            builder.addSuggestion(randomAlphaOfLengthBetween(5, 10), randomSuggestionBuilder());
         }
         return builder;
     }

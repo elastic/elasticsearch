@@ -54,7 +54,7 @@ public class TransportClusterSearchShardsAction extends
                                               IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                               IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClusterSearchShardsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, ClusterSearchShardsRequest::new);
+            ClusterSearchShardsRequest::new, indexNameExpressionResolver);
         this.indicesService = indicesService;
     }
 
@@ -83,12 +83,14 @@ public class TransportClusterSearchShardsAction extends
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(state, request.routing(), request.indices());
         Map<String, AliasFilter> indicesAndFilters = new HashMap<>();
         for (String index : concreteIndices) {
-            AliasFilter aliasFilter = indicesService.buildAliasFilter(clusterState, index, request.indices());
-            indicesAndFilters.put(index, aliasFilter);
+            final AliasFilter aliasFilter = indicesService.buildAliasFilter(clusterState, index, request.indices());
+            final String[] aliases = indexNameExpressionResolver.indexAliases(clusterState, index, aliasMetadata -> true, true,
+                request.indices());
+            indicesAndFilters.put(index, new AliasFilter(aliasFilter.getQueryBuilder(), aliases));
         }
 
         Set<String> nodeIds = new HashSet<>();
-        GroupShardsIterator groupShardsIterator = clusterService.operationRouting().searchShards(clusterState, concreteIndices,
+        GroupShardsIterator<ShardIterator> groupShardsIterator = clusterService.operationRouting().searchShards(clusterState, concreteIndices,
                 routingMap, request.preference());
         ShardRouting shard;
         ClusterSearchShardsGroup[] groupResponses = new ClusterSearchShardsGroup[groupShardsIterator.size()];

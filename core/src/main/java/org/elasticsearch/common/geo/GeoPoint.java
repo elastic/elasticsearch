@@ -23,7 +23,6 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 
@@ -87,8 +86,8 @@ public final class GeoPoint {
     }
 
     public GeoPoint resetFromIndexHash(long hash) {
-        lon = GeoPointField.decodeLongitude(hash);
-        lat = GeoPointField.decodeLatitude(hash);
+        lon = GeoHashUtils.decodeLongitude(hash);
+        lat = GeoHashUtils.decodeLatitude(hash);
         return this;
     }
 
@@ -112,7 +111,7 @@ public final class GeoPoint {
 
     public GeoPoint resetFromGeoHash(String geohash) {
         final long hash = mortonEncode(geohash);
-        return this.reset(GeoPointField.decodeLatitude(hash), GeoPointField.decodeLongitude(hash));
+        return this.reset(GeoHashUtils.decodeLatitude(hash), GeoHashUtils.decodeLongitude(hash));
     }
 
     public GeoPoint resetFromGeoHash(long geohashLong) {

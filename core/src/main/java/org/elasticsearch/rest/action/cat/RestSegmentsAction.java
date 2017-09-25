@@ -51,6 +51,11 @@ public class RestSegmentsAction extends AbstractCatAction {
     }
 
     @Override
+    public String getName() {
+        return "cat_segments_action";
+    }
+
+    @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 

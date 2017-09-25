@@ -59,7 +59,6 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                 .build();
     }
 
-
     public void testBulkRejectionLoadWithoutBackoff() throws Throwable {
         boolean rejectedExecutionExpected = true;
         executeBulkRejectionLoad(BackoffPolicy.noBackoff(), rejectedExecutionExpected);

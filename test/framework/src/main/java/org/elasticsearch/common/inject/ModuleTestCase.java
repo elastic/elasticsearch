@@ -61,7 +61,7 @@ public abstract class ModuleTestCase extends ESTestCase {
         }
         StringBuilder s = new StringBuilder();
         for (Element element : elements) {
-            s.append(element + "\n");
+            s.append(element).append("\n");
         }
         fail("Did not find any binding to " + to.getName() + ". Found these bindings:\n" + s);
     }
@@ -93,7 +93,7 @@ public abstract class ModuleTestCase extends ESTestCase {
             List<Element> elements = Elements.getElements(module);
             StringBuilder s = new StringBuilder();
             for (Element element : elements) {
-                s.append(element + "\n");
+                s.append(element).append("\n");
             }
             fail("Expected exception from configuring module. Found these bindings:\n" + s);
         } catch (IllegalArgumentException e) {
@@ -220,7 +220,7 @@ public abstract class ModuleTestCase extends ESTestCase {
         }
         StringBuilder s = new StringBuilder();
         for (Element element : elements) {
-            s.append(element + "\n");
+            s.append(element).append("\n");
         }
         fail("Did not find any instance binding to " + to.getName() + ". Found these bindings:\n" + s);
     }

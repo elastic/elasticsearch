@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -37,8 +38,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * Represents a failure to search on a specific shard.
@@ -199,20 +198,21 @@ public class ShardSearchFailure implements ShardOperationFailedException {
                 } else if (NODE_FIELD.equals(currentFieldName)) {
                     nodeId  = parser.text();
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (REASON_FIELD.equals(currentFieldName)) {
                     exception = ElasticsearchException.fromXContent(parser);
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    parser.skipChildren();
                 }
             } else {
-                throwUnknownToken(token, parser.getTokenLocation());
+                parser.skipChildren();
             }
         }
         return new ShardSearchFailure(exception,
-                new SearchShardTarget(nodeId, new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId)));
+                new SearchShardTarget(nodeId,
+                        new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), null, OriginalIndices.NONE));
     }
 
     @Override

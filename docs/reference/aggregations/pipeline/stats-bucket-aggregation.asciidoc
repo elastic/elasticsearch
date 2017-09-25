@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-stats-bucket-aggregation]]
 === Stats Bucket Aggregation
 
-experimental[]
-
 A sibling pipeline aggregation which calculates a variety of stats across all bucket of a specified metric in a sibling aggregation.
 The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.
 
@@ -18,6 +16,7 @@ A `stats_bucket` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 .`stats_bucket` Parameters
 |===
@@ -29,7 +28,7 @@ A `stats_bucket` aggregation looks like this in isolation:
 |`format` |format to apply to the output value of this aggregation |Optional | `null`
 |===
 
-The following snippet calculates the sum of all the total monthly `sales` buckets:
+The following snippet calculates the stats for monthly `sales`:
 
 [source,js]
 --------------------------------------------------

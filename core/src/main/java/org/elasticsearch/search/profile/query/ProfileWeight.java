@@ -25,7 +25,9 @@ import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
 import java.util.Set;
@@ -48,18 +50,50 @@ public final class ProfileWeight extends Weight {
 
     @Override
     public Scorer scorer(LeafReaderContext context) throws IOException {
-        profile.startTime(QueryTimingType.BUILD_SCORER);
-        final Scorer subQueryScorer;
-        try {
-            subQueryScorer = subQueryWeight.scorer(context);
-        } finally {
-            profile.stopAndRecordTime();
+        ScorerSupplier supplier = scorerSupplier(context);
+        if (supplier == null) {
+            return null;
         }
-        if (subQueryScorer == null) {
+        return supplier.get(false);
+    }
+
+    @Override
+    public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+        Timer timer = profile.getTimer(QueryTimingType.BUILD_SCORER);
+        timer.start();
+        final ScorerSupplier subQueryScorerSupplier;
+        try {
+            subQueryScorerSupplier = subQueryWeight.scorerSupplier(context);
+        } finally {
+            timer.stop();
+        }
+        if (subQueryScorerSupplier == null) {
             return null;
         }
 
-        return new ProfileScorer(this, subQueryScorer, profile);
+        final ProfileWeight weight = this;
+        return new ScorerSupplier() {
+
+            @Override
+            public Scorer get(boolean randomAccess) throws IOException {
+                timer.start();
+                try {
+                    return new ProfileScorer(weight, subQueryScorerSupplier.get(randomAccess), profile);
+                } finally {
+                    timer.stop();
+                }
+            }
+
+            @Override
+            public long cost() {
+                timer.start();
+                try {
+                    return subQueryScorerSupplier.cost();
+                } finally {
+                    timer.stop();
+                }
+            }
+        };
     }
 
     @Override
@@ -77,16 +111,6 @@ public final class ProfileWeight extends Weight {
     @Override
     public Explanation explain(LeafReaderContext context, int doc) throws IOException {
         return subQueryWeight.explain(context, doc);
-    }
-
-    @Override
-    public float getValueForNormalization() throws IOException {
-        return subQueryWeight.getValueForNormalization();
-    }
-
-    @Override
-    public void normalize(float norm, float topLevelBoost) {
-        subQueryWeight.normalize(norm, topLevelBoost);
     }
 
     @Override

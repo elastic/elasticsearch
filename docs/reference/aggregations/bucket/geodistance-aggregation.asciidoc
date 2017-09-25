@@ -142,3 +142,116 @@ POST /museums/_search?size=0
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+==== Keyed Response
+
+Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
+
+[source,js]
+--------------------------------------------------
+POST /museums/_search?size=0
+{
+    "aggs" : {
+        "rings_around_amsterdam" : {
+            "geo_distance" : {
+                "field" : "location",
+                "origin" : "52.3760, 4.894",
+                "ranges" : [
+                    { "to" : 100000 },
+                    { "from" : 100000, "to" : 300000 },
+                    { "from" : 300000 }
+                ],
+                "keyed": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "aggregations": {
+        "rings_around_amsterdam" : {
+            "buckets": {
+                "*-100000.0": {
+                    "from": 0.0,
+                    "to": 100000.0,
+                    "doc_count": 3
+                },
+                "100000.0-300000.0": {
+                    "from": 100000.0,
+                    "to": 300000.0,
+                    "doc_count": 1
+                },
+                "300000.0-*": {
+                    "from": 300000.0,
+                    "doc_count": 2
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+
+It is also possible to customize the key for each range:
+
+[source,js]
+--------------------------------------------------
+POST /museums/_search?size=0
+{
+    "aggs" : {
+        "rings_around_amsterdam" : {
+            "geo_distance" : {
+                "field" : "location",
+                "origin" : "52.3760, 4.894",
+                "ranges" : [
+                    { "to" : 100000, "key": "first_ring" },
+                    { "from" : 100000, "to" : 300000, "key": "second_ring" },
+                    { "from" : 300000, "key": "third_ring" }
+                ],
+                "keyed": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "aggregations": {
+        "rings_around_amsterdam" : {
+            "buckets": {
+                "first_ring": {
+                    "from": 0.0,
+                    "to": 100000.0,
+                    "doc_count": 3
+                },
+                "second_ring": {
+                    "from": 100000.0,
+                    "to": 300000.0,
+                    "doc_count": 1
+                },
+                "third_ring": {
+                    "from": 300000.0,
+                    "doc_count": 2
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+

@@ -182,12 +182,12 @@ public class PluginInfoTests extends ESTestCase {
             "description", "fake desc",
             "name", "my_plugin",
             "version", "1.0",
-            "elasticsearch.version", Version.V_2_0_0.toString());
+            "elasticsearch.version", Version.V_5_0_0.toString());
         try {
             PluginInfo.readFromProperties(pluginDir);
             fail("expected old elasticsearch version exception");
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("was designed for version [2.0.0]"));
+            assertTrue(e.getMessage().contains("was designed for version [5.0.0]"));
         }
     }
 
@@ -209,11 +209,11 @@ public class PluginInfoTests extends ESTestCase {
 
     public void testPluginListSorted() {
         List<PluginInfo> plugins = new ArrayList<>();
-        plugins.add(new PluginInfo("c", "foo", "dummy", "dummyclass", randomBoolean()));
-        plugins.add(new PluginInfo("b", "foo", "dummy", "dummyclass", randomBoolean()));
-        plugins.add(new PluginInfo("e", "foo", "dummy", "dummyclass", randomBoolean()));
-        plugins.add(new PluginInfo("a", "foo", "dummy", "dummyclass", randomBoolean()));
-        plugins.add(new PluginInfo("d", "foo", "dummy", "dummyclass", randomBoolean()));
+        plugins.add(new PluginInfo("c", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo("b", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo("e", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo("a", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo("d", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
         PluginsAndModules pluginsInfo = new PluginsAndModules(plugins, Collections.emptyList());
 
 

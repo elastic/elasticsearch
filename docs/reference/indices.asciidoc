@@ -41,11 +41,6 @@ index settings, aliases, mappings, and index templates.
 * <<indices-templates>>
 
 [float]
-[[shadow-replicas]]
-== Replica configurations
-* <<indices-shadow-replicas>>
-
-[float]
 [[monitoring]]
 == Monitoring:
 * <<indices-stats>>
@@ -94,8 +89,6 @@ include::indices/get-settings.asciidoc[]
 include::indices/analyze.asciidoc[]
 
 include::indices/templates.asciidoc[]
-
-include::indices/shadow-replicas.asciidoc[]
 
 include::indices/stats.asciidoc[]
 

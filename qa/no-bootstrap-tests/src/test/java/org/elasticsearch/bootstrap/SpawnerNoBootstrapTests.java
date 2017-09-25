@@ -33,6 +33,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.HashSet;
 import java.util.List;
@@ -188,19 +189,23 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
                 equalTo("plugin [test_plugin] does not have permission to fork native controller"));
     }
 
-    private void createControllerProgram(Path outputFile) throws IOException {
-        Path outputDir = outputFile.getParent();
+    private void createControllerProgram(final Path outputFile) throws IOException {
+        final Path outputDir = outputFile.getParent();
         Files.createDirectories(outputDir);
         Files.write(outputFile, CONTROLLER_SOURCE.getBytes(StandardCharsets.UTF_8));
-        Set<PosixFilePermission> perms = new HashSet<>();
-        perms.add(PosixFilePermission.OWNER_READ);
-        perms.add(PosixFilePermission.OWNER_WRITE);
-        perms.add(PosixFilePermission.OWNER_EXECUTE);
-        perms.add(PosixFilePermission.GROUP_READ);
-        perms.add(PosixFilePermission.GROUP_EXECUTE);
-        perms.add(PosixFilePermission.OTHERS_READ);
-        perms.add(PosixFilePermission.OTHERS_EXECUTE);
-        Files.setPosixFilePermissions(outputFile, perms);
+        final PosixFileAttributeView view =
+                Files.getFileAttributeView(outputFile, PosixFileAttributeView.class);
+        if (view != null) {
+            final Set<PosixFilePermission> perms = new HashSet<>();
+            perms.add(PosixFilePermission.OWNER_READ);
+            perms.add(PosixFilePermission.OWNER_WRITE);
+            perms.add(PosixFilePermission.OWNER_EXECUTE);
+            perms.add(PosixFilePermission.GROUP_READ);
+            perms.add(PosixFilePermission.GROUP_EXECUTE);
+            perms.add(PosixFilePermission.OTHERS_READ);
+            perms.add(PosixFilePermission.OTHERS_EXECUTE);
+            Files.setPosixFilePermissions(outputFile, perms);
+        }
     }
 
 }

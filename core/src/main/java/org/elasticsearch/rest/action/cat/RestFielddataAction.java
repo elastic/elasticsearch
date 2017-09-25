@@ -46,6 +46,11 @@ public class RestFielddataAction extends AbstractCatAction {
     }
 
     @Override
+    public String getName() {
+        return "cat_fielddata_action";
+    }
+
+    @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
         nodesStatsRequest.clear();

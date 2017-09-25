@@ -28,6 +28,7 @@ import org.elasticsearch.action.index.IndexResponseTests;
 import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -71,9 +72,9 @@ public class BulkResponseTests extends ESTestCase {
                 bulkItems[i] = new BulkItemResponse(i, opType, randomDocWriteResponses.v1());
                 expectedBulkItems[i] = new BulkItemResponse(i, opType, randomDocWriteResponses.v2());
             } else {
-                String index = randomAsciiOfLength(5);
-                String type = randomAsciiOfLength(5);
-                String id = randomAsciiOfLength(5);
+                String index = randomAlphaOfLength(5);
+                String type = randomAlphaOfLength(5);
+                String id = randomAlphaOfLength(5);
 
                 Tuple<Throwable, ElasticsearchException> failures = randomExceptions();
 
@@ -86,13 +87,7 @@ public class BulkResponseTests extends ESTestCase {
         }
 
         BulkResponse bulkResponse = new BulkResponse(bulkItems, took, ingestTook);
-        BytesReference originalBytes = toXContent(bulkResponse, xContentType, humanReadable);
-
-        if (randomBoolean()) {
-            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-                originalBytes = shuffleXContent(parser, randomBoolean()).bytes();
-            }
-        }
+        BytesReference originalBytes = toShuffledXContent(bulkResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         BulkResponse parsedBulkResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
@@ -100,7 +95,7 @@ public class BulkResponseTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
-        assertEquals(took, parsedBulkResponse.getTookInMillis());
+        assertEquals(took, parsedBulkResponse.getTook().getMillis());
         assertEquals(ingestTook, parsedBulkResponse.getIngestTookInMillis());
         assertEquals(expectedBulkItems.length, parsedBulkResponse.getItems().length);
 

@@ -18,12 +18,11 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.Term;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequest.Empty;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -31,6 +30,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SearchOperationListenerTests extends ESTestCase {
 
@@ -46,6 +48,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         AtomicInteger freeContext = new AtomicInteger();
         AtomicInteger newScrollContext =  new AtomicInteger();
         AtomicInteger freeScrollContext =  new AtomicInteger();
+        AtomicInteger validateSearchContext = new AtomicInteger();
         AtomicInteger timeInNanos = new AtomicInteger(randomIntBetween(0, 10));
         SearchOperationListener listener = new SearchOperationListener() {
             @Override
@@ -109,17 +112,26 @@ public class SearchOperationListenerTests extends ESTestCase {
                 assertNotNull(context);
                 freeScrollContext.incrementAndGet();
             }
+
+            @Override
+            public void validateSearchContext(SearchContext context, TransportRequest request) {
+                assertNotNull(context);
+                validateSearchContext.incrementAndGet();
+            }
         };
 
         SearchOperationListener throwingListener = (SearchOperationListener) Proxy.newProxyInstance(
             SearchOperationListener.class.getClassLoader(),
             new Class[]{SearchOperationListener.class},
             (a,b,c) -> { throw new RuntimeException();});
+        int throwingListeners = 0;
         final List<SearchOperationListener> indexingOperationListeners = new ArrayList<>(Arrays.asList(listener, listener));
         if (randomBoolean()) {
             indexingOperationListeners.add(throwingListener);
+            throwingListeners++;
             if (randomBoolean()) {
                 indexingOperationListeners.add(throwingListener);
+                throwingListeners++;
             }
         }
         Collections.shuffle(indexingOperationListeners, random());
@@ -137,6 +149,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFetchPhase(ctx, timeInNanos.get());
         assertEquals(0, preFetch.get());
@@ -149,6 +162,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, validateSearchContext.get());
 
         compositeListener.onPreQueryPhase(ctx);
         assertEquals(0, preFetch.get());
@@ -161,6 +175,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, validateSearchContext.get());
 
         compositeListener.onPreFetchPhase(ctx);
         assertEquals(2, preFetch.get());
@@ -173,6 +188,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFailedFetchPhase(ctx);
         assertEquals(2, preFetch.get());
@@ -185,6 +201,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFailedQueryPhase(ctx);
         assertEquals(2, preFetch.get());
@@ -197,6 +214,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, validateSearchContext.get());
 
         compositeListener.onNewContext(ctx);
         assertEquals(2, preFetch.get());
@@ -209,6 +227,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, validateSearchContext.get());
 
         compositeListener.onNewScrollContext(ctx);
         assertEquals(2, preFetch.get());
@@ -221,6 +240,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(2, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFreeContext(ctx);
         assertEquals(2, preFetch.get());
@@ -233,6 +253,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(2, newScrollContext.get());
         assertEquals(2, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFreeScrollContext(ctx);
         assertEquals(2, preFetch.get());
@@ -245,5 +266,29 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(2, newScrollContext.get());
         assertEquals(2, freeContext.get());
         assertEquals(2, freeScrollContext.get());
+        assertEquals(0, validateSearchContext.get());
+
+        if (throwingListeners == 0) {
+            compositeListener.validateSearchContext(ctx, Empty.INSTANCE);
+        } else {
+            RuntimeException expected =
+                expectThrows(RuntimeException.class, () -> compositeListener.validateSearchContext(ctx, Empty.INSTANCE));
+            assertNull(expected.getMessage());
+            assertEquals(throwingListeners - 1, expected.getSuppressed().length);
+            if (throwingListeners > 1) {
+                assertThat(expected.getSuppressed()[0], not(sameInstance(expected)));
+            }
+        }
+        assertEquals(2, preFetch.get());
+        assertEquals(2, preQuery.get());
+        assertEquals(2, failedFetch.get());
+        assertEquals(2, failedQuery.get());
+        assertEquals(2, onQuery.get());
+        assertEquals(2, onFetch.get());
+        assertEquals(2, newContext.get());
+        assertEquals(2, newScrollContext.get());
+        assertEquals(2, freeContext.get());
+        assertEquals(2, freeScrollContext.get());
+        assertEquals(2, validateSearchContext.get());
     }
 }

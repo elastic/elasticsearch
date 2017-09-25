@@ -54,9 +54,9 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
         int numShards = randomIntBetween(1, 10);
         ClusterSearchShardsGroup[] clusterSearchShardsGroups = new ClusterSearchShardsGroup[numShards];
         for (int i = 0; i < numShards; i++) {
-            String index = randomAsciiOfLengthBetween(3, 10);
-            ShardId shardId = new ShardId(index, randomAsciiOfLength(12), i);
-            String nodeId = randomAsciiOfLength(10);
+            String index = randomAlphaOfLengthBetween(3, 10);
+            ShardId shardId = new ShardId(index, randomAlphaOfLength(12), i);
+            String nodeId = randomAlphaOfLength(10);
             ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, randomBoolean(), ShardRoutingState.STARTED);
             clusterSearchShardsGroups[i] = new ClusterSearchShardsGroup(shardId, new ShardRouting[]{shardRouting});
             DiscoveryNode node = new DiscoveryNode(shardRouting.currentNodeId(),
@@ -93,7 +93,7 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
                     assertEquals(clusterSearchShardsGroup.getShardId(), deserializedGroup.getShardId());
                     assertArrayEquals(clusterSearchShardsGroup.getShards(), deserializedGroup.getShards());
                 }
-                if (version.onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+                if (version.onOrAfter(Version.V_5_1_1)) {
                     assertEquals(clusterSearchShardsResponse.getIndicesAndFilters(), deserialized.getIndicesAndFilters());
                 } else {
                     assertNull(deserialized.getIndicesAndFilters());

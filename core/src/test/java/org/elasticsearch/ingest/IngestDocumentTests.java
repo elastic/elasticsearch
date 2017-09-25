@@ -22,6 +22,8 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,11 +46,11 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class IngestDocumentTests extends ESTestCase {
 
-    private static final Date BOGUS_TIMESTAMP = new Date(0L);
+    private static final ZonedDateTime BOGUS_TIMESTAMP = ZonedDateTime.of(2016, 10, 23, 0, 0, 0, 0, ZoneOffset.UTC);
     private IngestDocument ingestDocument;
 
     @Before
-    public void setIngestDocument() {
+    public void setTestIngestDocument() {
         Map<String, Object> document = new HashMap<>();
         Map<String, Object> ingestMap = new HashMap<>();
         ingestMap.put("timestamp", BOGUS_TIMESTAMP);
@@ -83,9 +85,10 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("index"));
         assertThat(ingestDocument.getFieldValue("_type", String.class), equalTo("type"));
         assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("id"));
-        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", Date.class),
-                both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP))));
-        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", Date.class), equalTo(BOGUS_TIMESTAMP));
+        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", ZonedDateTime.class),
+            both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP))));
+        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", ZonedDateTime.class),
+            equalTo(BOGUS_TIMESTAMP));
     }
 
     public void testGetSourceObject() {
@@ -912,12 +915,12 @@ public class IngestDocumentTests extends ESTestCase {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
         int numFields = randomIntBetween(1, IngestDocument.MetaData.values().length);
         for (int i = 0; i < numFields; i++) {
-            sourceAndMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
+            sourceAndMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
         }
         Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
         for (int i = 0; i < numFields; i++) {
-            ingestMetadata.put(randomAsciiOfLengthBetween(5, 10), randomAsciiOfLengthBetween(5, 10));
+            ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
         IngestDocument ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
 
@@ -932,7 +935,7 @@ public class IngestDocumentTests extends ESTestCase {
         if (randomBoolean()) {
             numFields = randomIntBetween(1, IngestDocument.MetaData.values().length);
             for (int i = 0; i < numFields; i++) {
-                otherSourceAndMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
+                otherSourceAndMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
             }
             changed = true;
         }
@@ -942,7 +945,7 @@ public class IngestDocumentTests extends ESTestCase {
             otherIngestMetadata = new HashMap<>();
             numFields = randomIntBetween(1, 5);
             for (int i = 0; i < numFields; i++) {
-                otherIngestMetadata.put(randomAsciiOfLengthBetween(5, 10), randomAsciiOfLengthBetween(5, 10));
+                otherIngestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
             }
             changed = true;
         } else {
@@ -969,10 +972,11 @@ public class IngestDocumentTests extends ESTestCase {
         long before = System.currentTimeMillis();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         long after = System.currentTimeMillis();
-        Date timestamp = (Date) ingestDocument.getIngestMetadata().get(IngestDocument.TIMESTAMP);
+        ZonedDateTime timestamp = (ZonedDateTime) ingestDocument.getIngestMetadata().get(IngestDocument.TIMESTAMP);
+        long actualMillis = timestamp.toInstant().toEpochMilli();
         assertThat(timestamp, notNullValue());
-        assertThat(timestamp.getTime(), greaterThanOrEqualTo(before));
-        assertThat(timestamp.getTime(), lessThanOrEqualTo(after));
+        assertThat(actualMillis, greaterThanOrEqualTo(before));
+        assertThat(actualMillis, lessThanOrEqualTo(after));
     }
 
     public void testCopyConstructor() {

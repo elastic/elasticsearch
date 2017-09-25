@@ -56,7 +56,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, Engine.CommitId> commitIds = SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId);
         assertEquals("exactly one commit id", 1, commitIds.size());
         client().prepareIndex("test", "test", "2").setSource("{}", XContentType.JSON).get();
-        String syncId = UUIDs.base64UUID();
+        String syncId = UUIDs.randomBase64UUID();
         SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener<>();
         flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId, shardRoutingTable.size(), listener);
         listener.latch.await();
@@ -114,7 +114,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
         PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
-        shard.acquirePrimaryOperationLock(fut, ThreadPool.Names.INDEX);
+        shard.acquirePrimaryOperationPermit(fut, ThreadPool.Names.INDEX);
         try (Releasable operationLock = fut.get()) {
             SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener<>();
             flushService.attemptSyncedFlush(shardId, listener);
@@ -178,7 +178,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
             client().prepareIndex("test", "test", "2").setSource("{}", XContentType.JSON).get();
         }
         client().admin().indices().prepareFlush("test").setForce(true).get();
-        String syncId = UUIDs.base64UUID();
+        String syncId = UUIDs.randomBase64UUID();
         final SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener();
         flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId, shardRoutingTable.size(), listener);
         listener.latch.await();
@@ -208,7 +208,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, Engine.CommitId> commitIds =  SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId);
         assertEquals("exactly one commit id", 1, commitIds.size());
         commitIds.clear(); // wipe it...
-        String syncId = UUIDs.base64UUID();
+        String syncId = UUIDs.randomBase64UUID();
         SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener();
         flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId, shardRoutingTable.size(), listener);
         listener.latch.await();

@@ -42,6 +42,11 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "restore_snapshot_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RestoreSnapshotRequest restoreSnapshotRequest = restoreSnapshotRequest(request.param("repository"), request.param("snapshot"));
         restoreSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", restoreSnapshotRequest.masterNodeTimeout()));

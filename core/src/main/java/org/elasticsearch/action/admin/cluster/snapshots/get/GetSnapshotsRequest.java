@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.snapshots.SnapshotInfo.VERBOSE_INTRODUCED;
 
 /**
  * Get snapshot request
@@ -36,12 +37,15 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public static final String ALL_SNAPSHOTS = "_all";
     public static final String CURRENT_SNAPSHOT = "_current";
+    public static final boolean DEFAULT_VERBOSE_MODE = true;
 
     private String repository;
 
     private String[] snapshots = Strings.EMPTY_ARRAY;
 
     private boolean ignoreUnavailable;
+
+    private boolean verbose = DEFAULT_VERBOSE_MODE;
 
     public GetSnapshotsRequest() {
     }
@@ -64,6 +68,27 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      */
     public GetSnapshotsRequest(String repository) {
         this.repository = repository;
+    }
+
+    public GetSnapshotsRequest(StreamInput in) throws IOException {
+        super(in);
+        repository = in.readString();
+        snapshots = in.readStringArray();
+        ignoreUnavailable = in.readBoolean();
+        if (in.getVersion().onOrAfter(VERBOSE_INTRODUCED)) {
+            verbose = in.readBoolean();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(repository);
+        out.writeStringArray(snapshots);
+        out.writeBoolean(ignoreUnavailable);
+        if (out.getVersion().onOrAfter(VERBOSE_INTRODUCED)) {
+            out.writeBoolean(verbose);
+        }
     }
 
     @Override
@@ -123,6 +148,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         this.ignoreUnavailable = ignoreUnavailable;
         return this;
     }
+
     /**
      * @return Whether snapshots should be ignored when unavailable (corrupt or temporarily not fetchable)
      */
@@ -130,19 +156,29 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return ignoreUnavailable;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        repository = in.readString();
-        snapshots = in.readStringArray();
-        ignoreUnavailable = in.readBoolean();
+    /**
+     * Set to {@code false} to only show the snapshot names and the indices they contain.
+     * This is useful when the snapshots belong to a cloud-based repository where each
+     * blob read is a concern (cost wise and performance wise), as the snapshot names and
+     * indices they contain can be retrieved from a single index blob in the repository,
+     * whereas the rest of the information requires reading a snapshot metadata file for
+     * each snapshot requested.  Defaults to {@code true}, which returns all information
+     * about each requested snapshot.
+     */
+    public GetSnapshotsRequest verbose(boolean verbose) {
+        this.verbose = verbose;
+        return this;
+    }
+
+    /**
+     * Returns whether the request will return a verbose response.
+     */
+    public boolean verbose() {
+        return verbose;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(repository);
-        out.writeStringArray(snapshots);
-        out.writeBoolean(ignoreUnavailable);
+    public void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

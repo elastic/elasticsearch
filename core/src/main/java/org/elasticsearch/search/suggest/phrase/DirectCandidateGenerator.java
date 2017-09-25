@@ -58,7 +58,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     private final TermsEnum termsEnum;
     private final IndexReader reader;
     private final long dictSize;
-    private final double logBase = 5;
+    private static final double LOG_BASE = 5;
     private final long frequencyPlateau;
     private final Analyzer preFilter;
     private final Analyzer postFilter;
@@ -189,7 +189,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
 
     protected long thresholdFrequency(long termFrequency, long dictionarySize) {
         if (termFrequency > 0) {
-            return max(0, round(termFrequency * (log10(termFrequency - frequencyPlateau) * (1.0 / log10(logBase))) + 1));
+            return max(0, round(termFrequency * (log10(termFrequency - frequencyPlateau) * (1.0 / log10(LOG_BASE))) + 1));
         }
         return 0;
 
@@ -229,9 +229,8 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
             // Merge new candidates into existing ones,
             // deduping:
             final Set<Candidate> set = new HashSet<>(candidates);
-            for (int i = 0; i < this.candidates.length; i++) {
-                set.add(this.candidates[i]);
-            }
+            Collections.addAll(set, this.candidates);
+
             this.candidates = set.toArray(new Candidate[set.size()]);
             // Sort strongest to weakest:
             Arrays.sort(this.candidates, Collections.reverseOrder());

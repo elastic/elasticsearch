@@ -67,7 +67,7 @@ abstract class AtomicDoubleFieldData implements AtomicNumericFieldData {
 
             @Override
             public SortedNumericDoubleValues getDoubleValues() {
-                return FieldData.emptySortedNumericDoubles(maxDoc);
+                return FieldData.emptySortedNumericDoubles();
             }
             
             @Override

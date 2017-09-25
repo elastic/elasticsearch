@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
@@ -152,9 +151,8 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
     public abstract static class NXYParser implements SignificanceHeuristicParser {
 
         @Override
-        public SignificanceHeuristic parse(QueryParseContext context)
+        public SignificanceHeuristic parse(XContentParser parser)
                 throws IOException, QueryShardException {
-            XContentParser parser = context.parser();
             String givenName = parser.currentName();
             boolean includeNegatives = false;
             boolean backgroundIsSuperset = true;

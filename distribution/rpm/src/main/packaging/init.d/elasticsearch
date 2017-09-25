@@ -32,14 +32,10 @@ if [ -f /etc/rc.d/init.d/functions ]; then
 fi
 
 # Sets the default values for elasticsearch variables used in this script
-ES_USER="elasticsearch"
-ES_GROUP="elasticsearch"
 ES_HOME="/usr/share/elasticsearch"
 MAX_OPEN_FILES=65536
 MAX_MAP_COUNT=262144
-LOG_DIR="/var/log/elasticsearch"
-DATA_DIR="/var/lib/elasticsearch"
-CONF_DIR="${path.conf}"
+ES_PATH_CONF="${path.conf}"
 
 PID_DIR="/var/run/elasticsearch"
 
@@ -49,9 +45,9 @@ if [ -f "$ES_ENV_FILE" ]; then
     . "$ES_ENV_FILE"
 fi
 
-# CONF_FILE setting was removed
-if [ ! -z "$CONF_FILE" ]; then
-    echo "CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed."
+# ES_USER and ES_GROUP settings were removed
+if [ ! -z "$ES_USER" ] || [ ! -z "$ES_GROUP" ]; then
+    echo "ES_USER and ES_GROUP settings are no longer supported. To run as a custom user/group use the archive distribution of Elasticsearch."
     exit 1
 fi
 
@@ -61,16 +57,10 @@ pidfile="$PID_DIR/${prog}.pid"
 
 export ES_JAVA_OPTS
 export JAVA_HOME
-export ES_INCLUDE
-export ES_JVM_OPTIONS
+export ES_PATH_CONF
 export ES_STARTUP_SLEEP_TIME
 
 lockfile=/var/lock/subsys/$prog
-
-# backwards compatibility for old config sysconfig files, pre 0.90.1
-if [ -n $USER ] && [ -z $ES_USER ] ; then
-   ES_USER=$USER
-fi
 
 if [ ! -x "$exec" ]; then
     echo "The elasticsearch startup script does not exists or it is not executable, tried: $exec"
@@ -106,16 +96,16 @@ start() {
 
     # Ensure that the PID_DIR exists (it is cleaned at OS startup time)
     if [ -n "$PID_DIR" ] && [ ! -e "$PID_DIR" ]; then
-        mkdir -p "$PID_DIR" && chown "$ES_USER":"$ES_GROUP" "$PID_DIR"
+        mkdir -p "$PID_DIR" && chown elasticsearch:elasticsearch "$PID_DIR"
     fi
     if [ -n "$pidfile" ] && [ ! -e "$pidfile" ]; then
-        touch "$pidfile" && chown "$ES_USER":"$ES_GROUP" "$pidfile"
+        touch "$pidfile" && chown elasticsearch:elasticsearch "$pidfile"
     fi
 
     cd $ES_HOME
     echo -n $"Starting $prog: "
     # if not running, start it up here, usually something like "daemon $exec"
-    daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -d -Edefault.path.logs=$LOG_DIR -Edefault.path.data=$DATA_DIR -Edefault.path.conf=$CONF_DIR
+    daemon --user elasticsearch --pidfile $pidfile $exec -p $pidfile -d
     retval=$?
     echo
     [ $retval -eq 0 ] && touch $lockfile

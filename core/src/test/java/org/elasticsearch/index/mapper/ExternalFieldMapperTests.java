@@ -54,7 +54,8 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValues() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+                Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndexService indexService = createIndex("test", settings);
         MapperRegistry mapperRegistry = new MapperRegistry(
@@ -62,7 +63,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 Collections.singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser()));
 
         Supplier<QueryShardContext> queryShardContext = () -> {
-            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
+            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
                 indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
@@ -102,7 +103,8 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValuesWithMultifield() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+                Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndexService indexService = createIndex("test", settings);
         Map<String, Mapper.TypeParser> mapperParsers = new HashMap<>();
@@ -112,7 +114,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap());
 
         Supplier<QueryShardContext> queryShardContext = () -> {
-            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
+            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
                 indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
@@ -167,7 +169,8 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValuesWithMultifieldTwoLevels() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+                Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndexService indexService = createIndex("test", settings);
         Map<String, Mapper.TypeParser> mapperParsers = new HashMap<>();
@@ -177,7 +180,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap());
 
         Supplier<QueryShardContext> queryShardContext = () -> {
-            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
+            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
                 indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,

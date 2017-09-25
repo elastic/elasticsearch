@@ -40,8 +40,9 @@ public class IndexSearcherWrapper {
      * Wraps the given {@link DirectoryReader}. The wrapped reader can filter out document just like delete documents etc. but
      * must not change any term or document content.
      * <p>
-     * NOTE: The wrapper has a per-request lifecycle, must delegate {@link IndexReader#getCoreCacheKey()} and must be an instance
-     * of {@link FilterDirectoryReader} that eventually exposes the original reader via  {@link FilterDirectoryReader#getDelegate()}.
+     * NOTE: The wrapper has a per-request lifecycle, must delegate {@link IndexReader#getReaderCacheHelper()},
+     * {@link LeafReader#getCoreCacheHelper()} and must be an instance of {@link FilterDirectoryReader} that
+     * eventually exposes the original reader via  {@link FilterDirectoryReader#getDelegate()}.
      * The returned reader is closed once it goes out of scope.
      * </p>
      * @param reader The provided directory reader to be wrapped to add custom functionality
@@ -74,7 +75,7 @@ public class IndexSearcherWrapper {
         NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
         DirectoryReader reader = wrap(nonClosingReaderWrapper);
         if (reader != nonClosingReaderWrapper) {
-            if (reader.getCoreCacheKey() != elasticsearchDirectoryReader.getCoreCacheKey()) {
+            if (reader.getReaderCacheHelper() != elasticsearchDirectoryReader.getReaderCacheHelper()) {
                 throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey, wrappers must override this method and delegate" +
                         " to the original readers core cache key. Wrapped readers can't be used as cache keys since their are used only per request which would lead to subtle bugs");
             }
@@ -136,9 +137,10 @@ public class IndexSearcherWrapper {
         }
 
         @Override
-        public Object getCoreCacheKey() {
-            return in.getCoreCacheKey();
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
         }
+
     }
 
 }

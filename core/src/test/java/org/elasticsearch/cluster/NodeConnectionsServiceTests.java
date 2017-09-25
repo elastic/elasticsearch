@@ -40,7 +40,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.TransportStats;
 import org.junit.After;
 import org.junit.Before;
 
@@ -175,7 +175,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         volatile boolean randomConnectionExceptions = false;
 
         @Override
-        public void transportServiceAdapter(TransportServiceAdapter service) {
+        public void setTransportService(TransportService service) {
         }
 
         @Override
@@ -242,11 +242,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public long serverOpen() {
-            return 0;
-        }
-
-        @Override
         public List<String> getLocalAddresses() {
             return null;
         }
@@ -263,12 +258,10 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         @Override
         public void addLifecycleListener(LifecycleListener listener) {
-
         }
 
         @Override
         public void removeLifecycleListener(LifecycleListener listener) {
-
         }
 
         @Override
@@ -279,5 +272,10 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         @Override
         public void close() {}
+
+        @Override
+        public TransportStats getStats() {
+            throw new UnsupportedOperationException();
+        }
     }
 }

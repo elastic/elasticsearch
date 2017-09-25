@@ -43,7 +43,7 @@ public class JoinProcessorTests extends ESTestCase {
         List<String> fieldValue = new ArrayList<>(numItems);
         String expectedResult = "";
         for (int j = 0; j < numItems; j++) {
-            String value = randomAsciiOfLengthBetween(1, 10);
+            String value = randomAlphaOfLengthBetween(1, 10);
             fieldValue.add(value);
             expectedResult += value;
             if (j < numItems - 1) {
@@ -51,7 +51,7 @@ public class JoinProcessorTests extends ESTestCase {
             }
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = new JoinProcessor(randomAsciiOfLength(10), fieldName, separator);
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, separator, fieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(expectedResult));
     }
@@ -71,7 +71,7 @@ public class JoinProcessorTests extends ESTestCase {
             }
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = new JoinProcessor(randomAsciiOfLength(10), fieldName, separator);
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, separator, fieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(expectedResult));
     }
@@ -79,8 +79,8 @@ public class JoinProcessorTests extends ESTestCase {
     public void testJoinNonListField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        ingestDocument.setFieldValue(fieldName, randomAsciiOfLengthBetween(1, 10));
-        Processor processor = new JoinProcessor(randomAsciiOfLength(10), fieldName, "-");
+        ingestDocument.setFieldValue(fieldName, randomAlphaOfLengthBetween(1, 10));
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, "-", fieldName);
         try {
             processor.execute(ingestDocument);
         } catch(IllegalArgumentException e) {
@@ -91,7 +91,7 @@ public class JoinProcessorTests extends ESTestCase {
     public void testJoinNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new JoinProcessor(randomAsciiOfLength(10), fieldName, "-");
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, "-", fieldName);
         try {
             processor.execute(ingestDocument);
         } catch(IllegalArgumentException e) {
@@ -101,11 +101,32 @@ public class JoinProcessorTests extends ESTestCase {
 
     public void testJoinNullValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
-        Processor processor = new JoinProcessor(randomAsciiOfLength(10), "field", "-");
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), "field", "-", "field");
         try {
             processor.execute(ingestDocument);
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [field] is null, cannot join."));
         }
+    }
+
+    public void testJoinWithTargetField() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        int numItems = randomIntBetween(1, 10);
+        String separator = randomFrom(SEPARATORS);
+        List<String> fieldValue = new ArrayList<>(numItems);
+        String expectedResult = "";
+        for (int j = 0; j < numItems; j++) {
+            String value = randomAlphaOfLengthBetween(1, 10);
+            fieldValue.add(value);
+            expectedResult += value;
+            if (j < numItems - 1) {
+                expectedResult += separator;
+            }
+        }
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
+        String targetFieldName = fieldName + randomAlphaOfLength(5);
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, separator, targetFieldName);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(targetFieldName, String.class), equalTo(expectedResult));
     }
 }

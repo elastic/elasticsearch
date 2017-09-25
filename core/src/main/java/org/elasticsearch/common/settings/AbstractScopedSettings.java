@@ -35,8 +35,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -214,21 +212,31 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
-     * Adds a settings consumer that accepts the values for two settings. The consumer if only notified if one or both settings change.
+     * Adds a settings consumer that accepts the values for two settings.
+     * See {@link #addSettingsUpdateConsumer(Setting, Setting, BiConsumer, BiConsumer)} for details.
+     */
+    public synchronized <A, B> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b, BiConsumer<A, B> consumer) {
+        addSettingsUpdateConsumer(a, b, consumer, (i, j) -> {} );
+    }
+
+    /**
+     * Adds a settings consumer that accepts the values for two settings. The consumer is only notified if one or both settings change
+     * and if the provided validator succeeded.
      * <p>
      * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
      * </p>
-     * This method registers a compound updater that is useful if two settings are depending on each other. The consumer is always provided
-     * with both values even if only one of the two changes.
+     * This method registers a compound updater that is useful if two settings are depending on each other.
+     * The consumer is always provided with both values even if only one of the two changes.
      */
-    public synchronized <A, B> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b, BiConsumer<A, B> consumer) {
+    public synchronized <A, B> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b,
+                                                              BiConsumer<A, B> consumer, BiConsumer<A, B> validator) {
         if (a != get(a.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + a.getKey() + "]");
         }
         if (b != get(b.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + b.getKey() + "]");
         }
-        addSettingsUpdater(Setting.compoundUpdater(consumer, a, b, logger));
+        addSettingsUpdater(Setting.compoundUpdater(consumer, validator, a, b, logger));
     }
 
     /**
@@ -382,9 +390,17 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Returns <code>true</code> if the setting for the given key is dynamically updateable. Otherwise <code>false</code>.
      */
-    public boolean hasDynamicSetting(String key) {
+    public boolean isDynamicSetting(String key) {
         final Setting<?> setting = get(key);
         return setting != null && setting.isDynamic();
+    }
+
+    /**
+     * Returns <code>true</code> if the setting for the given key is final. Otherwise <code>false</code>.
+     */
+    public boolean isFinalSetting(String key) {
+        final Setting<?> setting = get(key);
+        return setting != null && setting.isFinal();
     }
 
     /**
@@ -465,11 +481,14 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         boolean changed = false;
         final Set<String> toRemove = new HashSet<>();
         Settings.Builder settingsBuilder = Settings.builder();
-        final Predicate<String> canUpdate = (key) -> (onlyDynamic == false && get(key) != null) || hasDynamicSetting(key);
-        final Predicate<String> canRemove = (key) ->( // we can delete if
-            onlyDynamic && hasDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
-            || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
-            || (onlyDynamic == false && get(key) != null)); // if it's not dynamic AND we have a key
+        final Predicate<String> canUpdate = (key) -> (
+            isFinalSetting(key) == false && // it's not a final setting
+                ((onlyDynamic == false && get(key) != null) || isDynamicSetting(key)));
+        final Predicate<String> canRemove = (key) ->(// we can delete if
+            isFinalSetting(key) == false && // it's not a final setting
+                (onlyDynamic && isDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
+                || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
+                || (onlyDynamic == false && get(key) != null))); // if it's not dynamic AND we have a key
         for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
             if (entry.getValue() == null && (canRemove.test(entry.getKey()) || entry.getKey().endsWith("*"))) {
                 // this either accepts null values that suffice the canUpdate test OR wildcard expressions (key ends with *)
@@ -482,7 +501,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 updates.put(entry.getKey(), entry.getValue());
                 changed = true;
             } else {
-                throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not dynamically updateable");
+                if (isFinalSetting(entry.getKey())) {
+                    throw new IllegalArgumentException("final " + type + " setting [" + entry.getKey() + "], not updateable");
+                } else {
+                    throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not dynamically updateable");
+                }
             }
         }
         changed |= applyDeletes(toRemove, target, canRemove);

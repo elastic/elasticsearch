@@ -25,8 +25,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-import java.io.IOException;
-
 public class TribeClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     // tribe nodes can not handle delete indices requests
@@ -41,13 +39,13 @@ public class TribeClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return true;
     }
 
-    public TribeClientYamlTestSuiteIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
+    public TribeClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException {
+    public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
     }
-
 }
+

@@ -37,7 +37,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
     public CloseIndexRequest() {
     }
@@ -105,7 +105,6 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         indices = in.readStringArray();
-        readTimeout(in);
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
@@ -113,7 +112,6 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        writeTimeout(out);
         indicesOptions.writeIndicesOptions(out);
     }
 }

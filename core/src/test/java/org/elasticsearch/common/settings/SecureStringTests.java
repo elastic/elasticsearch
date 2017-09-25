@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class SecureStringTests extends ESTestCase {
 
     public void testCloseableCharsDoesNotModifySecureString() {
-        final char[] password = randomAsciiOfLengthBetween(1, 32).toCharArray();
+        final char[] password = randomAlphaOfLengthBetween(1, 32).toCharArray();
         SecureString secureString = new SecureString(password);
         assertSecureStringEqualToChars(password, secureString);
         try (SecureString copy = secureString.clone()) {
@@ -41,7 +41,7 @@ public class SecureStringTests extends ESTestCase {
     }
 
     public void testClosingSecureStringDoesNotModifyCloseableChars() {
-        final char[] password = randomAsciiOfLengthBetween(1, 32).toCharArray();
+        final char[] password = randomAlphaOfLengthBetween(1, 32).toCharArray();
         SecureString secureString = new SecureString(password);
         assertSecureStringEqualToChars(password, secureString);
         SecureString copy = secureString.clone();
@@ -55,7 +55,7 @@ public class SecureStringTests extends ESTestCase {
     }
 
     public void testClosingChars() {
-        final char[] password = randomAsciiOfLengthBetween(1, 32).toCharArray();
+        final char[] password = randomAlphaOfLengthBetween(1, 32).toCharArray();
         SecureString secureString = new SecureString(password);
         assertSecureStringEqualToChars(password, secureString);
         SecureString copy = secureString.clone();
@@ -71,7 +71,7 @@ public class SecureStringTests extends ESTestCase {
     }
 
     public void testGetCloseableCharsAfterSecureStringClosed() {
-        final char[] password = randomAsciiOfLengthBetween(1, 32).toCharArray();
+        final char[] password = randomAlphaOfLengthBetween(1, 32).toCharArray();
         SecureString secureString = new SecureString(password);
         assertSecureStringEqualToChars(password, secureString);
         secureString.close();

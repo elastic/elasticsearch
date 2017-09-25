@@ -22,7 +22,7 @@ package org.elasticsearch.common.xcontent;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.BytesStream;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.text.Text;
@@ -53,7 +53,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * A utility to build XContent (ie json).
  */
-public final class XContentBuilder implements BytesStream, Releasable, Flushable {
+public final class XContentBuilder implements Releasable, Flushable {
 
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content.
@@ -1041,7 +1041,6 @@ public final class XContentBuilder implements BytesStream, Releasable, Flushable
         return this.generator;
     }
 
-    @Override
     public BytesReference bytes() {
         close();
         return ((BytesStream) bos).bytes();

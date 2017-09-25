@@ -121,7 +121,7 @@ POST /_search
             "function_score" : {
                "script_score": {
                   "script": {
-                    "inline": "Math.log10(doc.likes.value + 2)"
+                    "source": "Math.log10(doc.likes.value + 2)"
                   }
                }
             }

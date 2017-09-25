@@ -22,7 +22,7 @@ POST /sales/_search?size=0
 // CONSOLE
 // TEST[setup:sales]
 
-In the above example, we calculate the average price of all the products that are red.
+In the above example, we calculate the average price of all the products that are of type t-shirt.
 
 Response:
 

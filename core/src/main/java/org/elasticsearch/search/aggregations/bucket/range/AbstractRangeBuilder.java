@@ -24,20 +24,19 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R>, R extends Range>
-        extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, AB> {
+        extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, AB> implements MultiBucketAggregationBuilder {
 
     protected final InternalRange.Factory<?, ?> rangeFactory;
     protected List<R> ranges = new ArrayList<>();
@@ -63,10 +62,10 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
      * Resolve any strings in the ranges so we have a number value for the from
      * and to of each range. The ranges are also sorted before being returned.
      */
-    protected Range[] processRanges(SearchContext context, ValuesSourceConfig<Numeric> config) {
+    protected Range[] processRanges(Function<Range, Range> rangeProcessor) {
         Range[] ranges = new Range[this.ranges.size()];
         for (int i = 0; i < ranges.length; i++) {
-            ranges[i] = this.ranges.get(i).process(config.format(), context);
+            ranges[i] = rangeProcessor.apply(this.ranges.get(i));
         }
         sortRanges(ranges);
         return ranges;

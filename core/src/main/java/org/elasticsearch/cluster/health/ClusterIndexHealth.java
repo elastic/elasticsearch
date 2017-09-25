@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 
-public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Writeable, ToXContent {
+public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Writeable, ToXContentFragment {
 
     private final String index;
     private final int numberOfShards;

@@ -82,9 +82,9 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
                 .endObject())
                 .setRefreshPolicy(IMMEDIATE).get();
 
-        String randomText = randomAsciiOfLength(10);
-        String randomField = randomAsciiOfLength(10);
-        String randomSuffix = randomAsciiOfLength(10);
+        String randomText = randomAlphaOfLength(10);
+        String randomField = randomAlphaOfLength(10);
+        String randomSuffix = randomAlphaOfLength(10);
         SuggestBuilder suggestBuilder = new SuggestBuilder();
         suggestBuilder.addSuggestion("someName", new CustomSuggestionBuilder(randomField, randomSuffix).text(randomText));
         SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setTypes("test").setFrom(0).setSize(1)

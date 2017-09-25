@@ -34,6 +34,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.EmptyBucketInfo;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -54,7 +56,7 @@ class HistogramAggregator extends BucketsAggregator {
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
     private final double interval, offset;
-    private final InternalOrder order;
+    private final BucketOrder order;
     private final boolean keyed;
     private final long minDocCount;
     private final double minBound, maxBound;
@@ -62,7 +64,7 @@ class HistogramAggregator extends BucketsAggregator {
     private final LongHash bucketOrds;
 
     HistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
-            InternalOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
+            BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
             @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter,
             SearchContext context, Aggregator parent,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
@@ -73,7 +75,7 @@ class HistogramAggregator extends BucketsAggregator {
         }
         this.interval = interval;
         this.offset = offset;
-        this.order = order;
+        this.order = InternalOrder.validate(order, this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.minBound = minBound;
@@ -101,25 +103,26 @@ class HistogramAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0;
-                values.setDocument(doc);
-                final int valuesCount = values.count();
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
 
-                double previousKey = Double.NEGATIVE_INFINITY;
-                for (int i = 0; i < valuesCount; ++i) {
-                    double value = values.valueAt(i);
-                    double key = Math.floor((value - offset) / interval);
-                    assert key >= previousKey;
-                    if (key == previousKey) {
-                        continue;
+                    double previousKey = Double.NEGATIVE_INFINITY;
+                    for (int i = 0; i < valuesCount; ++i) {
+                        double value = values.nextValue();
+                        double key = Math.floor((value - offset) / interval);
+                        assert key >= previousKey;
+                        if (key == previousKey) {
+                            continue;
+                        }
+                        long bucketOrd = bucketOrds.add(Double.doubleToLongBits(key));
+                        if (bucketOrd < 0) { // already seen
+                            bucketOrd = -1 - bucketOrd;
+                            collectExistingBucket(sub, doc, bucketOrd);
+                        } else {
+                            collectBucket(sub, doc, bucketOrd);
+                        }
+                        previousKey = key;
                     }
-                    long bucketOrd = bucketOrds.add(Double.doubleToLongBits(key));
-                    if (bucketOrd < 0) { // already seen
-                        bucketOrd = -1 - bucketOrd;
-                        collectExistingBucket(sub, doc, bucketOrd);
-                    } else {
-                        collectBucket(sub, doc, bucketOrd);
-                    }
-                    previousKey = key;
                 }
             }
         };
@@ -136,7 +139,7 @@ class HistogramAggregator extends BucketsAggregator {
         }
 
         // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
-        CollectionUtil.introSort(buckets, InternalOrder.KEY_ASC.comparator());
+        CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator(this));
 
         EmptyBucketInfo emptyBucketInfo = null;
         if (minDocCount == 0) {

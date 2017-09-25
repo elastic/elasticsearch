@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,14 +33,16 @@ import java.io.IOException;
 public class CreateIndexResponse extends AcknowledgedResponse {
 
     private boolean shardsAcked;
+    private String index;
 
     protected CreateIndexResponse() {
     }
 
-    protected CreateIndexResponse(boolean acknowledged, boolean shardsAcked) {
+    protected CreateIndexResponse(boolean acknowledged, boolean shardsAcked, String index) {
         super(acknowledged);
         assert acknowledged || shardsAcked == false; // if its not acknowledged, then shards acked should be false too
         this.shardsAcked = shardsAcked;
+        this.index = index;
     }
 
     @Override
@@ -47,6 +50,9 @@ public class CreateIndexResponse extends AcknowledgedResponse {
         super.readFrom(in);
         readAcknowledged(in);
         shardsAcked = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
+            index = in.readString();
+        }
     }
 
     @Override
@@ -54,6 +60,9 @@ public class CreateIndexResponse extends AcknowledgedResponse {
         super.writeTo(out);
         writeAcknowledged(out);
         out.writeBoolean(shardsAcked);
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
+            out.writeString(index);
+        }
     }
 
     /**
@@ -65,7 +74,12 @@ public class CreateIndexResponse extends AcknowledgedResponse {
         return shardsAcked;
     }
 
+    public String index() {
+        return index;
+    }
+
     public void addCustomFields(XContentBuilder builder) throws IOException {
         builder.field("shards_acknowledged", isShardsAcked());
+        builder.field("index", index());
     }
 }

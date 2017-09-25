@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.shards;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
@@ -32,9 +33,8 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.shard.ShardStateMetaData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,12 +49,12 @@ import static org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRe
  * Consists of {@link StoreStatus}s for requested indices grouped by
  * indices and shard ids and a list of encountered node {@link Failure}s
  */
-public class IndicesShardStoresResponse extends ActionResponse implements ToXContent {
+public class IndicesShardStoresResponse extends ActionResponse implements ToXContentFragment {
 
     /**
      * Shard store information from a node
      */
-    public static class StoreStatus implements Streamable, ToXContent, Comparable<StoreStatus> {
+    public static class StoreStatus implements Streamable, ToXContentFragment, Comparable<StoreStatus> {
         private DiscoveryNode node;
         private String allocationId;
         private Exception storeException;
@@ -165,7 +165,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         @Override
         public void readFrom(StreamInput in) throws IOException {
             node = new DiscoveryNode(in);
-            if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
                 // legacy version
                 in.readLong();
             }
@@ -179,7 +179,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             node.writeTo(out);
-            if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
                 // legacy version
                 out.writeLong(-1L);
             }

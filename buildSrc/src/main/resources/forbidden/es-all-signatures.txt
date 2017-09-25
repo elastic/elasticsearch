@@ -26,12 +26,6 @@ java.util.concurrent.ThreadLocalRandom
 
 java.security.MessageDigest#clone() @ use org.elasticsearch.common.hash.MessageDigests
 
-@defaultMessage this should not have been added to lucene in the first place
-org.apache.lucene.index.IndexReader#getCombinedCoreAndDeletesKey()
-
-@defaultMessage Soon to be removed
-org.apache.lucene.document.FieldType#numericType()
-
 @defaultMessage Don't use MethodHandles in slow ways, don't be lenient in tests.
 java.lang.invoke.MethodHandle#invoke(java.lang.Object[])
 java.lang.invoke.MethodHandle#invokeWithArguments(java.lang.Object[])

@@ -54,9 +54,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             query.adjustPureNegative(randomBoolean());
         }
         if (randomBoolean()) {
-            query.disableCoord(randomBoolean());
-        }
-        if (randomBoolean()) {
             query.minimumShouldMatch(randomMinimumShouldMatch());
         }
         int mustClauses = randomIntBetween(0, 3);
@@ -95,7 +92,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             } else {
                 assertThat(query, instanceOf(BooleanQuery.class));
                 BooleanQuery booleanQuery = (BooleanQuery) query;
-                assertThat(booleanQuery.isCoordDisabled(), equalTo(queryBuilder.disableCoord()));
                 if (queryBuilder.adjustPureNegative()) {
                     boolean isNegative = true;
                     for (BooleanClause clause : clauses) {
@@ -259,8 +255,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 boolQuery()
                         .should(termQuery("foo", "bar"))
                         .should(termQuery("foo2", "bar2"))
-                        .minimumShouldMatch("3")
-                        .disableCoord(true)).toQuery(createShardContext());
+                        .minimumShouldMatch("3")).toQuery(createShardContext());
         assertEquals(3, bq.getMinimumNumberShouldMatch());
     }
 
@@ -310,7 +305,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 "      }" +
                 "    }" +
                 "  } ]," +
-                "  \"disable_coord\" : false," +
                 "  \"adjust_pure_negative\" : true," +
                 "  \"minimum_should_match\" : \"23\"," +
                 "  \"boost\" : 42.0" +
@@ -415,13 +409,32 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         boolQueryBuilder.must(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));
         QueryBuilder rewritten = boolQueryBuilder.rewrite(createShardContext());
         BoolQueryBuilder expected = new BoolQueryBuilder();
-        expected.must(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()));
+        expected.must(new MatchAllQueryBuilder());
         assertEquals(expected, rewritten);
 
         expected = new BoolQueryBuilder();
         expected.must(new MatchAllQueryBuilder());
         QueryBuilder rewrittenAgain = rewritten.rewrite(createShardContext());
         assertEquals(rewrittenAgain, expected);
-        assertEquals(QueryBuilder.rewriteQuery(boolQueryBuilder, createShardContext()), expected);
+        assertEquals(Rewriteable.rewrite(boolQueryBuilder, createShardContext()), expected);
+    }
+
+    public void testRewriteWithMatchNone() throws IOException {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.must(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchNoneQueryBuilder().toString()).toString()));
+        QueryBuilder rewritten = boolQueryBuilder.rewrite(createShardContext());
+        assertEquals(new MatchNoneQueryBuilder(), rewritten);
+
+        boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.must(new TermQueryBuilder("foo","bar"));
+        boolQueryBuilder.filter(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchNoneQueryBuilder().toString()).toString()));
+        rewritten = boolQueryBuilder.rewrite(createShardContext());
+        assertEquals(new MatchNoneQueryBuilder(), rewritten);
+
+        boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.must(new TermQueryBuilder("foo","bar"));
+        boolQueryBuilder.filter(new BoolQueryBuilder().should(new TermQueryBuilder("foo","bar")).filter(new MatchNoneQueryBuilder()));
+        rewritten = Rewriteable.rewrite(boolQueryBuilder, createShardContext());
+        assertEquals(new MatchNoneQueryBuilder(), rewritten);
     }
 }

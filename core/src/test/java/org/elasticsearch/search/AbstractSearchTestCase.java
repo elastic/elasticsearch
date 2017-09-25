@@ -35,7 +35,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilderTests;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
-import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
+import org.elasticsearch.search.rescore.QueryRescorerBuilderTests;
 import org.elasticsearch.search.suggest.SuggestBuilderTests;
 import org.elasticsearch.test.ESTestCase;
 
@@ -83,14 +83,14 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
             }
             List<SearchExtBuilder> searchExtBuilders = new ArrayList<>();
             for (String elementName : elementNames) {
-                searchExtBuilders.add(searchExtPlugin.getSupportedElements().get(elementName).apply(randomAsciiOfLengthBetween(3, 10)));
+                searchExtBuilders.add(searchExtPlugin.getSupportedElements().get(elementName).apply(randomAlphaOfLengthBetween(3, 10)));
             }
             return searchExtBuilders;
         };
         return RandomSearchRequestGenerator.randomSearchSourceBuilder(
                 HighlightBuilderTests::randomHighlighterBuilder,
                 SuggestBuilderTests::randomSuggestBuilder,
-                QueryRescoreBuilderTests::randomRescoreBuilder,
+                QueryRescorerBuilderTests::randomRescoreBuilder,
                 randomExtBuilders,
                 CollapseBuilderTests::randomCollapseBuilder);
     }

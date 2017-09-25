@@ -21,6 +21,7 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -55,6 +56,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private Boolean terminatedEarly = null;
     private ProfileShardResult profileShardResults;
     private boolean hasProfileResults;
+    private boolean hasScoreDocs;
+    private long totalHits;
+    private float maxScore;
+    private long serviceTimeEWMA = -1;
+    private int nodeQueueSize = -1;
 
     public QuerySearchResult() {
     }
@@ -87,11 +93,34 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public TopDocs topDocs() {
+        if (topDocs == null) {
+            throw new IllegalStateException("topDocs already consumed");
+        }
+        return topDocs;
+    }
+
+    /**
+     * Returns <code>true</code> iff the top docs have already been consumed.
+     */
+    public boolean hasConsumedTopDocs() {
+        return topDocs == null;
+    }
+
+    /**
+     * Returns and nulls out the top docs for this search results. This allows to free up memory once the top docs are consumed.
+     * @throws IllegalStateException if the top docs have already been consumed.
+     */
+    public TopDocs consumeTopDocs() {
+        TopDocs topDocs = this.topDocs;
+        if (topDocs == null) {
+            throw new IllegalStateException("topDocs already consumed");
+        }
+        this.topDocs = null;
         return topDocs;
     }
 
     public void topDocs(TopDocs topDocs, DocValueFormat[] sortValueFormats) {
-        this.topDocs = topDocs;
+        setTopDocs(topDocs);
         if (topDocs.scoreDocs.length > 0 && topDocs.scoreDocs[0] instanceof FieldDoc) {
             int numFields = ((FieldDoc) topDocs.scoreDocs[0]).fields.length;
             if (numFields != sortValueFormats.length) {
@@ -102,12 +131,19 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.sortValueFormats = sortValueFormats;
     }
 
+    private void setTopDocs(TopDocs topDocs) {
+        this.topDocs = topDocs;
+        hasScoreDocs = topDocs.scoreDocs.length > 0;
+        this.totalHits = topDocs.totalHits;
+        this.maxScore = topDocs.getMaxScore();
+    }
+
     public DocValueFormat[] sortValueFormats() {
         return sortValueFormats;
     }
 
     /**
-     * Retruns <code>true</code> if this query result has unconsumed aggregations
+     * Returns <code>true</code> if this query result has unconsumed aggregations
      */
     public boolean hasAggs() {
         return hasAggs;
@@ -195,10 +231,33 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return this;
     }
 
-    /** Returns true iff the result has hits */
-    public boolean hasHits() {
-        return (topDocs != null && topDocs.scoreDocs.length > 0) ||
-            (suggest != null && suggest.hasScoreDocs());
+    public long serviceTimeEWMA() {
+        return this.serviceTimeEWMA;
+    }
+
+    public QuerySearchResult serviceTimeEWMA(long serviceTimeEWMA) {
+        this.serviceTimeEWMA = serviceTimeEWMA;
+        return this;
+    }
+
+    public int nodeQueueSize() {
+        return this.nodeQueueSize;
+    }
+
+    public QuerySearchResult nodeQueueSize(int nodeQueueSize) {
+        this.nodeQueueSize = nodeQueueSize;
+        return this;
+    }
+
+    /**
+     * Returns <code>true</code> if this result has any suggest score docs
+     */
+    public boolean hasSuggestHits() {
+      return (suggest != null && suggest.hasScoreDocs());
+    }
+
+    public boolean hasSearchContext() {
+        return hasScoreDocs || hasSuggestHits();
     }
 
     public static QuerySearchResult readQuerySearchResult(StreamInput in) throws IOException {
@@ -227,7 +286,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);
             }
         }
-        topDocs = readTopDocs(in);
+        setTopDocs(readTopDocs(in));
         if (hasAggs = in.readBoolean()) {
             aggregations = InternalAggregations.readAggregations(in);
         }
@@ -240,6 +299,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
         terminatedEarly = in.readOptionalBoolean();
         profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
         hasProfileResults = profileShardResults != null;
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            serviceTimeEWMA = in.readZLong();
+            nodeQueueSize = in.readInt();
+        } else {
+            serviceTimeEWMA = -1;
+            nodeQueueSize = -1;
+        }
     }
 
     @Override
@@ -277,5 +343,17 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeBoolean(searchTimedOut);
         out.writeOptionalBoolean(terminatedEarly);
         out.writeOptionalWriteable(profileShardResults);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            out.writeZLong(serviceTimeEWMA);
+            out.writeInt(nodeQueueSize);
+        }
+    }
+
+    public long getTotalHits() {
+        return totalHits;
+    }
+
+    public float getMaxScore() {
+        return maxScore;
     }
 }

@@ -30,7 +30,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -94,14 +93,9 @@ public class BytesRestResponse extends RestResponse {
 
     public BytesRestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
         this.status = status;
-        if (channel.request().method() == RestRequest.Method.HEAD) {
-            this.content = BytesArray.EMPTY;
-            this.contentType = TEXT_CONTENT_TYPE;
-        } else {
-            try (XContentBuilder builder = build(channel, status, e)) {
-                this.content = builder.bytes();
-                this.contentType = builder.contentType().mediaType();
-            }
+        try (XContentBuilder builder = build(channel, status, e)) {
+            this.content = builder.bytes();
+            this.contentType = builder.contentType().mediaType();
         }
         if (e instanceof ElasticsearchException) {
             copyHeaders(((ElasticsearchException) e));
@@ -147,8 +141,8 @@ public class BytesRestResponse extends RestResponse {
         return builder;
     }
 
-    static BytesRestResponse createSimpleErrorResponse(RestStatus status, String errorMessage) throws IOException {
-        return new BytesRestResponse(status, JsonXContent.contentBuilder().startObject()
+    static BytesRestResponse createSimpleErrorResponse(RestChannel channel, RestStatus status, String errorMessage) throws IOException {
+        return new BytesRestResponse(status, channel.newErrorBuilder().startObject()
             .field("error", errorMessage)
             .field("status", status.getStatus())
             .endObject());

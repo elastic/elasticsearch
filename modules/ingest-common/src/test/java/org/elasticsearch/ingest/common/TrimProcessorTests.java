@@ -22,8 +22,8 @@ package org.elasticsearch.ingest.common;
 public class TrimProcessorTests extends AbstractStringProcessorTestCase {
 
     @Override
-    protected AbstractStringProcessor newProcessor(String field, boolean ignoreMissing) {
-        return new TrimProcessor(randomAsciiOfLength(10), field, ignoreMissing);
+    protected AbstractStringProcessor newProcessor(String field, boolean ignoreMissing, String targetField) {
+        return new TrimProcessor(randomAlphaOfLength(10), field, ignoreMissing, targetField);
     }
 
     @Override

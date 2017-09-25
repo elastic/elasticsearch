@@ -98,7 +98,10 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class StoreTests extends ESTestCase {
 
-    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
+    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index",
+        Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
+    private static final Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT
+        .minimumIndexCompatibilityVersion().luceneVersion;
 
     public void testRefCount() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
@@ -169,7 +172,8 @@ public class StoreTests extends ESTestCase {
         indexInput.seek(0);
         BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
         long length = indexInput.length();
-        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, checksum), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, checksum,
+            MIN_SUPPORTED_LUCENE_VERSION), dir.createOutput("foo1.bar", IOContext.DEFAULT));
         while (length > 0) {
             if (random().nextInt(10) == 0) {
                 verifyingOutput.writeByte(indexInput.readByte());
@@ -200,7 +204,8 @@ public class StoreTests extends ESTestCase {
 
     public void testVerifyingIndexOutputOnEmptyFile() throws IOException {
         Directory dir = newDirectory();
-        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetaData("foo.bar", 0, Store.digestToString(0)),
+        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetaData("foo.bar", 0, Store.digestToString(0),
+            MIN_SUPPORTED_LUCENE_VERSION),
             dir.createOutput("foo1.bar", IOContext.DEFAULT));
         try {
             Store.verify(verifyingOutput);
@@ -229,7 +234,8 @@ public class StoreTests extends ESTestCase {
         indexInput.seek(0);
         BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
         long length = indexInput.length();
-        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, checksum), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, checksum,
+            MIN_SUPPORTED_LUCENE_VERSION), dir.createOutput("foo1.bar", IOContext.DEFAULT));
         length -= 8; // we write the checksum in the try / catch block below
         while (length > 0) {
             if (random().nextInt(10) == 0) {
@@ -283,7 +289,8 @@ public class StoreTests extends ESTestCase {
     public void testVerifyingIndexOutputWithBogusInput() throws IOException {
         Directory dir = newDirectory();
         int length = scaledRandomIntBetween(10, 1024);
-        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, ""), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, "",
+            MIN_SUPPORTED_LUCENE_VERSION), dir.createOutput("foo1.bar", IOContext.DEFAULT));
         try {
             while (length > 0) {
                 verifyingOutput.writeByte((byte) random().nextInt());
@@ -831,8 +838,8 @@ public class StoreTests extends ESTestCase {
     }
 
     protected Store.MetadataSnapshot createMetaDataSnapshot() {
-        StoreFileMetaData storeFileMetaData1 = new StoreFileMetaData("segments", 1, "666");
-        StoreFileMetaData storeFileMetaData2 = new StoreFileMetaData("no_segments", 1, "666");
+        StoreFileMetaData storeFileMetaData1 = new StoreFileMetaData("segments", 1, "666", MIN_SUPPORTED_LUCENE_VERSION);
+        StoreFileMetaData storeFileMetaData2 = new StoreFileMetaData("no_segments", 1, "666", MIN_SUPPORTED_LUCENE_VERSION);
         Map<String, StoreFileMetaData> storeFileMetaDataMap = new HashMap<>();
         storeFileMetaDataMap.put(storeFileMetaData1.name(), storeFileMetaData1);
         storeFileMetaDataMap.put(storeFileMetaData2.name(), storeFileMetaData2);
@@ -858,7 +865,7 @@ public class StoreTests extends ESTestCase {
         String translogId = "a translog id";
         commitData.put(Engine.SYNC_COMMIT_ID, syncId);
         commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogId);
-        writer.setCommitData(commitData);
+        writer.setLiveCommitData(commitData.entrySet());
         writer.commit();
         writer.close();
         Store.MetadataSnapshot metadata;

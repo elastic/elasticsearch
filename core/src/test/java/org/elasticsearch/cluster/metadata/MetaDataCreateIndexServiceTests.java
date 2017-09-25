@@ -152,7 +152,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testShrinkIndexSettings() {
-        String indexName = randomAsciiOfLength(10);
+        String indexName = randomAlphaOfLength(10);
         List<Version> versions = Arrays.asList(VersionUtils.randomVersion(random()), VersionUtils.randomVersion(random()),
             VersionUtils.randomVersion(random()));
         versions.sort((l, r) -> Long.compare(l.id, r.id));
@@ -166,7 +166,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 .put("index.similarity.default.type", "BM25")
                 .put("index.version.created", version)
                 .put("index.version.upgraded", upgraded)
-                .put("index.version.minimum_compatible", minCompat.luceneVersion)
+                .put("index.version.minimum_compatible", minCompat.luceneVersion.toString())
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "keyword")
                 .build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
@@ -212,6 +212,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
         validateIndexName("..", "must not be '.' or '..'");
 
+        validateIndexName("foo:bar", "must not contain ':'");
     }
 
     private void validateIndexName(String indexName, String errorMessage) {

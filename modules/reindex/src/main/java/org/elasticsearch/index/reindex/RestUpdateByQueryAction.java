@@ -46,6 +46,11 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     }
 
     @Override
+    public String getName() {
+        return "update_by_query_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         return doPrepareRequest(request, client, false, true);
     }
@@ -99,13 +104,6 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (ScriptType.FILE.getParseField().match(parameterName)) {
-                if (parameterValue instanceof String || parameterValue == null) {
-                    script = (String) parameterValue;
-                    type = ScriptType.FILE;
-                } else {
-                    throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
-                }
             } else if (ScriptType.STORED.getParseField().match(parameterName)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
@@ -116,9 +114,8 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
             }
         }
         if (script == null) {
-            throw new ElasticsearchParseException("expected one of [{}], [{}] or [{}] fields, but found none",
-                    ScriptType.INLINE.getParseField().getPreferredName(), ScriptType.FILE.getParseField()
-                    .getPreferredName(), ScriptType.STORED.getParseField().getPreferredName());
+            throw new ElasticsearchParseException("expected one of [{}] or [{}] fields, but found none",
+                    ScriptType.INLINE.getParseField().getPreferredName(), ScriptType.STORED.getParseField().getPreferredName());
         }
         assert type != null : "if script is not null, type should definitely not be null";
 

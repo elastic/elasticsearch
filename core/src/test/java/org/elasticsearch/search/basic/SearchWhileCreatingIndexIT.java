@@ -56,11 +56,11 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
 
         // TODO: randomize the wait for active shards value on index creation and ensure the appropriate
         // number of data nodes are started for the randomized active shard count value
-        String id = randomAsciiOfLength(5);
+        String id = randomAlphaOfLength(5);
         // we will go the primary or the replica, but in a
         // randomized re-creatable manner
         int counter = 0;
-        String preference = randomAsciiOfLength(5);
+        String preference = randomAlphaOfLength(5);
 
         logger.info("running iteration for id {}, preference {}", id, preference);
 
@@ -73,7 +73,7 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
 
         logger.info("using preference {}", preference);
         // we want to make sure that while recovery happens, and a replica gets recovered, its properly refreshed
-        ClusterHealthStatus status = ClusterHealthStatus.RED;
+        ClusterHealthStatus status = client().admin().cluster().prepareHealth("test").get().getStatus();;
         while (status != ClusterHealthStatus.GREEN) {
             // first, verify that search on the primary search works
             SearchResponse searchResponse = client().prepareSearch("test").setPreference("_primary").setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
@@ -93,6 +93,8 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
             status = client().admin().cluster().prepareHealth("test").get().getStatus();
             internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
         }
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
+        assertHitCount(searchResponse, 1);
         cluster().wipeIndices("test");
     }
 }

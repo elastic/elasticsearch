@@ -160,9 +160,7 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
         builder.endObject();
     }
 
-    public static SpanNotQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static SpanNotQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
         SpanQueryBuilder include = null;
@@ -181,13 +179,13 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (INCLUDE_FIELD.match(currentFieldName)) {
-                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "spanNot [include] must be of type span query");
                     }
                     include = (SpanQueryBuilder) query;
                 } else if (EXCLUDE_FIELD.match(currentFieldName)) {
-                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "spanNot [exclude] must be of type span query");
                     }

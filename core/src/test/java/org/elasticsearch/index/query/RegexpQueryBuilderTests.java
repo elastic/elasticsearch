@@ -71,8 +71,8 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
     private static RegexpQueryBuilder randomRegexpQuery() {
         // mapped or unmapped fields
-        String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
-        String value = randomAsciiOfLengthBetween(1, 10);
+        String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);
+        String value = randomAlphaOfLengthBetween(1, 10);
         return new RegexpQueryBuilder(fieldName, value);
     }
 

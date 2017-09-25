@@ -90,13 +90,12 @@ public class GceDiscoverTests extends ESIntegTestCase {
             throw new RuntimeException(e);
         }
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put("discovery.type", "gce")
+            .put("discovery.zen.hosts_provider", "gce")
             .put("path.logs", resolve)
             .put("transport.tcp.port", 0)
             .put("node.portsfile", "true")
             .put("cloud.gce.project_id", "testproject")
             .put("cloud.gce.zone", "primaryzone")
-            .put("discovery.initial_state_timeout", "1s")
             .put("cloud.gce.host", "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort())
             .put("cloud.gce.root_url", "https://" + httpsServer.getAddress().getHostName() +
                 ":" + httpsServer.getAddress().getPort())

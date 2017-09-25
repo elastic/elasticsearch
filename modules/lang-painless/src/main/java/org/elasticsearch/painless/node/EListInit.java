@@ -58,11 +58,7 @@ public final class EListInit extends AExpression {
             throw createError(new IllegalArgumentException("Must read from list initializer."));
         }
 
-        try {
-            actual = Definition.getType("ArrayList");
-        } catch (IllegalArgumentException exception) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
+        actual = Definition.ARRAY_LIST_TYPE;
 
         constructor = actual.struct.constructors.get(new MethodKey("<init>", 0));
 

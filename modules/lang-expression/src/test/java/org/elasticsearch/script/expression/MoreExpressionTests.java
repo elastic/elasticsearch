@@ -33,7 +33,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -444,15 +443,15 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 .addAggregation(
                         AggregationBuilders.stats("int_agg").field("x")
                                 .script(new Script(ScriptType.INLINE,
-                                    ExpressionScriptEngineService.NAME, "_value * 3", Collections.emptyMap())))
+                                    ExpressionScriptEngine.NAME, "_value * 3", Collections.emptyMap())))
                 .addAggregation(
                         AggregationBuilders.stats("double_agg").field("y")
                                 .script(new Script(ScriptType.INLINE,
-                                    ExpressionScriptEngineService.NAME, "_value - 1.1", Collections.emptyMap())))
+                                    ExpressionScriptEngine.NAME, "_value - 1.1", Collections.emptyMap())))
                 .addAggregation(
                         AggregationBuilders.stats("const_agg").field("x") // specifically to test a script w/o _value
                                 .script(new Script(ScriptType.INLINE,
-                                    ExpressionScriptEngineService.NAME, "3.0", Collections.emptyMap()))
+                                    ExpressionScriptEngine.NAME, "3.0", Collections.emptyMap()))
                 );
 
         SearchResponse rsp = req.get();
@@ -487,7 +486,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 .addAggregation(
                         AggregationBuilders.terms("term_agg").field("text")
                                 .script(
-                                    new Script(ScriptType.INLINE, ExpressionScriptEngineService.NAME, "_value", Collections.emptyMap())));
+                                    new Script(ScriptType.INLINE, ExpressionScriptEngine.NAME, "_value", Collections.emptyMap())));
 
         String message;
         try {
@@ -514,9 +513,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
         vars.put("xyz", -1);
 
         Expression expr = JavascriptCompiler.compile("a+b+xyz");
-        CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, "", "expression", expr);
 
-        ExpressionExecutableScript ees = new ExpressionExecutableScript(compiledScript, vars);
+        ExpressionExecutableScript ees = new ExpressionExecutableScript(expr, vars);
         assertEquals((Double) ees.run(), 4.5, 0.001);
 
         ees.setNextVar("b", -2.5);
@@ -532,7 +530,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         try {
             vars = new HashMap<>();
             vars.put("a", 1);
-            ees = new ExpressionExecutableScript(compiledScript, vars);
+            ees = new ExpressionExecutableScript(expr, vars);
             ees.run();
             fail("An incorrect number of variables were allowed to be used in an expression.");
         } catch (GeneralScriptException se) {
@@ -545,7 +543,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             vars.put("a", 1);
             vars.put("b", 3);
             vars.put("c", -1);
-            ees = new ExpressionExecutableScript(compiledScript, vars);
+            ees = new ExpressionExecutableScript(expr, vars);
             ees.run();
             fail("A variable was allowed to be set that does not exist in the expression.");
         } catch (GeneralScriptException se) {
@@ -558,7 +556,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             vars.put("a", 1);
             vars.put("b", 3);
             vars.put("xyz", "hello");
-            ees = new ExpressionExecutableScript(compiledScript, vars);
+            ees = new ExpressionExecutableScript(expr, vars);
             ees.run();
             fail("A non-number was allowed to be use in the expression.");
         } catch (GeneralScriptException se) {
@@ -577,7 +575,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             UpdateRequestBuilder urb = client().prepareUpdate().setIndex("test_index");
             urb.setType("doc");
             urb.setId("1");
-            urb.setScript(new Script(ScriptType.INLINE, ExpressionScriptEngineService.NAME, "0", Collections.emptyMap()));
+            urb.setScript(new Script(ScriptType.INLINE, ExpressionScriptEngine.NAME, "0", Collections.emptyMap()));
             urb.get();
             fail("Expression scripts should not be allowed to run as update scripts.");
         } catch (Exception e) {
@@ -609,14 +607,14 @@ public class MoreExpressionTests extends ESIntegTestCase {
                                 .subAggregation(sum("fourSum").field("four"))
                                 .subAggregation(bucketScript("totalSum",
                                     new Script(ScriptType.INLINE,
-                                        ExpressionScriptEngineService.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
+                                        ExpressionScriptEngine.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
                                     "twoSum", "threeSum", "fourSum")))
                 .execute().actionGet();
 
         Histogram histogram = response.getAggregations().get("histogram");
         assertThat(histogram, notNullValue());
         assertThat(histogram.getName(), equalTo("histogram"));
-        List<Histogram.Bucket> buckets = histogram.getBuckets();
+        List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
 
         for (int bucketCount = 0; bucketCount < buckets.size(); ++bucketCount) {
             Histogram.Bucket bucket = buckets.get(bucketCount);
@@ -670,10 +668,10 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testBoolean() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("doc")
                 .startObject("properties").startObject("vip").field("type", "boolean");
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        assertAcked(prepareCreate("test").addMapping("doc", xContentBuilder));
         ensureGreen();
         indexRandom(true,
                 client().prepareIndex("test", "doc", "1").setSource("price", 1.0, "vip", true),

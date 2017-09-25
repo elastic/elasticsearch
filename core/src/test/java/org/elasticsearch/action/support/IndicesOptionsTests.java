@@ -32,7 +32,7 @@ public class IndicesOptionsTests extends ESTestCase {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(
-                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
             BytesStreamOutput output = new BytesStreamOutput();
             Version outputVersion = randomVersion(random());
@@ -50,30 +50,92 @@ public class IndicesOptionsTests extends ESTestCase {
 
             assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
             assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
+
+            if (output.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
+                assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
+            } else {
+                assertFalse(indicesOptions2.ignoreAliases());
+            }
         }
     }
 
     public void testFromOptions() {
-        int iterations = randomIntBetween(5, 20);
-        for (int i = 0; i < iterations; i++) {
-            boolean ignoreUnavailable = randomBoolean();
-            boolean allowNoIndices = randomBoolean();
-            boolean expandToOpenIndices = randomBoolean();
-            boolean expandToClosedIndices = randomBoolean();
-            boolean allowAliasesToMultipleIndices = randomBoolean();
-            boolean forbidClosedIndices = randomBoolean();
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(
-                    ignoreUnavailable, allowNoIndices,expandToOpenIndices, expandToClosedIndices,
-                    allowAliasesToMultipleIndices, forbidClosedIndices
-            );
+        boolean ignoreUnavailable = randomBoolean();
+        boolean allowNoIndices = randomBoolean();
+        boolean expandToOpenIndices = randomBoolean();
+        boolean expandToClosedIndices = randomBoolean();
+        boolean allowAliasesToMultipleIndices = randomBoolean();
+        boolean forbidClosedIndices = randomBoolean();
+        boolean ignoreAliases = randomBoolean();
 
-            assertThat(indicesOptions.ignoreUnavailable(), equalTo(ignoreUnavailable));
-            assertThat(indicesOptions.allowNoIndices(), equalTo(allowNoIndices));
-            assertThat(indicesOptions.expandWildcardsOpen(), equalTo(expandToOpenIndices));
-            assertThat(indicesOptions.expandWildcardsClosed(), equalTo(expandToClosedIndices));
-            assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
-            assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
-            assertThat(indicesOptions.forbidClosedIndices(), equalTo(forbidClosedIndices));
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices,expandToOpenIndices,
+                expandToClosedIndices, allowAliasesToMultipleIndices, forbidClosedIndices, ignoreAliases);
+
+        assertThat(indicesOptions.ignoreUnavailable(), equalTo(ignoreUnavailable));
+        assertThat(indicesOptions.allowNoIndices(), equalTo(allowNoIndices));
+        assertThat(indicesOptions.expandWildcardsOpen(), equalTo(expandToOpenIndices));
+        assertThat(indicesOptions.expandWildcardsClosed(), equalTo(expandToClosedIndices));
+        assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
+        assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
+        assertThat(indicesOptions.forbidClosedIndices(), equalTo(forbidClosedIndices));
+        assertEquals(ignoreAliases, indicesOptions.ignoreAliases());
+    }
+
+    public void testFromOptionsWithDefaultOptions() {
+        boolean ignoreUnavailable = randomBoolean();
+        boolean allowNoIndices = randomBoolean();
+        boolean expandToOpenIndices = randomBoolean();
+        boolean expandToClosedIndices = randomBoolean();
+
+        IndicesOptions defaultOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
+                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices,expandToOpenIndices,
+                expandToClosedIndices, defaultOptions);
+
+        assertEquals(ignoreUnavailable, indicesOptions.ignoreUnavailable());
+        assertEquals(allowNoIndices, indicesOptions.allowNoIndices());
+        assertEquals(expandToOpenIndices, indicesOptions.expandWildcardsOpen());
+        assertEquals(expandToClosedIndices, indicesOptions.expandWildcardsClosed());
+        assertEquals(defaultOptions.allowAliasesToMultipleIndices(), indicesOptions.allowAliasesToMultipleIndices());
+        assertEquals(defaultOptions.forbidClosedIndices(), indicesOptions.forbidClosedIndices());
+        assertEquals(defaultOptions.ignoreAliases(), indicesOptions.ignoreAliases());
+    }
+
+    public void testFromParameters() {
+        boolean expandWildcardsOpen = randomBoolean();
+        boolean expandWildcardsClosed = randomBoolean();
+        String expandWildcardsString;
+        if (expandWildcardsOpen && expandWildcardsClosed) {
+            if (randomBoolean()) {
+                expandWildcardsString = "open,closed";
+            } else {
+                expandWildcardsString = "all";
+            }
+        } else if (expandWildcardsOpen) {
+            expandWildcardsString = "open";
+        } else if (expandWildcardsClosed) {
+            expandWildcardsString = "closed";
+        } else {
+            expandWildcardsString = "none";
         }
+        boolean ignoreUnavailable = randomBoolean();
+        String ignoreUnavailableString = Boolean.toString(ignoreUnavailable);
+        boolean allowNoIndices = randomBoolean();
+        String allowNoIndicesString = Boolean.toString(allowNoIndices);
+
+        IndicesOptions defaultOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+                randomBoolean(), randomBoolean(), randomBoolean());
+
+        IndicesOptions updatedOptions = IndicesOptions.fromParameters(expandWildcardsString, ignoreUnavailableString,
+                allowNoIndicesString, defaultOptions);
+
+        assertEquals(expandWildcardsOpen, updatedOptions.expandWildcardsOpen());
+        assertEquals(expandWildcardsClosed, updatedOptions.expandWildcardsClosed());
+        assertEquals(ignoreUnavailable, updatedOptions.ignoreUnavailable());
+        assertEquals(allowNoIndices, updatedOptions.allowNoIndices());
+        assertEquals(defaultOptions.allowAliasesToMultipleIndices(), updatedOptions.allowAliasesToMultipleIndices());
+        assertEquals(defaultOptions.forbidClosedIndices(), updatedOptions.forbidClosedIndices());
+        assertEquals(defaultOptions.ignoreAliases(), updatedOptions.ignoreAliases());
     }
 }

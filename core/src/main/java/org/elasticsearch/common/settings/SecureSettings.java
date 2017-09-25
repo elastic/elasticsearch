@@ -20,6 +20,8 @@
 package org.elasticsearch.common.settings;
 
 import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.util.Set;
 
@@ -36,4 +38,10 @@ public interface SecureSettings extends Closeable {
 
     /** Return a string setting. The {@link SecureString} should be closed once it is used. */
     SecureString getString(String setting) throws GeneralSecurityException;
+
+    /** Return a file setting. The {@link InputStream} should be closed once it is used. */
+    InputStream getFile(String setting) throws GeneralSecurityException;
+
+    @Override
+    void close() throws IOException;
 }

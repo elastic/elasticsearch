@@ -47,9 +47,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
 import org.elasticsearch.test.ESTestCase;
@@ -269,7 +269,7 @@ public class TermVectorsUnitTests extends ESTestCase {
     public void testStreamRequestWithXContentBwc() throws IOException {
         final byte[] data = Base64.getDecoder().decode("AAABBWluZGV4BHR5cGUCaWQBAnt9AAABDnNvbWVQcmVmZXJlbmNlFgAAAAEA//////////0AAAA=");
         final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
         try (StreamInput in = StreamInput.wrap(data)) {
             in.setVersion(version);
             TermVectorsRequest request = new TermVectorsRequest();
@@ -303,7 +303,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         ft.setStoreTermVectorPositions(true);
         String ftOpts = FieldMapper.termVectorOptionsToString(ft);
         assertThat("with_positions_payloads", equalTo(ftOpts));
-        AllFieldMapper.Builder builder = new AllFieldMapper.Builder(null);
+        TextFieldMapper.Builder builder = new TextFieldMapper.Builder(null);
         boolean exceptiontrown = false;
         try {
             TypeParsers.parseTermVector("", ftOpts, builder);

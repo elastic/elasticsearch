@@ -31,9 +31,6 @@ import com.amazonaws.services.ec2.model.Tag;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
-import org.elasticsearch.cloud.aws.AwsEc2Service;
-import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
-import org.elasticsearch.cloud.aws.util.SocketAccess;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -52,13 +49,13 @@ import java.util.Set;
 import static java.util.Collections.disjoint;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.TAG_PREFIX;
-import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.PRIVATE_DNS;
-import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.PRIVATE_IP;
-import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.PUBLIC_DNS;
-import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.PUBLIC_IP;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.TAG_PREFIX;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_DNS;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_IP;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_DNS;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_IP;
 
-public class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
+class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     private final TransportService transportService;
 
@@ -76,22 +73,22 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     private final DiscoNodesCache discoNodes;
 
-    public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
+    AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
         super(settings);
         this.transportService = transportService;
         this.client = awsEc2Service.client();
 
-        this.hostType = DISCOVERY_EC2.HOST_TYPE_SETTING.get(settings);
-        this.discoNodes = new DiscoNodesCache(DISCOVERY_EC2.NODE_CACHE_TIME_SETTING.get(settings));
+        this.hostType = AwsEc2Service.HOST_TYPE_SETTING.get(settings);
+        this.discoNodes = new DiscoNodesCache(AwsEc2Service.NODE_CACHE_TIME_SETTING.get(settings));
 
-        this.bindAnyGroup = DISCOVERY_EC2.ANY_GROUP_SETTING.get(settings);
+        this.bindAnyGroup = AwsEc2Service.ANY_GROUP_SETTING.get(settings);
         this.groups = new HashSet<>();
-        this.groups.addAll(DISCOVERY_EC2.GROUPS_SETTING.get(settings));
+        this.groups.addAll(AwsEc2Service.GROUPS_SETTING.get(settings));
 
-        this.tags = DISCOVERY_EC2.TAG_SETTING.get(settings).getAsMap();
+        this.tags = AwsEc2Service.TAG_SETTING.get(settings).getAsMap();
 
         this.availabilityZones = new HashSet<>();
-        availabilityZones.addAll(DISCOVERY_EC2.AVAILABILITY_ZONES_SETTING.get(settings));
+        availabilityZones.addAll(AwsEc2Service.AVAILABILITY_ZONES_SETTING.get(settings));
 
         if (logger.isDebugEnabled()) {
             logger.debug("using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]", hostType, tags,
@@ -128,8 +125,8 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                 // lets see if we can filter based on groups
                 if (!groups.isEmpty()) {
                     List<GroupIdentifier> instanceSecurityGroups = instance.getSecurityGroups();
-                    ArrayList<String> securityGroupNames = new ArrayList<String>();
-                    ArrayList<String> securityGroupIds = new ArrayList<String>();
+                    List<String> securityGroupNames = new ArrayList<>(instanceSecurityGroups.size());
+                    List<String> securityGroupIds = new ArrayList<>(instanceSecurityGroups.size());
                     for (GroupIdentifier sg : instanceSecurityGroups) {
                         securityGroupNames.add(sg.getGroupName());
                         securityGroupIds.add(sg.getGroupId());

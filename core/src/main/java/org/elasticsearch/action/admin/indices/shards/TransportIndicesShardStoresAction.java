@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -70,7 +69,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
     @Inject
     public TransportIndicesShardStoresAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                              IndexNameExpressionResolver indexNameExpressionResolver, TransportNodesListGatewayStartedShards listShardStoresInfo) {
-        super(settings, IndicesShardStoresAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, IndicesShardStoresRequest::new);
+        super(settings, IndicesShardStoresAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesShardStoresRequest::new, indexNameExpressionResolver);
         this.listShardStoresInfo = listShardStoresInfo;
     }
 
@@ -155,7 +154,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             }
 
             @Override
-            protected synchronized void processAsyncFetch(ShardId shardId, List<NodeGatewayStartedShards> responses, List<FailedNodeException> failures) {
+            protected synchronized void processAsyncFetch(List<NodeGatewayStartedShards> responses, List<FailedNodeException> failures, long fetchingRound) {
                 fetchResponses.add(new Response(shardId, responses, failures));
                 if (expectedOps.countDown()) {
                     finish();

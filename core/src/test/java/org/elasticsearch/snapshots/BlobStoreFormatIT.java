@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -56,7 +57,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
 
     public static final String BLOB_CODEC = "blob";
 
-    private static class BlobObj implements ToXContent {
+    private static class BlobObj implements ToXContentFragment {
 
         private final String text;
 
@@ -151,7 +152,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
     public void testBlobCorruption() throws IOException {
         BlobStore blobStore = createTestBlobStore();
         BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
-        String testString = randomAsciiOfLength(randomInt(10000));
+        String testString = randomAlphaOfLength(randomInt(10000));
         BlobObj blobObj = new BlobObj(testString);
         ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
             xContentRegistry(), randomBoolean(), randomBoolean() ? XContentType.SMILE : XContentType.JSON);
@@ -171,7 +172,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
     public void testAtomicWrite() throws Exception {
         final BlobStore blobStore = createTestBlobStore();
         final BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
-        String testString = randomAsciiOfLength(randomInt(10000));
+        String testString = randomAlphaOfLength(randomInt(10000));
         final CountDownLatch block = new CountDownLatch(1);
         final CountDownLatch unblock = new CountDownLatch(1);
         final BlobObj blobObj = new BlobObj(testString) {

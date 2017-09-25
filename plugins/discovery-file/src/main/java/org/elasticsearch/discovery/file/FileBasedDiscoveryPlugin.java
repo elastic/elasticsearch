@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.file;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
@@ -32,6 +33,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -40,6 +42,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -59,20 +62,19 @@ public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final Settings settings;
+    private final Path configPath;
     private ExecutorService fileBasedDiscoveryExecutorService;
 
-    public FileBasedDiscoveryPlugin(Settings settings) {
+    public FileBasedDiscoveryPlugin(Settings settings, Path configPath) {
         this.settings = settings;
+        this.configPath = configPath;
     }
 
     @Override
-    public Collection<Object> createComponents(
-            Client client,
-            ClusterService clusterService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry) {
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                               NamedXContentRegistry xContentRegistry, Environment environment,
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         final int concurrentConnects = UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[file_based_discovery_resolve]");
         fileBasedDiscoveryExecutorService = EsExecutors.newScaling(
@@ -97,22 +99,7 @@ public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin 
                                                                             NetworkService networkService) {
         return Collections.singletonMap(
             "file",
-            () -> new FileBasedUnicastHostsProvider(settings, transportService, fileBasedDiscoveryExecutorService));
-    }
-
-    @Override
-    public Settings additionalSettings() {
-        // For 5.0, the hosts provider was "zen", but this was before the discovery.zen.hosts_provider
-        // setting existed. This check looks for the legacy zen, and sets the file hosts provider if not set
-        String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
-        if (discoveryType.equals("zen")) {
-            deprecationLogger.deprecated("Using " + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
-                " setting to set hosts provider is deprecated. " +
-                "Set \"" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": file\" instead");
-            if (DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings) == false) {
-                return Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file").build();
-            }
-        }
-        return Settings.EMPTY;
+            () -> new FileBasedUnicastHostsProvider(
+                    new Environment(settings, configPath), transportService, fileBasedDiscoveryExecutorService));
     }
 }

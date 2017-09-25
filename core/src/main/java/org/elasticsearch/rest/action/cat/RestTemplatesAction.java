@@ -44,6 +44,11 @@ public class RestTemplatesAction extends AbstractCatAction {
     }
 
     @Override
+    public String getName() {
+        return "cat_templates_action";
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/templates\n");
     }

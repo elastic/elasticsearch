@@ -86,7 +86,6 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
             String oldestLuceneSegment = in.readString();
             versions.put(index, new Tuple<>(upgradeVersion, oldestLuceneSegment));
         }
-        readTimeout(in);
     }
 
     @Override
@@ -98,6 +97,5 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
             Version.writeVersion(entry.getValue().v1(), out);
             out.writeString(entry.getValue().v2());
         }
-        writeTimeout(out);
     }
 }

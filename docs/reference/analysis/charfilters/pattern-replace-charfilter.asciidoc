@@ -205,7 +205,7 @@ the length of the original text:
 
 [source,js]
 ----------------------------
-PUT my_index/my_doc/1?refresh
+PUT my_index/my_type/1?refresh
 {
   "text": "The fooBarBaz method"
 }
@@ -237,17 +237,18 @@ The output from the above is:
   "_shards": {
     "total": 5,
     "successful": 5,
+    "skipped" : 0,
     "failed": 0
   },
   "hits": {
     "total": 1,
-    "max_score": 0.2824934,
+    "max_score": 0.2876821,
     "hits": [
       {
         "_index": "my_index",
-        "_type": "my_doc",
+        "_type": "my_type",
         "_id": "1",
-        "_score": 0.2824934,
+        "_score": 0.2876821,
         "_source": {
           "text": "The fooBarBaz method"
         },

@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -38,6 +39,9 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -46,26 +50,18 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
 
 public class CrudIT extends ESRestHighLevelClientTestCase {
 
     public void testDelete() throws IOException {
-        {
-            // Testing non existing document
-            String docId = "does_not_exist";
-            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
-            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
-            assertEquals("index", deleteResponse.getIndex());
-            assertEquals("type", deleteResponse.getType());
-            assertEquals(docId, deleteResponse.getId());
-            assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
-        }
         {
             // Testing deletion
             String docId = "id";
@@ -79,6 +75,16 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("type", deleteResponse.getType());
             assertEquals(docId, deleteResponse.getId());
             assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+        }
+        {
+            // Testing non existing document
+            String docId = "does_not_exist";
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
+            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            assertEquals("index", deleteResponse.getIndex());
+            assertEquals("type", deleteResponse.getType());
+            assertEquals(docId, deleteResponse.getId());
+            assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
         }
         {
             // Testing version conflict
@@ -301,7 +307,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
             assertEquals(RestStatus.BAD_REQUEST, exception.status());
             assertEquals("Elasticsearch exception [type=illegal_argument_exception, " +
-                         "reason=Can't specify parent if no parent field has been configured]", exception.getMessage());
+                         "reason=can't specify parent if no parent field has been configured]", exception.getMessage());
         }
         {
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
@@ -574,9 +580,107 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
         BulkResponse bulkResponse = execute(bulkRequest, highLevelClient()::bulk, highLevelClient()::bulkAsync);
         assertEquals(RestStatus.OK, bulkResponse.status());
-        assertTrue(bulkResponse.getTookInMillis() > 0);
+        assertTrue(bulkResponse.getTook().getMillis() > 0);
         assertEquals(nbItems, bulkResponse.getItems().length);
 
+        validateBulkResponses(nbItems, errors, bulkResponse, bulkRequest);
+    }
+
+    public void testBulkProcessorIntegration() throws IOException, InterruptedException {
+        int nbItems = randomIntBetween(10, 100);
+        boolean[] errors = new boolean[nbItems];
+
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+
+        AtomicReference<BulkResponse> responseRef = new AtomicReference<>();
+        AtomicReference<BulkRequest> requestRef = new AtomicReference<>();
+        AtomicReference<Throwable> error = new AtomicReference<>();
+
+        BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {
+
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                responseRef.set(response);
+                requestRef.set(request);
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                error.set(failure);
+            }
+        };
+
+        ThreadPool threadPool = new ThreadPool(Settings.builder().put("node.name", getClass().getName()).build());
+        // Pull the client to a variable to work around https://bugs.eclipse.org/bugs/show_bug.cgi?id=514884
+        RestHighLevelClient hlClient = highLevelClient();
+        try(BulkProcessor processor = new BulkProcessor.Builder(hlClient::bulkAsync, listener, threadPool)
+            .setConcurrentRequests(0)
+            .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.GB))
+            .setBulkActions(nbItems + 1)
+            .build()) {
+            for (int i = 0; i < nbItems; i++) {
+                String id = String.valueOf(i);
+                boolean erroneous = randomBoolean();
+                errors[i] = erroneous;
+
+                DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
+                if (opType == DocWriteRequest.OpType.DELETE) {
+                    if (erroneous == false) {
+                        assertEquals(RestStatus.CREATED,
+                            highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());
+                    }
+                    DeleteRequest deleteRequest = new DeleteRequest("index", "test", id);
+                    processor.add(deleteRequest);
+
+                } else {
+                    if (opType == DocWriteRequest.OpType.INDEX) {
+                        IndexRequest indexRequest = new IndexRequest("index", "test", id).source(xContentType, "id", i);
+                        if (erroneous) {
+                            indexRequest.version(12L);
+                        }
+                        processor.add(indexRequest);
+
+                    } else if (opType == DocWriteRequest.OpType.CREATE) {
+                        IndexRequest createRequest = new IndexRequest("index", "test", id).source(xContentType, "id", i).create(true);
+                        if (erroneous) {
+                            assertEquals(RestStatus.CREATED, highLevelClient().index(createRequest).status());
+                        }
+                        processor.add(createRequest);
+
+                    } else if (opType == DocWriteRequest.OpType.UPDATE) {
+                        UpdateRequest updateRequest = new UpdateRequest("index", "test", id)
+                            .doc(new IndexRequest().source(xContentType, "id", i));
+                        if (erroneous == false) {
+                            assertEquals(RestStatus.CREATED,
+                                highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());
+                        }
+                        processor.add(updateRequest);
+                    }
+                }
+            }
+            assertNull(responseRef.get());
+            assertNull(requestRef.get());
+        }
+
+
+        BulkResponse bulkResponse = responseRef.get();
+        BulkRequest bulkRequest = requestRef.get();
+
+        assertEquals(RestStatus.OK, bulkResponse.status());
+        assertTrue(bulkResponse.getTook().getMillis() > 0);
+        assertEquals(nbItems, bulkResponse.getItems().length);
+        assertNull(error.get());
+
+        validateBulkResponses(nbItems, errors, bulkResponse, bulkRequest);
+
+        terminate(threadPool);
+    }
+
+    private void validateBulkResponses(int nbItems, boolean[] errors, BulkResponse bulkResponse, BulkRequest bulkRequest) {
         for (int i = 0; i < nbItems; i++) {
             BulkItemResponse bulkItemResponse = bulkResponse.getItems()[i];
 

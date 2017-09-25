@@ -23,10 +23,13 @@ import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.RandomAccessWeight;
-import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
 
@@ -42,27 +45,38 @@ public final class DocValuesSliceQuery extends SliceQuery {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-        return new RandomAccessWeight(this) {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
+        return new ConstantScoreWeight(this, boost) {
+
             @Override
-            protected Bits getMatchingDocs(final LeafReaderContext context) throws IOException {
+            public Scorer scorer(LeafReaderContext context) throws IOException {
                 final SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), getField());
-                return new Bits() {
+                final DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
+                final TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
+
                     @Override
-                    public boolean get(int doc) {
-                        values.setDocument(doc);
-                        for (int i = 0; i < values.count(); i++) {
-                            return contains(BitMixer.mix(values.valueAt(i)));
+                    public boolean matches() throws IOException {
+                        if (values.advanceExact(approximation.docID())) {
+                            for (int i = 0; i < values.docValueCount(); i++) {
+                                if (contains(BitMixer.mix(values.nextValue()))) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        } else {
+                            return contains(0);
                         }
-                        return contains(0);
                     }
 
                     @Override
-                    public int length() {
-                        return context.reader().maxDoc();
+                    public float matchCost() {
+                        // BitMixer.mix seems to be about 10 ops
+                        return 10;
                     }
                 };
+                return new ConstantScoreScorer(this, score(), twoPhase);
             }
+
         };
     }
 }

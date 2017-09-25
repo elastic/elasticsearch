@@ -246,6 +246,8 @@ public class FsProbeTests extends ESTestCase {
     public void testAdjustForHugeFilesystems() throws Exception {
         NodePath np = new FakeNodePath(createTempDir());
         assertThat(FsProbe.getFSInfo(np).total, greaterThanOrEqualTo(0L));
+        assertThat(FsProbe.getFSInfo(np).free, greaterThanOrEqualTo(0L));
+        assertThat(FsProbe.getFSInfo(np).available, greaterThanOrEqualTo(0L));
     }
 
     static class FakeNodePath extends NodeEnvironment.NodePath {
@@ -284,12 +286,12 @@ public class FsProbeTests extends ESTestCase {
 
         @Override
         public long getUsableSpace() throws IOException {
-            return 10;
+            return randomIntBetween(-1000, 1000);
         }
 
         @Override
         public long getUnallocatedSpace() throws IOException {
-            return 10;
+            return randomIntBetween(-1000, 1000);
         }
 
         @Override

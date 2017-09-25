@@ -40,7 +40,7 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.Response;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.RestClient;
@@ -144,7 +144,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertTrue(called.get());
         called.set(false);
         sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, "main/2_3_3.json").lookupRemoteVersion(v -> {
-            assertEquals(Version.V_2_3_3, v);
+            assertEquals(Version.fromId(2030399), v);
             called.set(true);
         });
         assertTrue(called.get());
@@ -370,7 +370,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     public void testThreadContextRestored() throws Exception {
-        String header = randomAsciiOfLength(5);
+        String header = randomAlphaOfLength(5);
         threadPool.getThreadContext().putHeader("test", header);
         AtomicBoolean called = new AtomicBoolean();
         sourceWithMockedRemoteCall("start_ok.json").doStart(r -> {

@@ -22,6 +22,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 
 /**
  * A struct-like holder for a bulk items reponse, result, and the resulting
@@ -38,5 +39,10 @@ class BulkItemResultHolder {
         this.response = response;
         this.operationResult = operationResult;
         this.replicaRequest = replicaRequest;
+    }
+
+    public boolean isVersionConflict() {
+        return operationResult == null ? false :
+                operationResult.getFailure() instanceof VersionConflictEngineException;
     }
 }

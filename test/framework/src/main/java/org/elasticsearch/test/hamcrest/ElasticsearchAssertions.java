@@ -19,6 +19,7 @@
 package org.elasticsearch.test.hamcrest;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -54,6 +55,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -65,6 +67,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
@@ -196,21 +199,25 @@ public class ElasticsearchAssertions {
     }
 
     public static String formatShardStatus(BroadcastResponse response) {
-        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() + " & "
-                + response.getFailedShards() + " shard failures:";
+        StringBuilder msg = new StringBuilder();
+        msg.append(" Total shards: ").append(response.getTotalShards())
+           .append(" Successful shards: ").append(response.getSuccessfulShards())
+           .append(" & ").append(response.getFailedShards()).append(" shard failures:");
         for (ShardOperationFailedException failure : response.getShardFailures()) {
-            msg += "\n " + failure.toString();
+            msg.append("\n ").append(failure);
         }
-        return msg;
+        return msg.toString();
     }
 
     public static String formatShardStatus(SearchResponse response) {
-        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() + " & "
-                + response.getFailedShards() + " shard failures:";
+        StringBuilder msg = new StringBuilder();
+        msg.append(" Total shards: ").append(response.getTotalShards())
+           .append(" Successful shards: ").append(response.getSuccessfulShards())
+           .append(" & ").append(response.getFailedShards()).append(" shard failures:");
         for (ShardSearchFailure failure : response.getShardFailures()) {
-            msg += "\n " + failure.toString();
+            msg.append("\n ").append(failure);
         }
-        return msg;
+        return msg.toString();
     }
 
     public static void assertNoSearchHits(SearchResponse searchResponse) {
@@ -510,6 +517,14 @@ public class ElasticsearchAssertions {
         return subqueryType.cast(q.clauses().get(i).getQuery());
     }
 
+    public static <T extends Query> T assertDisjunctionSubQuery(Query query, Class<T> subqueryType, int i) {
+        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery q = (DisjunctionMaxQuery) query;
+        assertThat(q.getDisjuncts().size(), greaterThan(i));
+        assertThat(q.getDisjuncts().get(i), instanceOf(subqueryType));
+        return subqueryType.cast(q.getDisjuncts().get(i));
+    }
+
     /**
      * Run the request from a given builder and check that it throws an exception of the right type
      */
@@ -674,7 +689,12 @@ public class ElasticsearchAssertions {
                 input = new NamedWriteableAwareStreamInput(input, namedWriteableRegistry);
             }
             input.setVersion(version);
-            newInstance.readFrom(input);
+            // This is here since some Streamables are being converted into Writeables
+            // and the readFrom method throws an exception if called
+            Streamable newInstanceFromStream = tryCreateFromStream(streamable, input);
+            if (newInstanceFromStream == null) {
+                newInstance.readFrom(input);
+            }
             assertThat("Stream should be fully read with version [" + version + "] for streamable [" + streamable + "]", input.available(),
                     equalTo(0));
             BytesReference newBytes = serialize(version, streamable);
@@ -736,6 +756,33 @@ public class ElasticsearchAssertions {
     }
 
     /**
+     * This attemps to construct a new {@link Streamable} object that is in the process of
+     * being converted from {@link Streamable} to {@link Writeable}. Assuming this constructs
+     * the object successfully, #readFrom should not be called on the constructed object.
+     *
+     * @param streamable the object to retrieve the type of class to construct the new instance from
+     * @param in the stream to read the object from
+     * @return the newly constructed object from reading the stream
+     * @throws NoSuchMethodException if constuctor cannot be found
+     * @throws InstantiationException if the class represents an abstract class
+     * @throws IllegalAccessException if this {@code Constructor} object
+     *              is enforcing Java language access control and the underlying
+     *              constructor is inaccessible.
+     * @throws InvocationTargetException if the underlying constructor
+     *              throws an exception.
+     */
+    private static Streamable tryCreateFromStream(Streamable streamable, StreamInput in) throws NoSuchMethodException,
+            InstantiationException, IllegalAccessException, InvocationTargetException {
+        try {
+            Class<? extends Streamable> clazz = streamable.getClass();
+            Constructor<? extends Streamable> constructor = clazz.getConstructor(StreamInput.class);
+            return constructor.newInstance(in);
+        } catch (NoSuchMethodException e) {
+            return null;
+        }
+    }
+
+    /**
      * Applies basic assertions on the SearchResponse. This method checks if all shards were successful, if
      * any of the shards threw an exception and if the response is serializable.
      */
@@ -786,11 +833,19 @@ public class ElasticsearchAssertions {
         //1) whenever anything goes through a map while parsing, ordering is not preserved, which is perfectly ok
         //2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
         //Note that byte[] holding binary values need special treatment as they need to be properly compared item per item.
+        Map<String, Object> actualMap = null;
+        Map<String, Object> expectedMap = null;
         try (XContentParser actualParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, actual)) {
-            Map<String, Object> actualMap = actualParser.map();
+            actualMap = actualParser.map();
             try (XContentParser expectedParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, expected)) {
-                Map<String, Object> expectedMap = expectedParser.map();
-                assertMapEquals(expectedMap, actualMap);
+                expectedMap = expectedParser.map();
+                try {
+                    assertMapEquals(expectedMap, actualMap);
+                } catch (AssertionError error) {
+                    NotEqualMessageBuilder message = new NotEqualMessageBuilder();
+                    message.compareMaps(actualMap, expectedMap);
+                    throw new AssertionError("Error when comparing xContent.\n" + message.toString(), error);
+                }
             }
         }
     }
@@ -798,7 +853,6 @@ public class ElasticsearchAssertions {
     /**
      * Compares two maps recursively, using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
-    @SuppressWarnings("unchecked")
     private static void assertMapEquals(Map<String, Object> expected, Map<String, Object> actual) {
         assertEquals(expected.size(), actual.size());
         for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {

@@ -45,6 +45,11 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
         }, AliasActions.PARSER, new ParseField("actions"));
     }
 
+    @Override
+    public String getName() {
+        return "indices_aliases_action";
+    }
+
     public RestIndicesAliasesAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_aliases", this);

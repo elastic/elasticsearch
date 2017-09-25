@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
@@ -140,7 +139,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                             if (indexService == null) {
                                 // temporarily create the index and add mappings so we can parse the filter
                                 try {
-                                    indexService = indicesService.createIndex(index, emptyList(), shardId -> {});
+                                    indexService = indicesService.createIndex(index, emptyList());
                                     indicesToClose.add(index.getIndex());
                                 } catch (IOException e) {
                                     throw new ElasticsearchException("Failed to create temporary index for parsing the alias", e);
@@ -151,7 +150,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                         }
                         // the context is only used for validation so it's fine to pass fake values for the shard id and the current
                         // timestamp
-                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null, () -> 0L),
+                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null, () -> 0L, null),
                                 xContentRegistry);
                     }
                 };

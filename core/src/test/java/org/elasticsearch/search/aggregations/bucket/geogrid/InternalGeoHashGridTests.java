@@ -21,8 +21,10 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid.Bucket;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
@@ -30,16 +32,31 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class InternalGeoHashGridTests extends InternalAggregationTestCase<InternalGeoHashGrid> {
+public class InternalGeoHashGridTests extends InternalMultiBucketAggregationTestCase<InternalGeoHashGrid> {
 
     @Override
-    protected InternalGeoHashGrid createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                     Map<String, Object> metaData) {
-        int size = randomIntBetween(1, 100);
+    protected int minNumberOfBuckets() {
+        return 1;
+    }
+
+    @Override
+    protected int maxNumberOfBuckets() {
+        return 3;
+    }
+
+    @Override
+    protected InternalGeoHashGrid createTestInstance(String name,
+                                                     List<PipelineAggregator> pipelineAggregators,
+                                                     Map<String, Object> metaData,
+                                                     InternalAggregations aggregations) {
+        int size = randomNumberOfBuckets();
         List<InternalGeoHashGrid.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            long geoHashAsLong = GeoHashUtils.longEncode(randomInt(90), randomInt(90), 4);
-            buckets.add(new InternalGeoHashGrid.Bucket(geoHashAsLong, randomInt(IndexWriter.MAX_DOCS), InternalAggregations.EMPTY));
+            double latitude = randomDoubleBetween(-90.0, 90.0, false);
+            double longitude = randomDoubleBetween(-180.0, 180.0, false);
+
+            long geoHashAsLong = GeoHashUtils.longEncode(longitude, latitude, 4);
+            buckets.add(new InternalGeoHashGrid.Bucket(geoHashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
         }
         return new InternalGeoHashGrid(name, size, buckets, pipelineAggregators, metaData);
     }
@@ -87,4 +104,43 @@ public class InternalGeoHashGridTests extends InternalAggregationTestCase<Intern
             assertEquals(expected.getKey(), actual.getKey());
         }
     }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+        return ParsedGeoHashGrid.class;
+    }
+    
+    @Override
+    protected InternalGeoHashGrid mutateInstance(InternalGeoHashGrid instance) {
+        String name = instance.getName();
+        int size = instance.getRequiredSize();
+        List<Bucket> buckets = instance.getBuckets();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 3)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            buckets = new ArrayList<>(buckets);
+            buckets.add(
+                    new InternalGeoHashGrid.Bucket(randomNonNegativeLong(), randomInt(IndexWriter.MAX_DOCS), InternalAggregations.EMPTY));
+            break;
+        case 2:
+            size = size + between(1, 10);
+            break;
+        case 3:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalGeoHashGrid(name, size, buckets, pipelineAggregators, metaData);
+    }
+
 }

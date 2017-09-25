@@ -187,8 +187,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
             if (filtered.isEmpty()) {
                 return this;
             }
-            List<DiscoveryNode> builder = new ArrayList<>();
-            builder.addAll(listedNodes());
+            List<DiscoveryNode> builder = new ArrayList<>(listedNodes);
             for (TransportAddress transportAddress : filtered) {
                 DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(),
                         transportAddress, Collections.emptyMap(), Collections.emptySet(), minCompatibilityVersion);
@@ -470,14 +469,17 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                          */
                         Transport.Connection connectionToClose = null;
 
-                        @Override
-                        public void onAfter() {
-                            IOUtils.closeWhileHandlingException(connectionToClose);
+                        void onDone() {
+                            try {
+                                IOUtils.closeWhileHandlingException(connectionToClose);
+                            } finally {
+                                latch.countDown();
+                            }
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            latch.countDown();
+                            onDone();
                             if (e instanceof ConnectTransportException) {
                                 logger.debug((Supplier<?>)
                                     () -> new ParameterizedMessage("failed to connect to node [{}], ignoring...", nodeToPing), e);
@@ -523,7 +525,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                                     @Override
                                     public void handleResponse(ClusterStateResponse response) {
                                         clusterStateResponses.put(nodeToPing, response);
-                                        latch.countDown();
+                                        onDone();
                                     }
 
                                     @Override
@@ -533,9 +535,8 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                                                 "failed to get local cluster state for {}, disconnecting...", nodeToPing), e);
                                         try {
                                             hostFailureListener.onNodeDisconnected(nodeToPing, e);
-                                        }
-                                        finally {
-                                            latch.countDown();
+                                        } finally {
+                                            onDone();
                                         }
                                     }
                                 });

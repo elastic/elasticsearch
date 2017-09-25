@@ -9,7 +9,7 @@ a number of clients that have been contributed by the community for various lang
 
 * <<b4j>>
 * <<clojure>>
-* <<cold-fusion>>
+* <<coldfusion>>
 * <<erlang>>
 * <<go>>
 * <<groovy>>
@@ -25,6 +25,7 @@ a number of clients that have been contributed by the community for various lang
 * <<python>>
 * <<r>>
 * <<ruby>>
+* <<rust>>
 * <<scala>>
 * <<smalltalk>>
 * <<vertx>>
@@ -40,13 +41,16 @@ a number of clients that have been contributed by the community for various lang
 * http://github.com/clojurewerkz/elastisch[Elastisch]:
   Clojure client.
 
-[[cold-fusion]]
-== Cold Fusion
+[[coldfusion]]
+== ColdFusion (CFML)
+
+* https://www.forgebox.io/view/cbelasticsearch[cbElasticSearch]
+  Native ColdFusion (CFML) support for the ColdBox MVC Platform which provides you with a fluent search interface for Elasticsearch, in addition to a CacheBox Cache provider and a Logbox Appender for logging.
 
 The following project appears to be abandoned:
 
 * https://github.com/jasonfill/ColdFusion-ElasticSearch-Client[ColdFusion-Elasticsearch-Client]
-  Cold Fusion client for Elasticsearch
+  ColdFusion client for Elasticsearch
 
 [[erlang]]
 == Erlang
@@ -92,7 +96,7 @@ See the {client}/groovy-api/current/index.html[official Elasticsearch Groovy cli
 
 Also see the {client}/java-api/current/index.html[official Elasticsearch Java client].
 
-* [Flummi](https://github.com/otto-de/flummi):
+* https://github.com/otto-de/flummi[Flummi]:
   Java Rest client with comprehensive query DSL API
 * https://github.com/searchbox-io/Jest[Jest]:
   Java Rest client.
@@ -230,24 +234,34 @@ The following projects appear to be abandoned:
 * https://github.com/ddnexus/flex[Flex]:
   Ruby Client.
 
+[[rust]]
+== Rust
 
+* https://github.com/benashford/rs-es[rs-es]:
+  A REST API client with a strongly-typed Query DSL.
 
+* https://github.com/elastic-rs/elastic[elastic]:
+  A modular REST API client that supports freeform queries.
+  
 [[scala]]
 == Scala
 
 * https://github.com/sksamuel/elastic4s[elastic4s]:
   Scala DSL.
 
-* https://github.com/scalastuff/esclient[esclient]:
-  Thin Scala client.
-
 * https://github.com/gphat/wabisabi[wabisabi]:
   Asynchronous REST API Scala client.
+  
+* https://github.com/workday/escalar[escalar]:
+  Type-safe Scala wrapper for the REST API.
 
 * https://github.com/SumoLogic/elasticsearch-client[elasticsearch-client]:
   Scala DSL that uses the REST API. Akka and AWS helpers included.
 
-The following project appears to be abandoned:
+The following projects appear to be abandoned:
+
+* https://github.com/scalastuff/esclient[esclient]:
+  Thin Scala client.
 
 * https://github.com/bsadeh/scalastic[scalastic]:
   Scala client.

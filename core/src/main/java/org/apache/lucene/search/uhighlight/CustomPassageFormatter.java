@@ -20,7 +20,6 @@
 package org.apache.lucene.search.uhighlight;
 
 import org.apache.lucene.search.highlight.Encoder;
-import org.apache.lucene.search.highlight.Snippet;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 
 /**

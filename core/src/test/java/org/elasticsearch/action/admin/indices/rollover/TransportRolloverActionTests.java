@@ -22,6 +22,8 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -34,20 +36,35 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import org.mockito.ArgumentCaptor;
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 
 public class TransportRolloverActionTests extends ESTestCase {
+
+    public void testDocStatsSelectionFromPrimariesOnly() throws Exception {
+        long docsInPrimaryShards = 100;
+        long docsInShards = 200;
+
+        final Condition condition = createTestCondition();
+        evaluateConditions(Sets.newHashSet(condition), createMetaData(), createIndecesStatResponse(docsInShards, docsInPrimaryShards));
+        final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
+        verify(condition).evaluate(argument.capture());
+
+        assertEquals(docsInPrimaryShards, argument.getValue().numDocs);
+    }
 
     public void testEvaluateConditions() throws Exception {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
@@ -60,7 +77,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        final IndexMetaData metaData = IndexMetaData.builder(randomAsciiOfLength(10))
+        final IndexMetaData metaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
             .build();
@@ -95,9 +112,9 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testCreateUpdateAliasRequest() throws Exception {
-        String sourceAlias = randomAsciiOfLength(10);
-        String sourceIndex = randomAsciiOfLength(10);
-        String targetIndex = randomAsciiOfLength(10);
+        String sourceAlias = randomAlphaOfLength(10);
+        String sourceIndex = randomAlphaOfLength(10);
+        String targetIndex = randomAlphaOfLength(10);
         final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
         final IndicesAliasesClusterStateUpdateRequest updateRequest =
             TransportRolloverAction.prepareRolloverAliasesUpdateRequest(sourceIndex, targetIndex, rolloverRequest);
@@ -122,10 +139,10 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testValidation() throws Exception {
-        String index1 = randomAsciiOfLength(10);
-        String alias = randomAsciiOfLength(10);
-        String index2 = randomAsciiOfLength(10);
-        String aliasWithMultipleIndices = randomAsciiOfLength(10);
+        String index1 = randomAlphaOfLength(10);
+        String alias = randomAlphaOfLength(10);
+        String index2 = randomAlphaOfLength(10);
+        String aliasWithMultipleIndices = randomAlphaOfLength(10);
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
@@ -145,24 +162,24 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         expectThrows(IllegalArgumentException.class, () ->
             TransportRolloverAction.validate(metaData, new RolloverRequest(aliasWithMultipleIndices,
-                randomAsciiOfLength(10))));
+                randomAlphaOfLength(10))));
         expectThrows(IllegalArgumentException.class, () ->
             TransportRolloverAction.validate(metaData, new RolloverRequest(randomFrom(index1, index2),
-                randomAsciiOfLength(10))));
+                randomAlphaOfLength(10))));
         expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.validate(metaData, new RolloverRequest(randomAsciiOfLength(5),
-                randomAsciiOfLength(10)))
+            TransportRolloverAction.validate(metaData, new RolloverRequest(randomAlphaOfLength(5),
+                randomAlphaOfLength(10)))
         );
-        TransportRolloverAction.validate(metaData, new RolloverRequest(alias, randomAsciiOfLength(10)));
+        TransportRolloverAction.validate(metaData, new RolloverRequest(alias, randomAlphaOfLength(10)));
     }
 
     public void testGenerateRolloverIndexName() throws Exception {
-        String invalidIndexName = randomAsciiOfLength(10) + "A";
+        String invalidIndexName = randomAlphaOfLength(10) + "A";
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
         expectThrows(IllegalArgumentException.class, () ->
             TransportRolloverAction.generateRolloverIndexName(invalidIndexName, indexNameExpressionResolver));
         int num = randomIntBetween(0, 100);
-        final String indexPrefix = randomAsciiOfLength(10);
+        final String indexPrefix = randomAlphaOfLength(10);
         String indexEndingInNumbers = indexPrefix + "-" + num;
         assertThat(TransportRolloverAction.generateRolloverIndexName(indexEndingInNumbers, indexNameExpressionResolver),
             equalTo(indexPrefix + "-" + String.format(Locale.ROOT, "%06d", num + 1)));
@@ -175,9 +192,9 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testCreateIndexRequest() throws Exception {
-        String alias = randomAsciiOfLength(10);
-        String rolloverIndex = randomAsciiOfLength(10);
-        final RolloverRequest rolloverRequest = new RolloverRequest(alias, randomAsciiOfLength(10));
+        String alias = randomAlphaOfLength(10);
+        String rolloverIndex = randomAlphaOfLength(10);
+        final RolloverRequest rolloverRequest = new RolloverRequest(alias, randomAlphaOfLength(10));
         final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
         rolloverRequest.setWaitForActiveShards(activeShardCount);
         final Settings settings = Settings.builder()
@@ -192,5 +209,38 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertThat(createIndexRequest.settings(), equalTo(settings));
         assertThat(createIndexRequest.index(), equalTo(rolloverIndex));
         assertThat(createIndexRequest.cause(), equalTo("rollover_index"));
+    }
+
+    private IndicesStatsResponse createIndecesStatResponse(long totalDocs, long primaryDocs) {
+        final CommonStats primaryStats = mock(CommonStats.class);
+        when(primaryStats.getDocs()).thenReturn(new DocsStats(primaryDocs, 0));
+
+        final CommonStats totalStats = mock(CommonStats.class);
+        when(totalStats.getDocs()).thenReturn(new DocsStats(totalDocs, 0));
+
+        final IndicesStatsResponse response = mock(IndicesStatsResponse.class);
+        when(response.getPrimaries()).thenReturn(primaryStats);
+        when(response.getTotal()).thenReturn(totalStats);
+
+        return response;
+    }
+
+    private IndexMetaData createMetaData() {
+        final Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        return IndexMetaData.builder(randomAlphaOfLength(10))
+            .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
+            .settings(settings)
+            .build();
+    }
+
+    private Condition createTestCondition() {
+        final Condition condition = mock(Condition.class);
+        when(condition.evaluate(any())).thenReturn(new Condition.Result(condition, true));
+        return condition;
     }
 }

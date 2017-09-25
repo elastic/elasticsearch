@@ -40,6 +40,11 @@ public class RestShrinkIndexAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "shrink_index_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.param("target") == null) {
             throw new IllegalArgumentException("no target index");

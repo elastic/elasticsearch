@@ -22,7 +22,7 @@ package org.elasticsearch.search.profile.aggregation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.profile.ProfileResult;
@@ -38,7 +38,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A container class to hold the profile results for a single shard in the request.
  * Contains a list of query profiles, a collector tree and a total rewrite tree.
  */
-public final class AggregationProfileShardResult implements Writeable, ToXContent {
+public final class AggregationProfileShardResult implements Writeable, ToXContentFragment {
 
     public static final String AGGREGATIONS = "aggregations";
     private final List<ProfileResult> aggProfileResults;

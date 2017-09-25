@@ -20,10 +20,11 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -35,8 +36,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -374,12 +375,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         // allocation filtering may not have immediate effect
         // TODO: we should add an easier to do this. It's too much of a song and dance..
         Index index = resolveIndex("test");
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertTrue(internalCluster().getInstance(IndicesService.class, node4).hasIndex(index));
-            }
-        });
+        assertBusy(() -> assertTrue(internalCluster().getInstance(IndicesService.class, node4).hasIndex(index)));
 
         // wait for 4 active shards - we should have lost one shard
         assertFalse(client().admin().cluster().prepareHealth().setWaitForActiveShards(4).get().isTimedOut());
@@ -434,26 +430,35 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         // disable relocations when we do this, to make sure the shards are not relocated from node2
         // due to rebalancing, and delete its content
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)).get();
-        internalCluster().getInstance(ClusterService.class, nonMasterNode).submitStateUpdateTask("test", new LocalClusterUpdateTask(Priority.IMMEDIATE) {
+
+        ClusterApplierService clusterApplierService = internalCluster().getInstance(ClusterService.class, nonMasterNode).getClusterApplierService();
+        ClusterState currentState = clusterApplierService.state();
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        for (int j = 0; j < numShards; j++) {
+            indexRoutingTableBuilder.addIndexShard(
+                new IndexShardRoutingTable.Builder(new ShardId(index, j))
+                    .addShard(TestShardRouting.newShardRouting("test", j, masterId, true, ShardRoutingState.STARTED))
+                    .build()
+            );
+        }
+        ClusterState newState = ClusterState.builder(currentState)
+            .incrementVersion()
+            .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
+            .build();
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterApplierService.onNewClusterState("test", () -> newState, new ClusterStateTaskListener() {
             @Override
-            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
-                IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-                for (int i = 0; i < numShards; i++) {
-                    indexRoutingTableBuilder.addIndexShard(
-                            new IndexShardRoutingTable.Builder(new ShardId(index, i))
-                                    .addShard(TestShardRouting.newShardRouting("test", i, masterId, true, ShardRoutingState.STARTED))
-                                    .build()
-                    );
-                }
-                return newState(ClusterState.builder(currentState)
-                        .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
-                        .build());
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                latch.countDown();
             }
 
             @Override
             public void onFailure(String source, Exception e) {
+                latch.countDown();
+                fail("Excepted proper response " + ExceptionsHelper.detailedMessage(e));
             }
         });
+        latch.await();
         waitNoPendingTasksOnAll();
         logger.info("Checking if shards aren't removed");
         for (int shard : node2Shards) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -35,8 +34,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
 @SuppressWarnings("unchecked")
 public class XContentHelper {
@@ -173,50 +170,6 @@ public class XContentHelper {
             builder.copyCurrentStructure(parser);
             return builder.string();
         }
-    }
-
-    /**
-     * Writes serialized toXContent to pretty-printed JSON string.
-     *
-     * @param toXContent object to be pretty printed
-     * @return pretty-printed JSON serialization
-     */
-    public static String toString(ToXContent toXContent) {
-        return toString(toXContent, EMPTY_PARAMS);
-    }
-
-    /**
-     * Writes serialized toXContent to pretty-printed JSON string.
-     *
-     * @param toXContent object to be pretty printed
-     * @param params     serialization parameters
-     * @return pretty-printed JSON serialization
-     */
-    public static String toString(ToXContent toXContent, Params params) {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            if (params.paramAsBoolean("pretty", true)) {
-                builder.prettyPrint();
-            }
-            if (params.paramAsBoolean("human", true)) {
-                builder.humanReadable(true);
-            }
-            builder.startObject();
-            toXContent.toXContent(builder, params);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            try {
-                XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-                builder.startObject();
-                builder.field("error", e.getMessage());
-                builder.endObject();
-                return builder.string();
-            } catch (IOException e2) {
-                throw new ElasticsearchException("cannot generate error message for deserialization", e);
-            }
-        }
-
     }
 
     /**
@@ -445,7 +398,8 @@ public class XContentHelper {
 
     /**
      * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
-     * {@link XContentType}. Wraps the output into a new anonymous object.
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns.
      */
     public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, boolean humanReadable) throws IOException {
         return toXContent(toXContent, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -453,7 +407,8 @@ public class XContentHelper {
 
     /**
      * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
-     * {@link XContentType}. Wraps the output into a new anonymous object.
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns.
      */
     public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, Params params, boolean humanReadable) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {

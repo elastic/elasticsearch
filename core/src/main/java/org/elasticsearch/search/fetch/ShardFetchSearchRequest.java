@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,9 +41,20 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
 
     }
 
-    public ShardFetchSearchRequest(SearchRequest request, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
+    public ShardFetchSearchRequest(OriginalIndices originalIndices, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
         super(id, list, lastEmittedDoc);
-        this.originalIndices = new OriginalIndices(request);
+        this.originalIndices = originalIndices;
+    }
+
+    public ShardFetchSearchRequest(StreamInput in) throws IOException {
+        super(in);
+        originalIndices = OriginalIndices.readOriginalIndices(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 
     @Override
@@ -65,13 +75,6 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        originalIndices = OriginalIndices.readOriginalIndices(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        OriginalIndices.writeOriginalIndices(originalIndices, out);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

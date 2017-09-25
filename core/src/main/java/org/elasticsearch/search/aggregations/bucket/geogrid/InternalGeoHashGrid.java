@@ -185,7 +185,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
     }
 
     @Override
-    public List<GeoHashGrid.Bucket> getBuckets() {
+    public List<InternalGeoHashGrid.Bucket> getBuckets() {
         return unmodifiableList(buckets);
     }
 

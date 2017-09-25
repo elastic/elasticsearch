@@ -19,15 +19,16 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 
+import java.io.IOException;
+
 public class ScriptDocValuesDatesTests extends ESTestCase {
-    public void test() {
+    public void test() throws IOException {
         long[][] values = new long[between(3, 10)][];
         ReadableDateTime[][] expectedDates = new ReadableDateTime[values.length][];
         for (int d = 0; d < values.length; d++) {
@@ -56,20 +57,23 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
     }
 
     private Dates wrap(long[][] values) {
-        return new Dates(new SortedNumericDocValues() {
+        return new Dates(new AbstractSortedNumericDocValues() {
             long[] current;
+            int i;
 
             @Override
-            public void setDocument(int doc) {
+            public boolean advanceExact(int doc) {
                 current = values[doc];
+                i = 0;
+                return current.length > 0;
             }
             @Override
-            public int count() {
+            public int docValueCount() {
                 return current.length;
             }
             @Override
-            public long valueAt(int index) {
-                return current[index];
+            public long nextValue() {
+                return current[i++];
             }
         });
     }

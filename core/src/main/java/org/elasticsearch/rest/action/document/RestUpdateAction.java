@@ -49,6 +49,11 @@ public class RestUpdateAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "document_update_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
         updateRequest.routing(request.param("routing"));

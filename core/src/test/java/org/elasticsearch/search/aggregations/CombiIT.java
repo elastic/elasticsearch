@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
-import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
@@ -95,7 +95,7 @@ public class CombiIT extends ESIntegTestCase {
 
         Terms terms = aggs.get("values");
         assertNotNull(terms);
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(values.size()));
         for (Terms.Bucket bucket : buckets) {
             values.remove(((Number) bucket.getKey()).intValue());

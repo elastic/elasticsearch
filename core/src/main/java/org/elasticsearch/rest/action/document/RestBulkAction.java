@@ -68,6 +68,11 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "bulk_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         BulkRequest bulkRequest = Requests.bulkRequest();
         String defaultIndex = request.param("index");
@@ -86,7 +91,7 @@ public class RestBulkAction extends BaseRestHandler {
         }
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
-        bulkRequest.add(request.content(), defaultIndex, defaultType, defaultRouting, defaultFields,
+        bulkRequest.add(request.requiredContent(), defaultIndex, defaultType, defaultRouting, defaultFields,
             defaultFetchSourceContext, defaultPipeline, null, allowExplicitIndex, request.getXContentType());
 
         return channel -> client.bulk(bulkRequest, new RestStatusToXContentListener<>(channel));

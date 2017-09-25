@@ -25,9 +25,9 @@ public class ReverseNestedTests extends BaseAggregationTestCase<ReverseNestedAgg
 
     @Override
     protected ReverseNestedAggregationBuilder createTestAggregatorBuilder() {
-        ReverseNestedAggregationBuilder factory = new ReverseNestedAggregationBuilder(randomAsciiOfLengthBetween(1, 20));
+        ReverseNestedAggregationBuilder factory = new ReverseNestedAggregationBuilder(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
-            factory.path(randomAsciiOfLengthBetween(3, 40));
+            factory.path(randomAlphaOfLengthBetween(3, 40));
         }
         return factory;
     }

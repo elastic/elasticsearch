@@ -26,11 +26,9 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -94,16 +92,16 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
         try {
-            SearchScript searchScript = context.getSearchScript(script, ScriptContext.Standard.SEARCH);
+            SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.CONTEXT);
+            SearchScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
             return new ScriptScoreFunction(script, searchScript);
         } catch (Exception e) {
             throw new QueryShardException(context, "script_score: the script could not be loaded", e);
         }
     }
 
-    public static ScriptScoreFunctionBuilder fromXContent(QueryParseContext parseContext)
+    public static ScriptScoreFunctionBuilder fromXContent(XContentParser parser)
             throws IOException, ParsingException {
-        XContentParser parser = parseContext.parser();
         Script script = null;
         String currentFieldName = null;
         XContentParser.Token token;

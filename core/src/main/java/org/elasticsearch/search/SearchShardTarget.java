@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,16 +28,21 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 
 /**
  * The target that the search request was executed on.
  */
-public class SearchShardTarget implements Writeable, Comparable<SearchShardTarget> {
+public final class SearchShardTarget implements Writeable, Comparable<SearchShardTarget> {
 
     private final Text nodeId;
     private final ShardId shardId;
+    //original indices and cluster alias are only needed in the coordinating node throughout the search request execution.
+    //no need to serialize them as part of SearchShardTarget.
+    private final transient OriginalIndices originalIndices;
+    private final String clusterAlias;
 
     public SearchShardTarget(StreamInput in) throws IOException {
         if (in.readBoolean()) {
@@ -44,15 +51,24 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
             nodeId = null;
         }
         shardId = ShardId.readShardId(in);
+        this.originalIndices = null;
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
+            clusterAlias = in.readOptionalString();
+        } else {
+            clusterAlias = null;
+        }
     }
 
-    public SearchShardTarget(String nodeId, ShardId shardId) {
+    public SearchShardTarget(String nodeId, ShardId shardId, String clusterAlias, OriginalIndices originalIndices) {
         this.nodeId = nodeId == null ? null : new Text(nodeId);
         this.shardId = shardId;
+        this.originalIndices = originalIndices;
+        this.clusterAlias = clusterAlias;
     }
 
-    public SearchShardTarget(String nodeId, Index index, int shardId) {
-        this(nodeId,  new ShardId(index, shardId));
+    //this constructor is only used in tests
+    public SearchShardTarget(String nodeId, Index index, int shardId, String clusterAlias) {
+        this(nodeId,  new ShardId(index, shardId), clusterAlias, OriginalIndices.NONE);
     }
 
     @Nullable
@@ -70,6 +86,14 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
 
     public ShardId getShardId() {
         return shardId;
+    }
+
+    public OriginalIndices getOriginalIndices() {
+        return originalIndices;
+    }
+
+    public String getClusterAlias() {
+        return clusterAlias;
     }
 
     @Override
@@ -90,6 +114,9 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
             out.writeText(nodeId);
         }
         shardId.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
+            out.writeOptionalString(clusterAlias);
+        }
     }
 
     @Override
@@ -99,7 +126,7 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
         SearchShardTarget that = (SearchShardTarget) o;
         if (shardId.equals(that.shardId) == false) return false;
         if (nodeId != null ? !nodeId.equals(that.nodeId) : that.nodeId != null) return false;
-
+        if (clusterAlias != null ? !clusterAlias.equals(that.clusterAlias) : that.clusterAlias != null) return false;
         return true;
     }
 
@@ -108,14 +135,17 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
         int result = nodeId != null ? nodeId.hashCode() : 0;
         result = 31 * result + (shardId.getIndexName() != null ? shardId.getIndexName().hashCode() : 0);
         result = 31 * result + shardId.hashCode();
+        result = 31 * result + (clusterAlias != null ? clusterAlias.hashCode() : 0);
         return result;
     }
 
     @Override
     public String toString() {
+        String shardToString = "[" + RemoteClusterAware.buildRemoteIndexName(clusterAlias, shardId.getIndexName()) + "][" + shardId.getId()
+            + "]";
         if (nodeId == null) {
-            return "[_na_]" + shardId;
+            return "[_na_]" + shardToString;
         }
-        return "[" + nodeId + "]" + shardId;
+        return "[" + nodeId + "]" + shardToString;
     }
 }

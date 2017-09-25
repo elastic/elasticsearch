@@ -34,7 +34,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -52,7 +52,7 @@ import java.util.Objects;
  * {@link StoredScriptSource} represents user-defined parameters for a script
  * saved in the {@link ClusterState}.
  */
-public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements Writeable, ToXContent {
+public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements Writeable, ToXContentObject {
 
     /**
      * Standard {@link ParseField} for outer level of stored script source.
@@ -70,9 +70,9 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     public static final ParseField LANG_PARSE_FIELD = new ParseField("lang");
 
     /**
-     * Standard {@link ParseField} for code on the inner level.
+     * Standard {@link ParseField} for source on the inner level.
      */
-    public static final ParseField CODE_PARSE_FIELD = new ParseField("code");
+    public static final ParseField SOURCE_PARSE_FIELD = new ParseField("source", "code");
 
     /**
      * Standard {@link ParseField} for options on the inner level.
@@ -85,7 +85,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      */
     private static final class Builder {
         private String lang;
-        private String code;
+        private String source;
         private Map<String, String> options;
 
         private Builder() {
@@ -99,19 +99,19 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
 
         /**
          * Since stored scripts can accept templates rather than just scripts, they must also be able
-         * to handle template parsing, hence the need for custom parsing code.  Templates can
+         * to handle template parsing, hence the need for custom parsing source.  Templates can
          * consist of either an {@link String} or a JSON object.  If a JSON object is discovered
          * then the content type option must also be saved as a compiler option.
          */
-        private void setCode(XContentParser parser) {
+        private void setSource(XContentParser parser) {
             try {
                 if (parser.currentToken() == Token.START_OBJECT) {
                     //this is really for search templates, that need to be converted to json format
                     XContentBuilder builder = XContentFactory.jsonBuilder();
-                    code = builder.copyCurrentStructure(parser).string();
+                    source = builder.copyCurrentStructure(parser).string();
                     options.put(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType());
                 } else {
-                    code = parser.text();
+                    source = parser.text();
                 }
             } catch (IOException exception) {
                 throw new UncheckedIOException(exception);
@@ -123,10 +123,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
          * Appends the user-defined compiler options with the internal compiler options.
          */
         private void setOptions(Map<String, String> options) {
-            if (options.containsKey(Script.CONTENT_TYPE_OPTION)) {
-                throw new IllegalArgumentException(Script.CONTENT_TYPE_OPTION + " cannot be user-specified");
-            }
-
             this.options.putAll(options);
         }
 
@@ -140,17 +136,17 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                 throw new IllegalArgumentException("lang cannot be empty");
             }
 
-            if (code == null) {
-                throw new IllegalArgumentException("must specify code for stored script");
-            } else if (code.isEmpty()) {
-                throw new IllegalArgumentException("code cannot be empty");
+            if (source == null) {
+                throw new IllegalArgumentException("must specify source for stored script");
+            } else if (source.isEmpty()) {
+                throw new IllegalArgumentException("source cannot be empty");
             }
 
             if (options.size() > 1 || options.size() == 1 && options.get(Script.CONTENT_TYPE_OPTION) == null) {
                 throw new IllegalArgumentException("illegal compiler options [" + options + "] specified");
             }
 
-            return new StoredScriptSource(lang, code, options);
+            return new StoredScriptSource(lang, source, options);
         }
     }
 
@@ -159,7 +155,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     static {
         // Defines the fields necessary to parse a Script as XContent using an ObjectParser.
         PARSER.declareString(Builder::setLang, LANG_PARSE_FIELD);
-        PARSER.declareField(Builder::setCode, parser -> parser, CODE_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
+        PARSER.declareField(Builder::setSource, parser -> parser, SOURCE_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
         PARSER.declareField(Builder::setOptions, XContentParser::mapStrings, OPTIONS_PARSE_FIELD, ValueType.OBJECT);
     }
 
@@ -178,13 +174,13 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * the stored script namespaces.
      *
      * The complex script format using the new stored script namespace
-     * where lang and code are required but options is optional:
+     * where lang and source are required but options is optional:
      *
      * {@code
      * {
      *     "script" : {
      *         "lang" : "<lang>",
-     *         "code" : "<code>",
+     *         "source" : "<source>",
      *         "options" : {
      *             "option0" : "<option0>",
      *             "option1" : "<option1>",
@@ -199,7 +195,23 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * {
      *     "script": {
      *         "lang" : "painless",
-     *         "code" : "return Math.log(doc.popularity) * params.multiplier"
+     *         "source" : "return Math.log(doc.popularity) * params.multiplier"
+     *     }
+     * }
+     * }
+     *
+     * The use of "source" may also be substituted with "code" for backcompat with 5.3 to 5.5 format. For example:
+     *
+     * {@code
+     * {
+     *     "script" : {
+     *         "lang" : "<lang>",
+     *         "code" : "<source>",
+     *         "options" : {
+     *             "option0" : "<option0>",
+     *             "option1" : "<option1>",
+     *             ...
+     *         }
      *     }
      * }
      * }
@@ -223,16 +235,13 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * }
      *
      * Note that templates can be handled as both strings and complex JSON objects.
-     * Also templates may be part of the 'code' parameter in a script.  The Parser
+     * Also templates may be part of the 'source' parameter in a script.  The Parser
      * can handle this case as well.
      *
-     * @param lang    An optional parameter to allow for use of the deprecated stored
-     *                script namespace.  This will be used to specify the language
-     *                coming in as a url parameter from a request or for stored templates.
      * @param content The content from the request to be parsed as described above.
      * @return        The parsed {@link StoredScriptSource}.
      */
-    public static StoredScriptSource parse(String lang, BytesReference content, XContentType xContentType) {
+    public static StoredScriptSource parse(BytesReference content, XContentType xContentType) {
         try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, content)) {
             Token token = parser.nextToken();
 
@@ -241,6 +250,10 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             }
 
             token = parser.nextToken();
+
+            if (token == Token.END_OBJECT) {
+                return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
+            }
 
             if (token != Token.FIELD_NAME) {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + ", expected [" +
@@ -252,39 +265,17 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             if (SCRIPT_PARSE_FIELD.getPreferredName().equals(name)) {
                 token = parser.nextToken();
 
-                if (token == Token.VALUE_STRING) {
-                    if (lang == null) {
-                        throw new IllegalArgumentException(
-                            "must specify lang as a url parameter when using the deprecated stored script namespace");
-                    }
-
-                    return new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
-                } else if (token == Token.START_OBJECT) {
-                    if (lang == null) {
-                        return PARSER.apply(parser, null).build();
-                    } else {
-                        //this is really for search templates, that need to be converted to json format
-                        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                            builder.copyCurrentStructure(parser);
-                            return new StoredScriptSource(lang, builder.string(),
-                                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
-                        }
-                    }
-
+                if (token == Token.START_OBJECT) {
+                    return PARSER.apply(parser, null).build();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected [{, <code>]");
+                    throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected [{, <source>]");
                 }
             } else {
-                if (lang == null) {
-                    throw new IllegalArgumentException("unexpected stored script format");
-                }
-
                 if (TEMPLATE_PARSE_FIELD.getPreferredName().equals(name)) {
                     token = parser.nextToken();
 
                     if (token == Token.VALUE_STRING) {
-                        return new StoredScriptSource(lang, parser.text(),
-                            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+                        return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, parser.text(), Collections.emptyMap());
                     }
                 }
 
@@ -297,8 +288,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                         builder.copyCurrentStructure(parser);
                     }
 
-                    return new StoredScriptSource(lang, builder.string(),
-                        Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+                    return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, builder.string(), Collections.emptyMap());
                 }
             }
         } catch (IOException ioe) {
@@ -313,7 +303,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * {
      *     "script" : {
      *         "lang" : "<lang>",
-     *         "code" : "<code>",
+     *         "source" : "<source>",
      *         "options" : {
      *             "option0" : "<option0>",
      *             "option1" : "<option1>",
@@ -323,7 +313,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * }
      * }
      *
-     * Note that the "code" parameter can also handle template parsing including from
+     * Note that the "source" parameter can also handle template parsing including from
      * a complex JSON object.
      */
     public static StoredScriptSource fromXContent(XContentParser parser) throws IOException {
@@ -340,66 +330,66 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     }
 
     private final String lang;
-    private final String code;
+    private final String source;
     private final Map<String, String> options;
 
     /**
      * Constructor for use with {@link GetStoredScriptResponse}
      * to support the deprecated stored script namespace.
      */
-    public StoredScriptSource(String code) {
+    public StoredScriptSource(String source) {
         this.lang = null;
-        this.code = Objects.requireNonNull(code);
+        this.source = Objects.requireNonNull(source);
         this.options = null;
     }
 
     /**
      * Standard StoredScriptSource constructor.
      * @param lang    The language to compile the script with.  Must not be {@code null}.
-     * @param code    The source code to compile with.  Must not be {@code null}.
+     * @param source  The source source to compile with.  Must not be {@code null}.
      * @param options Compiler options to be compiled with.  Must not be {@code null},
      *                use an empty {@link Map} to represent no options.
      */
-    public StoredScriptSource(String lang, String code, Map<String, String> options) {
+    public StoredScriptSource(String lang, String source, Map<String, String> options) {
         this.lang = Objects.requireNonNull(lang);
-        this.code = Objects.requireNonNull(code);
+        this.source = Objects.requireNonNull(source);
         this.options = Collections.unmodifiableMap(Objects.requireNonNull(options));
     }
 
     /**
      * Reads a {@link StoredScriptSource} from a stream.  Version 5.3+ will read
-     * all of the lang, code, and options parameters.  For versions prior to 5.3,
-     * only the code parameter will be read in as a bytes reference.
+     * all of the lang, source, and options parameters.  For versions prior to 5.3,
+     * only the source parameter will be read in as a bytes reference.
      */
     public StoredScriptSource(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             this.lang = in.readString();
-            this.code = in.readString();
+            this.source = in.readString();
             @SuppressWarnings("unchecked")
             Map<String, String> options = (Map<String, String>)(Map)in.readMap();
             this.options = options;
         } else {
             this.lang = null;
-            this.code = in.readBytesReference().utf8ToString();
+            this.source = in.readBytesReference().utf8ToString();
             this.options = null;
         }
     }
 
     /**
      * Writes a {@link StoredScriptSource} to a stream.  Version 5.3+ will write
-     * all of the lang, code, and options parameters.  For versions prior to 5.3,
-     * only the code parameter will be read in as a bytes reference.
+     * all of the lang, source, and options parameters.  For versions prior to 5.3,
+     * only the source parameter will be read in as a bytes reference.
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             out.writeString(lang);
-            out.writeString(code);
+            out.writeString(source);
             @SuppressWarnings("unchecked")
             Map<String, Object> options = (Map<String, Object>)(Map)this.options;
             out.writeMap(options);
         } else {
-            out.writeBytesReference(new BytesArray(code));
+            out.writeBytesReference(new BytesArray(source));
         }
     }
 
@@ -410,7 +400,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * {
      *     "script" : {
      *         "lang" : "<lang>",
-     *         "code" : "<code>",
+     *         "source" : "<source>",
      *         "options" : {
      *             "option0" : "<option0>",
      *             "option1" : "<option1>",
@@ -420,22 +410,17 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * }
      * }
      *
-     * Note that the 'code' parameter can also handle templates written as complex JSON.
+     * Note that the 'source' parameter can also handle templates written as complex JSON.
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(LANG_PARSE_FIELD.getPreferredName(), lang);
-        builder.field(CODE_PARSE_FIELD.getPreferredName(), code);
+        builder.field(SOURCE_PARSE_FIELD.getPreferredName(), source);
         builder.field(OPTIONS_PARSE_FIELD.getPreferredName(), options);
         builder.endObject();
 
         return builder;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 
     /**
@@ -446,10 +431,10 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     }
 
     /**
-     * @return The code used for compiling this script.
+     * @return The source used for compiling this script.
      */
-    public String getCode() {
-        return code;
+    public String getSource() {
+        return source;
     }
 
     /**
@@ -467,7 +452,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         StoredScriptSource that = (StoredScriptSource)o;
 
         if (lang != null ? !lang.equals(that.lang) : that.lang != null) return false;
-        if (code != null ? !code.equals(that.code) : that.code != null) return false;
+        if (source != null ? !source.equals(that.source) : that.source != null) return false;
         return options != null ? options.equals(that.options) : that.options == null;
 
     }
@@ -475,7 +460,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     @Override
     public int hashCode() {
         int result = lang != null ? lang.hashCode() : 0;
-        result = 31 * result + (code != null ? code.hashCode() : 0);
+        result = 31 * result + (source != null ? source.hashCode() : 0);
         result = 31 * result + (options != null ? options.hashCode() : 0);
         return result;
     }
@@ -484,7 +469,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     public String toString() {
         return "StoredScriptSource{" +
             "lang='" + lang + '\'' +
-            ", code='" + code + '\'' +
+            ", source='" + source + '\'' +
             ", options=" + options +
             '}';
     }

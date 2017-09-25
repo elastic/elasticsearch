@@ -1,0 +1,36 @@
+---
+"Response format search failures":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: request
+      reindex:
+        body:
+          source:
+            index:   source
+            query:
+              script:
+                script:
+                  lang: painless
+                  source: throw new IllegalArgumentException("Cats!")
+          dest:
+            index:   dest
+  - match: {created: 0}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 0}
+  - is_true: failures.0.shard
+  - match: {failures.0.index:  source}
+  - is_true: failures.0.node
+  - match: {failures.0.reason.type:   script_exception}
+  - match: {failures.0.reason.reason: runtime error}
+  - match: {failures.0.reason.caused_by.type:   illegal_argument_exception}
+  - match: {failures.0.reason.caused_by.reason: Cats!}
+  - gte: { took: 0 }

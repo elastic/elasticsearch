@@ -163,7 +163,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
         }
 
-        List<GeoPoint> shell = new ArrayList<GeoPoint>();
+        List<GeoPoint> shell = new ArrayList<>(this.shell.size());
         for (GeoPoint geoPoint : this.shell) {
             shell.add(new GeoPoint(geoPoint));
         }
@@ -221,9 +221,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         builder.endObject();
     }
 
-    public static GeoPolygonQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static GeoPolygonQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
 
         List<GeoPoint> shell = null;
@@ -238,8 +236,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 fieldName = currentFieldName;
 
@@ -248,7 +244,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         if (POINTS_FIELD.match(currentFieldName)) {
-                            shell = new ArrayList<GeoPoint>();
+                            shell = new ArrayList<>();
                             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                                 shell.add(GeoUtils.parseGeoPoint(parser));
                             }

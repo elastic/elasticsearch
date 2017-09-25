@@ -19,24 +19,37 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
-public class FieldCapabilitiesResponse extends ActionResponse implements ToXContent {
+public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentFragment {
     private Map<String, Map<String, FieldCapabilities>> responseMap;
+    private List<FieldCapabilitiesIndexResponse> indexResponses;
 
     FieldCapabilitiesResponse(Map<String, Map<String, FieldCapabilities>> responseMap) {
+        this(responseMap, Collections.emptyList());
+    }
+
+    FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses) {
+        this(Collections.emptyMap(), indexResponses);
+    }
+
+    private FieldCapabilitiesResponse(Map<String, Map<String, FieldCapabilities>> responseMap,
+                                      List<FieldCapabilitiesIndexResponse> indexResponses) {
         this.responseMap = responseMap;
+        this.indexResponses = indexResponses;
     }
 
     /**
@@ -53,6 +66,13 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         return responseMap;
     }
 
+
+    /**
+     * Returns the actual per-index field caps responses
+     */
+    List<FieldCapabilitiesIndexResponse> getIndexResponses() {
+        return indexResponses;
+    }
     /**
      *
      * Get the field capabilities per type for the provided {@code field}.
@@ -66,6 +86,11 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         super.readFrom(in);
         this.responseMap =
             in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
+        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
+            indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
+        } else {
+            indexResponses = Collections.emptyList();
+        }
     }
 
     private static Map<String, FieldCapabilities> readField(StreamInput in) throws IOException {
@@ -76,6 +101,10 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);
+        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
+            out.writeList(indexResponses);
+        }
+
     }
 
     private static void writeField(StreamOutput out,

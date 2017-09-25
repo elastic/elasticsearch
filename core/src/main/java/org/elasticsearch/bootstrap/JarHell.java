@@ -140,7 +140,7 @@ public class JarHell {
                 URL url = PathUtils.get(element).toUri().toURL();
                 if (urlElements.add(url) == false) {
                     throw new IllegalStateException("jar hell!" + System.lineSeparator() +
-                        "duplicate jar on classpath: " + classPath);
+                        "duplicate jar [" + element + "] on classpath: " + classPath);
                 }
             } catch (MalformedURLException e) {
                 // should not happen, as we use the filesystem API

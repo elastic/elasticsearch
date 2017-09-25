@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 
@@ -41,9 +41,9 @@ public abstract class Ordinals implements Accountable {
     @Override
     public abstract long ramBytesUsed();
 
-    public abstract RandomAccessOrds ordinals(ValuesHolder values);
+    public abstract SortedSetDocValues ordinals(ValuesHolder values);
 
-    public final RandomAccessOrds ordinals() {
+    public final SortedSetDocValues ordinals() {
         return ordinals(NO_VALUES);
     }
 

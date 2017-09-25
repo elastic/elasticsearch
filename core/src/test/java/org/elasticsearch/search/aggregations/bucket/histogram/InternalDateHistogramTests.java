@@ -19,16 +19,17 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.joda.time.DateTime;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -37,15 +38,24 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
-public class InternalDateHistogramTests extends InternalAggregationTestCase<InternalDateHistogram> {
+public class InternalDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalDateHistogram> {
+
+    private boolean keyed;
+    private DocValueFormat format;
 
     @Override
-    protected InternalDateHistogram createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                       Map<String, Object> metaData) {
+    public void setUp() throws Exception {
+        super.setUp();
+        keyed = randomBoolean();
+        format = randomNumericDocValueFormat();
+    }
 
-        boolean keyed = randomBoolean();
-        DocValueFormat format = DocValueFormat.RAW;
-        int nbBuckets = randomInt(10);
+    @Override
+    protected InternalDateHistogram createTestInstance(String name,
+                                                       List<PipelineAggregator> pipelineAggregators,
+                                                       Map<String, Object> metaData,
+                                                       InternalAggregations aggregations) {
+        int nbBuckets = randomNumberOfBuckets();
         List<InternalDateHistogram.Bucket> buckets = new ArrayList<>(nbBuckets);
         long startingDate = System.currentTimeMillis();
 
@@ -54,10 +64,10 @@ public class InternalDateHistogramTests extends InternalAggregationTestCase<Inte
 
         for (int i = 0; i < nbBuckets; i++) {
             long key = startingDate + (intervalMillis * i);
-            buckets.add(i, new InternalDateHistogram.Bucket(key, randomIntBetween(1, 100), keyed, format, InternalAggregations.EMPTY));
+            buckets.add(i, new InternalDateHistogram.Bucket(key, randomIntBetween(1, 100), keyed, format, aggregations));
         }
 
-        InternalOrder order = (InternalOrder) randomFrom(InternalHistogram.Order.KEY_ASC, InternalHistogram.Order.KEY_DESC);
+        BucketOrder order = randomFrom(BucketOrder.key(true), BucketOrder.key(false));
         return new InternalDateHistogram(name, buckets, order, 1, 0L, null, format, keyed, pipelineAggregators, metaData);
     }
 
@@ -81,5 +91,52 @@ public class InternalDateHistogramTests extends InternalAggregationTestCase<Inte
     @Override
     protected Writeable.Reader<InternalDateHistogram> instanceReader() {
         return InternalDateHistogram::new;
+    }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+        return ParsedDateHistogram.class;
+    }
+
+    @Override
+    protected InternalDateHistogram mutateInstance(InternalDateHistogram instance) {
+        String name = instance.getName();
+        List<InternalDateHistogram.Bucket> buckets = instance.getBuckets();
+        BucketOrder order = instance.getOrder();
+        long minDocCount = instance.getMinDocCount();
+        long offset = instance.getOffset();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 5)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            buckets = new ArrayList<>(buckets);
+            buckets.add(new InternalDateHistogram.Bucket(randomNonNegativeLong(), randomIntBetween(1, 100), keyed, format,
+                    InternalAggregations.EMPTY));
+            break;
+        case 2:
+            order = BucketOrder.count(randomBoolean());
+            break;
+        case 3:
+            minDocCount += between(1, 10);
+            break;
+        case 4:
+            offset += between(1, 20);
+            break;
+        case 5:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalDateHistogram(name, buckets, order, minDocCount, offset, null, format, keyed, pipelineAggregators,
+                metaData);
     }
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
@@ -58,11 +57,11 @@ public class BucketHelpers {
         /**
          * Parse a string GapPolicy into the byte enum
          *
-         * @param context SearchContext this is taking place in
-         * @param text    GapPolicy in string format (e.g. "ignore")
-         * @return        GapPolicy enum
+         * @param text
+         *            GapPolicy in string format (e.g. "ignore")
+         * @return GapPolicy enum
          */
-        public static GapPolicy parse(QueryParseContext context, String text, XContentLocation tokenLocation) {
+        public static GapPolicy parse(String text, XContentLocation tokenLocation) {
             GapPolicy result = null;
             for (GapPolicy policy : values()) {
                 if (policy.parseField.match(text)) {
@@ -147,13 +146,13 @@ public class BucketHelpers {
      *         <code>aggPath</code>
      */
     public static Double resolveBucketValue(MultiBucketsAggregation agg,
-            InternalMultiBucketAggregation.Bucket bucket, String aggPath, GapPolicy gapPolicy) {
+            InternalMultiBucketAggregation.InternalBucket bucket, String aggPath, GapPolicy gapPolicy) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         return resolveBucketValue(agg, bucket, aggPathsList, gapPolicy);
     }
 
     public static Double resolveBucketValue(MultiBucketsAggregation agg,
-            InternalMultiBucketAggregation.Bucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
+            InternalMultiBucketAggregation.InternalBucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
         try {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
             if (propertyValue == null) {

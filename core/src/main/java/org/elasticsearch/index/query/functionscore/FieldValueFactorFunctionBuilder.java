@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -157,9 +156,8 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
         return new FieldValueFactorFunction(field, factor, modifier, missing, fieldData);
     }
 
-    public static FieldValueFactorFunctionBuilder fromXContent(QueryParseContext parseContext)
+    public static FieldValueFactorFunctionBuilder fromXContent(XContentParser parser)
             throws IOException, ParsingException {
-        XContentParser parser = parseContext.parser();
         String currentFieldName = null;
         String field = null;
         float boostFactor = FieldValueFactorFunctionBuilder.DEFAULT_FACTOR;

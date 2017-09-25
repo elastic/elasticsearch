@@ -39,6 +39,11 @@ public class RestCreateIndexAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "create_index_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         if (request.hasContent()) {

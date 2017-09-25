@@ -20,14 +20,15 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.RandomAccessOrds;
-import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -57,15 +58,18 @@ public class SinglePackedOrdinals extends Ordinals {
     }
 
     @Override
-    public RandomAccessOrds ordinals(ValuesHolder values) {
-        return (RandomAccessOrds) DocValues.singleton(new Docs(this, values));
+    public SortedSetDocValues ordinals(ValuesHolder values) {
+        return (SortedSetDocValues) DocValues.singleton(new Docs(this, values));
     }
 
-    private static class Docs extends SortedDocValues {
+    private static class Docs extends AbstractSortedDocValues {
 
         private final int maxOrd;
         private final PackedInts.Reader reader;
         private final ValuesHolder values;
+
+        private int currentDoc = -1;
+        private int currentOrd;
 
         Docs(SinglePackedOrdinals parent, ValuesHolder values) {
             this.maxOrd = parent.valueCount;
@@ -84,8 +88,20 @@ public class SinglePackedOrdinals extends Ordinals {
         }
 
         @Override
-        public int getOrd(int docID) {
-            return (int) (reader.get(docID) - 1);
+        public int ordValue() {
+            return currentOrd;
+        }
+
+        @Override
+        public boolean advanceExact(int docID) throws IOException {
+            currentDoc = docID;
+            currentOrd = (int) (reader.get(docID) - 1);
+            return currentOrd != -1;
+        }
+
+        @Override
+        public int docID() {
+            return currentDoc;
         }
     }
 }

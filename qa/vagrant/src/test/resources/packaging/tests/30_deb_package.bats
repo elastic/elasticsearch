@@ -4,9 +4,14 @@
 # of a Debian package.
 
 # WARNING: This testing file must be executed as root and can
-# dramatically change your system. It removes the 'elasticsearch'
-# user/group and also many directories. Do not execute this file
-# unless you know exactly what you are doing.
+# dramatically change your system. It should only be executed
+# in a throw-away VM like those made by the Vagrantfile at
+# the root of the Elasticsearch source code. This should
+# cause the script to fail if it is executed any other way:
+[ -f /etc/is_vagrant_vm ] || {
+  >&2 echo "must be run on a vagrant VM"
+  exit 1
+}
 
 # The test case can be executed with the Bash Automated
 # Testing System tool available at https://github.com/sstephenson/bats
@@ -91,10 +96,6 @@ setup() {
 }
 
 @test "[DEB] test elasticsearch" {
-    # Install scripts used to test script filters and search templates before
-    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
-    # them.
-    install_elasticsearch_test_scripts
     start_elasticsearch_service
     run_elasticsearch_tests
 }
@@ -148,7 +149,6 @@ setup() {
 
     # The configuration files are still here
     assert_file_exist "/etc/elasticsearch"
-    assert_file_exist "/etc/elasticsearch/scripts"
     assert_file_exist "/etc/elasticsearch/elasticsearch.yml"
     assert_file_exist "/etc/elasticsearch/jvm.options"
     assert_file_exist "/etc/elasticsearch/log4j2.properties"
@@ -170,7 +170,6 @@ setup() {
 @test "[DEB] verify package purge" {
     # all remaining files are deleted by the purge
     assert_file_not_exist "/etc/elasticsearch"
-    assert_file_not_exist "/etc/elasticsearch/scripts"
     assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
     assert_file_not_exist "/etc/elasticsearch/jvm.options"
     assert_file_not_exist "/etc/elasticsearch/log4j2.properties"

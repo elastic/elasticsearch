@@ -36,6 +36,11 @@ public class TestResponseHeaderRestAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "test_response_header_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if ("password".equals(request.header("Secret"))) {
             RestResponse response = new BytesRestResponse(RestStatus.OK, "Access granted");

@@ -376,7 +376,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         OperationRouting operationRouting = new OperationRouting(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
 
-        GroupShardsIterator shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_shards:0");
+        GroupShardsIterator<ShardIterator> shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_shards:0");
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
 
@@ -443,7 +443,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
         // When replicas haven't initialized, it comes back with the primary first, then initializing replicas
-        GroupShardsIterator shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_replica_first");
+        GroupShardsIterator<ShardIterator> shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_replica_first");
         assertThat(shardIterators.size(), equalTo(2)); // two potential shards
         ShardIterator iter = shardIterators.iterator().next();
         assertThat(iter.size(), equalTo(3)); // three potential candidates for the shard

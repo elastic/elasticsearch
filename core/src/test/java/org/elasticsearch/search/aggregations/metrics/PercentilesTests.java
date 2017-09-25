@@ -19,15 +19,19 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.script.Script;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregationBuilder;
+
+import java.io.IOException;
 
 public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggregationBuilder> {
 
     @Override
     protected PercentilesAggregationBuilder createTestAggregatorBuilder() {
-        PercentilesAggregationBuilder factory = new PercentilesAggregationBuilder(randomAsciiOfLengthBetween(1, 20));
+        PercentilesAggregationBuilder factory = new PercentilesAggregationBuilder(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.keyed(randomBoolean());
         }
@@ -46,19 +50,7 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
             factory.compression(randomIntBetween(1, 50000));
         }
         String field = randomNumericField();
-        int randomFieldBranch = randomInt(3);
-        switch (randomFieldBranch) {
-        case 0:
-            factory.field(field);
-            break;
-        case 1:
-            factory.field(field);
-            factory.script(new Script("_value + 1"));
-            break;
-        case 2:
-            factory.script(new Script("doc[" + field + "] + 1"));
-            break;
-        }
+        randomFieldOrScript(factory, field);
         if (randomBoolean()) {
             factory.missing("MISSING");
         }
@@ -68,4 +60,37 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
         return factory;
     }
 
+    public void testNullOrEmptyPercentilesThrows() throws IOException {
+        PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("testAgg");
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> builder.percentiles(null));
+        assertEquals("[percents] must not be null: [testAgg]", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> builder.percentiles(new double[0]));
+        assertEquals("[percents] must not be empty: [testAgg]", ex.getMessage());
+    }
+
+    public void testExceptionMultipleMethods() throws IOException {
+        final String illegalAgg = "{\n" +
+            "       \"percentiles\": {\n" +
+            "           \"field\": \"load_time\",\n" +
+            "           \"percents\": [99],\n" +
+            "           \"tdigest\": {\n" +
+            "               \"compression\": 200\n" +
+            "           },\n" +
+            "           \"hdr\": {\n" +
+            "               \"number_of_significant_value_digits\": 3\n" +
+            "           }\n" +
+            "   }\n" +
+            "}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, illegalAgg);
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        ParsingException e = expectThrows(ParsingException.class,
+                () -> PercentilesAggregationBuilder.parse("myPercentiles", parser));
+        assertEquals(
+                "ParsingException[[percentiles] failed to parse field [hdr]]; "
+                + "nested: IllegalStateException[Only one percentiles method should be declared.];; "
+                + "java.lang.IllegalStateException: Only one percentiles method should be declared.",
+                e.getDetailedMessage());
+    }
 }

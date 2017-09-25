@@ -25,8 +25,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.Callback;
-import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShard;
@@ -39,7 +37,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
@@ -54,9 +52,9 @@ public class RecoveriesCollection {
 
     private final Logger logger;
     private final ThreadPool threadPool;
-    private final Callback<Long> ensureClusterStateVersionCallback;
+    private final LongConsumer ensureClusterStateVersionCallback;
 
-    public RecoveriesCollection(Logger logger, ThreadPool threadPool, Callback<Long> ensureClusterStateVersionCallback) {
+    public RecoveriesCollection(Logger logger, ThreadPool threadPool, LongConsumer ensureClusterStateVersionCallback) {
         this.logger = logger;
         this.threadPool = threadPool;
         this.ensureClusterStateVersionCallback = ensureClusterStateVersionCallback;

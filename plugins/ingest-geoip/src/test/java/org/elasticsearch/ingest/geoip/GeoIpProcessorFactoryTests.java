@@ -76,7 +76,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
 
         GeoIpProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
@@ -93,7 +93,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("ignore_missing", true);
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
 
         GeoIpProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
@@ -110,7 +110,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb.gz");
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
 
         GeoIpProcessor processor = factory.create(null, processorTag, config);
 
@@ -231,7 +231,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb.gz")),
             geoIpConfigDir.resolve("GeoLite2-Country.mmdb.gz"));
 
-        // Loading another database reader instances, because otherwise we can't test lazy loading as the the
+        // Loading another database reader instances, because otherwise we can't test lazy loading as the
         // database readers used at class level are reused between tests. (we want to keep that otherwise running this
         // test will take roughly 4 times more time)
         Map<String, DatabaseReaderLazyLoader> databaseReaders =

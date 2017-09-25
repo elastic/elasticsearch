@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -70,8 +71,7 @@ public class SearchSliceIT extends ESIntegTestCase {
             .endObject().string();
         int numberOfShards = randomIntBetween(1, 7);
         assertAcked(client().admin().indices().prepareCreate("test")
-            .setSettings("number_of_shards", numberOfShards,
-                         "index.max_slices_per_scroll", 10000)
+            .setSettings(Settings.builder().put("number_of_shards", numberOfShards).put("index.max_slices_per_scroll", 10000))
             .addMapping("type", mapping, XContentType.JSON));
         ensureGreen();
 
@@ -83,12 +83,12 @@ public class SearchSliceIT extends ESIntegTestCase {
         for (int i = 0; i < NUM_DOCS; i++) {
             XContentBuilder builder = jsonBuilder();
             builder.startObject();
-            builder.field("invalid_random_kw", randomAsciiOfLengthBetween(5, 20));
+            builder.field("invalid_random_kw", randomAlphaOfLengthBetween(5, 20));
             builder.field("random_int", randomInt());
             builder.field("static_int", 0);
             builder.field("invalid_random_int", randomInt());
             builder.endObject();
-            requests.add(client().prepareIndex("test", "test").setSource(builder));
+            requests.add(client().prepareIndex("test", "type").setSource(builder));
         }
         indexRandom(true, requests);
         return numberOfShards;

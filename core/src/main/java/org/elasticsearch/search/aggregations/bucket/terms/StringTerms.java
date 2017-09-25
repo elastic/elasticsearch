@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.io.IOException;
 import java.util.List;
@@ -75,8 +76,8 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
         }
 
         @Override
-        int compareTerm(Terms.Bucket other) {
-            return termBytes.compareTo(((Bucket) other).termBytes);
+        public int compareKey(Bucket other) {
+            return termBytes.compareTo(other.termBytes);
         }
 
         @Override
@@ -100,7 +101,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
         }
     }
 
-    public StringTerms(String name, Terms.Order order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
+    public StringTerms(String name, BucketOrder order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
             List<Bucket> buckets, long docCountError) {
         super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format,

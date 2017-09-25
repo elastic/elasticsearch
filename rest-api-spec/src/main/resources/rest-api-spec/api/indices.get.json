@@ -4,17 +4,12 @@
     "methods":[ "GET" ],
     "url":{
       "path":"/{index}",
-      "paths":[ "/{index}", "/{index}/{feature}" ],
+      "paths":[ "/{index}" ],
       "parts":{
         "index":{
           "type":"list",
           "required" : true,
           "description":"A comma-separated list of index names"
-        },
-        "feature":{
-          "type":"list",
-          "description":"A comma-separated list of features",
-          "options": ["_settings", "_mappings", "_aliases"]
         }
       },
       "params":{

@@ -19,16 +19,6 @@
 
 package org.elasticsearch.search.query;
 
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -38,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
@@ -56,6 +47,17 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+
 public class QueryStringIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -67,10 +69,6 @@ public class QueryStringIT extends ESIntegTestCase {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
-    }
-
-    private QueryStringQueryBuilder lenientQuery(String queryText) {
-        return queryStringQuery(queryText).lenient(true);
     }
 
     public void testBasicAllQuery() throws Exception {
@@ -91,10 +89,6 @@ public class QueryStringIT extends ESIntegTestCase {
         resp = client().prepareSearch("test").setQuery(queryStringQuery("Bar")).get();
         assertHitCount(resp, 3L);
         assertHits(resp.getHits(), "1", "2", "3");
-
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("foa")).get();
-        assertHitCount(resp, 1L);
-        assertHits(resp.getHits(), "3");
     }
 
     public void testWithDate() throws Exception {
@@ -144,7 +138,7 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHits(resp.getHits(), "1", "2");
         assertHitCount(resp, 2L);
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("127.0.0.1 1.8")).get();
+        resp = client().prepareSearch("test").setQuery(queryStringQuery("127.0.0.1 OR 1.8")).get();
         assertHits(resp.getHits(), "1", "2");
         assertHitCount(resp, 2L);
     }
@@ -160,8 +154,6 @@ public class QueryStringIT extends ESIntegTestCase {
         resp = client().prepareSearch("test").setQuery(queryStringQuery("Bar")).get();
         assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(queryStringQuery("Baz")).get();
-        assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("sbaz")).get();
         assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(queryStringQuery("19")).get();
         assertHits(resp.getHits(), "1");
@@ -180,8 +172,6 @@ public class QueryStringIT extends ESIntegTestCase {
         resp = client().prepareSearch("test").setQuery(queryStringQuery("1.7")).get();
         assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(queryStringQuery("1.5")).get();
-        assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("12.23")).get();
         assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(queryStringQuery("127.0.0.1")).get();
         assertHits(resp.getHits(), "1");
@@ -207,47 +197,52 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHitCount(resp, 2L);
 
         resp = client().prepareSearch("test")
-                .setQuery(queryStringQuery("Foo Bar").splitOnWhitespace(false))
+                .setQuery(queryStringQuery("Foo Bar"))
                 .get();
         assertHits(resp.getHits(), "1", "2", "3");
         assertHitCount(resp, 3L);
     }
 
-    public void testExplicitAllFieldsRequested() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index-with-all.json");
-        prepareCreate("test2").setSource(indexBody, XContentType.JSON).get();
-        ensureGreen("test2");
+    public void testAllFields() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+
+        Settings.Builder settings = Settings.builder().put("index.query.default_field", "*");
+        prepareCreate("test_1").setSource(indexBody, XContentType.JSON).setSettings(settings).get();
+        ensureGreen("test_1");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test2", "doc", "1").setSource("f1", "foo", "f2", "eggplant"));
+        reqs.add(client().prepareIndex("test_1", "doc", "1").setSource("f1", "foo", "f2", "eggplant"));
         indexRandom(true, false, reqs);
 
-        SearchResponse resp = client().prepareSearch("test2").setQuery(
-                queryStringQuery("foo eggplent").defaultOperator(Operator.AND)).get();
+        SearchResponse resp = client().prepareSearch("test_1").setQuery(
+            queryStringQuery("foo eggplant").defaultOperator(Operator.AND)).get();
         assertHitCount(resp, 0L);
 
-        resp = client().prepareSearch("test2").setQuery(
-                queryStringQuery("foo eggplent").defaultOperator(Operator.AND).useAllFields(true)).get();
+        resp = client().prepareSearch("test_1").setQuery(
+            queryStringQuery("foo eggplant").defaultOperator(Operator.OR)).get();
         assertHits(resp.getHits(), "1");
         assertHitCount(resp, 1L);
-
-        Exception e = expectThrows(Exception.class, () ->
-                client().prepareSearch("test2").setQuery(
-                        queryStringQuery("blah").field("f1").useAllFields(true)).get());
-        assertThat(ExceptionsHelper.detailedMessage(e),
-                containsString("cannot use [all_fields] parameter in conjunction with [default_field] or [fields]"));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl="currently can't perform phrase queries on fields that don't support positions")
+
     public void testPhraseQueryOnFieldWithNoPositions() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo bar", "f4", "eggplant parmesan"));
         reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "foo bar", "f4", "chicken parmesan"));
         indexRandom(true, false, reqs);
 
-        SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("\"eggplant parmesan\"")).get();
-        assertHits(resp.getHits(), "1");
-        assertHitCount(resp, 1L);
+        SearchResponse resp = client().prepareSearch("test")
+            .setQuery(queryStringQuery("\"eggplant parmesan\"").lenient(true)).get();
+        assertHitCount(resp, 0L);
+
+        Exception exc = expectThrows(Exception.class,
+            () -> client().prepareSearch("test").setQuery(
+                queryStringQuery("f4:\"eggplant parmesan\"").lenient(false)
+            ).get()
+        );
+        IllegalStateException ise = (IllegalStateException) ExceptionsHelper.unwrap(exc, IllegalStateException.class);
+        assertNotNull(ise);
+        assertThat(ise.getMessage(), containsString("field:[f4] was indexed without position data; cannot run PhraseQuery"));
     }
 
     public void testBooleanStrictQuery() throws Exception {
@@ -311,29 +306,19 @@ public class QueryStringIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch(index).setQuery(
             QueryBuilders.queryStringQuery("say what the fudge")
                 .defaultField("field")
-                .splitOnWhitespace(false)
                 .defaultOperator(Operator.AND)
+                .autoGenerateSynonymsPhraseQuery(false)
                 .analyzer("lower_graphsyns")).get();
 
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
 
-        // and, split on whitespace means we should not recognize the multi-word synonym
-        searchResponse = client().prepareSearch(index).setQuery(
-            QueryBuilders.queryStringQuery("say what the fudge")
-                .defaultField("field")
-                .splitOnWhitespace(true)
-                .defaultOperator(Operator.AND)
-                .analyzer("lower_graphsyns")).get();
-
-        assertNoSearchHits(searchResponse);
-
         // or
         searchResponse = client().prepareSearch(index).setQuery(
             QueryBuilders.queryStringQuery("three what the fudge foo")
                 .defaultField("field")
-                .splitOnWhitespace(false)
                 .defaultOperator(Operator.OR)
+                .autoGenerateSynonymsPhraseQuery(false)
                 .analyzer("lower_graphsyns")).get();
 
         assertHitCount(searchResponse, 6L);
@@ -343,13 +328,54 @@ public class QueryStringIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch(index).setQuery(
             QueryBuilders.queryStringQuery("three what the fudge foo")
                 .defaultField("field")
-                .splitOnWhitespace(false)
                 .defaultOperator(Operator.OR)
+                .autoGenerateSynonymsPhraseQuery(false)
                 .analyzer("lower_graphsyns")
                 .minimumShouldMatch("80%")).get();
 
         assertHitCount(searchResponse, 3L);
         assertSearchHits(searchResponse, "1", "2", "6");
+
+        // multi terms synonyms phrase
+        searchResponse = client().prepareSearch(index).setQuery(
+            QueryBuilders.queryStringQuery("what the fudge")
+                .defaultField("field")
+                .defaultOperator(Operator.AND)
+                .analyzer("lower_graphsyns"))
+            .get();
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse,  "1", "2", "3");
+    }
+
+    public void testLimitOnExpandedFields() throws Exception {
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        builder.startObject("type1");
+        builder.startObject("properties");
+        for (int i = 0; i < 1025; i++) {
+            builder.startObject("field" + i).field("type", "text").endObject();
+        }
+        builder.endObject(); // properties
+        builder.endObject(); // type1
+        builder.endObject();
+
+        assertAcked(prepareCreate("toomanyfields")
+                .setSettings(Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1200))
+                .addMapping("type1", builder));
+
+        client().prepareIndex("toomanyfields", "type1", "1").setSource("field171", "foo bar baz").get();
+        refresh();
+
+        Exception e = expectThrows(Exception.class, () -> {
+                QueryStringQueryBuilder qb = queryStringQuery("bar");
+                if (randomBoolean()) {
+                    qb.useAllFields(true);
+                }
+                logger.info("--> using {}", qb);
+                client().prepareSearch("toomanyfields").setQuery(qb).get();
+                });
+        assertThat(ExceptionsHelper.detailedMessage(e),
+                containsString("field expansion matches too many fields, limit: 1024, got: 1025"));
     }
 
     private void assertHits(SearchHits hits, String... ids) {

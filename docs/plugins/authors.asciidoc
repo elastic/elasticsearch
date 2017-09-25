@@ -76,6 +76,7 @@ Read more in {ref}/integration-tests.html#changing-node-configuration[Changing N
 
 
 [float]
+[[plugin-authors-jsm]]
 === Java Security permissions
 
 Some plugins may need additional security permissions. A plugin can include
@@ -111,4 +112,3 @@ AccessController.doPrivileged(
 
 See http://www.oracle.com/technetwork/java/seccodeguide-139067.html[Secure Coding Guidelines for Java SE]
 for more information.
-

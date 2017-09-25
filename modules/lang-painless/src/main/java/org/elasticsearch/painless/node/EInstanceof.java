@@ -59,13 +59,13 @@ public final class EInstanceof extends AExpression {
 
         // ensure the specified type is part of the definition
         try {
-            type = Definition.getType(this.type);
+            type = locals.getDefinition().getType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         // map to wrapped type for primitive types
-        resolvedType = type.sort.primitive ? type.sort.boxed : type.clazz;
+        resolvedType = type.clazz.isPrimitive() ? Definition.getBoxedType(type).clazz : type.clazz;
 
         // analyze and cast the expression
         expression.analyze(locals);
@@ -73,9 +73,9 @@ public final class EInstanceof extends AExpression {
         expression = expression.cast(locals);
 
         // record if the expression returns a primitive
-        primitiveExpression = expression.actual.sort.primitive;
+        primitiveExpression = expression.actual.clazz.isPrimitive();
         // map to wrapped type for primitive types
-        expressionType = expression.actual.sort.primitive ? expression.actual.sort.boxed : type.clazz;
+        expressionType = expression.actual.clazz.isPrimitive() ? Definition.getBoxedType(expression.actual).clazz : type.clazz;
 
         actual = Definition.BOOLEAN_TYPE;
     }

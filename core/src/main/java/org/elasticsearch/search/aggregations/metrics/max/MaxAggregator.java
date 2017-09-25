@@ -82,10 +82,12 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                     maxes = bigArrays.grow(maxes, bucket + 1);
                     maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
                 }
-                final double value = values.get(doc);
-                double max = maxes.get(bucket);
-                max = Math.max(max, value);
-                maxes.set(bucket, max);
+                if (values.advanceExact(doc)) {
+                    final double value = values.doubleValue();
+                    double max = maxes.get(bucket);
+                    max = Math.max(max, value);
+                    maxes.set(bucket, max);
+                }
             }
 
         };

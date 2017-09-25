@@ -38,7 +38,7 @@ public class CustomRealmIT extends ESIntegTestCase {
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
                 .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
-                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
+                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString())
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, "security4")
                 .build();
     }
@@ -78,7 +78,7 @@ public class CustomRealmIT extends ESIntegTestCase {
                 .put("cluster.name", clusterName)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
-                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
+                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString())
                 .build();
         try (TransportClient client = new PreBuiltXPackTransportClient(settings)) {
             client.addTransportAddress(publishAddress);
@@ -98,7 +98,7 @@ public class CustomRealmIT extends ESIntegTestCase {
                 .put("cluster.name", clusterName)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER + randomAlphaOfLength(1))
-                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
+                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString())
                 .build();
         try (TransportClient client = new PreBuiltXPackTransportClient(settings)) {
             client.addTransportAddress(publishAddress);

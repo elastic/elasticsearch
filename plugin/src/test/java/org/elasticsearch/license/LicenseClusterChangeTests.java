@@ -47,7 +47,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
     public void testNotificationOnNewLicense() throws Exception {
         ClusterState oldState = ClusterState.builder(new ClusterName("a")).build();
         final License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
-        MetaData metaData = MetaData.builder().putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license)).build();
+        MetaData metaData = MetaData.builder().putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license, null)).build();
         ClusterState newState = ClusterState.builder(new ClusterName("a")).metaData(metaData).build();
         licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         assertThat(licenseState.activeUpdates.size(), equalTo(1));
@@ -56,7 +56,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
 
     public void testNoNotificationOnExistingLicense() throws Exception {
         final License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
-        MetaData metaData = MetaData.builder().putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license)).build();
+        MetaData metaData = MetaData.builder().putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license, null)).build();
         ClusterState newState = ClusterState.builder(new ClusterName("a")).metaData(metaData).build();
         ClusterState oldState = ClusterState.builder(newState).build();
         licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));

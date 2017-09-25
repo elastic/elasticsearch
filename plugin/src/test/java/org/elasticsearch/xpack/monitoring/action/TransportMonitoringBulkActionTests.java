@@ -131,7 +131,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
 
         final MonitoringBulkRequest request = new MonitoringBulkRequest();
 
-        final MonitoredSystem system = randomFrom(MonitoredSystem.KIBANA, MonitoredSystem.BEATS, MonitoredSystem.LOGSTASH);
+        final MonitoredSystem system = randomFrom(MonitoredSystem.KIBANA, MonitoredSystem.LOGSTASH);
         final String type = randomAlphaOfLength(5);
         final String id = randomBoolean() ? randomAlphaOfLength(5) : null;
         final long timestamp = randomNonNegativeLong();
@@ -198,7 +198,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
     public void testAsyncActionCreateMonitoringDocs() throws Exception {
         final List<MonitoringBulkDoc> docs = new ArrayList<>();
 
-        final MonitoredSystem system = randomFrom(MonitoredSystem.KIBANA, MonitoredSystem.BEATS, MonitoredSystem.LOGSTASH);
+        final MonitoredSystem system = randomFrom(MonitoredSystem.KIBANA, MonitoredSystem.LOGSTASH);
         final String type = randomAlphaOfLength(5);
         final String id = randomBoolean() ? randomAlphaOfLength(5) : null;
         final long timestamp = randomBoolean() ? randomNonNegativeLong() : 0L;
@@ -235,7 +235,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
 
     public void testAsyncActionCreateMonitoringDocWithNoTimestamp() throws Exception {
         final MonitoringBulkDoc monitoringBulkDoc =
-            new MonitoringBulkDoc(MonitoredSystem.BEATS, "_type", "_id", 0L, 0L, BytesArray.EMPTY, XContentType.JSON);
+            new MonitoringBulkDoc(MonitoredSystem.LOGSTASH, "_type", "_id", 0L, 0L, BytesArray.EMPTY, XContentType.JSON);
 
         final MonitoringDoc monitoringDoc =
             new TransportMonitoringBulkAction.AsyncAction(null, null, null, "", 456L, null).createMonitoringDoc(monitoringBulkDoc);

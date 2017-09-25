@@ -32,6 +32,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -127,8 +128,8 @@ public class DnRoleMapper implements UserRoleMapper {
             }
         }
 
-        try (InputStream in = Files.newInputStream(path)) {
-            Settings settings = Settings.builder().loadFromStream(path.toString(), in).build();
+        try  {
+            Settings settings = Settings.builder().loadFromPath(path).build();
 
             Map<DN, Set<String>> dnToRoles = new HashMap<>();
             Set<String> roles = settings.names();
@@ -163,7 +164,7 @@ public class DnRoleMapper implements UserRoleMapper {
             logger.debug("[{}] role mappings found in file [{}] for realm [{}/{}]", dnToRoles.size(), path.toAbsolutePath(), realmType,
                     realmName);
             return unmodifiableMap(dnToRoles);
-        } catch (IOException | YAMLException e) {
+        } catch (IOException | SettingsException e) {
             throw new ElasticsearchException("could not read realm [" + realmType + "/" + realmName + "] role mappings file [" +
                     path.toAbsolutePath() + "]", e);
         }

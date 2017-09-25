@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
+import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_IDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -347,7 +348,7 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(multiResource.getResources().size(),
                    equalTo(version + templates.size() + pipelines.size() + watcherCheck.size()));
         assertThat(version, equalTo(1));
-        assertThat(templates, hasSize(createOldTemplates ? 5 + OLD_TEMPLATE_IDS.length : 5));
+        assertThat(templates, hasSize(createOldTemplates ? TEMPLATE_IDS.length + OLD_TEMPLATE_IDS.length : TEMPLATE_IDS.length));
         assertThat(pipelines, hasSize(useIngest ? PIPELINE_IDS.length : 0));
         assertThat(watcherCheck, hasSize(clusterAlertManagement ? 1 : 0));
         assertThat(watches, hasSize(clusterAlertManagement ? ClusterAlertsUtil.WATCH_IDS.length : 0));

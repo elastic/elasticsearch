@@ -214,7 +214,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 // Disable native ML autodetect_process as the c++ controller won't be available
                 .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false);
         Settings customSettings = customSecuritySettingsSource.nodeSettings(nodeOrdinal);
-        builder.put(customSettings.getAsMap()); // handle secure settings separately
+        builder.put(customSettings, false); // handle secure settings separately
         Settings.Builder customBuilder = Settings.builder().put(customSettings);
         if (customBuilder.getSecureSettings() != null) {
             SecuritySettingsSource.addSecureSettings(builder, secureSettings ->

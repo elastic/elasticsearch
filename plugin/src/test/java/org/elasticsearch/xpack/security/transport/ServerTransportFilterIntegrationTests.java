@@ -102,7 +102,6 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
 
         // test that starting up a node works
         Settings.Builder nodeSettings = Settings.builder()
-                .put()
                 .put("node.name", "my-test-node")
                 .put("network.host", "localhost")
                 .put("cluster.name", internalCluster().getClusterName())

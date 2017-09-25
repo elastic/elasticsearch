@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -101,6 +102,7 @@ public class LicensingTribeIT extends ESIntegTestCase {
     }
 
     public void testLicensePropagateToTribeNode() throws Exception {
+        assumeTrue("License is only valid when tested against snapshot/test keys", Build.CURRENT.isSnapshot());
         // test that auto-generated trial license propagates to tribe
         assertBusy(() -> {
             GetLicenseResponse getLicenseResponse = new LicensingClient(tribeNode.client()).prepareGetLicense().get();

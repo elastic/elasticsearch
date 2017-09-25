@@ -1124,7 +1124,7 @@ public final class Settings implements ToXContentFragment {
         }
 
         /**
-         * Loads settings from the actual string content that represents them using {@link #fromXContent(XContentParser, Builder)}
+         * Loads settings from the actual string content that represents them using {@link #fromXContent(XContentParser)}
          */
         public Builder loadFromSource(String source, XContentType xContentType) {
             try (XContentParser parser =  XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY, source)) {
@@ -1136,7 +1136,7 @@ public final class Settings implements ToXContentFragment {
         }
 
         /**
-         * Loads settings from a url that represents them using {@link #fromXContent(XContentParser, Builder)}
+         * Loads settings from a url that represents them using {@link #fromXContent(XContentParser)}
          * Note: Loading from a path doesn't allow <code>null</code> values in the incoming xcontent
          */
         public Builder loadFromPath(Path path) throws IOException {

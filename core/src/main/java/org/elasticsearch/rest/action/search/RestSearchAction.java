@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
+import java.util.function.IntConsumer;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -74,7 +75,7 @@ public class RestSearchAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         request.withContentOrSourceParamParserOrNull(parser ->
-            parseSearchRequest(searchRequest, request, parser));
+            parseSearchRequest(searchRequest, request, parser, size -> searchRequest.source().size(size)));
 
         return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
@@ -84,9 +85,11 @@ public class RestSearchAction extends BaseRestHandler {
      *
      * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
      *        parameter
+     * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
      */
     public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request,
-                                          XContentParser requestContentParser) throws IOException {
+                                          XContentParser requestContentParser,
+                                          IntConsumer setSize) throws IOException {
 
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
@@ -118,7 +121,7 @@ public class RestSearchAction extends BaseRestHandler {
         } else {
             searchRequest.searchType(searchType);
         }
-        parseSearchSource(searchRequest.source(), request);
+        parseSearchSource(searchRequest.source(), request, setSize);
         searchRequest.requestCache(request.paramAsBoolean("request_cache", null));
 
         String scroll = request.param("scroll");
@@ -136,7 +139,7 @@ public class RestSearchAction extends BaseRestHandler {
      * Parses the rest request on top of the SearchSourceBuilder, preserving
      * values that are not overridden by the rest request.
      */
-    private static void parseSearchSource(final SearchSourceBuilder searchSourceBuilder, RestRequest request) {
+    private static void parseSearchSource(final SearchSourceBuilder searchSourceBuilder, RestRequest request, IntConsumer setSize) {
         QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
         if (queryBuilder != null) {
             searchSourceBuilder.query(queryBuilder);
@@ -148,7 +151,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
         int size = request.paramAsInt("size", -1);
         if (size != -1) {
-            searchSourceBuilder.size(size);
+            setSize.accept(size);
         }
 
         if (request.hasParam("explain")) {

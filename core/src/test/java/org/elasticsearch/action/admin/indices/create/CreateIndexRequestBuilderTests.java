@@ -83,7 +83,7 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
      */
     public void testSetSettings() throws IOException {
         CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
-        builder.setSettings(KEY, VALUE);
+        builder.setSettings(Settings.builder().put(KEY, VALUE));
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
         builder.setSettings("{\""+KEY+"\" : \""+VALUE+"\"}", XContentType.JSON);

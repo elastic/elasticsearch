@@ -537,6 +537,12 @@ Map<String, String> expansionsForDistribution(distributionType) {
     'heap.min': defaultHeapSize,
     'heap.max': defaultHeapSize,
 
+    'heap.dump.path': [
+      'deb': "-XX:HeapDumpPath=/var/lib/elasticsearch",
+      'rpm': "-XX:HeapDumpPath=/var/lib/elasticsearch",
+      'def': "#-XX:HeapDumpPath=/heap/dump/path"
+    ],
+
     'stopping.timeout': [
       'rpm': 86400,
     ],

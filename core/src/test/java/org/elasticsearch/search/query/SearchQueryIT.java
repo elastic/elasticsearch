@@ -263,9 +263,10 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testCommonTermsQuery() throws Exception {
+
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field1", "type=text,analyzer=whitespace")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)).get();
         indexRandom(true, client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
                 client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree") );
@@ -554,7 +555,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTypeFilter() throws Exception {
-        assertAcked(prepareCreate("test").setSettings("index.version.created", Version.V_5_6_0.id));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type2", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value1"),
@@ -956,7 +957,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testQuotedQueryStringWithBoost() throws InterruptedException, ExecutionException {
         float boost = 10.0f;
-        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("important", "phrase match", "less_important", "nothing important"),
                 client().prepareIndex("test", "type1", "2").setSource("important", "nothing important", "less_important", "phrase match")
         );
@@ -1219,7 +1220,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testBasicQueryByIdMultiType() throws Exception {
-        assertAcked(prepareCreate("test").setSettings("index.version.created", Version.V_5_6_0.id));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
         client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
@@ -1392,7 +1393,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testMustNot() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test")
                 //issue manifested only with shards>=2
-                .setSettings(SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS)));
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS))));
 
 
         indexRandom(true, client().prepareIndex("test", "test", "1").setSource("description", "foo other anything bar"),

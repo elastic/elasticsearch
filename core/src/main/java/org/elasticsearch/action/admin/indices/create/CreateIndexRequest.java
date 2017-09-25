@@ -147,10 +147,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * A simplified version of settings that takes key value pairs settings.
+     * The settings to create the index with.
      */
-    public CreateIndexRequest settings(Object... settings) {
-        this.settings = Settings.builder().put(settings).build();
+    public CreateIndexRequest settings(Settings.Builder settings) {
+        this.settings = settings.build();
         return this;
     }
 
@@ -159,14 +159,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest settings(Settings settings) {
         this.settings = settings;
-        return this;
-    }
-
-    /**
-     * The settings to create the index with.
-     */
-    public CreateIndexRequest settings(Settings.Builder settings) {
-        this.settings = settings.build();
         return this;
     }
 

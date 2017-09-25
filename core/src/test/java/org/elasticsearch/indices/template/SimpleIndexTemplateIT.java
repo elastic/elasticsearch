@@ -392,7 +392,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .get();
 
         assertAcked(prepareCreate("test_index")
-                .setSettings("index.version.created", Version.V_5_6_0.id) // allow for multiple version
+                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)) // allow for multiple version
                 .addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));
         ensureGreen();
 

@@ -137,7 +137,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
                 Settings.builder()
                     .put(settings)
                     // trace zenfd actions but keep the default otherwise
-                    .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), singleton(TransportLivenessAction.NAME))
+                    .putArray(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), TransportLivenessAction.NAME)
                     .build(),
                 new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, circuitBreakerService,
                     namedWriteableRegistry, new NetworkService(Collections.emptyList()), version),

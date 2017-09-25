@@ -9,7 +9,6 @@ import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.RequestType;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Objects;
@@ -49,7 +48,7 @@ public abstract class AbstractExceptionResponse extends Response {
     }
 
     @Override
-    protected final void writeTo(int clientVersion, DataOutput out) throws IOException {
+    protected final void writeTo(SqlDataOutput out) throws IOException {
         out.writeUTF(message);
         out.writeUTF(cause);
         exceptionType.writeTo(out);

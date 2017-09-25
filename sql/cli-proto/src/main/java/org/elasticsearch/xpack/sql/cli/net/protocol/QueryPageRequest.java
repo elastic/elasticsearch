@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.cli.net.protocol;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryPageRequest;
 import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
 
-import java.io.DataInput;
 import java.io.IOException;
 
 public class QueryPageRequest extends AbstractQueryPageRequest {
@@ -17,8 +17,8 @@ public class QueryPageRequest extends AbstractQueryPageRequest {
         super(cursor, timeout);
     }
 
-    QueryPageRequest(int clientVersion, DataInput in) throws IOException {
-        super(clientVersion, in);
+    QueryPageRequest(SqlDataInput in) throws IOException {
+        super(in);
     }
 
     @Override

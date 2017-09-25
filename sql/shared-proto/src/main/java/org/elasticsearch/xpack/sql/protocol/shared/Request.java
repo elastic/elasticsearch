@@ -20,7 +20,7 @@ public abstract class Request {
      * Write this request to the {@link DataOutput}. Implementers should
      * be kind and stick this right under the ctor that reads the response.
      */
-    protected abstract void writeTo(DataOutput out) throws IOException;
+    protected abstract void writeTo(SqlDataOutput out) throws IOException;
 
     /**
      * Body to go into the {@link #toString()} result.

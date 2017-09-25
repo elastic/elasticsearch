@@ -9,9 +9,9 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.ResponseType;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataOutput;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +38,7 @@ public class MetaTableResponse extends Response {
     }
 
     @Override
-    public void writeTo(int clientVersion, DataOutput out) throws IOException {
+    public void writeTo(SqlDataOutput out) throws IOException {
         out.writeInt(tables.size());
         for (String t : tables) {
             out.writeUTF(t);

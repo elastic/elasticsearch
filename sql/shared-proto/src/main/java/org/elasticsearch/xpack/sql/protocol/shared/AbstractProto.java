@@ -32,7 +32,7 @@ public abstract class AbstractProto {
     public void writeRequest(Request request, DataOutput out) throws IOException {
         writeHeader(CURRENT_VERSION, out);
         request.requestType().writeTo(out);
-        request.writeTo(out);
+        request.writeTo(new SqlDataOutput(out, CURRENT_VERSION));
     }
 
     public Request readRequest(DataInput in) throws IOException {
@@ -40,13 +40,13 @@ public abstract class AbstractProto {
         if (clientVersion > CURRENT_VERSION) {
             throw new IOException("Unknown client version [" + clientVersion + "]. Always upgrade client last.");
         }
-        return readRequestType(in).reader().read(clientVersion, in);
+        return readRequestType(in).reader().read(new SqlDataInput(in, clientVersion));
     }
 
     public void writeResponse(Response response, int clientVersion, DataOutput out) throws IOException {
         writeHeader(clientVersion, out);
         response.responseType().writeTo(out);
-        response.writeTo(clientVersion, out);
+        response.writeTo(new SqlDataOutput(out, clientVersion));
     }
 
     public Response readResponse(Request request, DataInput in) throws IOException {
@@ -56,7 +56,7 @@ public abstract class AbstractProto {
                     + CURRENT_VERSION + "]. Server is busted.");
         }
         // TODO why do I need the response type at all? Just a byte for err/exception/normal, then get response type from request.
-        Response response = readResponseType(in).reader().read(request, in);
+        Response response = readResponseType(in).reader().read(request, new SqlDataInput(in, version));
         if (response.requestType() != request.requestType()) {
             throw new IOException("Expected request type to be [" + request.requestType()
                     + "] but was [" + response.requestType() + "]. Server is busted.");
@@ -107,7 +107,7 @@ public abstract class AbstractProto {
     protected abstract ResponseType readResponseType(DataInput in) throws IOException;
     @FunctionalInterface
     protected interface RequestReader {
-        Request read(int clientVersion, DataInput in) throws IOException;
+        Request read(SqlDataInput in) throws IOException;
     }
     protected interface RequestType {
         void writeTo(DataOutput out) throws IOException;
@@ -115,7 +115,7 @@ public abstract class AbstractProto {
     }
     @FunctionalInterface
     protected interface ResponseReader {
-        Response read(Request request, DataInput in) throws IOException;
+        Response read(Request request, SqlDataInput in) throws IOException;
     }
     protected interface ResponseType {
         void writeTo(DataOutput out) throws IOException;

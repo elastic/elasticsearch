@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.protocol.shared;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Objects;
 
@@ -35,7 +33,7 @@ public abstract class AbstractInfoRequest extends Request {
         this.osVersion = osVersion;
     }
 
-    protected AbstractInfoRequest(int clientVersion, DataInput in) throws IOException {
+    protected AbstractInfoRequest(SqlDataInput in) throws IOException {
         jvmVersion = in.readUTF();
         jvmVendor = in.readUTF();
         jvmClassPath = in.readUTF();
@@ -44,7 +42,7 @@ public abstract class AbstractInfoRequest extends Request {
     }
 
     @Override
-    public final void writeTo(DataOutput out) throws IOException {
+    public final void writeTo(SqlDataOutput out) throws IOException {
         out.writeUTF(jvmVersion);
         out.writeUTF(jvmVendor);
         out.writeUTF(jvmClassPath);

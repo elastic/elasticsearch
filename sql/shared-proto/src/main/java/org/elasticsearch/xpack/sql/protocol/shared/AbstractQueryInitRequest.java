@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.protocol.shared;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.TimeZone;
@@ -29,7 +27,7 @@ public abstract class AbstractQueryInitRequest extends Request {
         this.timeout = timeout;
     }
 
-    protected AbstractQueryInitRequest(int clientVersion, DataInput in) throws IOException {
+    protected AbstractQueryInitRequest(SqlDataInput in) throws IOException {
         query = in.readUTF();
         fetchSize = in.readInt();
         timeZone = TimeZone.getTimeZone(in.readUTF());
@@ -37,7 +35,7 @@ public abstract class AbstractQueryInitRequest extends Request {
     }
 
     @Override
-    public void writeTo(DataOutput out) throws IOException {
+    public void writeTo(SqlDataOutput out) throws IOException {
         out.writeUTF(query);
         out.writeInt(fetchSize);
         out.writeUTF(timeZone.getID());

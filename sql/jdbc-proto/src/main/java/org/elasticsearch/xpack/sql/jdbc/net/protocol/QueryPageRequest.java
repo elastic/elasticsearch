@@ -9,8 +9,8 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryPageRequest;
 import org.elasticsearch.xpack.sql.protocol.shared.Nullable;
 import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
 
-import java.io.DataInput;
 import java.io.IOException;
 
 public class QueryPageRequest extends AbstractQueryPageRequest {
@@ -21,8 +21,8 @@ public class QueryPageRequest extends AbstractQueryPageRequest {
         this.data = data;
     }
 
-    QueryPageRequest(int clientVersion, DataInput in) throws IOException {
-        super(clientVersion, in);
+    QueryPageRequest(SqlDataInput in) throws IOException {
+        super(in);
         this.data = null; // data isn't used on the server side
     }
 

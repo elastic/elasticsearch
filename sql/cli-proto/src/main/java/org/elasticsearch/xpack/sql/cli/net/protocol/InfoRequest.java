@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.cli.net.protocol;
 
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractInfoRequest;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
 
-import java.io.DataInput;
 import java.io.IOException;
 
 /**
@@ -26,8 +26,8 @@ public class InfoRequest extends AbstractInfoRequest {
         super(jvmVersion, jvmVendor, jvmClassPath, osName, osVersion);
     }
 
-    InfoRequest(int clientVersion, DataInput in) throws IOException {
-        super(clientVersion, in);
+    InfoRequest(SqlDataInput in) throws IOException {
+        super(in);
     }
 
     @Override

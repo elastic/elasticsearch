@@ -27,21 +27,21 @@ public abstract class RoundTripTestUtils {
         // Only static utilities here
     }
 
-    public static <T> void assertRoundTrip(T example, CheckedBiConsumer<T, DataOutput, IOException> encode,
-            CheckedFunction<DataInput, T, IOException> decode) throws IOException {
-        T once = roundTrip(example, encode, decode);
+    public static <T> void assertRoundTrip(T example, CheckedBiConsumer<T, DataOutput, IOException> writeTo,
+            CheckedFunction<DataInput, T, IOException> readFrom) throws IOException {
+        T once = roundTrip(example, writeTo, readFrom);
         assertEquals(example, once);
-        T twice = roundTrip(once, encode, decode);
+        T twice = roundTrip(once, writeTo, readFrom);
         assertEquals(example, twice);
         assertEquals(once, twice);
     }
 
-    public static <T> T roundTrip(T example, CheckedBiConsumer<T, DataOutput, IOException> encode,
-            CheckedFunction<DataInput, T, IOException> decode) throws IOException {
+    public static <T> T roundTrip(T example, CheckedBiConsumer<T, DataOutput, IOException> writeTo,
+            CheckedFunction<DataInput, T, IOException> readFrom) throws IOException {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            encode.accept(example, new DataOutputStream(out));
+            writeTo.accept(example, new DataOutputStream(out));
             try (InputStream in = new ByteArrayInputStream(out.toByteArray())) {
-                T decoded = decode.apply(new DataInputStream(in));
+                T decoded = readFrom.apply(new DataInputStream(in));
                 assertEquals("should have emptied the stream", 0, in.available());
                 return decoded;
             }

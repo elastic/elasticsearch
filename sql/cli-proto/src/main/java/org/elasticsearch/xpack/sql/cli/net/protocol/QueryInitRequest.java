@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.cli.net.protocol;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
 import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.util.TimeZone;
 
@@ -21,8 +21,8 @@ public class QueryInitRequest extends AbstractQueryInitRequest {
         super(query, fetchSize, timeZone, timeout);
     }
 
-    QueryInitRequest(int clientVersion, DataInput in) throws IOException {
-        super(clientVersion, in);
+    QueryInitRequest(SqlDataInput in) throws IOException {
+        super(in);
     }
 
     @Override

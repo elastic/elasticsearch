@@ -9,9 +9,9 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.ResponseType;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryResponse;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Objects;
 
@@ -23,7 +23,7 @@ public class QueryPageResponse extends AbstractQueryResponse {
         this.data = data;
     }
 
-    QueryPageResponse(Request request, DataInput in) throws IOException {
+    QueryPageResponse(Request request, SqlDataInput in) throws IOException {
         super(request, in);
         QueryPageRequest queryPageRequest = (QueryPageRequest) request;
         data = queryPageRequest.data();
@@ -31,8 +31,8 @@ public class QueryPageResponse extends AbstractQueryResponse {
     }
 
     @Override
-    public void writeTo(int clientVersion, DataOutput out) throws IOException {
-        super.writeTo(clientVersion, out);
+    public void writeTo(SqlDataOutput out) throws IOException {
+        super.writeTo(out);
         data.writeTo(out);
     }
 

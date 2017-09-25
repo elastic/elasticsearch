@@ -9,9 +9,9 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.ResponseType;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryResponse;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +29,7 @@ public class QueryInitResponse extends AbstractQueryResponse {
         this.data = data;
     }
 
-    QueryInitResponse(Request request, DataInput in) throws IOException {
+    QueryInitResponse(Request request, SqlDataInput in) throws IOException {
         super(request, in);
         int size = in.readInt();
         List<ColumnInfo> columns = new ArrayList<>(size);
@@ -44,8 +44,8 @@ public class QueryInitResponse extends AbstractQueryResponse {
     }
 
     @Override
-    public void writeTo(int clientVersion, DataOutput out) throws IOException {
-        super.writeTo(clientVersion, out);
+    public void writeTo(SqlDataOutput out) throws IOException {
+        super.writeTo(out);
         out.writeInt(columns.size());
         for (ColumnInfo c : columns) {
             c.writeTo(out);

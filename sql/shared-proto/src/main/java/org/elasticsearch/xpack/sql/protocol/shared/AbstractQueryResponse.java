@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.protocol.shared;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
@@ -35,7 +34,7 @@ public abstract class AbstractQueryResponse extends Response {
     }
 
     @Override
-    protected void writeTo(int clientVersion, DataOutput out) throws IOException {
+    protected void writeTo(SqlDataOutput out) throws IOException {
         out.writeLong(tookNanos);
         out.writeInt(cursor.length);
         out.write(cursor);

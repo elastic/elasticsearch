@@ -19,11 +19,8 @@ public abstract class Response {
 
     /**
      * Write this response to the {@link DataOutput}.
-     * @param clientVersion The version of the client that requested
-     *      the message. This should be used to send a response compatible
-     *      with the client.
      */
-    protected abstract void writeTo(int clientVersion, DataOutput out) throws IOException;
+    protected abstract void writeTo(SqlDataOutput out) throws IOException;
 
     /**
      * Body to go into the {@link #toString()} result.

@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.cli.net.protocol;
 
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryResponse;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataOutput;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Objects;
 
@@ -30,8 +30,8 @@ public abstract class QueryResponse extends AbstractQueryResponse {
     }
 
     @Override
-    protected void writeTo(int clientVersion, DataOutput out) throws IOException {
-        super.writeTo(clientVersion, out);
+    protected void writeTo(SqlDataOutput out) throws IOException {
+        super.writeTo(out);
         out.writeUTF(data);
     }
 

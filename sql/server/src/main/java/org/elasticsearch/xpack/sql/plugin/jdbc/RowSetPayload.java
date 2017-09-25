@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.sql.plugin.jdbc;
 
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Payload;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataOutput;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.joda.time.ReadableInstant;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.sql.JDBCType;
 import java.util.List;
@@ -25,12 +25,12 @@ public class RowSetPayload implements Payload {
     }
 
     @Override
-    public void readFrom(DataInput in) throws IOException {
+    public void readFrom(SqlDataInput in) throws IOException {
         throw new UnsupportedOperationException("This class can only be serialized");
     }
 
     @Override
-    public void writeTo(DataOutput out) throws IOException {
+    public void writeTo(SqlDataOutput out) throws IOException {
         out.writeInt(rowSet.size());
         List<DataType> types = rowSet.schema().types();
 

@@ -5,8 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataOutput;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,9 +57,9 @@ public class PageTests extends ESTestCase {
 
     public void testRoundTripNoReuse() throws IOException {
         Page example = randomPage();
-        assertRoundTrip(example, Page::writeTo, in -> {
+        assertRoundTrip(example, writeTo(AbstractProto.CURRENT_VERSION), in -> {
             Page page = new Page(example.columnInfo());
-            page.readFrom(in);
+            page.readFrom(new SqlDataInput(in, AbstractProto.CURRENT_VERSION));
             return page;
         });
     }
@@ -60,11 +67,15 @@ public class PageTests extends ESTestCase {
     public void testRoundTripReuse() throws IOException {
         Page example = randomPage();
         Page target = new Page(example.columnInfo());
-        roundTrip(example, Page::writeTo, in -> {target.readFrom(in); return null;});
+        CheckedFunction<DataInput, Page, IOException> readFrom = in -> {
+            target.readFrom(new SqlDataInput(in, AbstractProto.CURRENT_VERSION));
+            return null;
+        };
+        roundTrip(example, writeTo(AbstractProto.CURRENT_VERSION), readFrom);
         assertEquals(example, target);
 
         example = randomPageContents(example.columnInfo());
-        roundTrip(example, Page::writeTo, in -> {target.readFrom(in); return null;});
+        roundTrip(example, writeTo(AbstractProto.CURRENT_VERSION), readFrom);
         assertEquals(example, target);
     }
 
@@ -88,5 +99,10 @@ public class PageTests extends ESTestCase {
                         new Object[] {"bar", 7}
                 }).toString());
         
+    }
+
+    private static CheckedBiConsumer<Page, DataOutput, IOException> writeTo(int version) {
+        return (page, in) ->
+            page.writeTo(new SqlDataOutput(in, version));
     }
 }

@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 public class MetaTableRequest extends Request {
@@ -22,12 +22,12 @@ public class MetaTableRequest extends Request {
         this.pattern = pattern;
     }
 
-    MetaTableRequest(int clientVersion, DataInput in) throws IOException {
+    MetaTableRequest(SqlDataInput in) throws IOException {
         this.pattern = in.readUTF();
     }
 
     @Override
-    public void writeTo(DataOutput out) throws IOException {
+    public void writeTo(SqlDataOutput out) throws IOException {
         out.writeUTF(pattern);
     }
 

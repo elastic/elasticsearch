@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
-import java.io.DataInput;
-import java.io.DataOutput;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataOutput;
+
 import java.io.IOException;
 
 public interface Payload {
 
-    void readFrom(DataInput in) throws IOException;
+    void readFrom(SqlDataInput in) throws IOException;
 
-    void writeTo(DataOutput out) throws IOException;
+    void writeTo(SqlDataOutput out) throws IOException;
 }

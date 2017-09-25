@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
-import java.io.DataInput;
-import java.io.DataOutput;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
+import org.elasticsearch.xpack.sql.protocol.shared.SqlDataOutput;
+
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.sql.JDBCType;
@@ -37,7 +38,7 @@ public class Page implements Payload {
     private int maxRows;
 
     /**
-     * Build empty, call {@link #readFrom(DataInput)} after to fill it.
+     * Build empty, call {@link #readFrom(SqlDataInput)} after to fill it.
      */
     Page(List<ColumnInfo> columnInfo) {
         this.columnInfo = columnInfo;
@@ -89,10 +90,8 @@ public class Page implements Payload {
         return column(column)[row];
     }
 
-    /**
-     * Read a value from the stream
-     */
-    public void readFrom(DataInput in) throws IOException {
+    @Override
+    public void readFrom(SqlDataInput in) throws IOException {
         int rows = in.readInt();
         // this.rows may be less than the number of rows we have space for
         if (rows > maxRows) {
@@ -107,7 +106,8 @@ public class Page implements Payload {
         }
     }
 
-    public void writeTo(DataOutput out) throws IOException {
+    @Override
+    public void writeTo(SqlDataOutput out) throws IOException {
         int rows = rows();
         out.writeInt(rows);
         for (int row = 0; row < rows; row++) {

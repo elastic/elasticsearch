@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.protocol.shared;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
@@ -27,14 +25,14 @@ public abstract class AbstractQueryPageRequest extends Request {
         this.timeout = timeout;
     }
 
-    protected AbstractQueryPageRequest(int clientVersion, DataInput in) throws IOException {
+    protected AbstractQueryPageRequest(SqlDataInput in) throws IOException {
         this.cursor = new byte[ProtoUtil.readArraySize(in)];
         in.readFully(cursor);
         this.timeout = new TimeoutInfo(in);
     }
 
     @Override
-    public void writeTo(DataOutput out) throws IOException {
+    public void writeTo(SqlDataOutput out) throws IOException {
         out.writeInt(cursor.length);
         out.write(cursor);
         timeout.writeTo(out);

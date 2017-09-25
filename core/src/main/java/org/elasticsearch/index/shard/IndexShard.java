@@ -437,10 +437,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.RELOCATED ||
                 state == IndexShardState.CLOSED :
                 "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
-            this.shardRouting = newRouting;
             persistMetadata(path, indexSettings, newRouting, currentRouting, logger);
 
-            if (shardRouting.primary()) {
+            if (newRouting.primary()) {
                 if (newPrimaryTerm != primaryTerm) {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
                     /* Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
@@ -456,9 +455,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                      * We could fail the shard in that case, but this will cause it to be removed from the insync allocations list
                      * potentially preventing re-allocation.
                      */
-                    assert shardRouting.initializing() == false :
+                    assert newRouting.initializing() == false :
                         "a started primary shard should never update its term; "
-                            + "shard " + shardRouting + ", "
+                            + "shard " + newRouting + ", "
                             + "current term [" + primaryTerm + "], "
                             + "new term [" + newPrimaryTerm + "]";
                     assert newPrimaryTerm > primaryTerm :
@@ -524,6 +523,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     latch.countDown();
                 }
             }
+            // set this last, once we finished updating all internal state.
+            this.shardRouting = newRouting;
         }
         if (currentRouting != null && currentRouting.active() == false && newRouting.active()) {
             indexEventListener.afterIndexShardStarted(this);

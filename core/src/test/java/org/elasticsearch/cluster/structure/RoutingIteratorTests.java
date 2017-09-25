@@ -50,6 +50,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -442,57 +443,15 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
-        // When replicas haven't initialized, it comes back with the primary first, then initializing replicas
-        GroupShardsIterator<ShardIterator> shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_replica_first");
-        assertThat(shardIterators.size(), equalTo(2)); // two potential shards
-        ShardIterator iter = shardIterators.iterator().next();
-        assertThat(iter.size(), equalTo(3)); // three potential candidates for the shard
-        ShardRouting routing = iter.nextOrNull();
-        assertNotNull(routing);
-        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
-        assertTrue(routing.primary()); // replicas haven't initialized yet, so primary is first
-        assertTrue(routing.started());
-        routing = iter.nextOrNull();
-        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
-        assertFalse(routing.primary());
-        assertTrue(routing.initializing());
-        routing = iter.nextOrNull();
-        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
-        assertFalse(routing.primary());
-        assertTrue(routing.initializing());
-
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-
-
-        shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_replica");
-        assertThat(shardIterators.size(), equalTo(2)); // two potential shards
-        iter = shardIterators.iterator().next();
-        assertThat(iter.size(), equalTo(2)); // two potential replicas for the shard
-        routing = iter.nextOrNull();
-        assertNotNull(routing);
-        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
-        assertFalse(routing.primary());
-        routing = iter.nextOrNull();
-        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
-        assertFalse(routing.primary());
-
-        shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_replica_first");
-        assertThat(shardIterators.size(), equalTo(2)); // two potential shards
-        iter = shardIterators.iterator().next();
-        assertThat(iter.size(), equalTo(3)); // three potential candidates for the shard
-        routing = iter.nextOrNull();
-        assertNotNull(routing);
-        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
-        assertFalse(routing.primary());
-        routing = iter.nextOrNull();
-        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
-        assertFalse(routing.primary());
-        // finally the primary
-        routing = iter.nextOrNull();
-        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
-        assertTrue(routing.primary());
+        String[] removedPreferences = {"_primary", "_primary_first", "_replica", "_replica_first"};
+        for (String pref : removedPreferences) {
+            try{
+                operationRouting.searchShards(clusterState, new String[]{"test"}, null, pref);
+                fail("Should have failed because the shard preference [" + pref + "] is removed.");
+            }catch (IllegalArgumentException ex){
+                assertThat(ex.getMessage(), containsString(pref));
+            }
+        }
     }
 
 }

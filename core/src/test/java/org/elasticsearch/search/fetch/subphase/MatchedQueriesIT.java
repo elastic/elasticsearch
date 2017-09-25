@@ -301,7 +301,6 @@ public class MatchedQueriesIT extends ESIntegTestCase {
                                     .should(queryStringQuery("dolor").queryName("dolor"))
                                     .should(queryStringQuery("elit").queryName("elit"))
                     )
-                    .setPreference("_primary")
                     .get();
 
             assertHitCount(searchResponse, 2L);

@@ -87,7 +87,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
                 .build();
     }
 
-    @Before @After
+    @After
     public final void wipeAzureRepositories() throws StorageException, URISyntaxException, UnknownHostException {
         wipeRepositories();
         cleanRepositoryFiles(

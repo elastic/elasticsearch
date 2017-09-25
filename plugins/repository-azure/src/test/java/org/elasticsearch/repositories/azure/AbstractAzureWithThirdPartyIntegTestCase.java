@@ -25,6 +25,7 @@ import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
 import org.junit.After;
 import org.junit.Before;
@@ -44,7 +45,7 @@ import static org.elasticsearch.repositories.azure.AzureTestUtils.generateMockSe
  * in order to run these tests.
  */
 @ThirdParty
-public abstract class AbstractAzureWithThirdPartyIntegTestCase extends AbstractAzureIntegTestCase {
+public abstract class AbstractAzureWithThirdPartyIntegTestCase extends ESIntegTestCase {
 
     Settings.Builder generateMockSettings() {
         return Settings.builder().setSecureSettings(generateMockSecureSettings());

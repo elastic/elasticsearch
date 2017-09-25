@@ -296,8 +296,8 @@ public class OsStats implements Writeable, ToXContentFragment {
         private final CpuStat cpuStat;
         // These will be null for nodes running versions prior to 6.1.0
         private final String memoryControlGroup;
-        private final Long memoryLimitInBytes;
-        private final Long memoryUsageInBytes;
+        private final String memoryLimitInBytes;
+        private final String memoryUsageInBytes;
 
         /**
          * The control group for the {@code cpuacct} subsystem.
@@ -373,7 +373,7 @@ public class OsStats implements Writeable, ToXContentFragment {
          *
          * @return the maximum amount of user memory (including file cache).
          */
-        public Long getMemoryLimitInBytes() {
+        public String getMemoryLimitInBytes() {
             return memoryLimitInBytes;
         }
 
@@ -382,7 +382,7 @@ public class OsStats implements Writeable, ToXContentFragment {
          *
          * @return the total current memory usage by processes in the cgroup (in bytes).
          */
-        public Long getMemoryUsageInBytes() {
+        public String getMemoryUsageInBytes() {
             return memoryUsageInBytes;
         }
 
@@ -394,8 +394,8 @@ public class OsStats implements Writeable, ToXContentFragment {
             final long cpuCfsQuotaMicros,
             final CpuStat cpuStat,
             final String memoryControlGroup,
-            final long memoryLimitInBytes,
-            final long memoryUsageInBytes) {
+            final String memoryLimitInBytes,
+            final String memoryUsageInBytes) {
             this.cpuAcctControlGroup = Objects.requireNonNull(cpuAcctControlGroup);
             this.cpuAcctUsageNanos = cpuAcctUsageNanos;
             this.cpuControlGroup = Objects.requireNonNull(cpuControlGroup);
@@ -417,8 +417,8 @@ public class OsStats implements Writeable, ToXContentFragment {
             // TODO: change this to 6.1.0 after backporting
             if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                 memoryControlGroup = in.readOptionalString();
-                memoryLimitInBytes = in.readOptionalLong();
-                memoryUsageInBytes = in.readOptionalLong();
+                memoryLimitInBytes = in.readOptionalString();
+                memoryUsageInBytes = in.readOptionalString();
             } else {
                 memoryControlGroup = null;
                 memoryLimitInBytes = null;
@@ -437,8 +437,8 @@ public class OsStats implements Writeable, ToXContentFragment {
             // TODO: change this to 6.1.0 after backporting
             if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                 out.writeOptionalString(memoryControlGroup);
-                out.writeOptionalLong(memoryLimitInBytes);
-                out.writeOptionalLong(memoryUsageInBytes);
+                out.writeOptionalString(memoryLimitInBytes);
+                out.writeOptionalString(memoryUsageInBytes);
             }
         }
 

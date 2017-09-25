@@ -302,8 +302,8 @@ public class NodeStatsTests extends ESTestCase {
                         randomNonNegativeLong(),
                         new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
                         randomAlphaOfLength(8),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong()));
+                        Long.toString(randomNonNegativeLong()),
+                        Long.toString(randomNonNegativeLong())));
         }
         ProcessStats processStats = frequently() ?
             new ProcessStats(

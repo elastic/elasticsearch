@@ -22,6 +22,7 @@ package org.elasticsearch.monitor.os;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 
@@ -120,9 +121,9 @@ public class OsProbeTests extends ESTestCase {
                 // These could be null if transported from a node running an older version, but shouldn't be null on the current node
                 assertThat(stats.getCgroup().getMemoryControlGroup(), notNullValue());
                 assertThat(stats.getCgroup().getMemoryLimitInBytes(), notNullValue());
-                assertThat(stats.getCgroup().getMemoryLimitInBytes(), greaterThan(0L));
+                assertThat(new BigInteger(stats.getCgroup().getMemoryLimitInBytes()), greaterThan(BigInteger.ZERO));
                 assertThat(stats.getCgroup().getMemoryUsageInBytes(), notNullValue());
-                assertThat(stats.getCgroup().getMemoryUsageInBytes(), greaterThan(0L));
+                assertThat(new BigInteger(stats.getCgroup().getMemoryUsageInBytes()), greaterThan(BigInteger.ZERO));
             }
         } else {
             assertNull(stats.getCgroup());

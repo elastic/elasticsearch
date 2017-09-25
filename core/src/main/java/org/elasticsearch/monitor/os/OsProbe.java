@@ -31,7 +31,6 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -382,16 +381,18 @@ public class OsProbe {
 
     /**
      * The maximum amount of user memory (including file cache).
+     * If there is no limit then some Linux versions return the maximum value that can be stored in an
+     * unsigned 64 bit number, and this will overflow a long, hence the result type is <code>String</code>.
+     * (The alternative would have been <code>BigInteger</code> but then it would not be possible to index
+     * the OS stats document into Elasticsearch without losing information, as <code>BigInteger</code> is
+     * not a supported Elasticsearch type.)
      *
      * @param controlGroup the control group for the Elasticsearch process for the {@code memory} subsystem
      * @return the maximum amount of user memory (including file cache)
      * @throws IOException if an I/O exception occurs reading {@code memory.limit_in_bytes} for the control group
      */
-    private long getCgroupMemoryLimitInBytes(final String controlGroup) throws IOException {
-        // If there is no limit then some Linux versions return the maximum value that can be stored in an
-        // unsigned 64 bit number, and this will overflow a long.  Just return the maximum long in this case.
-        BigInteger limitInBytes = new BigInteger(readSysFsCgroupMemoryLimitInBytes(controlGroup));
-        return limitInBytes.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0 ? Long.MAX_VALUE : limitInBytes.longValue();
+    private String getCgroupMemoryLimitInBytes(final String controlGroup) throws IOException {
+        return readSysFsCgroupMemoryLimitInBytes(controlGroup);
     }
 
     /**
@@ -409,16 +410,18 @@ public class OsProbe {
 
     /**
      * The total current memory usage by processes in the cgroup (in bytes).
+     * If there is no limit then some Linux versions return the maximum value that can be stored in an
+     * unsigned 64 bit number, and this will overflow a long, hence the result type is <code>String</code>.
+     * (The alternative would have been <code>BigInteger</code> but then it would not be possible to index
+     * the OS stats document into Elasticsearch without losing information, as <code>BigInteger</code> is
+     * not a supported Elasticsearch type.)
      *
      * @param controlGroup the control group for the Elasticsearch process for the {@code memory} subsystem
      * @return the total current memory usage by processes in the cgroup (in bytes)
      * @throws IOException if an I/O exception occurs reading {@code memory.limit_in_bytes} for the control group
      */
-    private long getCgroupMemoryUsageInBytes(final String controlGroup) throws IOException {
-        // If there is no limit then some Linux versions return the maximum value that can be stored in an
-        // unsigned 64 bit number, and this will overflow a long.  Just return the maximum long in this case.
-        BigInteger usageInBytes = new BigInteger(readSysFsCgroupMemoryUsageInBytes(controlGroup));
-        return usageInBytes.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0 ? Long.MAX_VALUE : usageInBytes.longValue();
+    private String getCgroupMemoryUsageInBytes(final String controlGroup) throws IOException {
+        return readSysFsCgroupMemoryUsageInBytes(controlGroup);
     }
 
     /**
@@ -482,8 +485,8 @@ public class OsProbe {
 
                 final String memoryControlGroup = controllerMap.get("memory");
                 assert memoryControlGroup != null;
-                final long cgroupMemoryLimitInBytes = getCgroupMemoryLimitInBytes(memoryControlGroup);
-                final long cgroupMemoryUsageInBytes = getCgroupMemoryUsageInBytes(memoryControlGroup);
+                final String cgroupMemoryLimitInBytes = getCgroupMemoryLimitInBytes(memoryControlGroup);
+                final String cgroupMemoryUsageInBytes = getCgroupMemoryUsageInBytes(memoryControlGroup);
 
                 return new OsStats.Cgroup(
                     cpuAcctControlGroup,

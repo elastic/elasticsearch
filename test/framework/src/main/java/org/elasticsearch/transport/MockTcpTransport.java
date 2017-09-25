@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport;
 
-import java.net.ConnectException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -118,12 +117,12 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     @Override
     protected MockChannel bind(final String name, InetSocketAddress address) throws IOException {
         MockServerSocket socket = new MockServerSocket();
-        socket.bind(address);
         socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings));
         ByteSizeValue tcpReceiveBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);
         if (tcpReceiveBufferSize.getBytes() > 0) {
             socket.setReceiveBufferSize(tcpReceiveBufferSize.bytesAsInt());
         }
+        socket.bind(address);
         MockChannel serverMockChannel = new MockChannel(socket, name);
         CountDownLatch started = new CountDownLatch(1);
         executor.execute(new AbstractRunnable() {
@@ -182,28 +181,14 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         final MockChannel[] mockChannels = new MockChannel[1];
         final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, LIGHT_PROFILE); // we always use light here
         boolean success = false;
-        MockSocket socket = new MockSocket();
+        final MockSocket socket = new MockSocket();
         try {
             final InetSocketAddress address = node.getAddress().address();
             // we just use a single connections
             configureSocket(socket);
             final TimeValue connectTimeout = profile.getConnectTimeout();
             try {
-                int retries = 0;
-                while (true) {
-                    ++retries;
-                    try {
-                        socket.connect(address, Math.toIntExact(connectTimeout.millis()));
-                        break;
-                    } catch (final ConnectException ex) {
-                        if (retries > 10) {
-                            throw ex;
-                        }
-                        IOUtils.close(socket);
-                        socket = new MockSocket();
-                        configureSocket(socket);
-                    }
-                }
+                socket.connect(address, Math.toIntExact(connectTimeout.millis()));
             } catch (SocketTimeoutException ex) {
                 throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", ex);
             }
@@ -318,6 +303,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                 MockChannel incomingChannel = null;
                 try {
                     configureSocket(incomingSocket);
+                    incomingSocket.setSoLinger(true, 0);
                     synchronized (this) {
                         if (isOpen.get()) {
                             incomingChannel = new MockChannel(incomingSocket,

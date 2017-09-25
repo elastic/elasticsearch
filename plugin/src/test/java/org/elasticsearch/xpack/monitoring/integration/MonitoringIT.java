@@ -11,7 +11,6 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
@@ -64,7 +63,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2609")
 public class MonitoringIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("x_pack_rest_user", TEST_PASSWORD_SECURE_STRING);
@@ -410,9 +408,6 @@ public class MonitoringIT extends ESRestTestCase {
 
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
         assertEquals(5, source.size());
-
-        final Map<String, Object> nodeStats = (Map<String, Object>) source.get(NodeStatsMonitoringDoc.TYPE);
-        assertEquals(Constants.WINDOWS ? 8 : 9, nodeStats.size());
 
         NodeStatsMonitoringDoc.XCONTENT_FILTERS.forEach(filter -> {
             if (Constants.WINDOWS && filter.startsWith("node_stats.os.cpu.load_average")) {

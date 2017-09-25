@@ -33,14 +33,13 @@ import org.junit.Before;
 import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.repositories.azure.AzureTestUtils.readSettingsFromFile;
 import static org.elasticsearch.repositories.azure.AzureSnapshotRestoreTests.getContainerName;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * This test needs Azure to run and -Dtests.thirdparty=true to be set
- * and -Dtests.config=/path/to/elasticsearch.yml
+ * and -Dtests.azure.account=AzureStorageAccount and -Dtests.azure.key=AzureStorageKey
  *
  * Note that this test requires an Azure storage account, with the account
  * and credentials set in the elasticsearch.yml config file passed in to the
@@ -55,8 +54,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
         transportClientRatio = 0.0)
 public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThirdPartyIntegTestCase {
 
-    private final AzureStorageService azureStorageService = new AzureStorageServiceImpl(readSettingsFromFile(),
-        AzureStorageSettings.load(readSettingsFromFile()));
+    private final AzureStorageService azureStorageService = new AzureStorageServiceImpl(generateMockSettings().build(),
+        AzureStorageSettings.load(generateMockSettings().build()));
     private final String containerName = getContainerName();
 
     public AzureSnapshotRestoreListSnapshotsTests() {

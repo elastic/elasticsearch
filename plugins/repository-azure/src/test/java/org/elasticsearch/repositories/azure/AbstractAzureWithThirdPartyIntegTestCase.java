@@ -26,22 +26,25 @@ import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.elasticsearch.repositories.azure.AzureTestUtils.readSettingsFromFile;
+import static org.elasticsearch.repositories.azure.AzureTestUtils.generateMockSecureSettings;
 
 /**
  * Base class for Azure tests that require credentials.
  * <p>
- * You must specify {@code -Dtests.thirdparty=true -Dtests.config=/path/to/config}
+ * You must specify {@code -Dtests.thirdparty=true -Dtests.azure.account=AzureStorageAccount -Dtests.azure.key=AzureStorageKey}
  * in order to run these tests.
  */
 @ThirdParty
 public abstract class AbstractAzureWithThirdPartyIntegTestCase extends AbstractAzureIntegTestCase {
 
+    Settings.Builder generateMockSettings() {
+        return Settings.builder().setSecureSettings(generateMockSecureSettings());
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
+        return generateMockSettings()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(readSettingsFromFile())
                 .build();
     }
 

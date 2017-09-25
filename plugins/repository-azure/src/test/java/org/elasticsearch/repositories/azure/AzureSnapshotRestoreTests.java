@@ -47,19 +47,18 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.net.UnknownHostException;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.repositories.azure.AzureTestUtils.readSettingsFromFile;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * This test needs Azure to run and -Dtests.thirdparty=true to be set
- * and -Dtests.config=/path/to/elasticsearch.yml
+ * and -Dtests.azure.account=AzureStorageAccount and -Dtests.azure.key=AzureStorageKey
  * @see AbstractAzureWithThirdPartyIntegTestCase
  */
 @ClusterScope(
@@ -546,10 +545,10 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
      * Purge the test containers
      */
     public void cleanRepositoryFiles(String... containers) throws StorageException, URISyntaxException, UnknownHostException {
-        Settings settings = readSettingsFromFile();
-        AzureStorageService client = new AzureStorageServiceImpl(settings, AzureStorageSettings.load(settings));
+        AzureStorageService client = new AzureStorageServiceImpl(generateMockSettings().build(),
+            AzureStorageSettings.load(generateMockSettings().build()));
         for (String container : containers) {
-            client.removeContainer(null, LocationMode.PRIMARY_ONLY, container);
+            client.removeContainer("default", LocationMode.PRIMARY_ONLY, container);
         }
     }
 }

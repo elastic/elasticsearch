@@ -22,13 +22,11 @@ import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.plugin.SqlGetIndicesAction;
 
 import java.util.List;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 public class SqlSession {
 
     private final Client client;
-    private final BiConsumer<SqlGetIndicesAction.Request, ActionListener<SqlGetIndicesAction.Response>> sqlGetIndicesAction;
     private final Catalog catalog;
 
     private final SqlParser parser;
@@ -48,16 +46,14 @@ public class SqlSession {
     };
 
     public SqlSession(SqlSession other) {
-        this(other.defaults(), other.client(), other.sqlGetIndicesAction, other.catalog(), other.parser,
+        this(other.defaults(), other.client(), other.catalog(), other.parser,
                 other.functionRegistry(), other.optimizer(), other.planner());
     }
 
     public SqlSession(SqlSettings defaults, Client client,
-            BiConsumer<SqlGetIndicesAction.Request, ActionListener<SqlGetIndicesAction.Response>> sqlGetIndicesAction,
             Catalog catalog, SqlParser parser, FunctionRegistry functionRegistry, Optimizer optimizer,
             Planner planner) {
         this.client = client;
-        this.sqlGetIndicesAction = sqlGetIndicesAction;
         this.catalog = catalog;
 
         this.parser = parser;
@@ -86,7 +82,7 @@ public class SqlSession {
      */
     public void getIndices(String[] patterns, IndicesOptions options, ActionListener<List<EsIndex>> listener) {
         SqlGetIndicesAction.Request request = new SqlGetIndicesAction.Request(options, patterns).local(true);
-        sqlGetIndicesAction.accept(request, ActionListener.wrap(response -> {
+        client.execute(SqlGetIndicesAction.INSTANCE, request, ActionListener.wrap(response -> {
             listener.onResponse(response.indices());
         }, listener::onFailure));
     }

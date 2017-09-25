@@ -21,4 +21,10 @@ public interface Cursor {
     boolean next() throws SQLException;
 
     Object column(int column);
+
+    /**
+     * Number of rows that this cursor has pulled back from the
+     * server in the current batch.
+     */
+    int batchSize();
 }

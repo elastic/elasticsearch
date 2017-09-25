@@ -11,7 +11,7 @@ public class RequestMeta {
     private long timeoutInMs;
 
     public RequestMeta() {
-        this(0, 0);
+        this(-1, 0);
     }
 
     public RequestMeta(int fetchSize, int timeout) {

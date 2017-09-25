@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse.ColumnInfo;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
+import java.sql.JDBCType;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -17,11 +18,11 @@ import static org.hamcrest.Matchers.arrayWithSize;
 public class CliFormatterTests extends ESTestCase {
     private final SqlResponse firstResponse = new SqlResponse(Cursor.EMPTY, 10, 5,
             Arrays.asList(
-                    new ColumnInfo("foo", "string"),
-                    new ColumnInfo("bar", "long"),
-                    new ColumnInfo("15charwidename!", "double"),
-                    new ColumnInfo("superduperwidename!!!", "double"),
-                    new ColumnInfo("baz", "keyword")),
+                    new ColumnInfo("foo", "string", JDBCType.VARCHAR),
+                    new ColumnInfo("bar", "long", JDBCType.BIGINT),
+                    new ColumnInfo("15charwidename!", "double", JDBCType.DOUBLE),
+                    new ColumnInfo("superduperwidename!!!", "double", JDBCType.DOUBLE),
+                    new ColumnInfo("baz", "keyword", JDBCType.VARCHAR)),
             Arrays.asList(
                 Arrays.asList("15charwidedata!", 1, 6.888, 12, "rabbit"),
                 Arrays.asList("dog", 1.7976931348623157E308, 123124.888, 9912, "goat")));

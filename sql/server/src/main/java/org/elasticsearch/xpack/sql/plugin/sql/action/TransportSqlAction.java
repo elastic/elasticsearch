@@ -69,7 +69,7 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
         if (includeColumnMetadata) {
             columns = new ArrayList<>(cursor.schema().types().size());
             for (Schema.Entry entry : cursor.schema()) {
-                columns.add(new ColumnInfo(entry.name(), entry.type().esName()));
+                columns.add(new ColumnInfo(entry.name(), entry.type().esName(), entry.type().sqlType()));
             }
             columns = unmodifiableList(columns);
         }

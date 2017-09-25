@@ -6,15 +6,14 @@
 package org.elasticsearch.xpack.qa.sql.embed;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.sql.protocol.shared.Response;
 
 /**
  * Internal server used for testing without starting a new Elasticsearch instance.
  */
-public class JdbcHttpServer extends ProtoHttpServer<Response> {
+public class JdbcHttpServer extends ProtoHttpServer {
 
     public JdbcHttpServer(Client client) {
-        super(client, new JdbcProtoHandler(client), "/_jdbc");
+        super(client, new JdbcProtoHandler(client), "/_sql/jdbc");
     }
 
     @Override

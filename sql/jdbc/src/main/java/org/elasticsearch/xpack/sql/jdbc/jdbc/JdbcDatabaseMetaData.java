@@ -1263,5 +1263,10 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         public Object column(int column) {
             return data[row][column];
         }
+
+        @Override
+        public int batchSize() {
+            return data.length;
+        }
     }
 }

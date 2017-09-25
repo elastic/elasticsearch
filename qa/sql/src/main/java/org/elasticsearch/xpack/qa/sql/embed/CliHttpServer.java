@@ -6,12 +6,11 @@
 package org.elasticsearch.xpack.qa.sql.embed;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  * Internal server used for testing without starting a new Elasticsearch instance.
  */
-public class CliHttpServer extends ProtoHttpServer<BytesReference> {
+public class CliHttpServer extends ProtoHttpServer {
     public CliHttpServer(Client client) {
         super(client, new CliProtoHandler(client), "/_sql/cli");
     }

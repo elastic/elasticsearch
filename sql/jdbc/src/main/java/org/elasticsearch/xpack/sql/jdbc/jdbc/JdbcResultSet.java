@@ -398,8 +398,15 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public int getFetchSize() throws SQLException {
+        /*
+         * Instead of returning the fetch size the user requested we make a
+         * stab at returning the fetch size that we actually used, returning
+         * the batch size of the current row. This allows us to assert these
+         * batch sizes in testing and lets us point users to something that
+         * they can use for debugging.
+         */
         checkOpen();
-        return (statement != null ? statement.getFetchSize() : 0);
+        return cursor.batchSize();
     }
 
     @Override

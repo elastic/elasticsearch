@@ -8,31 +8,36 @@ package org.elasticsearch.xpack.qa.sql.embed;
 import com.sun.net.httpserver.HttpExchange;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.test.rest.FakeRestChannel;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
-import org.elasticsearch.xpack.sql.plugin.AbstractSqlServer;
-import org.elasticsearch.xpack.sql.plugin.jdbc.JdbcServer;
-import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto;
-import org.elasticsearch.xpack.sql.protocol.shared.Request;
-import org.elasticsearch.xpack.sql.protocol.shared.Response;
+import org.elasticsearch.xpack.sql.plugin.RestSqlJdbcAction;
+import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
 
 import java.io.DataInput;
 import java.io.IOException;
 
-import static org.elasticsearch.action.ActionListener.wrap;
+import static org.mockito.Mockito.mock;
 
-class JdbcProtoHandler extends ProtoHandler<Response> {
-
-    private final JdbcServer server;
+class JdbcProtoHandler extends ProtoHandler {
+    private final RestSqlJdbcAction action;
 
     JdbcProtoHandler(Client client) {
-        super(client, response -> AbstractSqlServer.write(AbstractProto.CURRENT_VERSION, response));
-        this.server = new JdbcServer(planExecutor(client), clusterName, () -> info.getNode().getName(), info.getVersion(),
-                info.getBuild());
+        super(new EmbeddedModeFilterClient(client, planExecutor(client)));
+        action = new RestSqlJdbcAction(Settings.EMPTY, mock(RestController.class), new SqlLicenseChecker(() -> {}, () -> {}));
     }
 
     @Override
     protected void handle(HttpExchange http, DataInput in) throws IOException {
-        Request req = Proto.INSTANCE.readRequest(in);
-        server.handle(req, wrap(resp -> sendHttpResponse(http, resp), ex -> fail(http, ex)));
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true, 1);
+        try {
+            action.operation(Proto.INSTANCE.readRequest(in), client).accept(channel);
+            while (false == channel.await()) {}
+            sendHttpResponse(http, channel.capturedResponse().content());
+        } catch (Exception e) {
+            fail(http, e);
+        }
     }
 }

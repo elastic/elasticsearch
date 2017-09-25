@@ -212,6 +212,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
     @Override
     public int getFetchSize() throws SQLException {
         checkOpen();
+        // NOCOMMIT this will return a bad value because we use -1 to mean "default" but default is something defined in connection string
         return requestMeta.fetchSize();
     }
 

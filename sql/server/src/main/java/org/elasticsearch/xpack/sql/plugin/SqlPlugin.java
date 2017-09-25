@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -27,9 +26,6 @@ import org.elasticsearch.xpack.sql.analysis.catalog.EsCatalog;
 import org.elasticsearch.xpack.sql.analysis.catalog.FilteredCatalog;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.plugin.SqlGetIndicesAction.TransportAction.CatalogHolder;
-import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcAction;
-import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcHttpHandler;
-import org.elasticsearch.xpack.sql.plugin.jdbc.action.TransportJdbcAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.TransportSqlAction;
@@ -40,7 +36,6 @@ import org.elasticsearch.xpack.sql.session.Cursor;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -65,13 +60,10 @@ public class SqlPlugin implements ActionPlugin {
         if (catalogFilter != null) {
             catalog = catalog.andThen(c -> new FilteredCatalog(c, catalogFilter));
         }
-        BiConsumer<SqlGetIndicesAction.Request, ActionListener<SqlGetIndicesAction.Response>> getIndices = (request, listener) -> {
-            client.execute(SqlGetIndicesAction.INSTANCE, request, listener);
-        };
         return Arrays.asList(
                 new CatalogHolder(catalog),
                 sqlLicenseChecker,
-                new PlanExecutor(client, clusterService::state, getIndices, catalog));
+                new PlanExecutor(client, clusterService::state, catalog));
     }
 
     @Override
@@ -81,13 +73,12 @@ public class SqlPlugin implements ActionPlugin {
 
         return Arrays.asList(new RestSqlAction(settings, restController),
                              new RestSqlCliAction(settings, restController),
-                             new JdbcHttpHandler(settings, restController));
+                             new RestSqlJdbcAction(settings, restController, sqlLicenseChecker));
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(new ActionHandler<>(SqlAction.INSTANCE, TransportSqlAction.class),
-                             new ActionHandler<>(JdbcAction.INSTANCE, TransportJdbcAction.class),
                              new ActionHandler<>(SqlGetIndicesAction.INSTANCE, SqlGetIndicesAction.TransportAction.class),
                              new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class));
     }

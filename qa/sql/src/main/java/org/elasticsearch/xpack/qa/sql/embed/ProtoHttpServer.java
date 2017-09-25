@@ -17,15 +17,15 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-public abstract class ProtoHttpServer<R> {
+public abstract class ProtoHttpServer {
 
-    private final ProtoHandler<R> handler;
+    private final ProtoHandler handler;
     private final String protoSuffix;
     private final Client client;
     private HttpServer server;
     private ExecutorService executor;
 
-    public ProtoHttpServer(Client client, ProtoHandler<R> handler, String protoSuffix) {
+    public ProtoHttpServer(Client client, ProtoHandler handler, String protoSuffix) {
         this.client = client;
         this.handler = handler;
         this.protoSuffix = protoSuffix;

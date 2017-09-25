@@ -52,4 +52,9 @@ class DefaultCursor implements Cursor {
     public Object column(int column) {
         return page.entry(row, column);
     }
+
+    @Override
+    public int batchSize() {
+        return page.rows();
+    }
 }

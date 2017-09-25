@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.io.IOException;
+import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -167,29 +168,34 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
      */
     public static final class ColumnInfo implements Writeable, ToXContentObject {
         private final String name;
-        private final String type;
+        private final String esType;
+        private final JDBCType jdbcType;
 
-        public ColumnInfo(String name, String type) {
+        public ColumnInfo(String name, String esType, JDBCType jdbcType) {
             this.name = name;
-            this.type = type;
+            this.esType = esType;
+            this.jdbcType = jdbcType;
         }
 
         ColumnInfo(StreamInput in) throws IOException {
             name = in.readString();
-            type = in.readString();
+            esType = in.readString();
+            jdbcType = JDBCType.valueOf(in.readVInt());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
-            out.writeString(type);
+            out.writeString(esType);
+            out.writeVInt(jdbcType.getVendorTypeNumber());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("name", name);
-            builder.field("type", type);
+            builder.field("type", esType);
+            // TODO include jdbc_type?
             return builder.endObject();
         }
 
@@ -200,8 +206,18 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
             return name;
         }
 
-        public String type() {
-            return type;
+        /**
+         * The type of the column in Elasticsearch.
+         */
+        public String esType() {
+            return esType;
+        }
+
+        /**
+         * The type of the column as it would be returned by a JDBC driver. 
+         */
+        public JDBCType jdbcType() {
+            return jdbcType;
         }
 
         @Override
@@ -211,12 +227,13 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
             }
             ColumnInfo other = (ColumnInfo) obj;
             return name.equals(other.name)
-                    && type.equals(other.type);
+                    && esType.equals(other.esType)
+                    && jdbcType.equals(other.jdbcType);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, type);
+            return Objects.hash(name, esType, jdbcType);
         }
 
         @Override

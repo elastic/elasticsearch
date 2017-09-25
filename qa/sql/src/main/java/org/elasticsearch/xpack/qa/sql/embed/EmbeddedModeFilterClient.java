@@ -10,9 +10,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.sql.analysis.catalog.EsCatalog;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.plugin.SqlGetIndicesAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlRequest;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
@@ -38,6 +43,12 @@ public class EmbeddedModeFilterClient extends FilterClient {
                         Request request, ActionListener<Response> listener) {
         if (action == SqlAction.INSTANCE) {
             TransportSqlAction.operation(planExecutor, (SqlRequest) request, (ActionListener<SqlResponse>) listener);
+        } else if (action == SqlGetIndicesAction.INSTANCE) {
+            admin().cluster().state(new ClusterStateRequest(), ActionListener.wrap(response -> {
+                SqlGetIndicesAction.operation(new IndexNameExpressionResolver(Settings.EMPTY), EsCatalog::new,
+                        (SqlGetIndicesAction.Request) request, response.getState(),
+                        (ActionListener<SqlGetIndicesAction.Response>) listener);
+            }, listener::onFailure));
         } else {
             super.doExecute(action, request, listener);
         }

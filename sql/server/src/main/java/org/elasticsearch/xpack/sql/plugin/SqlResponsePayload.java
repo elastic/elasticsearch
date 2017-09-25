@@ -3,25 +3,30 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.plugin.jdbc;
+package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Payload;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils;
+import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
 import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
 import org.elasticsearch.xpack.sql.protocol.shared.SqlDataOutput;
-import org.elasticsearch.xpack.sql.session.RowSet;
-import org.elasticsearch.xpack.sql.type.DataType;
 import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 import java.sql.JDBCType;
 import java.util.List;
 
-public class RowSetPayload implements Payload {
-    private final RowSet rowSet;
+/**
+ * Implementation {@link Payload} that adapts it to data from
+ * {@link SqlResponse}.
+ */
+class SqlResponsePayload implements Payload {
+    private final List<JDBCType> typeLookup;
+    private final List<List<Object>> rows;
 
-    public RowSetPayload(RowSet rowSet) {
-        this.rowSet = rowSet;
+    SqlResponsePayload(List<JDBCType> typeLookup, List<List<Object>> rows) {
+        this.typeLookup = typeLookup;
+        this.rows = rows;
     }
 
     @Override
@@ -31,20 +36,21 @@ public class RowSetPayload implements Payload {
 
     @Override
     public void writeTo(SqlDataOutput out) throws IOException {
-        out.writeInt(rowSet.size());
-        List<DataType> types = rowSet.schema().types();
+        out.writeInt(rows.size());
 
         // unroll forEach manually to avoid a Consumer + try/catch for each value...
-        for (boolean hasRows = rowSet.hasCurrentRow(); hasRows; hasRows = rowSet.advanceRow()) {
-            for (int i = 0; i < rowSet.rowSize(); i++) {
-                Object value = rowSet.column(i);
+        for (List<Object> row : rows) {
+            for (int c = 0; c < row.size(); c++) {
+                JDBCType type = typeLookup.get(c);
+                Object value = row.get(c);
                 // unpack Joda classes on the server-side to not 'pollute' the common project and thus the client 
-                if (types.get(i).sqlType() == JDBCType.TIMESTAMP && value instanceof ReadableInstant) {
+                if (type == JDBCType.TIMESTAMP && value instanceof ReadableInstant) {
                     // NOCOMMIT feels like a hack that'd be better cleaned up another way.
                     value = ((ReadableInstant) value).getMillis();
                 }
-                ProtoUtils.writeValue(out, value, types.get(i).sqlType());
+                ProtoUtils.writeValue(out, value, type);
             }
         }
+
     }
 }

@@ -61,14 +61,14 @@ public class RestSqlCliAction extends BaseRestHandler {
         try (DataInputStream in = new DataInputStream(restRequest.content().streamInput())) {
             request = Proto.INSTANCE.readRequest(in);
         }
-        Consumer<RestChannel> consumer = operation(cursorRegistry, request, client);
+        Consumer<RestChannel> consumer = operation(request, client);
         return consumer::accept;
     }
 
     /**
      * Actual implementation of the operation
      */
-    public static Consumer<RestChannel> operation(NamedWriteableRegistry cursorRegistry, Request request, Client client)
+    public Consumer<RestChannel> operation(Request request, Client client)
             throws IOException {
         RequestType requestType = (RequestType) request.requestType();
         switch (requestType) {
@@ -80,7 +80,7 @@ public class RestSqlCliAction extends BaseRestHandler {
         case QUERY_INIT:
             return queryInit(client, (QueryInitRequest) request);
         case QUERY_PAGE:
-            return queryPage(cursorRegistry, client, (QueryPageRequest) request);
+            return queryPage(client, (QueryPageRequest) request);
         default:
             throw new IllegalArgumentException("Unsupported action [" + requestType + "]");
         }
@@ -91,13 +91,13 @@ public class RestSqlCliAction extends BaseRestHandler {
         SqlRequest sqlRequest = new SqlRequest(request.query, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize, Cursor.EMPTY);
         long start = System.nanoTime();
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
-                CliFormatter formatter = new CliFormatter(response);
-                String data = formatter.formatWithHeader(response);
-                return new QueryInitResponse(System.nanoTime() - start, serializeCursor(response.cursor(), formatter), data);
+            CliFormatter formatter = new CliFormatter(response);
+            String data = formatter.formatWithHeader(response);
+            return new QueryInitResponse(System.nanoTime() - start, serializeCursor(response.cursor(), formatter), data);
         }));
     }
 
-    private static Consumer<RestChannel> queryPage(NamedWriteableRegistry cursorRegistry, Client client, QueryPageRequest request) {
+    private Consumer<RestChannel> queryPage(Client client, QueryPageRequest request) {
         Cursor cursor;
         CliFormatter formatter;
         try (StreamInput in = new NamedWriteableAwareStreamInput(new BytesArray(request.cursor).streamInput(), cursorRegistry)) {
@@ -109,8 +109,8 @@ public class RestSqlCliAction extends BaseRestHandler {
         SqlRequest sqlRequest = new SqlRequest("", SqlRequest.DEFAULT_TIME_ZONE, -1, cursor);
         long start = System.nanoTime();
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
-                String data = formatter.formatWithoutHeader(response);
-                return new QueryPageResponse(System.nanoTime() - start, serializeCursor(response.cursor(), formatter), data);
+            String data = formatter.formatWithoutHeader(response);
+            return new QueryPageResponse(System.nanoTime() - start, serializeCursor(response.cursor(), formatter), data);
         }));
     }
 

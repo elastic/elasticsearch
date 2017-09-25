@@ -11,6 +11,8 @@ import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse.ColumnInfo;
 
+import java.sql.JDBCType;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -33,8 +35,8 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
         assertThat(response.columns(), hasSize(2));
         int dataIndex = dataBeforeCount ? 0 : 1;
         int countIndex = dataBeforeCount ? 1 : 0;
-        assertEquals(new ColumnInfo("data", "text"), response.columns().get(dataIndex));
-        assertEquals(new ColumnInfo("count", "long"), response.columns().get(countIndex));
+        assertEquals(new ColumnInfo("data", "text", JDBCType.VARCHAR), response.columns().get(dataIndex));
+        assertEquals(new ColumnInfo("count", "long", JDBCType.BIGINT), response.columns().get(countIndex));
 
         assertThat(response.rows(), hasSize(2));
         assertEquals("bar", response.rows().get(0).get(dataIndex));

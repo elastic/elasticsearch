@@ -21,16 +21,25 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -304,7 +313,7 @@ public class SettingsTests extends ESTestCase {
                 .put(Settings.builder().put("value.data", "1").build())
                 .build();
         assertThat(settings.get("value.data"), is("1"));
-        assertThat(settings.get("value"), is(nullValue()));
+        assertThat(settings.getAsArray("value"), is(new String[] {"4", "5"}));
     }
 
     public void testPrefixNormalization() {
@@ -551,15 +560,94 @@ public class SettingsTests extends ESTestCase {
         assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
     }
 
-    public void testGetAsArrayFailsOnDuplicates() {
+    public void testConcreteWillOverrideLegacyArray() {
         final Settings settings =
                 Settings.builder()
                         .put("foobar.0", "bar")
                         .put("foobar.1", "baz")
                         .put("foobar", "foo")
                         .build();
-        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> settings.getAsArray("foobar"));
-        assertThat(e, hasToString(containsString("settings object contains values for [foobar=foo] and [foobar.0=bar]")));
+        assertEquals(1, settings.size());
+        assertEquals(settings.get("foobar"), "foo");
+    }
+
+    public void testLegacyArrayOverrideConcrete() {
+        final Settings settings =
+            Settings.builder()
+                .put("foobar", "foo")
+                .put("foobar.0", "bar")
+                .put("foobar.1", "baz")
+                .build();
+        assertEquals(1, settings.size());
+        assertArrayEquals(settings.getAsArray("foobar"), new String[] {"bar", "baz"});
+    }
+
+    public void testToXContent() throws IOException {
+        Settings test = Settings.builder().putArray("foo.bar", "1", "2", "3").put("foo.bar.baz", "test").build();
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
+        builder.endObject();
+        assertEquals("{\"foo\":{\"bar.baz\":\"test\",\"bar\":[\"1\",\"2\",\"3\"]}}", builder.string());
+
+        builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+        builder.endObject();
+        assertEquals("{\"foo.bar\":[\"1\",\"2\",\"3\"],\"foo.bar.baz\":\"test\"}", builder.string());
+    }
+
+    public void testReadLegacyFromStream() throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.writeVInt(5);
+        output.writeString("foo.bar.1");
+        output.writeOptionalString("1");
+        output.writeString("foo.bar.0");
+        output.writeOptionalString("0");
+        output.writeString("foo.bar.2");
+        output.writeOptionalString("2");
+        output.writeString("foo.bar.3");
+        output.writeOptionalString("3");
+        output.writeString("foo.bar.baz");
+        output.writeOptionalString("baz");
+        Settings settings = Settings.readSettingsFromStream(StreamInput.wrap(BytesReference.toBytes(output.bytes())));
+        assertEquals(2, settings.size());
+        assertArrayEquals(new String[]{"0", "1", "2", "3"}, settings.getAsArray("foo.bar"));
+        assertEquals("baz", settings.get("foo.bar.baz"));
+    }
+
+    public void testWriteLegacyOutput() throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setVersion(VersionUtils.getPreviousVersion(Version.CURRENT));
+        Settings settings = Settings.builder().putArray("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
+        Settings.writeSettingsToStream(settings, output);
+        StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
+        assertEquals(5, in.readVInt());
+        Map<String, String> keyValues = new HashMap<>();
+        for (int i = 0; i < 5; i++){
+            keyValues.put(in.readString(), in.readOptionalString());
+        }
+        assertEquals(keyValues.get("foo.bar.0"), "0");
+        assertEquals(keyValues.get("foo.bar.1"), "1");
+        assertEquals(keyValues.get("foo.bar.2"), "2");
+        assertEquals(keyValues.get("foo.bar.3"), "3");
+        assertEquals(keyValues.get("foo.bar.baz"), "baz");
+    }
+
+    public void testReadWriteArray() throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setVersion(Version.CURRENT);
+        Settings settings = Settings.builder().putArray("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
+        Settings.writeSettingsToStream(settings, output);
+        StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
+        assertEquals(2, in.readVInt());
+        Map<String, String> keyValues = new HashMap<>();
+        for (int i = 0; i < 2; i++){
+            keyValues.put(in.readString(), in.readOptionalString());
+        }
+        Settings build = Settings.builder().put(keyValues).build();
+        assertEquals(build.getAsArray("foo.bar"), new String[] {"0", "1", "2", "3"});
+        assertEquals(build.get("foo.bar.baz"), "baz");
     }
 
 }

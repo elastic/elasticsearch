@@ -86,7 +86,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
 
     protected void validateSettingKey(Setting setting) {
         if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())
-            || isValidAffixKey(setting.getKey())) == false) {
+            || isValidAffixKey(setting.getKey())) == false || setting.getKey().endsWith(".0")) {
             throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
         }
     }

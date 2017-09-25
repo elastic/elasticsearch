@@ -602,7 +602,7 @@ public class SettingTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> listAffixSetting.get(Settings.EMPTY));
         expectThrows(UnsupportedOperationException.class, () -> listAffixSetting.getRaw(Settings.EMPTY));
         assertEquals(Collections.singletonList("testelement"), listAffixSetting.getDefault(Settings.EMPTY));
-        assertEquals("[\"testelement\"]", listAffixSetting.getDefaultRaw(Settings.EMPTY));
+        assertEquals(Arrays.asList("testelement"), Settings.decodeList(listAffixSetting.getDefaultRaw(Settings.EMPTY)));
     }
 
     public void testMinMaxInt() {

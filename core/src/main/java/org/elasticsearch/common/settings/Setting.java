@@ -19,7 +19,6 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -29,15 +28,11 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -755,7 +750,7 @@ public class Setting<T> implements ToXContentObject {
 
         private ListSetting(String key, Function<Settings, List<String>> defaultStringValue, Function<String, List<T>> parser,
                             Property... properties) {
-            super(new ListKey(key), (s) -> Setting.arrayToParsableString(defaultStringValue.apply(s).toArray(Strings.EMPTY_ARRAY)), parser,
+            super(new ListKey(key), (s) -> Settings.encodeList(defaultStringValue.apply(s)), parser,
                 properties);
             this.defaultStringValue = defaultStringValue;
         }
@@ -763,18 +758,7 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public String getRaw(Settings settings) {
             String[] array = settings.getAsArray(getKey(), null);
-            return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
-        }
-
-        @Override
-        boolean hasComplexMatcher() {
-            return true;
-        }
-
-        @Override
-        public boolean exists(Settings settings) {
-            boolean exists = super.exists(settings);
-            return exists || settings.get(getKey() + ".0") != null;
+            return array == null ? defaultValue.apply(settings) : Settings.encodeList(Arrays.asList(array));
         }
 
         @Override
@@ -1006,7 +990,7 @@ public class Setting<T> implements ToXContentObject {
     // TODO this one's two argument get is still broken
     public static <T> Setting<List<T>> listSetting(String key, Setting<List<T>> fallbackSetting, Function<String, T> singleValueParser,
                                                    Property... properties) {
-        return listSetting(key, (s) -> parseableStringToList(fallbackSetting.getRaw(s)), singleValueParser, properties);
+        return listSetting(key, (s) -> Settings.decodeList(fallbackSetting.getRaw(s)), singleValueParser, properties);
     }
 
     public static <T> Setting<List<T>> listSetting(String key, Function<Settings, List<String>> defaultStringValue,
@@ -1015,44 +999,11 @@ public class Setting<T> implements ToXContentObject {
             throw new IllegalArgumentException("default value function must not return null");
         }
         Function<String, List<T>> parser = (s) ->
-                parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
+                Settings.decodeList(s).stream().map(singleValueParser).collect(Collectors.toList());
 
         return new ListSetting<>(key, defaultStringValue, parser, properties);
     }
 
-    private static List<String> parseableStringToList(String parsableString) {
-        // EMPTY is safe here because we never call namedObject
-        try (XContentParser xContentParser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, parsableString)) {
-            XContentParser.Token token = xContentParser.nextToken();
-            if (token != XContentParser.Token.START_ARRAY) {
-                throw new IllegalArgumentException("expected START_ARRAY but got " + token);
-            }
-            ArrayList<String> list = new ArrayList<>();
-            while ((token = xContentParser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                if (token != XContentParser.Token.VALUE_STRING) {
-                    throw new IllegalArgumentException("expected VALUE_STRING but got " + token);
-                }
-                list.add(xContentParser.text());
-            }
-            return list;
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to parse array", e);
-        }
-    }
-
-    private static String arrayToParsableString(String[] array) {
-        try {
-            XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
-            builder.startArray();
-            for (String element : array) {
-                builder.value(element);
-            }
-            builder.endArray();
-            return builder.string();
-        } catch (IOException ex) {
-            throw new ElasticsearchException(ex);
-        }
-    }
 
     public static Setting<Settings> groupSetting(String key, Property... properties) {
         return groupSetting(key, (s) -> {}, properties);

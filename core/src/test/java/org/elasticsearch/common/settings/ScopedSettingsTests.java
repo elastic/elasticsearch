@@ -356,8 +356,8 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(setting, ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING);
 
         // array settings - complex matcher
-        assertNotNull(settings.get("transport.tracer.include." + randomIntBetween(1, 100)));
-        assertSame(TransportService.TRACE_LOG_INCLUDE_SETTING, settings.get("transport.tracer.include." + randomIntBetween(1, 100)));
+        assertNotNull(settings.get("transport.tracer.include"));
+        assertSame(TransportService.TRACE_LOG_INCLUDE_SETTING, settings.get("transport.tracer.include"));
 
         // array settings - complex matcher - only accepts numbers
         assertNull(settings.get("transport.tracer.include.FOO"));
@@ -372,7 +372,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertTrue(settings.isDynamicSetting("foo.bar"));
         assertNotNull(settings.get("foo.bar.baz"));
         settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        assertTrue(settings.isDynamicSetting("transport.tracer.include." + randomIntBetween(1, 100)));
+        assertFalse(settings.isDynamicSetting("transport.tracer.include." + randomIntBetween(1, 100)));
         assertFalse(settings.isDynamicSetting("transport.tracer.include.BOOM"));
         assertTrue(settings.isDynamicSetting("cluster.routing.allocation.require.value"));
     }
@@ -407,21 +407,21 @@ public class ScopedSettingsTests extends ESTestCase {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fooBar, fooBarBaz, foorBarQuux,
             someGroup, someAffix)));
         Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.EMPTY);
-        assertEquals(4, diff.size()); // 4 since foo.bar.quux has 3 values essentially
+        assertEquals(2, diff.size()); // 4 since foo.bar.quux has 3 values essentially
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
 
         diff = settings.diff(
                 Settings.builder().put("foo.bar", 5).build(),
                 Settings.builder().put("foo.bar.baz", 17).putArray("foo.bar.quux", "d", "e", "f").build());
-        assertEquals(4, diff.size()); // 4 since foo.bar.quux has 3 values essentially
+        assertEquals(2, diff.size()); // 4 since foo.bar.quux has 3 values essentially
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(17));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"d", "e", "f"});
 
         diff = settings.diff(
             Settings.builder().put("some.group.foo", 5).build(),
             Settings.builder().put("some.group.foobar", 17, "some.group.foo", 25).build());
-        assertEquals(6, diff.size()); // 6 since foo.bar.quux has 3 values essentially
+        assertEquals(4, diff.size()); // 6 since foo.bar.quux has 3 values essentially
         assertThat(diff.getAsInt("some.group.foobar", null), equalTo(17));
         assertNull(diff.get("some.group.foo"));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
@@ -432,7 +432,7 @@ public class ScopedSettingsTests extends ESTestCase {
             Settings.builder().put("some.prefix.foo.somekey", 5).build(),
             Settings.builder().put("some.prefix.foobar.somekey", 17,
                 "some.prefix.foo.somekey", 18).build());
-        assertEquals(6, diff.size()); // 6 since foo.bar.quux has 3 values essentially
+        assertEquals(4, diff.size()); // 6 since foo.bar.quux has 3 values essentially
         assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
         assertNull(diff.get("some.prefix.foo.somekey"));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
@@ -458,7 +458,7 @@ public class ScopedSettingsTests extends ESTestCase {
         diff = settings.diff(
             Settings.builder().put("foo.bar", 5).build(),
             Settings.builder().put("foo.bar.baz", 17).putArray("foo.bar.quux", "d", "e", "f").build());
-        assertEquals(4, diff.size());
+        assertEquals(2, diff.size());
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(17));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"d", "e", "f"});
 
@@ -490,7 +490,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .putArray("foo.bar.quux", "x", "y", "z")
             .putArray("foo.baz.quux", "d", "e", "f")
                 .build());
-        assertEquals(9, diff.size());
+        assertEquals(5, diff.size());
         assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
         assertNull(diff.get("some.prefix.foo.somekey"));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"x", "y", "z"});
@@ -700,19 +700,19 @@ public class ScopedSettingsTests extends ESTestCase {
         Set<Setting<?>> settings = new LinkedHashSet<>(2);
         final boolean groupFirst = randomBoolean();
         final Setting<?> groupSetting = Setting.groupSetting("foo.", Property.NodeScope);
-        final Setting<?> listSetting =
-            Setting.listSetting("foo.bar", Collections.emptyList(), Function.identity(), Property.NodeScope);
-        settings.add(groupFirst ? groupSetting : listSetting);
-        settings.add(groupFirst ? listSetting : groupSetting);
+        final Setting<?> otherGroup =
+            Setting.groupSetting("foo.bar.", Property.NodeScope);
+        settings.add(groupFirst ? groupSetting : otherGroup);
+        settings.add(groupFirst ? otherGroup : groupSetting);
 
         try {
             new ClusterSettings(Settings.EMPTY, settings);
             fail("an exception should have been thrown because settings overlap");
         } catch (IllegalArgumentException e) {
             if (groupFirst) {
-                assertEquals("complex setting key: [foo.bar] overlaps existing setting key: [foo.]", e.getMessage());
+                assertEquals("complex setting key: [foo.bar.] overlaps existing setting key: [foo.]", e.getMessage());
             } else {
-                assertEquals("complex setting key: [foo.] overlaps existing setting key: [foo.bar]", e.getMessage());
+                assertEquals("complex setting key: [foo.] overlaps existing setting key: [foo.bar.]", e.getMessage());
             }
         }
     }

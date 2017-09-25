@@ -54,13 +54,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
         transportClientRatio = 0.0)
 public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThirdPartyIntegTestCase {
 
-    private final AzureStorageService azureStorageService = new AzureStorageServiceImpl(generateMockSettings().build(),
-        AzureStorageSettings.load(generateMockSettings().build()));
-    private final String containerName = getContainerName();
-
-    public AzureSnapshotRestoreListSnapshotsTests() {
-    }
-
     public void testList() throws Exception {
         Client client = client();
         logger.info("-->  creating azure primary repository");
@@ -91,27 +84,5 @@ public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThi
         endWait = System.currentTimeMillis();
         logger.info("--> end of get snapshots on secondary. Took {} ms", endWait - startWait);
         assertThat(endWait - startWait, lessThanOrEqualTo(30000L));
-    }
-
-    @Before
-    public void createContainer() throws Exception {
-        // It could happen that we run this test really close to a previous one
-        // so we might need some time to be able to create the container
-        assertBusy(() -> {
-            try {
-                azureStorageService.createContainer(null, LocationMode.PRIMARY_ONLY, containerName);
-            } catch (URISyntaxException e) {
-                // Incorrect URL. This should never happen.
-                fail();
-            } catch (StorageException e) {
-                // It could happen. Let's wait for a while.
-                fail();
-            }
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    @After
-    public void removeContainer() throws Exception {
-        azureStorageService.removeContainer(null, LocationMode.PRIMARY_ONLY, containerName);
     }
 }

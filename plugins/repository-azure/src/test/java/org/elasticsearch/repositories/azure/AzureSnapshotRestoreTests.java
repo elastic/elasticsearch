@@ -77,16 +77,6 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
     }
 
-    public static String getContainerName() {
-        /* Have a different name per test so that there is no possible race condition. As the long can be negative,
-         * there mustn't be a hyphen between the 2 concatenated numbers
-         * (can't have 2 consecutives hyphens on Azure containers)
-         */
-        String testName = "snapshot-itest-"
-            .concat(RandomizedTest.getContext().getRunnerSeedAsString().toLowerCase(Locale.ROOT));
-        return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
-    }
-
     @Override
     public Settings indexSettings() {
         // During restore we frequently restore index to exactly the same state it was before, that might cause the same

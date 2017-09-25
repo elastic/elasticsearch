@@ -387,7 +387,7 @@ public abstract class TransportReplicationAction<
                             if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
                                 logger.info(
                                         new ParameterizedMessage(
-                                                "{} failed to execute background global checkpoint sync",
+                                                "{} failed to execute post-operation global checkpoint sync",
                                                 shard.shardId()),
                                         e);
                                 // intentionally swallow, a missed global checkpoint sync should not fail this operation

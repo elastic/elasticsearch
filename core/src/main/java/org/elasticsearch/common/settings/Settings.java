@@ -619,12 +619,18 @@ public final class Settings implements ToXContentFragment {
         }
         return builder;
     }
+
+    /**
+     * Parsers the generated xconten from {@link Settings#toXContent(XContentBuilder, Params)} into a new Settings object.
+     * Note this method requires the parser to either be positioned on a null token or on
+     * {@link org.elasticsearch.common.xcontent.XContentParser.Token#START_OBJECT}.
+     */
     public static Settings.Builder fromXContent(XContentParser parser, Settings.Builder builder) throws IOException {
         return fromXContent(parser, builder, true, false);
     }
 
-    private static Settings.Builder fromXContent(XContentParser parser, Settings.Builder builder, boolean allowNullValues, boolean
-        validateEndOfStream)
+    private static Settings.Builder fromXContent(XContentParser parser, Settings.Builder builder, boolean allowNullValues,
+                                                 boolean validateEndOfStream)
         throws IOException {
         if (parser.currentToken() == null) {
             parser.nextToken();
@@ -889,6 +895,9 @@ public final class Settings implements ToXContentFragment {
             return this;
         }
 
+        /**
+         * Sets a null value for the given setting key
+         */
         public Builder putNull(String key) {
             return put(key, (String) null);
         }

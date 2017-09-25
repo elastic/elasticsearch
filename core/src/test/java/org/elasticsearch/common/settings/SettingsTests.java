@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -31,6 +32,9 @@ import org.hamcrest.CoreMatchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -565,6 +569,17 @@ public class SettingsTests extends ESTestCase {
                 "column number [20], " +
                 "previous value [bar], " +
                 "current value [baz]"));
+
+        String yaml = "foo: bar\nfoo: baz";
+        SettingsException e1 = expectThrows(SettingsException.class, () -> {
+            Settings.builder().loadFromSource(yaml, XContentType.YAML);
+        });
+        assertEquals(e1.getCause().getClass(), ElasticsearchParseException.class);
+        String msg = e1.getCause().getMessage();
+        assertTrue(
+            msg,
+            msg.contains("duplicate settings key [foo] found at line number [2], column number [6], " +
+                "previous value [bar], current value [baz]"));
     }
 
     public void testToXContent() throws IOException {
@@ -594,5 +609,51 @@ public class SettingsTests extends ESTestCase {
         Settings test = Settings.builder().loadFromStream(randomFrom("test.json", "test.yml"), new ByteArrayInputStream(new byte[0]), false)
             .build();
         assertEquals(0, test.size());
+    }
+
+    public void testSimpleYamlSettings() throws Exception {
+        final String yaml = "/org/elasticsearch/common/settings/loader/test-settings.yml";
+        final Settings settings = Settings.builder()
+            .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
+            .build();
+
+        assertThat(settings.get("test1.value1"), equalTo("value1"));
+        assertThat(settings.get("test1.test2.value2"), equalTo("value2"));
+        assertThat(settings.getAsInt("test1.test2.value3", -1), equalTo(2));
+
+        // check array
+        assertThat(settings.get("test1.test3.0"), equalTo("test3-1"));
+        assertThat(settings.get("test1.test3.1"), equalTo("test3-2"));
+        assertThat(settings.getAsArray("test1.test3").length, equalTo(2));
+        assertThat(settings.getAsArray("test1.test3")[0], equalTo("test3-1"));
+        assertThat(settings.getAsArray("test1.test3")[1], equalTo("test3-2"));
+    }
+
+    public void testIndentation() throws Exception {
+        String yaml = "/org/elasticsearch/common/settings/loader/indentation-settings.yml";
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
+    }
+
+    public void testIndentationWithExplicitDocumentStart() throws Exception {
+        String yaml = "/org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
+    }
+
+
+    public void testMissingValue() throws Exception {
+        Path tmp = createTempFile("test", ".yaml");
+        Files.write(tmp, Collections.singletonList("foo: # missing value\n"), StandardCharsets.UTF_8);
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            Settings.builder().loadFromPath(tmp);
+        });
+        assertTrue(
+            e.getMessage(),
+            e.getMessage().contains("null-valued setting found for key [foo] found at line number [1], column number [5]"));
     }
 }

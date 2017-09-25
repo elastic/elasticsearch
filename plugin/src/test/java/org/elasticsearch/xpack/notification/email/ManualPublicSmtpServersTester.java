@@ -46,7 +46,6 @@ public class ManualPublicSmtpServersTester {
                     .put("xpack.notification.email.account.outlook.smtp.user", "elastic.user@outlook.com")
                     .put("xpack.notification.email.account.outlook.smtp.password", "fantastic42")
                     .put("xpack.notification.email.account.outlook.email_defaults.to", "elastic.user@outlook.com")
-                    .put()
             );
         }
     }

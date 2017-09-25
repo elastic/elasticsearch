@@ -95,7 +95,7 @@ public class DNSOnlyHostnameVerificationTests extends SecurityIntegTestCase {
     public Settings nodeSettings(int nodeOrdinal) {
         Settings defaultSettings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder()
-                .put(defaultSettings.filter((s) -> s.startsWith("xpack.ssl.") == false).getAsMap())
+                .put(defaultSettings.filter((s) -> s.startsWith("xpack.ssl.") == false), false)
                 .put("transport.host", hostName);
         Path keystorePath = nodeConfigPath(nodeOrdinal).resolve("keystore.jks");
         try (OutputStream os = Files.newOutputStream(keystorePath)) {

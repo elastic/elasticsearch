@@ -83,10 +83,8 @@ public final class RestrictedTrustConfig extends TrustConfig {
     }
 
     private CertificateTrustRestrictions readTrustGroup(Path path) throws IOException {
-        try (InputStream in = Files.newInputStream(path)) {
-            Settings settings = Settings.builder().loadFromStream(path.toString(), in).build();
-            final String[] trustNodeNames = settings.getAsArray(RESTRICTIONS_KEY_SUBJECT_NAME);
-            return new CertificateTrustRestrictions(Arrays.asList(trustNodeNames));
-        }
+        Settings settings = Settings.builder().loadFromPath(path).build();
+        final String[] trustNodeNames = settings.getAsArray(RESTRICTIONS_KEY_SUBJECT_NAME);
+        return new CertificateTrustRestrictions(Arrays.asList(trustNodeNames));
     }
 }

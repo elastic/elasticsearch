@@ -32,7 +32,7 @@ public class IndexUpgradeCheckTests extends ESTestCase {
         assertThat(check.actionRequired(watcherIndexWithAlias), equalTo(UpgradeActionRequired.UPGRADE));
 
         IndexMetaData watcherIndexWithAliasUpgraded = newTestIndexMeta("my_watches", ".watches",
-                Settings.builder().put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), "6").put().build());
+                Settings.builder().put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), "6").build());
         assertThat(check.actionRequired(watcherIndexWithAliasUpgraded), equalTo(UpgradeActionRequired.UP_TO_DATE));
     }
 
@@ -50,7 +50,7 @@ public class IndexUpgradeCheckTests extends ESTestCase {
         assertThat(check.actionRequired(watcherIndexWithAlias), equalTo(UpgradeActionRequired.UPGRADE));
 
         IndexMetaData watcherIndexWithAliasUpgraded = newTestIndexMeta("my_triggered_watches", ".triggered_watches",
-                Settings.builder().put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), "6").put().build());
+                Settings.builder().put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), "6").build());
         assertThat(check.actionRequired(watcherIndexWithAliasUpgraded), equalTo(UpgradeActionRequired.UP_TO_DATE));
     }
 

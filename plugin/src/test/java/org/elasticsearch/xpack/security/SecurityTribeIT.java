@@ -226,17 +226,19 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
                     }
                 };
         final Settings settingsTemplate = cluster2SettingsSource.nodeSettings(0);
-
-        Map<String, String> asMap = new HashMap<>(settingsTemplate.getAsMap());
-        asMap.remove(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey());
         Settings.Builder tribe1Defaults = Settings.builder();
         Settings.Builder tribe2Defaults = Settings.builder();
-        for (Map.Entry<String, String> entry : asMap.entrySet()) {
-            if (entry.getKey().startsWith("path.")) {
-                continue;
-            } else if (entry.getKey().equals("transport.tcp.port")) {
-                continue;
+        Settings tribeSettings = settingsTemplate.filter(k -> {
+            if (k.equals(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey())) {
+                return false;
+            } if (k.startsWith("path.")) {
+                return false;
+            } else if (k.equals("transport.tcp.port")) {
+                return false;
             }
+            return true;
+        });
+        for (Map.Entry<String, String> entry : tribeSettings.getAsMap().entrySet()) {
             tribe1Defaults.put("tribe.t1." + entry.getKey(), entry.getValue());
             tribe2Defaults.put("tribe.t2." + entry.getKey(), entry.getValue());
         }
@@ -255,7 +257,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
 
         Settings merged = Settings.builder()
                 .put(internalCluster().getDefaultSettings())
-                .put(asMap)
+                .put(tribeSettings, false)
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
                 .put("tribe.blocks.write", false)

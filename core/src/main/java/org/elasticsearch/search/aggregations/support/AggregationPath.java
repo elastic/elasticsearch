@@ -20,12 +20,10 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.HasAggregations;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.*;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 
@@ -71,43 +69,27 @@ public class AggregationPath {
         String[] tuple = new String[2];
         for (int i = 0; i < elements.length; i++) {
             String element = elements[i];
-            if (i == elements.length - 1) {
-                int index = element.lastIndexOf('[');
-                if (index >= 0) {
-                    if (index == 0 || index > element.length() - 3) {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
-                    }
-                    if (element.charAt(element.length() - 1) != ']') {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
-                    }
-                    tokens.add(new PathElement(element, element.substring(0, index), element.substring(index + 1, element.length() - 1)));
-                    continue;
-                }
-                index = element.lastIndexOf('.');
-                if (index < 0) {
-                    tokens.add(new PathElement(element, element, null));
-                    continue;
-                }
-                if (index == 0 || index > element.length() - 2) {
+            int index = element.lastIndexOf('[');
+            if (index >= 0) {
+                if (index == 0 || index > element.length() - 3) {
                     throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
                 }
-                tuple = split(element, index, tuple);
-                tokens.add(new PathElement(element, tuple[0], tuple[1]));
-
-            } else {
-                int index = element.lastIndexOf('[');
-                if (index >= 0) {
-                    if (index == 0 || index > element.length() - 3) {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
-                    }
-                    if (element.charAt(element.length() - 1) != ']') {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
-                    }
-                    tokens.add(new PathElement(element, element.substring(0, index), element.substring(index + 1, element.length() - 1)));
-                    continue;
+                if (element.charAt(element.length() - 1) != ']') {
+                    throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
                 }
-                tokens.add(new PathElement(element, element, null));
+                tokens.add(new PathElement(element, element.substring(0, index), element.substring(index + 1, element.length() - 1)));
+                continue;
             }
+            index = element.lastIndexOf('.');
+            if (index < 0) {
+                tokens.add(new PathElement(element, element, null));
+                continue;
+            }
+            if (index == 0 || index > element.length() - 2) {
+                throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+            }
+            tuple = split(element, index, tuple);
+            tokens.add(new PathElement(element, tuple[0], tuple[1]));
         }
         return new AggregationPath(tokens);
     }
@@ -217,10 +199,23 @@ public class AggregationPath {
                 continue;
             }
 
-            // the agg can only be a metrics agg, and a metrics agg must be at the end of the path
             if (i != pathElements.size() - 1) {
-                throw new IllegalArgumentException("Invalid order path [" + this +
- "]. Metrics aggregations cannot have sub-aggregations (at [" + token + ">" + pathElements.get(i + 1) + "]");
+                // try get bucket by key name
+                if(agg instanceof InternalMappedTerms){
+                    InternalTerms.Bucket bucket = ((InternalMappedTerms) agg).getBucketByKey(token.key);
+                    if(bucket != null) {
+                        parent = bucket;
+                        value = bucket.getDocCount();
+                        continue;
+                    } else {
+                        value = Double.NaN;
+                        break;
+                    }
+                } else {
+                    // the agg can only be a metrics agg, and a metrics agg must be at the end of the path
+                    throw new IllegalArgumentException("Invalid order path [" + this +
+                                                       "]. Metrics aggregations cannot have sub-aggregations (at [" + token + ">" + pathElements.get(i + 1) + "]");
+                }
             }
 
             if (agg instanceof InternalNumericMetricsAggregation.SingleValue) {
@@ -295,19 +290,11 @@ public class AggregationPath {
 
                 // we're in the middle of the path, so the aggregator can only be a single-bucket aggregator
 
-                if (!(aggregator instanceof SingleBucketAggregator)) {
+                if (!(aggregator instanceof SingleBucketAggregator) && !(aggregator instanceof AggregatorFactory.MultiBucketAggregatorWrapper)) {
                     throw new AggregationExecutionException("Invalid terms aggregation order path [" + this +
                             "]. Terms buckets can only be sorted on a sub-aggregator path " +
                             "that is built out of zero or more single-bucket aggregations within the path and a final " +
                             "single-bucket or a metrics aggregation at the path end. Sub-path [" +
-                            subPath(0, i + 1) + "] points to non single-bucket aggregation");
-                }
-
-                if (pathElements.get(i).key != null) {
-                    throw new AggregationExecutionException("Invalid terms aggregation order path [" + this +
-                            "]. Terms buckets can only be sorted on a sub-aggregator path " +
-                            "that is built out of zero or more single-bucket aggregations within the path and a " +
-                            "final single-bucket or a metrics aggregation at the path end. Sub-path [" +
                             subPath(0, i + 1) + "] points to non single-bucket aggregation");
                 }
             }

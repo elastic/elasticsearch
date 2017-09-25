@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -227,8 +228,14 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
                             @Override
                             public ClusterState execute(ClusterState currentState) throws Exception {
-                                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                                mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(newLicense));
+                                MetaData currentMetadata = currentState.metaData();
+                                LicensesMetaData licensesMetaData = currentMetadata.custom(LicensesMetaData.TYPE);
+                                Version trialVersion = null;
+                                if (licensesMetaData != null) {
+                                    trialVersion = licensesMetaData.getMostRecentTrialVersion();
+                                }
+                                MetaData.Builder mdBuilder = MetaData.builder(currentMetadata);
+                                mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(newLicense, trialVersion));
                                 return ClusterState.builder(currentState).metaData(mdBuilder).build();
                             }
                         });
@@ -237,7 +244,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     }
 
 
-    static TimeValue days(int days) {
+    private static TimeValue days(int days) {
         return TimeValue.timeValueHours(days * 24);
     }
 
@@ -273,7 +280,9 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                         final LicensesMetaData currentLicenses = metaData.custom(LicensesMetaData.TYPE);
                         if (currentLicenses.getLicense() != LicensesMetaData.LICENSE_TOMBSTONE) {
                             MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                            mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(LicensesMetaData.LICENSE_TOMBSTONE));
+                            LicensesMetaData newMetadata = new LicensesMetaData(LicensesMetaData.LICENSE_TOMBSTONE,
+                                    currentLicenses.getMostRecentTrialVersion());
+                            mdBuilder.putCustom(LicensesMetaData.TYPE, newMetadata);
                             return ClusterState.builder(currentState).metaData(mdBuilder).build();
                         } else {
                             return currentState;
@@ -285,6 +294,40 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     public License getLicense() {
         final License license = getLicense(clusterService.state().metaData());
         return license == LicensesMetaData.LICENSE_TOMBSTONE ? null : license;
+    }
+
+    void upgradeSelfGeneratedLicense(final ActionListener<PostStartTrialResponse> listener) {
+        clusterService.submitStateUpdateTask("upgrade self generated license",
+                new ClusterStateUpdateTask() {
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        LicensesMetaData licensesMetaData = oldState.metaData().custom(LicensesMetaData.TYPE);
+                        logger.debug("upgraded self generated license: {}", licensesMetaData);
+
+                        if (licensesMetaData == null || licensesMetaData.isEligibleForTrial()) {
+                            listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.STATUS.UPGRADED_TO_TRIAL));
+                        } else {
+                            listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.STATUS.TRIAL_ALREADY_ACTIVATED));
+                        }
+                    }
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        LicensesMetaData licensesMetaData = currentState.metaData().custom(LicensesMetaData.TYPE);
+
+                        if (licensesMetaData == null || licensesMetaData.isEligibleForTrial()) {
+                            return updateWithLicense(currentState, "trial");
+                        } else {
+                            return currentState;
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(String source, @Nullable Exception e) {
+                        logger.error(new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                        listener.onFailure(e);
+                    }
+                });
     }
 
     /**
@@ -299,7 +342,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         LicensesMetaData licensesMetaData = newState.metaData().custom(LicensesMetaData.TYPE);
                         if (logger.isDebugEnabled()) {
-                            logger.debug("registered trial license: {}", licensesMetaData);
+                            logger.debug("registered self generated license: {}", licensesMetaData);
                         }
                     }
 
@@ -307,27 +350,18 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         final MetaData metaData = currentState.metaData();
                         final LicensesMetaData currentLicensesMetaData = metaData.custom(LicensesMetaData.TYPE);
-                        MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                         // do not generate a trial license if any license is present
                         if (currentLicensesMetaData == null) {
-                            long issueDate = clock.millis();
                             String type = SELF_GENERATED_LICENSE_TYPE.get(settings);
                             if (validSelfGeneratedType(type) == false) {
                                 throw new IllegalArgumentException("Illegal self generated license type [" + type +
                                         "]. Must be trial or basic.");
                             }
-                            License.Builder specBuilder = License.builder()
-                                    .uid(UUID.randomUUID().toString())
-                                    .issuedTo(clusterService.getClusterName().value())
-                                    .maxNodes(selfGeneratedLicenseMaxNodes)
-                                    .issueDate(issueDate)
-                                    .type(type)
-                                    .expiryDate(issueDate + SELF_GENERATED_LICENSE_DURATION.getMillis());
-                            License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder);
-                            mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(selfGeneratedLicense));
-                            return ClusterState.builder(currentState).metaData(mdBuilder).build();
+
+                            return updateWithLicense(currentState, type);
+                        } else {
+                            return currentState;
                         }
-                        return currentState;
                     }
 
                     @Override
@@ -336,6 +370,27 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                     }
 
                 });
+    }
+
+    private ClusterState updateWithLicense(ClusterState currentState, String type) {
+        long issueDate = clock.millis();
+        MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+        License.Builder specBuilder = License.builder()
+                .uid(UUID.randomUUID().toString())
+                .issuedTo(clusterService.getClusterName().value())
+                .maxNodes(selfGeneratedLicenseMaxNodes)
+                .issueDate(issueDate)
+                .type(type)
+                .expiryDate(issueDate + SELF_GENERATED_LICENSE_DURATION.getMillis());
+        License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder);
+        LicensesMetaData licensesMetaData;
+        if ("trial".equals(type)) {
+            licensesMetaData = new LicensesMetaData(selfGeneratedLicense, Version.CURRENT);
+        } else {
+            licensesMetaData = new LicensesMetaData(selfGeneratedLicense, null);
+        }
+        mdBuilder.putCustom(LicensesMetaData.TYPE, licensesMetaData);
+        return ClusterState.builder(currentState).metaData(mdBuilder).build();
     }
 
     @Override
@@ -436,7 +491,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      * Additionally schedules license expiry notifications and event callbacks
      * relative to the current license's expiry
      */
-    void onUpdate(final LicensesMetaData currentLicensesMetaData) {
+    private void onUpdate(final LicensesMetaData currentLicensesMetaData) {
         final License license = getLicense(currentLicensesMetaData);
         // license can be null if the trial license is yet to be auto-generated
         // in this case, it is a no-op

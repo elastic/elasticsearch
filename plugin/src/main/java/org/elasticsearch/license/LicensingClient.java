@@ -39,4 +39,16 @@ public class LicensingClient {
     public void deleteLicense(DeleteLicenseRequest request, ActionListener<DeleteLicenseResponse> listener) {
         client.execute(DeleteLicenseAction.INSTANCE, request, listener);
     }
+
+    public PostStartTrialRequestBuilder preparePutUpgradeToTrial() {
+        return new PostStartTrialRequestBuilder(client, PostStartTrialAction.INSTANCE);
+    }
+
+    public GetTrialStatusRequestBuilder prepareGetUpgradeToTrial() {
+        return new GetTrialStatusRequestBuilder(client, GetTrialStatusAction.INSTANCE);
+    }
+
+    public void putUpgradeToTrial(PostStartTrialRequest request, ActionListener<PostStartTrialResponse> listener) {
+        client.execute(PostStartTrialAction.INSTANCE, request, listener);
+    }
 }

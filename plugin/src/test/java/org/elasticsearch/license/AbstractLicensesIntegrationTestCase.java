@@ -65,7 +65,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license));
+                mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license, null));
                 return ClusterState.builder(currentState).metaData(mdBuilder).build();
             }
 

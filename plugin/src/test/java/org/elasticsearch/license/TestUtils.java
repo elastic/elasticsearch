@@ -348,6 +348,6 @@ public class TestUtils {
     }
 
     public static void putLicense(MetaData.Builder builder, License license) {
-        builder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license));
+        builder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license, null));
     }
 }

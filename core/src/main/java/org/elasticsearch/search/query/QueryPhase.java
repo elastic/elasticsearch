@@ -139,43 +139,39 @@ public class QueryPhase implements SearchPhase {
             assert query == searcher.rewrite(query); // already rewritten
 
             final ScrollContext scrollContext = searchContext.scrollContext();
-            if (scrollContext != null) {
-                if (scrollContext.totalHits == -1) {
-                    // first round
-                    assert scrollContext.lastEmittedDoc == null;
-                    // there is not much that we can optimize here since we want to collect all
-                    // documents in order to get the total number of hits
-
-                } else {
-                    final ScoreDoc after = scrollContext.lastEmittedDoc;
-                    if (returnsDocsInOrder(query, searchContext.sort())) {
-                        // now this gets interesting: since we sort in index-order, we can directly
-                        // skip to the desired doc
-                        if (after != null) {
-                            BooleanQuery bq = new BooleanQuery.Builder()
-                                .add(query, BooleanClause.Occur.MUST)
-                                .add(new MinDocQuery(after.doc + 1), BooleanClause.Occur.FILTER)
-                                .build();
-                            query = bq;
-                        }
-                        // ... and stop collecting after ${size} matches
-                        searchContext.terminateAfter(searchContext.size());
-                        searchContext.trackTotalHits(false);
-                    } else if (canEarlyTerminate(indexSort, searchContext)) {
-                        // now this gets interesting: since the index sort matches the search sort, we can directly
-                        // skip to the desired doc
-                        if (after != null) {
-                            BooleanQuery bq = new BooleanQuery.Builder()
-                                .add(query, BooleanClause.Occur.MUST)
-                                .add(new SearchAfterSortedDocQuery(indexSort, (FieldDoc) after), BooleanClause.Occur.FILTER)
-                                .build();
-                            query = bq;
-                        }
-                        searchContext.trackTotalHits(false);
-                    }
+            final boolean isScrollContext = scrollContext != null && scrollContext.totalHits != -1;
+            final ScoreDoc after = isScrollContext ? scrollContext.lastEmittedDoc : searchContext.searchAfter();
+            if (returnsDocsInOrder(query, searchContext.sort())) {
+                // now this gets interesting: since we sort in index-order, we can directly
+                // skip to the desired doc
+                if (after != null &&
+                        (isScrollContext || searchContext.trackTotalHits() == false)) {
+                    BooleanQuery bq = new BooleanQuery.Builder()
+                        .add(query, BooleanClause.Occur.MUST)
+                        .add(new MinDocQuery(after.doc + 1), BooleanClause.Occur.FILTER)
+                        .build();
+                    query = bq;
+                }
+                if (isScrollContext || searchContext.trackTotalHits() == false) {
+                    // ... and stop collecting after ${size} matches
+                    searchContext.terminateAfter(searchContext.size());
+                    searchContext.trackTotalHits(false);
+                }
+            } else if (canEarlyTerminate(indexSort, searchContext)) {
+                // now this gets interesting: since the index sort matches the search sort, we can directly
+                // skip to the desired doc
+                if (after != null &&
+                        (isScrollContext || searchContext.trackTotalHits() == false)) {
+                    BooleanQuery bq = new BooleanQuery.Builder()
+                        .add(query, BooleanClause.Occur.MUST)
+                        .add(new SearchAfterSortedDocQuery(indexSort, (FieldDoc) after), BooleanClause.Occur.FILTER)
+                        .build();
+                    query = bq;
+                }
+                if (isScrollContext || searchContext.trackTotalHits() == false) {
+                    searchContext.trackTotalHits(false);
                 }
             }
-
             final LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
             if (searchContext.parsedPostFilter() != null) {
                 // add post filters before aggregations
@@ -247,13 +243,12 @@ public class QueryPhase implements SearchPhase {
                 collectors.stream().anyMatch(QueryCollectorContext::shouldCollect));
             final boolean shouldCollect = topDocsFactory.shouldCollect();
 
-            if (topDocsFactory.numHits() > 0 &&
-                (scrollContext == null || scrollContext.totalHits != -1) &&
-                canEarlyTerminate(indexSort, searchContext)) {
+            if (canEarlyTerminate(indexSort, searchContext)) {
                 // top docs collection can be early terminated based on index sort
+                int numHits = Math.max(1, topDocsFactory.numHits());
                 // add the collector context first so we don't early terminate aggs but only top docs
-                collectors.addFirst(createEarlySortingTerminationCollectorContext(reader, searchContext.query(), indexSort,
-                    topDocsFactory.numHits(), searchContext.trackTotalHits(), shouldCollect));
+                collectors.addFirst(createEarlySortingTerminationCollectorContext(reader, scrollContext, searchContext.query(), indexSort,
+                    numHits, searchContext.trackTotalHits(), shouldCollect));
             }
             // add the top docs collector, the first collector context in the chain
             collectors.addFirst(topDocsFactory);

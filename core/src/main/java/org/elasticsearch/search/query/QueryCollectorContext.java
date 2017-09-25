@@ -31,6 +31,7 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
+import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.tasks.TaskCancelledException;
 
@@ -211,6 +212,7 @@ abstract class QueryCollectorContext {
      * The total hit count matching the query is also computed if <code>trackTotalHits</code> is true.
      */
     static QueryCollectorContext createEarlySortingTerminationCollectorContext(IndexReader reader,
+                                                                               ScrollContext scrollContext,
                                                                                Query query,
                                                                                Sort indexSort,
                                                                                int numHits,
@@ -247,6 +249,10 @@ abstract class QueryCollectorContext {
                     final TopDocs topDocs = result.topDocs();
                     topDocs.totalHits = countSupplier.getAsInt();
                     result.topDocs(topDocs, result.sortValueFormats());
+                    if (scrollContext != null) {
+                        // first round
+                        scrollContext.totalHits = topDocs.totalHits;
+                    }
                 }
             }
         };

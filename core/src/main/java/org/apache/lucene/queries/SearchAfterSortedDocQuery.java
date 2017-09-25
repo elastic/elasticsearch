@@ -35,9 +35,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -51,13 +49,13 @@ public class SearchAfterSortedDocQuery extends Query {
     private final int[] reverseMuls;
 
     public SearchAfterSortedDocQuery(Sort sort, FieldDoc after) {
-        if (sort.getSort().length != after.fields.length) {
-            throw new IllegalArgumentException("after doc  has " + after.fields.length + " value(s) but sort has "
-                    + sort.getSort().length + ".");
+        if (sort.getSort().length < after.fields.length) {
+            throw new IllegalArgumentException("after doc has " + after.fields.length + " value(s) but sort has "
+                    + sort.getSort().length);
         }
         this.sort = sort;
         this.after = after;
-        int numFields = sort.getSort().length;
+        int numFields = after.fields.length;
         this.fieldComparators = new FieldComparator[numFields];
         this.reverseMuls = new int[numFields];
         for (int i = 0; i < numFields; i++) {
@@ -137,7 +135,7 @@ public class SearchAfterSortedDocQuery extends Query {
                 }
             }
 
-            if (topDoc <= doc) {
+            if (doc <= topDoc) {
                 return false;
             }
             return true;

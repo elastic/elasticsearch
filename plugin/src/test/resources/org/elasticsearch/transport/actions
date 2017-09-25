@@ -76,7 +76,6 @@ cluster:admin/script/delete
 cluster:admin/script/put
 indices:data/write/update
 indices:data/read/sql
-indices:data/read/sql/jdbc
 indices:data/read/sql/tables
 indices:data/read/sql/translate
 cluster:monitor/xpack/info

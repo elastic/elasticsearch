@@ -5,28 +5,23 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
-import org.elasticsearch.xpack.sql.session.AbstractRowSetCursor;
+import org.elasticsearch.xpack.sql.session.AbstractRowSet;
 import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
 import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
 
-//
-// Since the results might contain nested docs, the iteration is similar to that of Aggregation
-// namely it discovers the nested docs and then, for iteration, increments the deepest level first
-// and eventually carries that over to the top level
-
-public class SearchHitRowSetCursor extends AbstractRowSetCursor {
+/**
+ * Extracts rows from an array of {@link SearchHit}.
+ */
+public class SearchHitRowSetCursor extends AbstractRowSet {
     private final SearchHit[] hits;
     private final String scrollId;
     private final List<HitExtractor> extractors;
@@ -38,14 +33,18 @@ public class SearchHitRowSetCursor extends AbstractRowSetCursor {
     private int row = 0;
 
     SearchHitRowSetCursor(Schema schema, List<HitExtractor> exts) {
-        this(schema, exts, SearchHits.EMPTY, -1, null, null);
+        this(schema, exts, SearchHits.EMPTY, -1, null);
     }
 
-    SearchHitRowSetCursor(Schema schema, List<HitExtractor> exts, SearchHit[] hits, int limitHits, String scrollId, Consumer<ActionListener<RowSetCursor>> nextSet) {
-        super(schema, nextSet);
+    SearchHitRowSetCursor(Schema schema, List<HitExtractor> exts, SearchHit[] hits, int limitHits, String scrollId) {
+        super(schema);
         this.hits = hits;
         this.scrollId = scrollId;
         this.extractors = exts;
+
+         // Since the results might contain nested docs, the iteration is similar to that of Aggregation
+         // namely it discovers the nested docs and then, for iteration, increments the deepest level first
+         // and eventually carries that over to the top level
 
         String innerHit = null;
         for (HitExtractor ex : exts) {

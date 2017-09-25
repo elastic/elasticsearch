@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.execution.search.Scroller;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -49,7 +49,7 @@ public class EsQueryExec extends LeafExec {
     }
     
     @Override
-    public void execute(SqlSession session, ActionListener<RowSetCursor> listener) {
+    public void execute(SqlSession session, ActionListener<RowSet> listener) {
         Scroller scroller = new Scroller(session.client(), session.settings());
         scroller.scroll(Rows.schema(output), queryContainer, index, listener);
     }

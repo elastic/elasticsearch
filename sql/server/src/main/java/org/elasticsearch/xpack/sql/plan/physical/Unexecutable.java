@@ -5,20 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
-import java.util.Locale;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.session.Executable;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
+
+import java.util.Locale;
 
 import static java.lang.String.format;
 
 // this is mainly a marker interface to validate a plan before being executed
 public interface Unexecutable extends Executable {
 
-    default void execute(SqlSession session, ActionListener<RowSetCursor> listener) {
+    default void execute(SqlSession session, ActionListener<RowSet> listener) {
         throw new PlanningException(format(Locale.ROOT, "Current plan %s is not executable", this));
     }
 }

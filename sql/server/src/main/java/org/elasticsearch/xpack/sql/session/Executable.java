@@ -14,5 +14,5 @@ public interface Executable {
 
     List<Attribute> output();
 
-    void execute(SqlSession session, ActionListener<RowSetCursor> listener);
+    void execute(SqlSession session, ActionListener<RowSet> listener);
 }

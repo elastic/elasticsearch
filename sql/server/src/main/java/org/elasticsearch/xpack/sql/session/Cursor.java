@@ -27,7 +27,7 @@ public interface Cursor extends NamedWriteable {
     /**
      * Request the next page of data.
      */
-    void nextPage(Client client, ActionListener<RowSetCursor> listener);
+    void nextPage(Client client, ActionListener<RowSet> listener);
     /**
      * Write the {@linkplain Cursor} to a String for serialization over xcontent.
      */

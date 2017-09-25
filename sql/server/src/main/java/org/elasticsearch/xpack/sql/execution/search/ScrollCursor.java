@@ -19,7 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
 import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.Schema;
 
@@ -103,7 +103,7 @@ public class ScrollCursor implements Cursor {
     }
 
     @Override
-    public void nextPage(Client client, ActionListener<RowSetCursor> listener) {
+    public void nextPage(Client client, ActionListener<RowSet> listener) {
         // Fake the schema for now. We'll try to remove the need later.
         List<String> names = new ArrayList<>(extractors.size());
         List<DataType> dataTypes = new ArrayList<>(extractors.size());
@@ -123,7 +123,7 @@ public class ScrollCursor implements Cursor {
         client.searchScroll(request, ActionListener.wrap((SearchResponse response) -> {
             int limitHits = -1; // NOCOMMIT do a thing with this
             listener.onResponse(new SearchHitRowSetCursor(schema, extractors, response.getHits().getHits(),
-                    limitHits, response.getScrollId(), null));
+                    limitHits, response.getScrollId()));
         }, listener::onFailure));
     }
 

@@ -5,21 +5,21 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import org.elasticsearch.xpack.sql.session.AbstractRowSetCursor;
+import org.elasticsearch.xpack.sql.session.AbstractRowSet;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-class AggsRowSetCursor extends AbstractRowSetCursor {
+class AggsRowSet extends AbstractRowSet {
 
     private int row = 0;
     private final AggValues agg;
     private final List<Supplier<Object>> columns;
 
-    AggsRowSetCursor(Schema schema, AggValues agg, List<Supplier<Object>> columns) {
-        super(schema, null);
+    AggsRowSet(Schema schema, AggValues agg, List<Supplier<Object>> columns) {
+        super(schema);
         this.agg = agg;
         this.columns = columns;
     }

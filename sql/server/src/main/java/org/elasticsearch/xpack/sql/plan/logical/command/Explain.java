@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.sql.plan.QueryPlan;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -71,7 +71,7 @@ public class Explain extends Command {
     }
 
     @Override
-    protected RowSetCursor execute(SqlSession session) {
+    protected RowSet execute(SqlSession session) {
         String planString = null;
         String planName = "Parsed";
 

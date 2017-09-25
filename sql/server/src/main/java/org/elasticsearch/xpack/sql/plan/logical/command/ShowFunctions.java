@@ -5,19 +5,19 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
@@ -42,7 +42,7 @@ public class ShowFunctions extends Command {
     }
 
     @Override
-    protected RowSetCursor execute(SqlSession session) {
+    protected RowSet execute(SqlSession session) {
         FunctionRegistry registry = session.functionRegistry();
         Collection<FunctionDefinition> functions = registry.listFunctions(pattern);
         

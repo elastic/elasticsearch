@@ -5,18 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor.Batch;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor.ExecutionInfo;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor.Transformation;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -25,6 +20,10 @@ import org.elasticsearch.xpack.sql.tree.NodeUtils;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.Graphviz;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
@@ -69,7 +68,7 @@ public class Debug extends Command {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
-    protected RowSetCursor execute(SqlSession session) {
+    protected RowSet execute(SqlSession session) {
         String planString = null;
 
         ExecutionInfo info = null;

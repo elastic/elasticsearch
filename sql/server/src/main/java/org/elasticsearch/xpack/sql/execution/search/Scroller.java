@@ -9,7 +9,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
@@ -44,7 +43,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.TotalCountRef;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSettings;
 import org.elasticsearch.xpack.sql.type.Schema;
@@ -53,7 +52,6 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 // TODO: add retry/back-off
 public class Scroller {
@@ -76,7 +74,7 @@ public class Scroller {
         this.size = size;
     }
 
-    public void scroll(Schema schema, QueryContainer query, String index, ActionListener<RowSetCursor> listener) {
+    public void scroll(Schema schema, QueryContainer query, String index, ActionListener<RowSet> listener) {
         // prepare the request
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, size);
 
@@ -88,15 +86,14 @@ public class Scroller {
         search.scroll(keepAlive).source().timeout(timeout);
 
         boolean isAggsOnly = query.isAggsOnly();
-        
-        ScrollerActionListener l = isAggsOnly ? new AggsScrollActionListener(listener, client, timeout, schema, query) : new HandshakeScrollActionListener(listener, client, timeout, schema, query);
+
+        ScrollerActionListener l;
+        if (isAggsOnly) {
+            l = new AggsScrollActionListener(listener, client, timeout, schema, query);
+        } else {
+            l = new HandshakeScrollActionListener(listener, client, timeout, schema, query);
+        }
         client.search(search, l);
-    }
-
-
-    static void from(ActionListener<RowSetCursor> listener, SearchHitsActionListener previous, String scrollId, List<HitExtractor> ext) {
-        ScrollerActionListener l = new SessionScrollActionListener(listener, previous.client, previous.keepAlive, previous.schema, ext, previous.limit, previous.docsRead);
-        previous.client.searchScroll(new SearchScrollRequest(scrollId).scroll(previous.keepAlive), l);
     }
 
     // dedicated scroll used for aggs-only/group-by results
@@ -104,13 +101,13 @@ public class Scroller {
     
         private final QueryContainer query;
     
-        AggsScrollActionListener(ActionListener<RowSetCursor> listener, Client client, TimeValue keepAlive, Schema schema, QueryContainer query) {
+        AggsScrollActionListener(ActionListener<RowSet> listener, Client client, TimeValue keepAlive, Schema schema, QueryContainer query) {
             super(listener, client, keepAlive, schema);
             this.query = query;
         }
     
         @Override
-        protected RowSetCursor handleResponse(SearchResponse response) {
+        protected RowSet handleResponse(SearchResponse response) {
     
             final List<Object[]> extractedAggs = new ArrayList<>();
             AggValues aggValues = new AggValues(extractedAggs);
@@ -151,7 +148,7 @@ public class Scroller {
             aggValues.init(maxDepth, query.limit());
             clearScroll(response.getScrollId());
 
-            return new AggsRowSetCursor(schema, aggValues, aggColumns);
+            return new AggsRowSet(schema, aggValues, aggColumns);
         }
 
         private Object[] extractAggValue(ColumnReference col, SearchResponse response) {
@@ -209,12 +206,12 @@ public class Scroller {
         }
     
     // initial scroll used for parsing search hits (handles possible aggs)
-    static class HandshakeScrollActionListener extends SearchHitsActionListener {
-    
+    static class HandshakeScrollActionListener extends ScrollerActionListener {
         private final QueryContainer query;
     
-        HandshakeScrollActionListener(ActionListener<RowSetCursor> listener, Client client, TimeValue keepAlive, Schema schema, QueryContainer query) {
-            super(listener, client, keepAlive, schema, query.limit(), 0);
+        HandshakeScrollActionListener(ActionListener<RowSet> listener, Client client, TimeValue keepAlive,
+                Schema schema, QueryContainer query) {
+            super(listener, client, keepAlive, schema);
             this.query = query;
         }
     
@@ -222,9 +219,49 @@ public class Scroller {
         public void onResponse(SearchResponse response) {
             super.onResponse(response);
         }
+
+        protected RowSet handleResponse(SearchResponse response) {
+            SearchHit[] hits = response.getHits().getHits();
+            List<HitExtractor> exts = getExtractors();
     
-        @Override
-        protected List<HitExtractor> getExtractors() {
+            // there are some results
+            if (hits.length > 0) {
+                String scrollId = response.getScrollId();
+    
+                // if there's an id, try to setup next scroll
+                if (scrollId != null) {
+                    // is all the content already retrieved?
+                    if (Boolean.TRUE.equals(response.isTerminatedEarly()) || response.getHits().getTotalHits() == hits.length
+                    // or maybe the limit has been reached
+                            || (hits.length >= query.limit() && query.limit() > -1)) {
+                        // if so, clear the scroll
+                        clearScroll(scrollId);
+                        // and remove it to indicate no more data is expected
+                        scrollId = null;
+                    }
+                }
+                int limitHits = query.limit() > 0 && hits.length >= query.limit() ? query.limit() : -1;
+                return new SearchHitRowSetCursor(schema, exts, hits, limitHits, scrollId);
+            }
+            // no hits
+            else {
+                clearScroll(response.getScrollId());
+                // typically means last page but might be an aggs only query
+                return  needsHit(exts) ? Rows.empty(schema) : new SearchHitRowSetCursor(schema, exts);
+            }
+        }
+    
+        private static boolean needsHit(List<HitExtractor> exts) {
+            for (HitExtractor ext : exts) {
+                // Anything non-constant requires extraction
+                if (!(ext instanceof ConstantExtractor)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    
+        private List<HitExtractor> getExtractors() {
             // create response extractors for the first time
             List<ColumnReference> refs = query.columns();
     
@@ -262,92 +299,15 @@ public class Scroller {
         }
     }
     
-    // listener used for streaming the rest of the results after the handshake has been used
-    static class SessionScrollActionListener extends SearchHitsActionListener {
-    
-        private List<HitExtractor> exts;
-    
-        SessionScrollActionListener(ActionListener<RowSetCursor> listener, Client client, TimeValue keepAlive, Schema schema, List<HitExtractor> ext, int limit, int docCount) {
-            super(listener, client, keepAlive, schema, limit, docCount);
-            this.exts = ext;
-        }
-    
-        @Override
-        protected List<HitExtractor> getExtractors() {
-            return exts;
-        }
-    }
-    
-    public abstract static class SearchHitsActionListener extends ScrollerActionListener {
-    
-        final int limit;
-        int docsRead;
-    
-        SearchHitsActionListener(ActionListener<RowSetCursor> listener, Client client, TimeValue keepAlive, Schema schema, int limit, int docsRead) {
-            super(listener, client, keepAlive, schema);
-            this.limit = limit;
-            this.docsRead = docsRead;
-        }
-    
-        protected RowSetCursor handleResponse(SearchResponse response) {
-            SearchHit[] hits = response.getHits().getHits();
-            List<HitExtractor> exts = getExtractors();
-    
-            // there are some results
-            if (hits.length > 0) {
-                String scrollId = response.getScrollId();
-                Consumer<ActionListener<RowSetCursor>> next = null;
-    
-                docsRead += hits.length;
-    
-                // if there's an id, try to setup next scroll
-                if (scrollId != null) {
-                    // is all the content already retrieved?
-                    if (Boolean.TRUE.equals(response.isTerminatedEarly()) || response.getHits().getTotalHits() == hits.length
-                    // or maybe the limit has been reached
-                            || (docsRead >= limit && limit > -1)) {
-                        // if so, clear the scroll
-                        clearScroll(scrollId);
-                        // and remove it to indicate no more data is expected
-                        scrollId = null;
-                    }
-                    else {
-                        next = l -> Scroller.from(l, this, response.getScrollId(), exts);
-                    }
-                }
-                int limitHits = limit > 0 && docsRead >= limit ? limit : -1;
-                return new SearchHitRowSetCursor(schema, exts, hits, limitHits, scrollId, next);
-            }
-            // no hits
-            else {
-                clearScroll(response.getScrollId());
-                // typically means last page but might be an aggs only query
-                return  needsHit(exts) ? Rows.empty(schema) : new SearchHitRowSetCursor(schema, exts);
-            }
-        }
-    
-        private static boolean needsHit(List<HitExtractor> exts) {
-            for (HitExtractor ext : exts) {
-                // Anything non-constant requires extraction
-                if (!(ext instanceof ConstantExtractor)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    
-        protected abstract List<HitExtractor> getExtractors();
-    }
-    
     abstract static class ScrollerActionListener implements ActionListener<SearchResponse> {
     
-        final ActionListener<RowSetCursor> listener;
+        final ActionListener<RowSet> listener;
     
         final Client client;
         final TimeValue keepAlive;
         final Schema schema;
     
-        ScrollerActionListener(ActionListener<RowSetCursor> listener, Client client, TimeValue keepAlive, Schema schema) {
+        ScrollerActionListener(ActionListener<RowSet> listener, Client client, TimeValue keepAlive, Schema schema) {
             this.listener = listener;
     
             this.client = client;
@@ -369,7 +329,7 @@ public class Scroller {
             }
         }
     
-        protected abstract RowSetCursor handleResponse(SearchResponse response);
+        protected abstract RowSet handleResponse(SearchResponse response);
     
         protected final void clearScroll(String scrollId) {
             if (scrollId != null) {

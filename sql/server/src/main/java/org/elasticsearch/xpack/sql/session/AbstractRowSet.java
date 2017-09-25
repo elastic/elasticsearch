@@ -5,25 +5,19 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import java.util.function.Consumer;
-
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.type.Schema;
 import org.elasticsearch.xpack.sql.util.Assert;
 
-public abstract class AbstractRowSetCursor implements RowSetCursor {
+public abstract class AbstractRowSet implements RowSet {
 
     private final Schema schema;
     private final int size;
 
-    private final Consumer<ActionListener<RowSetCursor>> nextSet;
-
     private boolean terminated = false;
 
-    protected AbstractRowSetCursor(Schema schema, Consumer<ActionListener<RowSetCursor>> nextSet) {
+    protected AbstractRowSet(Schema schema) {
         this.schema = schema;
         this.size = schema().names().size();
-        this.nextSet = nextSet;
     }
 
     @Override
@@ -64,21 +58,6 @@ public abstract class AbstractRowSetCursor implements RowSetCursor {
     }
 
     protected abstract void doReset();
-
-    @Override
-    public boolean hasNextSet() {
-        return nextSet != null;
-    }
-
-    @Override
-    public void nextSet(ActionListener<RowSetCursor> listener) {
-        if (nextSet != null) {
-            nextSet.accept(listener);
-        }
-        else {
-            listener.onResponse(null);
-        }
-    }
 
     @Override
     public int rowSize() {

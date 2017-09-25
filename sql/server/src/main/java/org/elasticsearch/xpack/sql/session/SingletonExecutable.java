@@ -28,7 +28,7 @@ public class SingletonExecutable implements Executable {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<RowSetCursor> listener) {
+    public void execute(SqlSession session, ActionListener<RowSet> listener) {
         listener.onResponse(Rows.singleton(output, values));
     }
 

@@ -136,7 +136,7 @@ public class SqlSession {
         }
     }
 
-    public void sql(String sql, ActionListener<RowSetCursor> listener) {
+    public void sql(String sql, ActionListener<RowSet> listener) {
         executable(sql).execute(this, listener);
     }
 
@@ -153,7 +153,7 @@ public class SqlSession {
         return settings;
     }
 
-    public void execute(PhysicalPlan plan, ActionListener<RowSetCursor> listener) {
+    public void execute(PhysicalPlan plan, ActionListener<RowSet> listener) {
         plan.execute(this, listener);
     }
 }

@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.xpack.sql.type.Schema;
 
-class SingletonRowSet extends AbstractRowSetCursor { // NOCOMMIT is it worth keeping this when we have ListRowSet?
+class SingletonRowSet extends AbstractRowSet { // NOCOMMIT is it worth keeping this when we have ListRowSet?
 
     private final Object[] values;
 
     SingletonRowSet(Schema schema, Object[] values) {
-        super(schema, null);
+        super(schema);
         this.values = values;
     }
 

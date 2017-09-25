@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
+import org.elasticsearch.xpack.sql.expression.Attribute;
+
 import java.util.List;
 import java.util.Objects;
-
-import org.elasticsearch.xpack.sql.expression.Attribute;
 
 public class EmptyExecutable implements Executable {
 
@@ -24,7 +24,7 @@ public class EmptyExecutable implements Executable {
     }
 
     @Override
-    public void execute(SqlSession session, org.elasticsearch.action.ActionListener<RowSetCursor> listener) {
+    public void execute(SqlSession session, org.elasticsearch.action.ActionListener<RowSet> listener) {
         listener.onResponse(Rows.empty(output));
     }
 

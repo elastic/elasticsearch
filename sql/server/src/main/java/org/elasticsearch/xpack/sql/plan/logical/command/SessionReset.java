@@ -5,20 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
-import java.util.List;
-import java.util.Objects;
-import java.util.regex.Pattern;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.StringUtils;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
@@ -48,7 +48,8 @@ public class SessionReset extends Command {
     }
 
     @Override
-    protected RowSetCursor execute(SqlSession session) {
+    protected RowSet execute(SqlSession session) {
+        // NOCOMMIT this isn't likely to work any more. None of the session stuff is.
         session.updateSettings(s -> {
             Settings defaults = session.defaults().cfg();
             Builder builder = Settings.builder().put(s);

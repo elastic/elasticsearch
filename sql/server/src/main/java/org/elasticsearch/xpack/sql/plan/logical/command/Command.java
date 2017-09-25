@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.session.Executable;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 
@@ -26,9 +26,9 @@ public abstract class Command extends LogicalPlan implements Executable {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<RowSetCursor> listener) {
+    public void execute(SqlSession session, ActionListener<RowSet> listener) {
         listener.onResponse(execute(session));
     }
 
-    protected abstract RowSetCursor execute(SqlSession session);
+    protected abstract RowSet execute(SqlSession session);
 }

@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
+import org.elasticsearch.xpack.sql.type.Schema;
+
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-
-import org.elasticsearch.xpack.sql.type.Schema;
 
 /**
  * A view into a row.

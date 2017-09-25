@@ -35,7 +35,7 @@ class EmptyCursor implements Cursor {
     }
 
     @Override
-    public void nextPage(Client client, ActionListener<RowSetCursor> listener) {
+    public void nextPage(Client client, ActionListener<RowSet> listener) {
         throw new IllegalArgumentException("there is no next page");
     }
 

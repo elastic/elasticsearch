@@ -50,7 +50,7 @@ public abstract class Rows {
         return new Schema(asList(n1, n2, n3, n4, n5), asList(t1, t2, t3, t4, t5));
     }
 
-    public static RowSetCursor of(List<Attribute> attrs, List<List<?>> values) {
+    public static RowSet of(List<Attribute> attrs, List<List<?>> values) {
         if (values.isEmpty()) {
             return empty(attrs);
         }
@@ -63,16 +63,16 @@ public abstract class Rows {
         return new ListRowSetCursor(schema, values);
     }
 
-    public static RowSetCursor singleton(List<Attribute> attrs, Object... values) {
+    public static RowSet singleton(List<Attribute> attrs, Object... values) {
         Assert.isTrue(attrs.size() == values.length, "Schema %s and values %s are out of sync", attrs, values);
         return new SingletonRowSet(schema(attrs), values);
     }
 
-    public static RowSetCursor empty(Schema schema) {
+    public static RowSet empty(Schema schema) {
         return new EmptyRowSetCursor(schema);
     }
 
-    public static RowSetCursor empty(List<Attribute> attrs) {
+    public static RowSet empty(List<Attribute> attrs) {
         return new EmptyRowSetCursor(schema(attrs));
     }
 }

@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.session.SqlSettings;
 
@@ -66,16 +66,16 @@ public class PlanExecutor {
         }
     }
 
-    public void sql(String sql, ActionListener<RowSetCursor> listener) {
+    public void sql(String sql, ActionListener<RowSet> listener) {
         sql(SqlSettings.EMPTY, sql, listener);
     }
 
-    public void sql(SqlSettings sqlSettings, String sql, ActionListener<RowSetCursor> listener) {
+    public void sql(SqlSettings sqlSettings, String sql, ActionListener<RowSet> listener) {
         SqlSession session = newSession(sqlSettings);
         session.executable(sql).execute(session, listener);
     }
 
-    public void nextPage(Cursor cursor, ActionListener<RowSetCursor> listener) {
+    public void nextPage(Cursor cursor, ActionListener<RowSet> listener) {
         cursor.nextPage(client, listener);
     }
 }

@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse.ColumnInfo;
 import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SqlSettings;
 import org.elasticsearch.xpack.sql.type.Schema;
 
@@ -64,7 +64,7 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
         }
     }
 
-    static SqlResponse createResponse(boolean includeColumnMetadata, RowSetCursor cursor) {
+    static SqlResponse createResponse(boolean includeColumnMetadata, RowSet cursor) {
         List<ColumnInfo> columns = null;
         if (includeColumnMetadata) {
             columns = new ArrayList<>(cursor.schema().types().size());

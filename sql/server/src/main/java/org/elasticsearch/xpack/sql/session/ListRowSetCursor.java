@@ -9,13 +9,13 @@ import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.util.List;
 
-class ListRowSetCursor extends AbstractRowSetCursor {
+class ListRowSetCursor extends AbstractRowSet {
 
     private final List<List<?>> list;
     private int pos = 0;
 
     ListRowSetCursor(Schema schema, List<List<?>> list) {
-        super(schema, null);
+        super(schema);
         this.list = list;
     }
 

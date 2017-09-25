@@ -11,7 +11,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -45,7 +45,7 @@ public class ShowTables extends Command {
     }
 
     @Override
-    public final void execute(SqlSession session, ActionListener<RowSetCursor> listener) {
+    public final void execute(SqlSession session, ActionListener<RowSet> listener) {
         String pattern = Strings.hasText(this.pattern) ? StringUtils.jdbcToEsPattern(this.pattern) : "*";
         session.getIndices(new String[] {pattern}, IndicesOptions.lenientExpandOpen(), ActionListener.wrap(result -> {
             listener.onResponse(Rows.of(output(), result.stream()
@@ -55,7 +55,7 @@ public class ShowTables extends Command {
     }
 
     @Override
-    protected RowSetCursor execute(SqlSession session) {
+    protected RowSet execute(SqlSession session) {
         throw new UnsupportedOperationException("No synchronous exec");
     }
 

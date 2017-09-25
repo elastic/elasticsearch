@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
-import java.util.List;
-
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+
+import java.util.List;
 
 import static java.util.Collections.singletonList;
 
@@ -29,7 +29,7 @@ public class ShowSchemas extends Command {
     }
 
     @Override
-    protected RowSetCursor execute(SqlSession session) {
+    protected RowSet execute(SqlSession session) {
         return Rows.empty(output());
     }
 

@@ -445,7 +445,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
                         Settings.Builder templateSettingsBuilder = Settings.builder();
-                        Settings.fromXContent(parser, templateSettingsBuilder);
+                        templateSettingsBuilder.put(Settings.fromXContent(parser));
                         templateSettingsBuilder.normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
                         builder.settings(templateSettingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {

@@ -625,11 +625,11 @@ public final class Settings implements ToXContentFragment {
      * Note this method requires the parser to either be positioned on a null token or on
      * {@link org.elasticsearch.common.xcontent.XContentParser.Token#START_OBJECT}.
      */
-    public static Settings.Builder fromXContent(XContentParser parser, Settings.Builder builder) throws IOException {
-        return fromXContent(parser, builder, true, false);
+    public static Settings fromXContent(XContentParser parser) throws IOException {
+        return fromXContent(parser, true, false);
     }
 
-    private static Settings.Builder fromXContent(XContentParser parser, Settings.Builder builder, boolean allowNullValues,
+    private static Settings fromXContent(XContentParser parser, boolean allowNullValues,
                                                  boolean validateEndOfStream)
         throws IOException {
         if (parser.currentToken() == null) {
@@ -657,8 +657,7 @@ public final class Settings implements ToXContentFragment {
                     parser.getTokenLocation().lineNumber, parser.getTokenLocation().columnNumber);
             }
         }
-        builder.put(innerBuilder.build());
-        return builder;
+        return innerBuilder.build();
     }
 
     private static void fromXContent(XContentParser parser, StringBuilder keyBuilder, Settings.Builder builder,
@@ -1129,7 +1128,7 @@ public final class Settings implements ToXContentFragment {
          */
         public Builder loadFromSource(String source, XContentType xContentType) {
             try (XContentParser parser =  XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY, source)) {
-                fromXContent(parser, this, true, true);
+                this.put(fromXContent(parser, true, true));
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + source + "]", e);
             }
@@ -1146,7 +1145,7 @@ public final class Settings implements ToXContentFragment {
         }
 
         /**
-         * Loads settings from a stream that represents them using {@link #fromXContent(XContentParser, Builder)}
+         * Loads settings from a stream that represents them using {@link #fromXContent(XContentParser)}
          */
         public Builder loadFromStream(String resourceName, InputStream is, boolean acceptNullValues) throws IOException {
             final XContentType xContentType;
@@ -1163,7 +1162,7 @@ public final class Settings implements ToXContentFragment {
                         return this; // empty file
                     }
                 }
-                fromXContent(parser, this, acceptNullValues, true);
+                put(fromXContent(parser, acceptNullValues, true));
             } catch (ElasticsearchParseException e) {
                 throw e;
             } catch (Exception e) {

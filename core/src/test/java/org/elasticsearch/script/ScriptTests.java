@@ -88,7 +88,7 @@ public class ScriptTests extends ESTestCase {
         Script expectedScript = createScript();
         try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
             expectedScript.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            Settings settings = Settings.fromXContent(createParser(builder), Settings.builder()).build();
+            Settings settings = Settings.fromXContent(createParser(builder));
             Script actualScript = Script.parse(settings);
             assertThat(actualScript, equalTo(expectedScript));
         }

@@ -1142,7 +1142,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (KEY_SETTINGS.equals(currentFieldName)) {
-                        builder.settings(Settings.fromXContent(parser, Settings.builder()));
+                        builder.settings(Settings.fromXContent(parser));
                     } else if (KEY_MAPPINGS.equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {

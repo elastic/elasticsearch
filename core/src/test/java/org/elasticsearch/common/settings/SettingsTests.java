@@ -527,9 +527,7 @@ public class SettingsTests extends ESTestCase {
         settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", ""+flatSettings)));
         builder.endObject();
         XContentParser parser = createParser(builder);
-        Settings.Builder newBuilder = Settings.builder();
-        Settings.fromXContent(parser, newBuilder);
-        Settings build = newBuilder.build();
+        Settings build = Settings.fromXContent(parser);
         assertEquals(7, build.size()); // each list element is it's own key hence 7 and not 5
         assertArrayEquals(new String[] {"1", "2", "3"}, build.getAsArray("foo.bar.baz"));
         assertEquals(2, build.getAsInt("foo.foobar", 0).intValue());

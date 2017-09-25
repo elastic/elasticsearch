@@ -1053,7 +1053,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
-                        builder.persistentSettings(Settings.fromXContent(parser, Settings.builder()).build());
+                        builder.persistentSettings(Settings.fromXContent(parser));
                     } else if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(IndexMetaData.Builder.fromXContent(parser), false);

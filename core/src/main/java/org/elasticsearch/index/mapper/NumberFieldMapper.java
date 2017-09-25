@@ -85,6 +85,12 @@ public class NumberFieldMapper extends FieldMapper {
             return builder;
         }
 
+        @Override
+        public Builder indexOptions(IndexOptions indexOptions) {
+            throw new MapperParsingException(
+                    "index_options not allowed in field [" + name + "] of type [" + builder.fieldType().typeName() + "]");
+        }
+
         protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
             if (ignoreMalformed != null) {
                 return new Explicit<>(ignoreMalformed, true);

@@ -74,10 +74,11 @@ public class RecoveryIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         return Settings.builder().put(super.restClientSettings())
-            // increase the timeout so that we can actually see the result of failed cluster health
-            // calls that have a default timeout of 30s
-            .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "40s")
-            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "40s")
+            // increase the timeout here to 90 seconds to handle long waits for a green
+            // cluster health. the waits for green need to be longer than a minute to
+            // account for delayed shards
+            .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "90s")
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
             .build();
     }
 
@@ -89,6 +90,8 @@ public class RecoveryIT extends ESRestTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("wait_for_status", "green");
         params.put("wait_for_no_relocating_shards", "true");
+        params.put("timeout", "70s");
+        params.put("level", "shards");
         assertOK(client().performRequest("GET", "_cluster/health", params));
     }
 

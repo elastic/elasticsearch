@@ -283,7 +283,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                 .startObject("properties")
                     .startObject("foo")
                         .field("type", type)
-                        .field("index_options", randomFrom(new String[]{"docs", "freqs", "positions", "offset"}))
+                    .field("index_options", randomFrom(new String[] { "docs", "freqs", "positions", "offsets" }))
                     .endObject()
                 .endObject().endObject().endObject().string();
             MapperParsingException e = expectThrows(MapperParsingException.class,

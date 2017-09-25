@@ -345,7 +345,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
                 .startObject("foo")
                     .field("type", "scaled_float")
-                    .field("index_options", randomFrom(new String[]{"docs", "freqs", "positions", "offset"}))
+                .field("index_options", randomFrom(new String[] { "docs", "freqs", "positions", "offsets" }))
                 .endObject()
             .endObject().endObject().endObject().string();
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));

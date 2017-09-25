@@ -7,6 +7,9 @@ Also see <<breaking-changes-5.6>>.
 [float]
 === Bug fixes
 
+Aggregations::
+* Do not delegate a null scorer to LeafBucketCollectors {pull}26747[#26747] (issue: {issue}26611[#26611])
+
 Inner Hits::
 * Do not allow inner hits that fetch _source and have a non nested object field as parent {pull}25749[#25749] (issue: {issue}25315[#25315])
 
@@ -33,3 +36,12 @@ Scripting::
 
 Upgrade API::
 * Upgrade API: fix excessive logging and unnecessary template updates {pull}26698[#26698] (issue: {issue}26673[#26673])
+
+
+
+[[upgrade-5.6.2]]
+[float]
+=== Upgrades
+
+Logging::
+* Upgrade to Log4j 2.9.1 {pull}26750[#26750] (issues: {issue}109[#109], {issue}26464[#26464], {issue}26467[#26467])

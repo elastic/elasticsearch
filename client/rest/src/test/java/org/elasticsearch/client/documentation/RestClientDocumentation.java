@@ -33,6 +33,8 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.entity.NStringEntity;
+import org.apache.http.ssl.SSLContextBuilder;
+import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.Response;
@@ -47,9 +49,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertificateException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -258,7 +257,7 @@ public class RestClientDocumentation {
     }
 
     @SuppressWarnings("unused")
-    public void testCommonConfiguration() throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException {
+    public void testCommonConfiguration() throws Exception {
         {
             //tag::rest-client-config-timeouts
             RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200))
@@ -318,13 +317,14 @@ public class RestClientDocumentation {
         {
             Path keyStorePath = Paths.get("");
             String keyStorePass = "";
-            final SSLContext sslContext = null;
             //tag::rest-client-config-encrypted-communication
-            KeyStore keystore = KeyStore.getInstance("jks");
+            KeyStore truststore = KeyStore.getInstance("jks");
             try (InputStream is = Files.newInputStream(keyStorePath)) {
-                keystore.load(is, keyStorePass.toCharArray());
+                truststore.load(is, keyStorePass.toCharArray());
             }
-            RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200))
+            SSLContextBuilder sslBuilder = SSLContexts.custom().loadTrustMaterial(truststore, null);
+            final SSLContext sslContext = sslBuilder.build();
+            RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200, "https"))
                     .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
                         @Override
                         public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {

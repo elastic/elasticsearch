@@ -1221,7 +1221,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testParentChild_parentField() {
         assertAcked(prepareCreate("test")
-                .setSettings("index.version.created", Version.V_5_6_0.id)
+                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();

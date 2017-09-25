@@ -79,7 +79,7 @@ public class GraphTests extends XPackSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 2, SETTING_NUMBER_OF_REPLICAS, 0)
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .addMapping("type",
                         "decade", "type=keyword",
                         "people", "type=keyword",

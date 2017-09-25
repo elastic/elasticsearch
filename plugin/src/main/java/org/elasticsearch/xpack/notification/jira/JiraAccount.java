@@ -9,6 +9,10 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpProxy;
@@ -18,6 +22,7 @@ import org.elasticsearch.xpack.common.http.Scheme;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collections;
@@ -68,7 +73,15 @@ public class JiraAccount {
         if (Strings.isEmpty(this.password)) {
             throw requiredSettingException(name, PASSWORD_SETTING);
         }
-        this.issueDefaults = Collections.unmodifiableMap(settings.getAsSettings(ISSUE_DEFAULTS_SETTING).getAsStructuredMap());
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.startObject();
+            settings.getAsSettings(ISSUE_DEFAULTS_SETTING).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            this.issueDefaults = Collections.unmodifiableMap(XContentType.JSON.xContent()
+                    .createParser(new NamedXContentRegistry(Collections.emptyList()), builder.bytes()).map());
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 
     public String getName() {

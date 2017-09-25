@@ -92,16 +92,12 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
                 MonitoringSettings.JOB_STATS_TIMEOUT};
         for (Setting<?> setting : monitoringSettings) {
             if (setting.isDynamic()) {
-                Object updated = null;
                 if (setting.get(Settings.EMPTY) instanceof TimeValue) {
-                    updated = newRandomTimeValue();
-                    transientSettings.put(setting.getKey(), updated);
+                    transientSettings.put(setting.getKey(), newRandomTimeValue().toString());
                 } else if (setting.get(Settings.EMPTY) instanceof Boolean) {
-                    updated = randomBoolean();
-                    transientSettings.put(setting.getKey(), updated);
+                    transientSettings.put(setting.getKey(), randomBoolean());
                 } else if (setting.get(Settings.EMPTY) instanceof List) {
-                    updated = randomStringArray();
-                    transientSettings.putArray(setting.getKey(), (String[]) updated);
+                    transientSettings.putArray(setting.getKey(), randomStringArray());
                 } else {
                     fail("unknown dynamic setting [" + setting + "]");
                 }

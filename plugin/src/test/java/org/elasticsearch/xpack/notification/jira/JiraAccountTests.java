@@ -216,7 +216,7 @@ public class JiraAccountTests extends ESTestCase {
         for (Map.Entry<String, Object> setting : defaults.entrySet()) {
             String key = "xpack.notification.jira.account." + name + "." + JiraAccount.ISSUE_DEFAULTS_SETTING + "." + setting.getKey();
             if (setting.getValue() instanceof String) {
-                builder.put(key, setting.getValue());
+                builder.put(key, setting.getValue().toString());
             } else if (setting.getValue() instanceof Map) {
                 builder.putProperties((Map) setting.getValue(), s -> key + "." + s);
             }

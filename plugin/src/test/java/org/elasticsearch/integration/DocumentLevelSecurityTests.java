@@ -586,7 +586,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testChildrenAggregation() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .setSettings("index.version.created", Version.V_5_6_0.id)
+                        .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
                         .addMapping("type1", "field1", "type=text", "field2", "type=text")
                         .addMapping("type2", "_parent", "type=type1", "field3", "type=text,fielddata=true")
         );
@@ -643,7 +643,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testParentChild_parentField() {
         assertAcked(prepareCreate("test")
-                .setSettings("index.version.created", Version.V_5_6_0.id)
+                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent", "field1", "type=text", "field2", "type=text", "field3", "type=text"));
         ensureGreen();

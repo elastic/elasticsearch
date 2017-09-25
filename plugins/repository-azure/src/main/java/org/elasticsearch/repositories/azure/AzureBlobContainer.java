@@ -93,9 +93,9 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         if (blobExists(blobName)) {
             throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
         }
-        logger.trace("writeBlob({}, stream, {})", blobName, blobSize);
+        logger.trace("writeBlob({}, stream, {})", buildKey(blobName), blobSize);
         try {
-            blobStore.writeBlob(blobName, inputStream, blobSize);
+            blobStore.writeBlob(buildKey(blobName), inputStream, blobSize);
         } catch (URISyntaxException|StorageException e) {
             throw new IOException("Can not write blob " + blobName, e);
         }

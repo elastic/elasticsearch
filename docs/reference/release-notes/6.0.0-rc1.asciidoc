@@ -14,6 +14,15 @@ Query DSL::
 
 
 
+[[deprecation-6.0.0-rc1]]
+[float]
+=== Deprecations
+
+Plugins::
+* Plugins: Add backcompat for sha1 checksums {pull}26748[#26748] (issue: {issue}26746[#26746])
+
+
+
 [[enhancement-6.0.0-rc1]]
 [float]
 === Enhancements
@@ -54,6 +63,9 @@ Sequence IDs::
 [[bug-6.0.0-rc1]]
 [float]
 === Bug fixes
+
+Aggregations::
+* Do not delegate a null scorer to LeafBucketCollectors {pull}26747[#26747] (issue: {issue}26611[#26611])
 
 Core::
 * Fix cache compute if absent for expired entries {pull}26516[#26516]
@@ -114,4 +126,5 @@ Core::
 * Upgrade to lucene-7.0.0-snapshot-d94a5f0. {pull}26441[#26441]
 
 Logging::
+* Upgrade to Log4j 2.9.1 {pull}26750[#26750] (issues: {issue}109[#109], {issue}26464[#26464], {issue}26467[#26467])
 * Upgrade to Log4j 2.9.0 {pull}26450[#26450] (issue: {issue}23798[#23798])

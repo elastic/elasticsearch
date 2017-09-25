@@ -74,8 +74,21 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
+        /*
+         * We have to pull out the call to `source().size(size)` because
+         * _update_by_query and _delete_by_query uses this same parsing
+         * path but sets a different variable when it sees the `size`
+         * url parameter.
+         *
+         * Note that we can't use `searchRequest.source()::size` because
+         * `searchRequest.source()` is null right now. We don't have to
+         * guard against it being null in the IntConsumer because it can't
+         * be null later. If that is confusing to you then you are in good
+         * company.
+         */
+        IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(parser ->
-            parseSearchRequest(searchRequest, request, parser, size -> searchRequest.source().size(size)));
+            parseSearchRequest(searchRequest, request, parser, setSize));
 
         return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }

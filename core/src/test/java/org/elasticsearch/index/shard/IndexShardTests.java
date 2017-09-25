@@ -136,7 +136,6 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static java.util.Collections.max;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
@@ -151,6 +150,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -409,6 +409,52 @@ public class IndexShardTests extends IndexShardTestCase {
 
         closeShards(indexShard);
     }
+
+    /**
+     * This test makes sure that people can use the shard routing entry to check whether a shard was already promoted to
+     * a primary. Concretely this means, that when we publish the routing entry via {@link IndexShard#routingEntry()} the following
+     * should have happened
+     * 1) Internal state (ala GlobalCheckpointTracker) have been updated
+     * 2) Primary term is set to the new term
+     */
+    public void testPublishingOrderOnPromotion() throws IOException, BrokenBarrierException, InterruptedException {
+        final IndexShard indexShard = newStartedShard(false);
+        final long promotedTerm = indexShard.getPrimaryTerm() + 1;
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final AtomicBoolean stop = new AtomicBoolean();
+        final Thread thread = new Thread(() -> {
+            try {
+                barrier.await();
+            } catch (final BrokenBarrierException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            while(stop.get() == false) {
+                if (indexShard.routingEntry().primary()) {
+                    assertThat(indexShard.getPrimaryTerm(), equalTo(promotedTerm));
+                    assertThat(indexShard.getEngine().seqNoService().getReplicationGroup(), notNullValue());
+                }
+            }
+        });
+        thread.start();
+
+        final ShardRouting replicaRouting = indexShard.routingEntry();
+        final ShardRouting primaryRouting = newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null, true,
+            ShardRoutingState.STARTED, replicaRouting.allocationId());
+
+
+        final Set<String> inSyncAllocationIds = Collections.singleton(primaryRouting.allocationId().getId());
+        final IndexShardRoutingTable routingTable =
+            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build();
+        barrier.await();
+        // promote the replica
+        indexShard.updateShardState(primaryRouting, promotedTerm, (shard, listener) -> {}, 0L, inSyncAllocationIds, routingTable,
+            Collections.emptySet());
+
+        stop.set(true);
+        thread.join();
+        closeShards(indexShard);
+    }
+
 
     public void testPrimaryFillsSeqNoGapsOnPromotion() throws Exception {
         final IndexShard indexShard = newStartedShard(false);

@@ -336,4 +336,21 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
+
+    /**
+     * `index_options` was deprecated and is rejected as of 7.0
+     */
+    public void testRejectIndexOptions() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+                .startObject("foo")
+                    .field("type", "scaled_float")
+                    .field("scaling_factor", 10.0)
+                    .field("index_options", randomFrom(new String[]{"docs", "freqs", "positions", "offset"}))
+                .endObject()
+            .endObject().endObject().endObject().string();
+        parser.parse("type", new CompressedXContent(mapping));
+        assertWarnings(
+                "index_options are deprecated for field [foo] of type [scaled_float] and will be removed in the next major version.");
+    }
 }

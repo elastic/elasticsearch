@@ -438,6 +438,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 state == IndexShardState.CLOSED :
                 "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
             persistMetadata(path, indexSettings, newRouting, currentRouting, logger);
+            final CountDownLatch shardStateUpdated = new CountDownLatch(1);
 
             if (newRouting.primary()) {
                 if (newPrimaryTerm != primaryTerm) {
@@ -467,7 +468,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                      * increment the primary term. The latch is needed to ensure that we do not unblock operations before the primary term is
                      * incremented.
                      */
-                    final CountDownLatch latch = new CountDownLatch(1);
                     // to prevent primary relocation handoff while resync is not completed
                     boolean resyncStarted = primaryReplicaResyncInProgress.compareAndSet(false, true);
                     if (resyncStarted == false) {
@@ -477,7 +477,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         30,
                         TimeUnit.MINUTES,
                         () -> {
-                            latch.await();
+                            shardStateUpdated.await();
                             try {
                                 /*
                                  * If this shard was serving as a replica shard when another shard was promoted to primary then the state of
@@ -520,11 +520,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         e -> failShard("exception during primary term transition", e));
                     getEngine().seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
                     primaryTerm = newPrimaryTerm;
-                    latch.countDown();
                 }
             }
             // set this last, once we finished updating all internal state.
             this.shardRouting = newRouting;
+            shardStateUpdated.countDown();
         }
         if (currentRouting != null && currentRouting.active() == false && newRouting.active()) {
             indexEventListener.afterIndexShardStarted(this);

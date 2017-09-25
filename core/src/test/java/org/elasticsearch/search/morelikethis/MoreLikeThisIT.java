@@ -370,7 +370,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         logger.info("Creating index test");
         int numOfTypes = randomIntBetween(2, 10);
         CreateIndexRequestBuilder createRequestBuilder = prepareCreate("test")
-                .setSettings("index.version.created", Version.V_5_6_0.id);
+                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id));
         for (int i = 0; i < numOfTypes; i++) {
             createRequestBuilder.addMapping("type" + i, jsonBuilder().startObject().startObject("type" + i).startObject("properties")
                     .startObject("text").field("type", "text").endObject()
@@ -403,7 +403,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "text", "type=text,analyzer=keyword")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
         ensureGreen();
 
         logger.info("Indexing ...");
@@ -435,7 +435,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "text", "type=text,analyzer=whitespace")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
         ensureGreen();
 
         logger.info("Indexing with each doc having one less term ...");

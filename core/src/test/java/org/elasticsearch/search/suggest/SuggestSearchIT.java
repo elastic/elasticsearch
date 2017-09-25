@@ -226,9 +226,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
     // see #2729
     public void testSizeOneShard() throws Exception {
-        prepareCreate("test").setSettings(
-                SETTING_NUMBER_OF_SHARDS, 1,
-                SETTING_NUMBER_OF_REPLICAS, 0).get();
+        prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
 
         for (int i = 0; i < 15; i++) {

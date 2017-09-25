@@ -380,7 +380,7 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(TimeValue.parseTimeValue(newGCDeleteSetting.getStringRep(), new TimeValue(1, TimeUnit.DAYS),
             IndexSettings.INDEX_GC_DELETES_SETTING.getKey()).getMillis(), settings.getGcDeletesInMillis());
         settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(),
-            randomBoolean() ? -1 : new TimeValue(-1, TimeUnit.MILLISECONDS)).build()));
+            (randomBoolean() ? -1 : new TimeValue(-1, TimeUnit.MILLISECONDS)).toString()).build()));
         assertEquals(-1, settings.getGcDeletesInMillis());
     }
 

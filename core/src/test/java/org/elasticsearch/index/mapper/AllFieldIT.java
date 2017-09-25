@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -43,7 +44,7 @@ public class AllFieldIT extends ESIntegTestCase {
 
     public void test5xIndicesContinueToUseAll() throws Exception {
         // Default 5.x settings
-        assertAcked(prepareCreate("test").setSettings("index.version.created", Version.V_5_1_1.id));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.version.created", Version.V_5_1_1.id)));
         client().prepareIndex("test", "type", "1").setSource("body", "foo").get();
         refresh();
         SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("_all", "foo")).get();
@@ -62,7 +63,7 @@ public class AllFieldIT extends ESIntegTestCase {
                         .endObject() // type
                         .endObject() // mappings
                         .endObject())
-                .setSettings("index.version.created", Version.V_5_4_0_ID));
+                .setSettings(Settings.builder().put("index.version.created", Version.V_5_4_0_ID)));
         client().prepareIndex("test2", "type", "1").setSource("foo", "bar").get();
         refresh();
         resp = client().prepareSearch("test2").setQuery(QueryBuilders.matchQuery("_all", "bar")).get();
@@ -81,7 +82,7 @@ public class AllFieldIT extends ESIntegTestCase {
                         .endObject() // type
                         .endObject() // mappings
                         .endObject())
-                .setSettings("index.version.created", Version.V_5_4_0_ID));
+                .setSettings(Settings.builder().put("index.version.created", Version.V_5_4_0_ID)));
         client().prepareIndex("test3", "type", "1").setSource("foo", "baz").get();
         refresh();
         resp = client().prepareSearch("test3").setQuery(QueryBuilders.matchQuery("_all", "baz")).get();
@@ -98,7 +99,7 @@ public class AllFieldIT extends ESIntegTestCase {
                         .endObject() // type
                         .endObject() // mappings
                         .endObject())
-                .setSettings("index.version.created", Version.V_5_4_0_ID));
+                .setSettings(Settings.builder().put("index.version.created", Version.V_5_4_0_ID)));
         client().prepareIndex("test4", "type", "1").setSource("foo", "eggplant").get();
         refresh();
         resp = client().prepareSearch("test4").setQuery(QueryBuilders.matchQuery("_all", "eggplant")).get();

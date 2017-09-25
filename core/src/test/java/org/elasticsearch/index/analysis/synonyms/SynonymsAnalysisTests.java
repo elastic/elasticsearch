@@ -60,7 +60,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
         String json = "/org/elasticsearch/index/analysis/synonyms/synonyms.json";
         Settings settings = Settings.builder().
-            loadFromStream(json, getClass().getResourceAsStream(json))
+            loadFromStream(json, getClass().getResourceAsStream(json), false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), home)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
@@ -90,7 +90,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .putArray("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
             .put("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.tokenizer", "whitespace")
             .putArray("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.filter", "stop_within_synonym","synonym")
-            .put().build();
+            .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         try {
             indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;
@@ -111,7 +111,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .putArray("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
             .put("index.analysis.analyzer.synonymAnalyzerExpandWithStopBeforeSynonym.tokenizer", "whitespace")
             .putArray("index.analysis.analyzer.synonymAnalyzerExpandWithStopBeforeSynonym.filter", "stop_within_synonym","synonym_expand")
-            .put().build();
+            .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         try {
             indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;

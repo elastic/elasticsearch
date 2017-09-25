@@ -108,7 +108,7 @@ public class AnalysisModuleTests extends ESTestCase {
     }
 
     private Settings loadFromClasspath(String path) throws IOException {
-        return Settings.builder().loadFromStream(path, getClass().getResourceAsStream(path))
+        return Settings.builder().loadFromStream(path, getClass().getResourceAsStream(path), false)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
@@ -141,7 +141,7 @@ public class AnalysisModuleTests extends ESTestCase {
     public void testVersionedAnalyzers() throws Exception {
         String yaml = "/org/elasticsearch/index/analysis/test1.yml";
         Settings settings2 = Settings.builder()
-                .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
+                .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0)
                 .build();

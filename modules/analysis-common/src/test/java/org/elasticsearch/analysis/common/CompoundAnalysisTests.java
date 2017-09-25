@@ -103,7 +103,7 @@ public class CompoundAnalysisTests extends ESTestCase {
     private Settings getJsonSettings() throws IOException {
         String json = "/org/elasticsearch/analysis/common/test1.json";
         return Settings.builder()
-                .loadFromStream(json, getClass().getResourceAsStream(json))
+                .loadFromStream(json, getClass().getResourceAsStream(json), false)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
@@ -112,7 +112,7 @@ public class CompoundAnalysisTests extends ESTestCase {
     private Settings getYamlSettings() throws IOException {
         String yaml = "/org/elasticsearch/analysis/common/test1.yml";
         return Settings.builder()
-                .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
+                .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();

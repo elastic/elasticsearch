@@ -242,8 +242,15 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected void closeChannels(List<MockChannel> channel, boolean blocking) throws IOException {
-        IOUtils.close(channel);
+    protected void closeChannels(List<MockChannel> channels, boolean blocking, boolean closingTransport) throws IOException {
+        if (closingTransport) {
+            for (MockChannel channel : channels) {
+                if (channel.activeChannel != null) {
+                    channel.activeChannel.setSoLinger(true, 0);
+                }
+            }
+        }
+        IOUtils.close(channels);
     }
 
     @Override
@@ -303,7 +310,6 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                 MockChannel incomingChannel = null;
                 try {
                     configureSocket(incomingSocket);
-                    incomingSocket.setSoLinger(true, 0);
                     synchronized (this) {
                         if (isOpen.get()) {
                             incomingChannel = new MockChannel(incomingSocket,

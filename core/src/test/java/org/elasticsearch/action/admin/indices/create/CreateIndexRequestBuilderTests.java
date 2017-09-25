@@ -35,8 +35,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
-
 public class CreateIndexRequestBuilderTests extends ESTestCase {
 
     private static final String KEY = "my.settings.key";
@@ -65,9 +63,7 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
         
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, 
                 () -> {builder.setSource("{\""+KEY+"\" : \""+VALUE+"\"}", XContentType.JSON);});
-        assertThat(e.toString(), containsString(String.format(Locale.ROOT,
-                "unknown key [%s] for a [START_OBJECT], "
-                + "expected [settings], [mappings] or [aliases]", KEY)));
+        assertEquals(String.format(Locale.ROOT, "unknown key [%s] for create index", KEY), e.getMessage());
         
         builder.setSource("{\"settings\" : {\""+KEY+"\" : \""+VALUE+"\"}}", XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));

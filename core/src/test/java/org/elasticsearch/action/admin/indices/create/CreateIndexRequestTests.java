@@ -28,8 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.containsString;
-
 public class CreateIndexRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
@@ -69,8 +67,6 @@ public class CreateIndexRequestTests extends ESTestCase {
         CreateIndexRequest request = new CreateIndexRequest();
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, 
                 () -> {request.source(createIndex, XContentType.JSON);});
-        assertThat(e.toString(), containsString(
-                "unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for a [START_OBJECT], "
-                + "expected [settings], [mappings] or [aliases]"));
+        assertEquals("unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for create index", e.getMessage());
     }
 }

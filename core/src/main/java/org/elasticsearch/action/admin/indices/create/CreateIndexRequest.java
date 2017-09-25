@@ -396,9 +396,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                     }
                 } else {
                     // found a key which is neither custom defined nor one of the supported ones
-                    throw new ElasticsearchParseException(
-                            "unknown key [{}] for a [{}], expected [settings], [mappings] or [aliases]",
-                            name, XContentParser.Token.START_OBJECT);
+                    throw new ElasticsearchParseException("unknown key [{}] for create index", name);
                 }
             }
         }

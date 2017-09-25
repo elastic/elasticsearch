@@ -75,7 +75,7 @@ public class RestSearchAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         request.withContentOrSourceParamParserOrNull(parser ->
-            parseSearchRequest(searchRequest, request, parser, size -> searchRequest.source().size(size)));
+            parseSearchRequest(searchRequest, request, parser, searchRequest.source()::size));
 
         return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }

@@ -125,13 +125,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
         @Override
         public Settings getValue(Settings current, Settings previous) {
             Settings.Builder builder = Settings.builder();
-            builder.put(current.filter(loggerPredicate).getAsMap());
+            builder.put(current.filter(loggerPredicate));
             for (String key : previous.getAsMap().keySet()) {
                 if (loggerPredicate.test(key) && builder.internalMap().containsKey(key) == false) {
                     if (ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
                         builder.putNull(key);
                     } else {
-                        builder.put(key, ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings));
+                        builder.put(key, ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).toString());
                     }
                 }
             }

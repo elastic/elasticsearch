@@ -47,7 +47,7 @@ public class SettingsFilterTests extends ESTestCase {
                         .put("bar1", "bar1_test")
                         .put("bar.2", "bar2_test")
                         .build(),
-                Settings.builder()
+                    Settings.builder()
                         .put("foo1", "foo1_test")
                         .build(),
                 "foo", "bar*"

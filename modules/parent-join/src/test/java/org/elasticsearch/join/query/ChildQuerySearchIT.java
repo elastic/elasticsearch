@@ -1128,7 +1128,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .setSettings("index.refresh_interval", -1)
+                .setSettings(Settings.builder().put("index.refresh_interval", -1))
                 .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();
@@ -1511,7 +1511,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .setSettings("index.refresh_interval", -1)
+                .setSettings(Settings.builder().put("index.refresh_interval", -1))
                 .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         ensureGreen();

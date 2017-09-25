@@ -533,11 +533,12 @@ public class SearchScrollIT extends ESIntegTestCase {
     public void testScrollInvalidDefaultKeepAlive() throws IOException {
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () ->
             client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "1m", "search.default_keep_alive", "2m")).get());
+                .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "1m").put("search.default_keep_alive", "2m")).get
+            ());
         assertThat(exc.getMessage(), containsString("was (2 minutes > 1 minute)"));
 
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m", "search.max_keep_alive", "5m")).get());
+            .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m")).get());
 
         assertAcked(client().admin().cluster().prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "2m")).get());
@@ -566,7 +567,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
         refresh();
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m", "search.max_keep_alive", "5m")).get());
+            .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m")).get());
 
         Exception exc = expectThrows(Exception.class,
             () -> client().prepareSearch()

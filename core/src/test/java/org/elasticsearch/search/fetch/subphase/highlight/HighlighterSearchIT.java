@@ -2813,7 +2813,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testHighlightQueryRewriteDatesWithNow() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("index-1").addMapping("type", "d", "type=date",
             "field", "type=text,store=true,term_vector=with_positions_offsets")
-            .setSettings("index.number_of_replicas", 0, "index.number_of_shards", 2)
+            .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
             .get());
         DateTime now = new DateTime(ISOChronology.getInstanceUTC());
         indexRandom(true, client().prepareIndex("index-1", "type", "1").setSource("d", now, "field", "hello world"),

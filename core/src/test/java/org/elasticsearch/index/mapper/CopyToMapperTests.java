@@ -568,4 +568,95 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         assertArrayEquals(expected, actual);
     }
 
+    public void testCopyToMultiField() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("doc")
+                .startObject("properties")
+                    .startObject("my_field")
+                        .field("type", "keyword")
+                        .field("copy_to", "my_field.bar")
+                        .startObject("fields")
+                            .startObject("bar")
+                                .field("type", "text")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        MapperService mapperService = createIndex("test").mapperService();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> mapperService.merge("doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean()));
+        assertEquals("[copy_to] may not be used to copy to a multi-field: [my_field.bar]", e.getMessage());
+    }
+
+    public void testNestedCopyTo() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("doc")
+                .startObject("properties")
+                    .startObject("n")
+                        .field("type", "nested")
+                        .startObject("properties")
+                            .startObject("foo")
+                                .field("type", "keyword")
+                                .field("copy_to", "n.bar")
+                            .endObject()
+                            .startObject("bar")
+                                .field("type", "text")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean()); // no exception
+    }
+
+    public void testNestedCopyToMultiField() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("doc")
+                .startObject("properties")
+                    .startObject("n")
+                        .field("type", "nested")
+                        .startObject("properties")
+                            .startObject("my_field")
+                                .field("type", "keyword")
+                                .field("copy_to", "n.my_field.bar")
+                                .startObject("fields")
+                                    .startObject("bar")
+                                        .field("type", "text")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        MapperService mapperService = createIndex("test").mapperService();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> mapperService.merge("doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean()));
+        assertEquals("[copy_to] may not be used to copy to a multi-field: [n.my_field.bar]", e.getMessage());
+    }
+
+    public void testCopyFromMultiField() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("doc")
+                .startObject("properties")
+                    .startObject("my_field")
+                        .field("type", "keyword")
+                        .startObject("fields")
+                            .startObject("bar")
+                                .field("type", "text")
+                                .field("copy_to", "my_field.baz")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        MapperService mapperService = createIndex("test").mapperService();
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> mapperService.merge("doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean()));
+        assertThat(e.getMessage(),
+                Matchers.containsString("copy_to in multi fields is not allowed. Found the copy_to in field [bar] " +
+                        "which is within a multi field."));
+    }
 }

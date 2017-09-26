@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.action.XPackUsageResponse;
 import org.elasticsearch.xpack.logstash.Logstash;
 import org.elasticsearch.xpack.logstash.LogstashFeatureSet;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.elasticsearch.xpack.monitoring.collector.BaseCollectorTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
@@ -64,7 +63,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         whenLocalNodeElectedMaster(false);
 
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client, licenseService);
+                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService);
 
         assertThat(collector.shouldCollect(), is(false));
         verify(nodes).isLocalNodeElectedMaster();
@@ -74,13 +73,16 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         whenLocalNodeElectedMaster(true);
 
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client, licenseService);
+                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService);
 
         assertThat(collector.shouldCollect(), is(true));
         verify(nodes).isLocalNodeElectedMaster();
     }
 
     public void testDoCollect() throws Exception {
+        final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
+        withCollectionTimeout(ClusterStatsCollector.CLUSTER_STATS_TIMEOUT, timeout);
+
         whenLocalNodeElectedMaster(true);
 
         final String clusterName = randomAlphaOfLength(10);
@@ -101,9 +103,6 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
                                         .maxNodes(2)
                                         .build();
         when(licenseService.getLicense()).thenReturn(license);
-
-        final TimeValue timeout = mock(TimeValue.class);
-        when(monitoringSettings.clusterStatsTimeout()).thenReturn(timeout);
 
         final ClusterStatsResponse mockClusterStatsResponse = mock(ClusterStatsResponse.class);
 
@@ -137,7 +136,8 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         when(xPackUsageFuture.actionGet()).thenReturn(xPackUsageResponse);
 
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client, licenseService);
+                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService);
+        assertEquals(timeout, collector.getCollectionTimeout());
 
         final Collection<MonitoringDoc> results = collector.doCollect(node);
         assertEquals(1, results.size());

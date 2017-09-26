@@ -10,7 +10,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -155,7 +155,7 @@ public class XPackLicenseState {
                                 newMode, newMode, newMode),
                             LoggerMessageFormat.format(
                                 "Automatic index cleanup is locked to {} days for clusters with [{}] license.",
-                                MonitoringSettings.HISTORY_DURATION.getDefault(Settings.EMPTY).days(), newMode)
+                                Monitoring.HISTORY_DURATION.getDefault(Settings.EMPTY).days(), newMode)
                         };
                 }
                 break;

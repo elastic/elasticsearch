@@ -33,18 +33,20 @@ import static org.mockito.Mockito.when;
 
 public class MonitoringServiceTests extends ESTestCase {
 
-    TestThreadPool threadPool;
-    MonitoringService monitoringService;
-    XPackLicenseState licenseState = mock(XPackLicenseState.class);
-    ClusterService clusterService;
-    ClusterSettings clusterSettings;
+    private TestThreadPool threadPool;
+    private MonitoringService monitoringService;
+    private XPackLicenseState licenseState = mock(XPackLicenseState.class);
+    private ClusterService clusterService;
+    private ClusterSettings clusterSettings;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getTestName());
         clusterService = mock(ClusterService.class);
-        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(MonitoringSettings.getSettings()));
+
+        final Monitoring monitoring = new Monitoring(Settings.EMPTY, licenseState);
+        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(monitoring.getSettings()));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
     }
 
@@ -77,7 +79,7 @@ public class MonitoringServiceTests extends ESTestCase {
     }
 
     public void testInterval() throws Exception {
-        Settings settings = Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), TimeValue.MINUS_ONE).build();
+        Settings settings = Settings.builder().put(MonitoringService.INTERVAL.getKey(), TimeValue.MINUS_ONE).build();
 
         CountingExporter exporter = new CountingExporter();
         monitoringService = new MonitoringService(settings, clusterSettings, threadPool, emptySet(), exporter);
@@ -102,7 +104,7 @@ public class MonitoringServiceTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final BlockingExporter exporter = new BlockingExporter(latch);
 
-        Settings settings = Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), MonitoringSettings.MIN_INTERVAL).build();
+        Settings settings = Settings.builder().put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL).build();
         monitoringService = new MonitoringService(settings, clusterSettings, threadPool, emptySet(), exporter);
 
         monitoringService.start();

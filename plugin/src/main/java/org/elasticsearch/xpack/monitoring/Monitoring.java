@@ -14,8 +14,10 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -55,6 +57,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 /**
  * This class activates/deactivates the monitoring modules depending if we're running a node client, transport client or tribe client:
@@ -65,6 +68,27 @@ import static java.util.Collections.singletonList;
 public class Monitoring implements ActionPlugin {
 
     public static final String NAME = "monitoring";
+
+    /**
+     * The minimum amount of time allowed for the history duration.
+     */
+    public static final TimeValue HISTORY_DURATION_MINIMUM = TimeValue.timeValueHours(24);
+
+    /**
+     * The default retention duration of the monitoring history data.
+     * <p>
+     * Expected values:
+     * <ul>
+     * <li>Default: 7 days</li>
+     * <li>Minimum: 1 day</li>
+     * </ul>
+     *
+     * @see #HISTORY_DURATION_MINIMUM
+     */
+    public static final Setting<TimeValue> HISTORY_DURATION = timeSetting("xpack.monitoring.history.duration",
+                                                                          TimeValue.timeValueHours(7 * 24), // default value (7 days)
+                                                                          HISTORY_DURATION_MINIMUM,         // minimum value
+                                                                          Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private final Settings settings;
     private final XPackLicenseState licenseState;
@@ -106,7 +130,6 @@ public class Monitoring implements ActionPlugin {
         }
 
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        final MonitoringSettings monitoringSettings = new MonitoringSettings(settings, clusterSettings);
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, licenseState);
         final SSLService dynamicSSLService = sslService.createDynamicSSLService();
 
@@ -116,16 +139,16 @@ public class Monitoring implements ActionPlugin {
         final Exporters exporters = new Exporters(settings, exporterFactories, clusterService, licenseState, threadPool.getThreadContext());
 
         Set<Collector> collectors = new HashSet<>();
-        collectors.add(new IndexStatsCollector(settings, clusterService, monitoringSettings, licenseState, client));
-        collectors.add(new ClusterStatsCollector(settings, clusterService, monitoringSettings, licenseState, client, licenseService));
-        collectors.add(new ShardsCollector(settings, clusterService, monitoringSettings, licenseState));
-        collectors.add(new NodeStatsCollector(settings, clusterService, monitoringSettings, licenseState, client));
-        collectors.add(new IndexRecoveryCollector(settings, clusterService, monitoringSettings, licenseState, client));
-        collectors.add(new JobStatsCollector(settings, clusterService, monitoringSettings, licenseState, client));
+        collectors.add(new IndexStatsCollector(settings, clusterService, licenseState, client));
+        collectors.add(new ClusterStatsCollector(settings, clusterService, licenseState, client, licenseService));
+        collectors.add(new ShardsCollector(settings, clusterService, licenseState));
+        collectors.add(new NodeStatsCollector(settings, clusterService, licenseState, client));
+        collectors.add(new IndexRecoveryCollector(settings, clusterService, licenseState, client));
+        collectors.add(new JobStatsCollector(settings, clusterService, licenseState, client));
 
         final MonitoringService monitoringService = new MonitoringService(settings, clusterSettings, threadPool, collectors, exporters);
 
-        return Arrays.asList(monitoringService, monitoringSettings, exporters, cleanerService);
+        return Arrays.asList(monitoringService, exporters, cleanerService);
     }
 
     @Override
@@ -145,4 +168,25 @@ public class Monitoring implements ActionPlugin {
         }
         return singletonList(new RestMonitoringBulkAction(settings, restController));
     }
+
+    public List<Setting<?>> getSettings() {
+        return Collections.unmodifiableList(
+                Arrays.asList(HISTORY_DURATION,
+                              MonitoringService.INTERVAL,
+                              Exporters.EXPORTERS_SETTINGS,
+                              Collector.INDICES,
+                              ClusterStatsCollector.CLUSTER_STATS_TIMEOUT,
+                              IndexRecoveryCollector.INDEX_RECOVERY_TIMEOUT,
+                              IndexRecoveryCollector.INDEX_RECOVERY_ACTIVE_ONLY,
+                              IndexStatsCollector.INDEX_STATS_TIMEOUT,
+                              JobStatsCollector.JOB_STATS_TIMEOUT,
+                              NodeStatsCollector.NODE_STATS_TIMEOUT)
+        );
+    }
+
+    public List<String> getSettingsFilter() {
+        final String exportersKey = Exporters.EXPORTERS_SETTINGS.getKey();
+        return Collections.unmodifiableList(Arrays.asList(exportersKey + "*.auth.*", exportersKey + "*.ssl.*"));
+    }
+
 }

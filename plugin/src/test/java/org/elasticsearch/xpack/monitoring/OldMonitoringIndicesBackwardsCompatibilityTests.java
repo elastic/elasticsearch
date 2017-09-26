@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsMonitoring
 import org.elasticsearch.xpack.monitoring.collector.indices.IndicesStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.shards.ShardMonitoringDoc;
+import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.hamcrest.Matcher;
 import org.joda.time.format.DateTimeFormat;
 
@@ -63,9 +64,9 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(ord))
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), true)
                 // Don't clean old monitoring indexes - we want to make sure we can load them
-                .put(MonitoringSettings.HISTORY_DURATION.getKey(), TimeValue.timeValueHours(1000 * 365 * 24).getStringRep())
+                .put(Monitoring.HISTORY_DURATION.getKey(), TimeValue.timeValueHours(1000 * 365 * 24).getStringRep())
                 // Do not start monitoring exporters at startup
-                .put(MonitoringSettings.INTERVAL.getKey(), "-1");
+                .put(MonitoringService.INTERVAL.getKey(), "-1");
 
         if (httpExporter) {
             /* If we want to test the http exporter we have to create it but disable it. We need to create it so we don't use the default
@@ -85,7 +86,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
         httpExporter.put("auth.username", SecuritySettingsSource.TEST_USER_NAME);
         httpExporter.put("auth.password", SecuritySettingsSource.TEST_PASSWORD);
 
-        settings.putProperties(httpExporter, k -> MonitoringSettings.EXPORTERS_SETTINGS.getKey() + "my_exporter." + k);
+        settings.putProperties(httpExporter, k -> Exporters.EXPORTERS_SETTINGS.getKey() + "my_exporter." + k);
     }
 
     @Override
@@ -105,7 +106,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
             }
 
             // Monitoring can now start to collect new data
-            Settings.Builder settings = Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), timeValueSeconds(3).getStringRep());
+            Settings.Builder settings = Settings.builder().put(MonitoringService.INTERVAL.getKey(), timeValueSeconds(3).getStringRep());
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
 
             final String prefix = ".monitoring-" + MonitoredSystem.ES.getSystem() + "-" + TEMPLATE_VERSION + "-";
@@ -167,7 +168,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
                 if they have not been re created by some in flight monitoring bulk request */
             internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::stop);
 
-            Settings.Builder settings = Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), "-1");
+            Settings.Builder settings = Settings.builder().put(MonitoringService.INTERVAL.getKey(), "-1");
             if (httpExporter) {
                 logger.info("--> Disabling http exporter after test");
                 setupHttpExporter(settings, null);

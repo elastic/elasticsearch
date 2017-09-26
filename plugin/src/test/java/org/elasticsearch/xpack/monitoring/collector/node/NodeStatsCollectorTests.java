@@ -15,6 +15,7 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.collector.BaseCollectorTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
@@ -41,8 +42,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         when(licenseState.isMonitoringAllowed()).thenReturn(false);
         whenLocalNodeElectedMaster(randomBoolean());
 
-        final NodeStatsCollector collector =
-                new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(), is(false));
         verify(licenseState).isMonitoringAllowed();
@@ -52,8 +52,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
         whenLocalNodeElectedMaster(true);
 
-        final NodeStatsCollector collector =
-                new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(), is(true));
         verify(licenseState).isMonitoringAllowed();
@@ -62,6 +61,9 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
     public void testDoCollectWithFailures() throws Exception {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
 
+        final TimeValue timeout = TimeValue.parseTimeValue(randomPositiveTimeValue(), NodeStatsCollectorTests.class.getName());
+        withCollectionTimeout(NodeStatsCollector.NODE_STATS_TIMEOUT, timeout);
+
         final NodesStatsResponse nodesStatsResponse = mock(NodesStatsResponse.class);
         when(nodesStatsResponse.hasFailures()).thenReturn(true);
 
@@ -69,10 +71,10 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         when(nodesStatsResponse.failures()).thenReturn(Collections.singletonList(exception));
 
         final Client client = mock(Client.class);
-        thenReturnNodeStats(client, nodesStatsResponse);
+        thenReturnNodeStats(client, timeout, nodesStatsResponse);
 
-        final NodeStatsCollector collector =
-                new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
+        assertEquals(timeout, collector.getCollectionTimeout());
 
         final FailedNodeException e = expectThrows(FailedNodeException.class, () -> collector.doCollect(randomMonitoringNode(random())));
         assertEquals(exception, e);
@@ -80,6 +82,9 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
     public void testDoCollect() throws Exception {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
+
+        final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
+        withCollectionTimeout(NodeStatsCollector.NODE_STATS_TIMEOUT, timeout);
 
         final boolean isMaster = randomBoolean();
         whenLocalNodeElectedMaster(isMaster);
@@ -99,10 +104,10 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         when(nodeStats.getTimestamp()).thenReturn(timestamp);
 
         final Client client = mock(Client.class);
-        thenReturnNodeStats(client, nodesStatsResponse);
+        thenReturnNodeStats(client, timeout, nodesStatsResponse);
 
-        final NodeStatsCollector collector =
-                new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
+        assertEquals(timeout, collector.getCollectionTimeout());
 
         final Collection<MonitoringDoc> results = collector.doCollect(node);
         assertEquals(1, results.size());
@@ -124,10 +129,10 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
     }
 
-    private void thenReturnNodeStats(final Client client, final NodesStatsResponse nodesStatsResponse) {
+    private void thenReturnNodeStats(final Client client, final TimeValue timeout, final NodesStatsResponse nodesStatsResponse) {
         @SuppressWarnings("unchecked")
         final ActionFuture<NodesStatsResponse> future = (ActionFuture<NodesStatsResponse>) mock(ActionFuture.class);
-        when(future.actionGet(eq(monitoringSettings.nodeStatsTimeout()))).thenReturn(nodesStatsResponse);
+        when(future.actionGet(eq(timeout))).thenReturn(nodesStatsResponse);
 
         final ClusterAdminClient clusterAdminClient = mock(ClusterAdminClient.class);
         when(clusterAdminClient.nodesStats(any(NodesStatsRequest.class))).thenReturn(future);

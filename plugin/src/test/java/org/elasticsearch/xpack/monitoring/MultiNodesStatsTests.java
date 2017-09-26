@@ -14,7 +14,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
@@ -33,7 +32,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
+                .put(MonitoringService.INTERVAL.getKey(), "-1")
                 .put("xpack.monitoring.exporters.default_local.type", "local")
                 .build();
     }

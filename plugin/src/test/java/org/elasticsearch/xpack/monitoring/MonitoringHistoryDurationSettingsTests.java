@@ -8,38 +8,29 @@ package org.elasticsearch.xpack.monitoring;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
-/**
- * Tests {@link MonitoringSettings}
- */
-public class MonitoringSettingsTests extends ESTestCase {
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
+public class MonitoringHistoryDurationSettingsTests extends ESTestCase {
 
     public void testHistoryDurationDefaults7Days() {
         TimeValue sevenDays = TimeValue.timeValueHours(7 * 24);
 
         // 7 days
-        assertEquals(sevenDays, MonitoringSettings.HISTORY_DURATION.get(Settings.EMPTY));
+        assertEquals(sevenDays, Monitoring.HISTORY_DURATION.get(Settings.EMPTY));
         // Note: this verifies the semantics because this is taken for granted that it never returns null!
-        assertEquals(sevenDays, MonitoringSettings.HISTORY_DURATION.get(buildSettings(MonitoringSettings.HISTORY_DURATION.getKey(), null)));
+        assertEquals(sevenDays, Monitoring.HISTORY_DURATION.get(buildSettings(Monitoring.HISTORY_DURATION.getKey(), null)));
     }
 
     public void testHistoryDurationMinimum24Hours() {
         // hit the minimum
-        assertEquals(MonitoringSettings.HISTORY_DURATION_MINIMUM,
-                     MonitoringSettings.HISTORY_DURATION.get(buildSettings(MonitoringSettings.HISTORY_DURATION.getKey(), "24h")));
+        assertEquals(Monitoring.HISTORY_DURATION_MINIMUM,
+                Monitoring.HISTORY_DURATION.get(buildSettings(Monitoring.HISTORY_DURATION.getKey(), "24h")));
     }
 
     public void testHistoryDurationMinimum24HoursBlocksLower() {
-        expectedException.expect(IllegalArgumentException.class);
-
         // 1 ms early!
-        String oneSecondEarly = (MonitoringSettings.HISTORY_DURATION_MINIMUM.millis() - 1) + "ms";
-
-        MonitoringSettings.HISTORY_DURATION.get(buildSettings(MonitoringSettings.HISTORY_DURATION.getKey(), oneSecondEarly));
+        final String oneSecondEarly = (Monitoring.HISTORY_DURATION_MINIMUM.millis() - 1) + "ms";
+        expectThrows(IllegalArgumentException.class,
+                () -> Monitoring.HISTORY_DURATION.get(buildSettings(Monitoring.HISTORY_DURATION.getKey(), oneSecondEarly)));
     }
 
     private Settings buildSettings(String key, String value) {

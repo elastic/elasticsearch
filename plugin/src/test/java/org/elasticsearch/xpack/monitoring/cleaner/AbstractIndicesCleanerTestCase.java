@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.monitoring.cleaner;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.Monitoring;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
@@ -29,7 +30,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MonitoringSettings.INTERVAL.getKey(), "-1");
+                .put(MonitoringService.INTERVAL.getKey(), "-1");
         return settings.build();
     }
 
@@ -155,7 +156,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
     public void testRetentionAsGlobalSetting() throws Exception {
         final int max = 10;
         final int retention = randomIntBetween(1, max);
-        internalCluster().startNode(Settings.builder().put(MonitoringSettings.HISTORY_DURATION.getKey(),
+        internalCluster().startNode(Settings.builder().put(Monitoring.HISTORY_DURATION.getKey(),
                 String.format(Locale.ROOT, "%dd", retention)));
 
         final DateTime now = now();

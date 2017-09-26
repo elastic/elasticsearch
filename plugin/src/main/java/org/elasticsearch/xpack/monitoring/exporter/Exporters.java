@@ -13,11 +13,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 
 import java.util.ArrayList;
@@ -32,8 +32,15 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.common.settings.Setting.groupSetting;
 
 public class Exporters extends AbstractLifecycleComponent implements Iterable<Exporter> {
+
+    /**
+     * Settings/Options per configured exporter
+     */
+    public static final Setting<Settings> EXPORTERS_SETTINGS =
+            groupSetting("xpack.monitoring.exporters.", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private final Map<String, Exporter.Factory> factories;
     private final AtomicReference<Map<String, Exporter>> exporters;
@@ -52,7 +59,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
         this.clusterService = Objects.requireNonNull(clusterService);
         this.licenseState = Objects.requireNonNull(licenseState);
 
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MonitoringSettings.EXPORTERS_SETTINGS, this::setExportersSetting);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(EXPORTERS_SETTINGS, this::setExportersSetting);
     }
 
     private void setExportersSetting(Settings exportersSetting) {
@@ -67,7 +74,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
 
     @Override
     protected void doStart() {
-        exporters.set(initExporters(MonitoringSettings.EXPORTERS_SETTINGS.get(settings)));
+        exporters.set(initExporters(EXPORTERS_SETTINGS.get(settings)));
     }
 
     @Override

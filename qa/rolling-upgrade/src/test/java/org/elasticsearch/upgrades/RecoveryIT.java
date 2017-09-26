@@ -100,15 +100,19 @@ public class RecoveryIT extends ESRestTestCase {
             new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }", ContentType.APPLICATION_JSON)));
     }
 
-
     public void testHistoryUUIDIsGenerated() throws Exception {
         final String index = "index_history_uuid";
         if (clusterType == CLUSTER_TYPE.OLD) {
+            assertOK(client().performRequest("PUT", "_cluster/settings", Collections.emptyMap(),
+                new StringEntity("{ \"persistent\": " +
+                    "{ \"logger._root\": \"DEBUG\", \"logger.org.elasticsearch.cluster.service\": \"TRACE\" } " +
+                    "}", ContentType.APPLICATION_JSON)));
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
             createIndex(index, settings.build());
             ensureGreen();
+
         } else if (clusterType == CLUSTER_TYPE.UPGRADED) {
             ensureGreen();
             Response response = client().performRequest("GET", index + "/_stats", Collections.singletonMap("level", "shards"));

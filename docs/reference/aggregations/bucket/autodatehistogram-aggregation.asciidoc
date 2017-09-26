@@ -110,13 +110,18 @@ PUT my_index/log/2?refresh
   "date": "2015-10-01T01:30:00Z"
 }
 
+PUT my_index/log/3?refresh
+{
+  "date": "2015-10-01T02:30:00Z"
+}
+
 GET my_index/_search?size=0
 {
   "aggs": {
     "by_day": {
       "auto_date_histogram": {
         "field":     "date",
-        "buckets" : 10
+        "buckets" : 2
       }
     }
   }
@@ -124,7 +129,7 @@ GET my_index/_search?size=0
 ---------------------------------
 // CONSOLE
 
-UTC is used if no time zone is specified, which would result in both of these
+UTC is used if no time zone is specified, which would result in all of these
 documents being placed into the same day bucket, which starts at midnight UTC
 on 1 October 2015:
 
@@ -138,7 +143,7 @@ on 1 October 2015:
         {
           "key_as_string": "2015-10-01T00:00:00.000Z",
           "key":           1443657600000,
-          "doc_count":     2
+          "doc_count":     3
         }
       ]
     }
@@ -158,7 +163,7 @@ GET my_index/_search?size=0
     "by_day": {
       "auto_date_histogram": {
         "field":     "date",
-        "buckets" : 10,
+        "buckets" : 2,
         "time_zone": "-01:00"
       }
     }
@@ -169,7 +174,7 @@ GET my_index/_search?size=0
 // TEST[continued]
 
 Now the first document falls into the bucket for 30 September 2015, while the
-second document falls into the bucket for 1 October 2015:
+other two documents fall into the bucket for 1 October 2015:
 
 [source,js]
 ---------------------------------
@@ -186,7 +191,7 @@ second document falls into the bucket for 1 October 2015:
         {
           "key_as_string": "2015-10-01T00:00:00.000-01:00", <1>
           "key": 1443661200000,
-          "doc_count": 1
+          "doc_count": 2
         }
       ]
     }

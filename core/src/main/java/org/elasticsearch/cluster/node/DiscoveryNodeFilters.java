@@ -29,6 +29,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class DiscoveryNodeFilters {
@@ -43,15 +44,10 @@ public class DiscoveryNodeFilters {
      * "_ip", "_host_ip", and "_publish_ip" and ensuring each of their comma separated values
      * that has no wildcards is a valid IP address.
      */
-    public static final Consumer<Settings> IP_VALIDATOR = (settings) -> {
-        Map<String, String> settingsMap = settings.getAsMap();
-        for (Map.Entry<String, String> entry : settingsMap.entrySet()) {
-            String propertyKey = entry.getKey();
-            if (entry.getValue() == null) {
-                continue; // this setting gets reset
-            }
-            if ("_ip".equals(propertyKey) || "_host_ip".equals(propertyKey) || "_publish_ip".equals(propertyKey)) {
-                for (String value : Strings.tokenizeToStringArray(entry.getValue(), ",")) {
+    public static final BiConsumer<String, String> IP_VALIDATOR = (propertyKey, rawValue) -> {
+        if (rawValue != null) {
+            if (propertyKey.endsWith("._ip") || propertyKey.endsWith("._host_ip") || propertyKey.endsWith("_publish_ip")) {
+                for (String value : Strings.tokenizeToStringArray(rawValue, ",")) {
                     if (Regex.isSimpleMatchPattern(value) == false && InetAddresses.isInetAddress(value) == false) {
                         throw new IllegalArgumentException("invalid IP address [" + value + "] for [" + propertyKey + "]");
                     }

@@ -1074,15 +1074,6 @@ public final class Settings implements ToXContentFragment {
         }
 
         /**
-         * Sets all the provided settings.
-         */
-        public Builder put(Map<String, String> settings) {
-            removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings);
-            map.putAll(settings);
-            return this;
-        }
-
-        /**
          * Removes non array values from the existing map, if settings contains an array value instead
          *
          * Example:
@@ -1176,7 +1167,7 @@ public final class Settings implements ToXContentFragment {
         public Builder putProperties(final Map<String, String> esSettings, final Function<String, String> keyFunction) {
             for (final Map.Entry<String, String> esSetting : esSettings.entrySet()) {
                 final String key = esSetting.getKey();
-                map.put(keyFunction.apply(key), esSetting.getValue());
+                put(keyFunction.apply(key), esSetting.getValue());
             }
             return this;
         }

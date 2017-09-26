@@ -7,6 +7,9 @@ Also see <<breaking-changes-6.0>>.
 [float]
 === Breaking changes
 
+Packaging::
+* Configure heap dump path out of the box {pull}26755[#26755] (issue: {issue}26665[#26665])
+
 Query DSL::
 * Remove deprecated `type` and `slop` field in `match` query {pull}26720[#26720]
 * Remove several parse field deprecations in query builders {pull}26711[#26711]
@@ -70,6 +73,9 @@ Aggregations::
 Core::
 * Fix cache compute if absent for expired entries {pull}26516[#26516]
 
+Dates::
+* Fix typo in date format {pull}26503[#26503] (issue: {issue}26500[#26500])
+
 Highlighting::
 * Fix percolator highlight sub fetch phase to not highlight query twice {pull}26622[#26622]
 
@@ -77,6 +83,7 @@ Inner Hits::
 * Do not allow inner hits that fetch _source and have a non nested object field as parent {pull}25749[#25749] (issue: {issue}25315[#25315])
 
 Internal::
+* `IndexShard.routingEntry` should only be updated once all internal state is ready {pull}26776[#26776]
 * Catch exceptions and inform handler in RemoteClusterConnection#collectNodes {pull}26725[#26725] (issue: {issue}26700[#26700])
 * Internal: Add versionless alias for rest client codebase in policy files {pull}26521[#26521]
 
@@ -90,6 +97,9 @@ Java High Level REST Client::
 Java REST Client::
 * Better message text for ResponseException {pull}26564[#26564]
 
+Mapping::
+* Allow copying from a field to another field that belongs to the same nested object. {pull}26774[#26774] (issue: {issue}26763[#26763])
+
 Plugin Analysis Kuromoji::
 * Fix kuromoji default stoptags {pull}26600[#26600] (issue: {issue}26519[#26519])
 
@@ -97,13 +107,17 @@ Plugin Discovery File::
 * Fix discovery-file plugin to use custom config path {pull}26662[#26662] (issue: {issue}26660[#26660])
 
 Plugin Repository Azure::
+* Azure snapshots can not be restored anymore {pull}26778[#26778] (issues: {issue}22858[#22858], {issue}26751[#26751], {issue}26777[#26777])
 * Snapshot : azure module - accelerate the listing of files (used in delete snapshot) {pull}25710[#25710] (issue: {issue}25424[#25424])
 
 Plugin Repository HDFS::
 * Add Log4j to SLF4J binding for repository-hdfs {pull}26514[#26514] (issue: {issue}26512[#26512])
 
 Query DSL::
-*  #26083 Fixed incomplete JSON body on count request making org.elasticsearch.rest.action.RestActions#parseTopLevelQueryBuilder go into endless loop {pull}26680[#26680] (issue: {issue}26083[#26083])
+* Fixed incomplete JSON body on count request making org.elasticsearch.rest.action.RestActions#parseTopLevelQueryBuilder go into endless loop {pull}26680[#26680] (issue: {issue}26083[#26083])
+
+Reindex API::
+* Fix update_by_query's default size parameter {pull}26784[#26784] (issue: {issue}26761[#26761])
 
 Search::
 * Fail query when a sort is provided in conjunction with rescorers {pull}26510[#26510]

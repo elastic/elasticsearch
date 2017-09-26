@@ -36,6 +36,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
+import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -56,6 +57,7 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.repositories.azure.AzureTestUtils.generateMockSecureSettings;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -70,7 +72,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
         supportsDedicatedMasters = false, numDataNodes = 1,
         transportClientRatio = 0.0)
 @ThirdParty
-public class AzureSnapshotRestoreTests extends ESIntegTestCase {
+public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCase {
 
     private static Settings.Builder generateMockSettings() {
         return Settings.builder().setSecureSettings(generateMockSecureSettings());
@@ -550,5 +552,15 @@ public class AzureSnapshotRestoreTests extends ESIntegTestCase {
         endWait = System.currentTimeMillis();
         logger.info("--> end of get snapshots on secondary. Took {} ms", endWait - startWait);
         assertThat(endWait - startWait, lessThanOrEqualTo(30000L));
+    }
+
+    @Override
+    protected void createTestRepository(String name) {
+        assertAcked(client().admin().cluster().preparePutRepository(name)
+            .setType(AzureRepository.TYPE)
+            .setSettings(Settings.builder()
+                .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
+                .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
+                .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
     }
 }

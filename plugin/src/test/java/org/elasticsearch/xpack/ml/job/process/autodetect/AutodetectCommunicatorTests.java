@@ -198,9 +198,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
             ((ActionListener<Boolean>) invocation.getArguments()[0]).onResponse(true);
             return null;
         }).when(dataCountsReporter).finishReporting(any());
-        JobTask jobTask = mock(JobTask.class);
-        when(jobTask.getJobId()).thenReturn("foo");
-        return new AutodetectCommunicator(createJobDetails(), jobTask, autodetectProcess, stateStreamer,
+        return new AutodetectCommunicator(createJobDetails(), autodetectProcess, stateStreamer,
                 dataCountsReporter, autoDetectResultProcessor, finishHandler,
                 new NamedXContentRegistry(Collections.emptyList()), executorService);
     }

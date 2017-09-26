@@ -116,9 +116,6 @@ Plugin Repository HDFS::
 Query DSL::
 * Fixed incomplete JSON body on count request making org.elasticsearch.rest.action.RestActions#parseTopLevelQueryBuilder go into endless loop {pull}26680[#26680] (issue: {issue}26083[#26083])
 
-Reindex API::
-* Fix update_by_query's default size parameter {pull}26784[#26784] (issue: {issue}26761[#26761])
-
 Search::
 * Fail query when a sort is provided in conjunction with rescorers {pull}26510[#26510]
 * Let search phases override max concurrent requests {pull}26484[#26484] (issue: {issue}26198[#26198])

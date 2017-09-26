@@ -41,10 +41,12 @@ import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.junit.After;
-import org.junit.Before;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
@@ -53,19 +55,82 @@ import java.util.Collection;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.repositories.azure.AzureTestUtils.generateMockSecureSettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * This test needs Azure to run and -Dtests.thirdparty=true to be set
- * and -Dtests.azure.account=AzureStorageAccount and -Dtests.azure.key=AzureStorageKey
- * @see AbstractAzureWithThirdPartyIntegTestCase
+ * Those integration tests need an Azure access and must be run with
+ * {@code -Dtests.thirdparty=true -Dtests.azure.account=AzureStorageAccount -Dtests.azure.key=AzureStorageKey}
+ * options
  */
 @ClusterScope(
         scope = ESIntegTestCase.Scope.SUITE,
         supportsDedicatedMasters = false, numDataNodes = 1,
         transportClientRatio = 0.0)
-public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegTestCase {
+@ThirdParty
+public class AzureSnapshotRestoreTests extends ESIntegTestCase {
+
+    private static Settings.Builder generateMockSettings() {
+        return Settings.builder().setSecureSettings(generateMockSecureSettings());
+    }
+
+    private static final AzureStorageService azureStorageService = new AzureStorageServiceImpl(generateMockSettings().build(),
+        AzureStorageSettings.load(generateMockSettings().build()));
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return generateMockSettings()
+            .put(super.nodeSettings(nodeOrdinal))
+            .build();
+    }
+
+    private static String getContainerName() {
+        /* Have a different name per test so that there is no possible race condition. As the long can be negative,
+         * there mustn't be a hyphen between the 2 concatenated numbers
+         * (can't have 2 consecutives hyphens on Azure containers)
+         */
+        String testName = "snapshot-itest-"
+            .concat(RandomizedTest.getContext().getRunnerSeedAsString().toLowerCase(Locale.ROOT));
+        return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
+    }
+
+    @BeforeClass
+    public static void createTestContainers() throws Exception {
+        createTestContainer(getContainerName());
+        // This is needed for testMultipleRepositories() test case
+        createTestContainer(getContainerName() + "-1");
+        createTestContainer(getContainerName() + "-2");
+    }
+
+    @AfterClass
+    public static void removeContainer() throws Exception {
+        removeTestContainer(getContainerName());
+        // This is needed for testMultipleRepositories() test case
+        removeTestContainer(getContainerName() + "-1");
+        removeTestContainer(getContainerName() + "-2");
+    }
+
+    /**
+     * Create a test container in Azure
+     * @param containerName container name to use
+     */
+    private static void createTestContainer(String containerName) throws Exception {
+        // It could happen that we run this test really close to a previous one
+        // so we might need some time to be able to create the container
+        assertBusy(() -> {
+            azureStorageService.createContainer("default", LocationMode.PRIMARY_ONLY, containerName);
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Remove a test container in Azure
+     * @param containerName container name to use
+     */
+    private static void removeTestContainer(String containerName) throws URISyntaxException, StorageException {
+        azureStorageService.removeContainer("default", LocationMode.PRIMARY_ONLY, containerName);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -88,12 +153,11 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
     }
 
     @After
-    public final void wipeAzureRepositories() throws StorageException, URISyntaxException, UnknownHostException {
-        wipeRepositories();
-        cleanRepositoryFiles(
-            getContainerName(),
-            getContainerName().concat("-1"),
-            getContainerName().concat("-2"));
+    public final void wipeAzureRepositories() {
+        try {
+            client().admin().cluster().prepareDeleteRepository("*").get();
+        } catch (RepositoryMissingException ignored) {
+        }
     }
 
     public void testSimpleWorkflow() {
@@ -403,57 +467,6 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
     }
 
     /**
-     * For issue #21: https://github.com/elastic/elasticsearch-cloud-azure/issues/21
-     */
-    public void testForbiddenContainerName() throws Exception {
-        checkContainerName("", false);
-        checkContainerName("es", false);
-        checkContainerName("-elasticsearch", false);
-        checkContainerName("elasticsearch--integration", false);
-        checkContainerName("elasticsearch_integration", false);
-        checkContainerName("ElAsTicsearch_integration", false);
-        checkContainerName("123456789-123456789-123456789-123456789-123456789-123456789-1234", false);
-        checkContainerName("123456789-123456789-123456789-123456789-123456789-123456789-123", true);
-        checkContainerName("elasticsearch-integration", true);
-        checkContainerName("elasticsearch-integration-007", true);
-    }
-
-    /**
-     * Create repository with wrong or correct container name
-     * @param container Container name we want to create
-     * @param correct Is this container name correct
-     */
-    private void checkContainerName(final String container, final boolean correct) throws Exception {
-        String repositoryName = "test-repo-checkContainerName";
-        logger.info("-->  creating azure repository with container name [{}]", container);
-        // It could happen that we just removed from a previous test the same container so
-        // we can not create it yet.
-        assertBusy(() -> {
-            try {
-                PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository(repositoryName)
-                        .setType("azure").setSettings(Settings.builder()
-                                        .put(Repository.CONTAINER_SETTING.getKey(), container)
-                                        .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
-                                        .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
-                        ).get();
-                client().admin().cluster().prepareDeleteRepository(repositoryName).get();
-                try {
-                    logger.info("--> remove container [{}]", container);
-                    cleanRepositoryFiles(container);
-                } catch (StorageException | URISyntaxException | UnknownHostException ignored) {
-                    // We can ignore that as we just try to clean after the test
-                }
-                assertTrue(putRepositoryResponse.isAcknowledged() == correct);
-            } catch (RepositoryVerificationException e) {
-                if (correct) {
-                    logger.debug(" -> container is being removed. Let's wait a bit...");
-                    fail();
-                }
-            }
-        }, 5, TimeUnit.MINUTES);
-    }
-
-    /**
      * Test case for issue #23: https://github.com/elastic/elasticsearch-cloud-azure/issues/23
      */
     public void testNonExistingRepo_23() {
@@ -482,24 +495,9 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
      */
     public void testRemoveAndCreateContainer() throws Exception {
         final String container = getContainerName().concat("-testremove");
-        final AzureStorageService storageService = new AzureStorageServiceImpl(nodeSettings(0),AzureStorageSettings.load(nodeSettings(0)));
 
-        // It could happen that we run this test really close to a previous one
-        // so we might need some time to be able to create the container
-        assertBusy(() -> {
-            try {
-                storageService.createContainer(null, LocationMode.PRIMARY_ONLY, container);
-                logger.debug(" -> container created...");
-            } catch (URISyntaxException e) {
-                // Incorrect URL. This should never happen.
-                fail();
-            } catch (StorageException e) {
-                // It could happen. Let's wait for a while.
-                logger.debug(" -> container is being removed. Let's wait a bit...");
-                fail();
-            }
-        }, 30, TimeUnit.SECONDS);
-        storageService.removeContainer(null, LocationMode.PRIMARY_ONLY, container);
+        createTestContainer(container);
+        removeTestContainer(container);
 
         ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating azure repository while container is being removed");
@@ -515,30 +513,42 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
     }
 
     /**
-     * Deletes repositories, supports wildcard notation.
+     * Test that you can snapshot on the primary repository and list the available snapshots
+     * from the secondary repository.
+     *
+     * Note that this test requires an Azure storage account which must be a Read-access geo-redundant
+     * storage (RA-GRS) account type.
+     * @throws Exception If anything goes wrong
      */
-    public static void wipeRepositories(String... repositories) {
-        // if nothing is provided, delete all
-        if (repositories.length == 0) {
-            repositories = new String[]{"*"};
-        }
-        for (String repository : repositories) {
-            try {
-                client().admin().cluster().prepareDeleteRepository(repository).get();
-            } catch (RepositoryMissingException ex) {
-                // ignore
-            }
-        }
-    }
+    public void testGeoRedundantStorage() throws Exception {
+        Client client = client();
+        logger.info("-->  creating azure primary repository");
+        PutRepositoryResponse putRepositoryResponsePrimary = client.admin().cluster().preparePutRepository("primary")
+            .setType("azure").setSettings(Settings.builder()
+                .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
+            ).get();
+        assertThat(putRepositoryResponsePrimary.isAcknowledged(), equalTo(true));
 
-    /**
-     * Purge the test containers
-     */
-    public void cleanRepositoryFiles(String... containers) throws StorageException, URISyntaxException, UnknownHostException {
-        AzureStorageService client = new AzureStorageServiceImpl(generateMockSettings().build(),
-            AzureStorageSettings.load(generateMockSettings().build()));
-        for (String container : containers) {
-            client.removeContainer("default", LocationMode.PRIMARY_ONLY, container);
-        }
+        logger.info("--> start get snapshots on primary");
+        long startWait = System.currentTimeMillis();
+        client.admin().cluster().prepareGetSnapshots("primary").get();
+        long endWait = System.currentTimeMillis();
+        // definitely should be done in 30s, and if its not working as expected, it takes over 1m
+        assertThat(endWait - startWait, lessThanOrEqualTo(30000L));
+
+        logger.info("-->  creating azure secondary repository");
+        PutRepositoryResponse putRepositoryResponseSecondary = client.admin().cluster().preparePutRepository("secondary")
+            .setType("azure").setSettings(Settings.builder()
+                .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
+                .put(Repository.LOCATION_MODE_SETTING.getKey(), "secondary_only")
+            ).get();
+        assertThat(putRepositoryResponseSecondary.isAcknowledged(), equalTo(true));
+
+        logger.info("--> start get snapshots on secondary");
+        startWait = System.currentTimeMillis();
+        client.admin().cluster().prepareGetSnapshots("secondary").get();
+        endWait = System.currentTimeMillis();
+        logger.info("--> end of get snapshots on secondary. Took {} ms", endWait - startWait);
+        assertThat(endWait - startWait, lessThanOrEqualTo(30000L));
     }
 }

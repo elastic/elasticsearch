@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -53,8 +54,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
         when(licenseState.isMonitoringAllowed()).thenReturn(false);
         whenLocalNodeElectedMaster(randomBoolean());
 
-        final IndexRecoveryCollector collector =
-                new IndexRecoveryCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+        final IndexRecoveryCollector collector = new IndexRecoveryCollector(Settings.EMPTY, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(), is(false));
         verify(licenseState).isMonitoringAllowed();
@@ -65,8 +65,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
         // this controls the blockage
         whenLocalNodeElectedMaster(false);
 
-        final IndexRecoveryCollector collector =
-                new IndexRecoveryCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+        final IndexRecoveryCollector collector = new IndexRecoveryCollector(Settings.EMPTY, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(), is(false));
         verify(licenseState).isMonitoringAllowed();
@@ -77,8 +76,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
         whenLocalNodeElectedMaster(true);
 
-        final IndexRecoveryCollector collector =
-                new IndexRecoveryCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+        final IndexRecoveryCollector collector = new IndexRecoveryCollector(Settings.EMPTY, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(), is(true));
         verify(licenseState).isMonitoringAllowed();
@@ -86,6 +84,9 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testDoCollect() throws Exception {
+        final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
+        withCollectionTimeout(IndexRecoveryCollector.INDEX_RECOVERY_TIMEOUT, timeout);
+
         whenLocalNodeElectedMaster(true);
 
         final String clusterName = randomAlphaOfLength(10);
@@ -100,19 +101,18 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
         final MonitoringDoc.Node node = randomMonitoringNode(random());
 
         final boolean recoveryOnly = randomBoolean();
-        when(monitoringSettings.recoveryActiveOnly()).thenReturn(recoveryOnly);
+        withCollectionSetting(builder -> builder.put(IndexRecoveryCollector.INDEX_RECOVERY_ACTIVE_ONLY.getKey(), recoveryOnly));
 
         final String[] indices;
         if (randomBoolean()) {
-            indices = null;
+            indices = randomBoolean() ? null : Strings.EMPTY_ARRAY;
         } else {
             indices = new String[randomIntBetween(1, 5)];
             for (int i = 0; i < indices.length; i++) {
                 indices[i] = randomAlphaOfLengthBetween(5, 10);
             }
         }
-        when(monitoringSettings.indices()).thenReturn(indices);
-        when(monitoringSettings.recoveryTimeout()).thenReturn(TimeValue.timeValueSeconds(12));
+        withCollectionIndices(indices);
 
         final int nbRecoveries = randomBoolean() ? 0 : randomIntBetween(1, 3);
         final Map<String, List<RecoveryState>> recoveryStates = new HashMap<>();
@@ -130,9 +130,6 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
         final RecoveryResponse recoveryResponse =
                 new RecoveryResponse(randomInt(), randomInt(), randomInt(), randomBoolean(), recoveryStates, emptyList());
 
-        final TimeValue timeout = mock(TimeValue.class);
-        when(monitoringSettings.recoveryTimeout()).thenReturn(timeout);
-
         final RecoveryRequestBuilder recoveryRequestBuilder =
                 spy(new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE));
         doReturn(recoveryResponse).when(recoveryRequestBuilder).get(eq(timeout));
@@ -146,8 +143,17 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
         final Client client = mock(Client.class);
         when(client.admin()).thenReturn(adminClient);
 
-        final IndexRecoveryCollector collector =
-                new IndexRecoveryCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+        final IndexRecoveryCollector collector = new IndexRecoveryCollector(Settings.EMPTY, clusterService, licenseState, client);
+        assertEquals(timeout, collector.getCollectionTimeout());
+        assertEquals(recoveryOnly, collector.getActiveRecoveriesOnly());
+
+        if (indices != null) {
+            assertArrayEquals(indices, collector.getCollectionIndices());
+        } else {
+            // Collection indices has a default value equals to emptyList(),
+            // so it won't return a null indices array
+            assertArrayEquals(Strings.EMPTY_ARRAY, collector.getCollectionIndices());
+        }
 
         final Collection<MonitoringDoc> results = collector.doCollect(node);
         verify(indicesAdminClient).prepareRecoveries();

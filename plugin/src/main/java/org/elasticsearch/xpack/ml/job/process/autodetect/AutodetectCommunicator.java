@@ -15,7 +15,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.ml.action.OpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
@@ -56,7 +55,6 @@ public class AutodetectCommunicator implements Closeable {
     private static final Duration FLUSH_PROCESS_CHECK_FREQUENCY = Duration.ofSeconds(1);
 
     private final Job job;
-    private final JobTask jobTask;
     private final AutodetectProcess autodetectProcess;
     private final StateStreamer stateStreamer;
     private final DataCountsReporter dataCountsReporter;
@@ -66,12 +64,11 @@ public class AutodetectCommunicator implements Closeable {
     private final NamedXContentRegistry xContentRegistry;
     private volatile boolean processKilled;
 
-    AutodetectCommunicator(Job job, JobTask jobTask, AutodetectProcess process, StateStreamer stateStreamer,
+    AutodetectCommunicator(Job job, AutodetectProcess process, StateStreamer stateStreamer,
                            DataCountsReporter dataCountsReporter, AutoDetectResultProcessor autoDetectResultProcessor,
                            Consumer<Exception> onFinishHandler, NamedXContentRegistry xContentRegistry,
                            ExecutorService autodetectWorkerExecutor) {
         this.job = job;
-        this.jobTask = jobTask;
         this.autodetectProcess = process;
         this.stateStreamer = stateStreamer;
         this.dataCountsReporter = dataCountsReporter;
@@ -259,10 +256,6 @@ public class AutodetectCommunicator implements Closeable {
             LOGGER.error(message);
             throw new ElasticsearchException(message.getFormattedMessage());
         }
-    }
-
-    public JobTask getJobTask() {
-        return jobTask;
     }
 
     public ZonedDateTime getProcessStartTime() {

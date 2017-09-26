@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkDoc;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkRequestBuilder;
@@ -71,7 +71,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
     private void stopMonitoring() throws Exception {
         // Now disabling the monitoring service, so that no more collection are started
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                Settings.builder().putNull(MonitoringSettings.INTERVAL.getKey())
+                Settings.builder().putNull(MonitoringService.INTERVAL.getKey())
                                   .putNull("xpack.monitoring.exporters._local.enabled")
                                   .putNull("xpack.monitoring.exporters._local.index.name.time_format")));
     }
@@ -126,7 +126,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
             // monitoring service is started
             exporterSettings = Settings.builder()
-                    .put(MonitoringSettings.INTERVAL.getKey(), 3L, TimeUnit.SECONDS);
+                    .put(MonitoringService.INTERVAL.getKey(), 3L, TimeUnit.SECONDS);
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
 
             final int numNodes = internalCluster().getNodeNames().length;

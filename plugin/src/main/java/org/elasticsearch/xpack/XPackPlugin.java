@@ -82,7 +82,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningFeatureSet;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringFeatureSet;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.notification.email.Account;
 import org.elasticsearch.xpack.notification.email.EmailService;
 import org.elasticsearch.xpack.notification.email.attachment.DataAttachmentParser;
@@ -415,7 +414,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     public List<Setting<?>> getSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
         settings.addAll(Security.getSettings(transportClientMode, extensionsService));
-        settings.addAll(MonitoringSettings.getSettings());
+        settings.addAll(monitoring.getSettings());
         settings.addAll(watcher.getSettings());
         settings.addAll(machineLearning.getSettings());
         settings.addAll(licensing.getSettings());
@@ -451,7 +450,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         filters.add("xpack.notification.pagerduty.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
         filters.add("xpack.notification.hipchat.account.*.auth_token");
         filters.addAll(security.getSettingsFilter(extensionsService));
-        filters.addAll(MonitoringSettings.getSettingsFilter());
+        filters.addAll(monitoring.getSettingsFilter());
         if (transportClientMode == false) {
             for (XPackExtension extension : extensionsService.getExtensions()) {
                 filters.addAll(extension.getSettingsFilter());

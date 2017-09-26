@@ -14,17 +14,17 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.action.XPackUsageRequestBuilder;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -42,16 +42,20 @@ import java.util.List;
  */
 public class ClusterStatsCollector extends Collector {
 
+    /**
+     * Timeout value when collecting the cluster stats information (default to 10s)
+     */
+    public static final Setting<TimeValue> CLUSTER_STATS_TIMEOUT = collectionTimeoutSetting("cluster.stats.timeout");
+
     private final LicenseService licenseService;
     private final Client client;
 
     public ClusterStatsCollector(final Settings settings,
                                  final ClusterService clusterService,
-                                 final MonitoringSettings monitoringSettings,
                                  final XPackLicenseState licenseState,
                                  final Client client,
                                  final LicenseService licenseService) {
-        super(settings, ClusterStatsMonitoringDoc.TYPE, clusterService, monitoringSettings, licenseState);
+        super(settings, ClusterStatsMonitoringDoc.TYPE, clusterService, CLUSTER_STATS_TIMEOUT, licenseState);
         this.client = client;
         this.licenseService = licenseService;
     }
@@ -65,8 +69,7 @@ public class ClusterStatsCollector extends Collector {
     @Override
     protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node) throws Exception {
         final Supplier<ClusterStatsResponse> clusterStatsSupplier =
-                () -> client.admin().cluster().prepareClusterStats()
-                        .get(monitoringSettings.clusterStatsTimeout());
+                () -> client.admin().cluster().prepareClusterStats().get(getCollectionTimeout());
         final Supplier<List<XPackFeatureSet.Usage>> usageSupplier =
                 () -> new XPackUsageRequestBuilder(client).get().getUsages();
 

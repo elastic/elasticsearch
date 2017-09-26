@@ -830,6 +830,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         random().nextBytes(randomBytes);
         final CountDownLatch latch = new CountDownLatch(1);
         final Authentication expected = new Authentication(user, new RealmRef(firstRealm.name(), firstRealm.type(), "authc_test"), null);
+        AtomicBoolean success = new AtomicBoolean(false);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + Base64.getEncoder().encodeToString(randomBytes));
             service.authenticate("_action", message, null, ActionListener.wrap(result -> {
@@ -839,18 +840,22 @@ public class AuthenticationServiceTests extends ESTestCase {
                 assertThat(result.getAuthenticatedBy(), is(notNullValue()));
                 assertThreadContextContainsAuthentication(result);
                 assertEquals(expected, result);
+                success.set(true);
                 latch.countDown();
             }, this::logAndFail));
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), containsString("array length must be <= to " + ArrayUtil.MAX_ARRAY_LENGTH  + " but was: "));
+            latch.countDown();
         } catch (NegativeArraySizeException ex) {
             assertThat(ex.getMessage(), containsString("array size must be positive but was: "));
-
+            latch.countDown();
         }
 
         // we need to use a latch here because the key computation goes async on another thread!
         latch.await();
-        verify(auditTrail).authenticationSuccess(firstRealm.name(), user, "_action", message);
+        if (success.get()) {
+            verify(auditTrail).authenticationSuccess(firstRealm.name(), user, "_action", message);
+        }
         verifyNoMoreInteractions(auditTrail);
     }
 

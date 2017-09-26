@@ -12,9 +12,10 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
@@ -30,6 +31,11 @@ import java.util.Objects;
  */
 public class NodeStatsCollector extends Collector {
 
+    /**
+     * Timeout value when collecting the nodes statistics (default to 10s)
+     */
+    public static final Setting<TimeValue> NODE_STATS_TIMEOUT = collectionTimeoutSetting("node.stats.timeout");
+
     private static final CommonStatsFlags FLAGS =
             new CommonStatsFlags(CommonStatsFlags.Flag.Docs,
                                  CommonStatsFlags.Flag.FieldData,
@@ -44,10 +50,10 @@ public class NodeStatsCollector extends Collector {
 
     public NodeStatsCollector(final Settings settings,
                               final ClusterService clusterService,
-                              final MonitoringSettings monitoringSettings,
                               final XPackLicenseState licenseState,
                               final Client client) {
-        super(settings, NodeStatsMonitoringDoc.TYPE, clusterService, monitoringSettings, licenseState);
+
+        super(settings, NodeStatsMonitoringDoc.TYPE, clusterService, NODE_STATS_TIMEOUT, licenseState);
         this.client = Objects.requireNonNull(client);
     }
 
@@ -67,7 +73,7 @@ public class NodeStatsCollector extends Collector {
         request.threadPool(true);
         request.fs(true);
 
-        final NodesStatsResponse response = client.admin().cluster().nodesStats(request).actionGet(monitoringSettings.nodeStatsTimeout());
+        final NodesStatsResponse response = client.admin().cluster().nodesStats(request).actionGet(getCollectionTimeout());
 
         // if there's a failure, then we failed to work with the
         // _local node (guaranteed a single exception)

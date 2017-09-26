@@ -86,7 +86,7 @@ public class MonitoringPluginTests extends MonitoringIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
+                .put(MonitoringService.INTERVAL.getKey(), "-1")
                 .build();
     }
 

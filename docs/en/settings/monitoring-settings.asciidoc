@@ -30,13 +30,9 @@ Set to `false` to disable {es} {monitoring} for Elasticsearch.
 The `xpack.monitoring.collection` settings control how data is collected from
 your Elasticsearch nodes.
 
-`xpack.monitoring.collection.cluster.state.timeout`::
-
-Sets the timeout for collecting the cluster state. Defaults to `10m`.
-
 `xpack.monitoring.collection.cluster.stats.timeout`::
 
-Sets the timeout for collecting the cluster statistics. Defaults to `10m`.
+Sets the timeout for collecting the cluster statistics. Defaults to `10s`.
 
 `xpack.monitoring.collection.indices`::
 
@@ -50,11 +46,11 @@ You can update this setting through the Cluster Update Settings API.
 
 `xpack.monitoring.collection.index.stats.timeout`::
 
-Sets the timeout for collecting index statistics. Defaults to `10m`.
+Sets the timeout for collecting index statistics. Defaults to `10s`.
 
 `xpack.monitoring.collection.indices.stats.timeout`::
 
-Sets the timeout for collecting total indices statistics. Defaults to `10m`.
+Sets the timeout for collecting total indices statistics. Defaults to `10s`.
 
 `xpack.monitoring.collection.index.recovery.active_only`::
 
@@ -63,7 +59,7 @@ collect only active recoveries. Defaults to `false`.
 
 `xpack.monitoring.collection.index.recovery.timeout`::
 
-Sets the timeout for collecting the recovery information. Defaults to `10m`.
+Sets the timeout for collecting the recovery information. Defaults to `10s`.
 
 `xpack.monitoring.collection.interval`::
 

@@ -10,7 +10,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.elasticsearch.xpack.security.InternalClient;
 
@@ -24,7 +24,7 @@ public class MonitoringInternalClientTests extends MonitoringIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
+                .put(MonitoringService.INTERVAL.getKey(), "-1")
                 .build();
     }
 

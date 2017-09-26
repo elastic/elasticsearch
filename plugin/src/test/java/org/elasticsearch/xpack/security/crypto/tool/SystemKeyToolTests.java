@@ -50,7 +50,9 @@ public class SystemKeyToolTests extends CommandTestCase {
 
             @Override
             protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
-                return new Environment(Settings.builder().put(settings).build());
+                Settings.Builder builder = Settings.builder();
+                settings.forEach((k,v) -> builder.put(k, v));
+                return new Environment(builder.build());
             }
 
         };

@@ -12,11 +12,18 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.security.InternalClient;
+
+import java.util.function.Function;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -28,9 +35,9 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
     protected ClusterState clusterState;
     protected DiscoveryNodes nodes;
     protected MetaData metaData;
-    protected MonitoringSettings monitoringSettings;
     protected XPackLicenseState licenseState;
     protected InternalClient client;
+    protected Settings settings;
 
     @Override
     public void setUp() throws Exception {
@@ -40,9 +47,9 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
         clusterState = mock(ClusterState.class);
         nodes = mock(DiscoveryNodes.class);
         metaData = mock(MetaData.class);
-        monitoringSettings = mock(MonitoringSettings.class);
         licenseState = mock(XPackLicenseState.class);
         client = mock(InternalClient.class);
+        settings = Settings.EMPTY;
     }
 
     protected void whenLocalNodeElectedMaster(final boolean electedMaster) {
@@ -61,6 +68,28 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterState.metaData()).thenReturn(metaData);
         when(metaData.clusterUUID()).thenReturn(clusterUUID);
+    }
+
+    protected void withCollectionTimeout(final Setting<TimeValue> collectionTimeout, final TimeValue timeout) {
+        withCollectionSetting(builder -> builder.put(collectionTimeout.getKey(), timeout.getStringRep()));
+    }
+
+    protected void withCollectionIndices(final String[] collectionIndices) {
+        final String key = Collector.INDICES.getKey();
+        if (collectionIndices != null) {
+            withCollectionSetting(builder -> builder.putArray(key, collectionIndices));
+        } else {
+            withCollectionSetting(builder -> builder.putNull(key));
+        }
+    }
+
+    protected void withCollectionSetting(final Function<Settings.Builder, Settings.Builder> builder) {
+        settings = Settings.builder()
+                           .put(settings)
+                           .put(builder.apply(Settings.builder()).build())
+                           .build();
+        when(clusterService.getClusterSettings())
+                .thenReturn(new ClusterSettings(settings, Sets.newHashSet(new Monitoring(settings, licenseState).getSettings())));
     }
 
     protected static DiscoveryNode localNode(final String uuid) {

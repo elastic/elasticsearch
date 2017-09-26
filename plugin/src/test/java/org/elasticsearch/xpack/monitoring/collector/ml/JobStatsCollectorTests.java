@@ -47,7 +47,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         when(licenseState.isMonitoringAllowed()).thenReturn(false);
         when(licenseState.isMachineLearningAllowed()).thenReturn(mlAllowed);
 
-        final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, monitoringSettings, licenseState, client);
+        final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(), is(false));
 
@@ -63,7 +63,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         // this controls the blockage
         whenLocalNodeElectedMaster(false);
 
-        final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, monitoringSettings, licenseState, client);
+        final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(), is(false));
 
@@ -78,7 +78,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         when(licenseState.isMachineLearningAllowed()).thenReturn(randomBoolean());
         whenLocalNodeElectedMaster(randomBoolean());
 
-        final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, monitoringSettings, licenseState, client);
+        final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(), is(false));
 
@@ -93,7 +93,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         when(licenseState.isMachineLearningAllowed()).thenReturn(false);
         whenLocalNodeElectedMaster(randomBoolean());
 
-        final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, monitoringSettings, licenseState, client);
+        final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(), is(false));
 
@@ -107,7 +107,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         when(licenseState.isMachineLearningAllowed()).thenReturn(true);
         whenLocalNodeElectedMaster(true);
 
-        final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, monitoringSettings, licenseState, client);
+        final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(), is(true));
 
@@ -115,20 +115,20 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testDoCollect() throws Exception {
-        final TimeValue timeout = mock(TimeValue.class);
         final MetaData metaData = mock(MetaData.class);
         final String clusterUuid = randomAlphaOfLength(5);
         final MonitoringDoc.Node node = randomMonitoringNode(random());
         final MachineLearningClient client = mock(MachineLearningClient.class);
 
-        when(monitoringSettings.jobStatsTimeout()).thenReturn(timeout);
+        final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
+        withCollectionTimeout(JobStatsCollector.JOB_STATS_TIMEOUT, timeout);
 
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterState.metaData()).thenReturn(metaData);
         when(metaData.clusterUUID()).thenReturn(clusterUuid);
 
-        final JobStatsCollector collector =
-                new JobStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+        final JobStatsCollector collector = new JobStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
+        assertEquals(timeout, collector.getCollectionTimeout());
 
         final List<JobStats> jobStats = mockJobStats();
 

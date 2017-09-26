@@ -10,32 +10,50 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
+
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.settings.Setting.Property;
+import static org.elasticsearch.common.settings.Setting.listSetting;
+import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 /**
  * {@link Collector} are used to collect monitoring data about the cluster, nodes and indices.
  */
 public abstract class Collector extends AbstractComponent {
 
+    /**
+     * List of indices names whose stats will be exported (default to all indices)
+     */
+    public static final Setting<List<String>> INDICES =
+            listSetting(collectionSetting("indices"), emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
+
     private final String name;
+    private final Setting<TimeValue> collectionTimeoutSetting;
 
     protected final ClusterService clusterService;
-    protected final MonitoringSettings monitoringSettings;
     protected final XPackLicenseState licenseState;
 
-    public Collector(Settings settings, String name, ClusterService clusterService,
-                     MonitoringSettings monitoringSettings, XPackLicenseState licenseState) {
+    public Collector(final Settings settings, final String name, final ClusterService clusterService,
+                     final Setting<TimeValue> timeoutSetting, final XPackLicenseState licenseState) {
         super(settings);
         this.name = name;
         this.clusterService = clusterService;
-        this.monitoringSettings = monitoringSettings;
+        this.collectionTimeoutSetting = timeoutSetting;
         this.licenseState = licenseState;
     }
 
@@ -93,6 +111,33 @@ public abstract class Collector extends AbstractComponent {
     }
 
     /**
+     * Returns the value of the collection timeout configured for the current {@link Collector}.
+     *
+     * @return the collection timeout, or {@code null} if the collector has not timeout defined.
+     */
+    public TimeValue getCollectionTimeout() {
+        if (collectionTimeoutSetting == null) {
+            return null;
+        }
+        return clusterService.getClusterSettings().get(collectionTimeoutSetting);
+    }
+
+    /**
+     * Returns the names of indices Monitoring collects data from.
+     *
+     * @return a array of indices
+     */
+    public String[] getCollectionIndices() {
+        final List<String> indices = clusterService.getClusterSettings().get(INDICES);
+        assert indices != null;
+        if (indices.isEmpty()) {
+            return Strings.EMPTY_ARRAY;
+        } else {
+            return indices.toArray(new String[indices.size()]);
+        }
+    }
+
+    /**
      * Creates a {@link MonitoringDoc.Node} from a {@link DiscoveryNode} and a timestamp, copying over the
      * required information.
      *
@@ -111,5 +156,15 @@ public abstract class Collector extends AbstractComponent {
                                       node.getHostAddress(),
                                       node.getName(),
                                       timestamp);
+    }
+
+    protected static String collectionSetting(final String settingName) {
+        Objects.requireNonNull(settingName, "setting name must not be null");
+        return XPackPlugin.featureSettingPrefix(Monitoring.NAME) + ".collection." + settingName;
+    }
+
+    protected static Setting<TimeValue> collectionTimeoutSetting(final String settingName) {
+        String name = collectionSetting(settingName);
+        return timeSetting(name, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
     }
 }

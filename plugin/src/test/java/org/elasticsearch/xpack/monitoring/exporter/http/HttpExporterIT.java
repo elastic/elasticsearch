@@ -29,7 +29,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
@@ -107,7 +107,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         // we make an exporter on demand per test
         return Settings.builder()
                        .put(super.nodeSettings(nodeOrdinal))
-                       .put(MonitoringSettings.INTERVAL.getKey(), "-1")
+                       .put(MonitoringService.INTERVAL.getKey(), "-1")
                        .put("xpack.monitoring.exporters._http.type", "http")
                        .put("xpack.monitoring.exporters._http.enabled", false)
                        .build();

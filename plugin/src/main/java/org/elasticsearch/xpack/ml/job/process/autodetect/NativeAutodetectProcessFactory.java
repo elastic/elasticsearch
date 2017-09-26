@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
@@ -39,19 +38,16 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
 
     private static final Logger LOGGER = Loggers.getLogger(NativeAutodetectProcessFactory.class);
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
-    private static final Duration PROCESS_STARTUP_TIMEOUT = Duration.ofSeconds(10);
+    public static final Duration PROCESS_STARTUP_TIMEOUT = Duration.ofSeconds(10);
 
     private final Client client;
     private final Environment env;
     private final Settings settings;
-    private final JobProvider jobProvider;
     private final NativeController nativeController;
 
-    public NativeAutodetectProcessFactory(JobProvider jobProvider, Environment env, Settings settings,
-                                          NativeController nativeController, Client client) {
+    public NativeAutodetectProcessFactory(Environment env, Settings settings, NativeController nativeController, Client client) {
         this.env = Objects.requireNonNull(env);
         this.settings = Objects.requireNonNull(settings);
-        this.jobProvider = Objects.requireNonNull(jobProvider);
         this.nativeController = Objects.requireNonNull(nativeController);
         this.client = client;
     }

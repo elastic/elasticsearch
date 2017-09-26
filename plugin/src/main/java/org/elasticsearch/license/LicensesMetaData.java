@@ -160,8 +160,7 @@ class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> implements
             streamOutput.writeBoolean(true); // has a license
             license.writeTo(streamOutput);
         }
-        // TODO Eventually this should be 6.0. But it is 7.0 temporarily for bwc
-        if (streamOutput.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (streamOutput.getVersion().onOrAfter(Version.V_6_1_0)) {
             if (trialVersion == null) {
                 streamOutput.writeBoolean(false);
             } else {
@@ -177,8 +176,7 @@ class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> implements
         } else {
             license = LICENSE_TOMBSTONE;
         }
-        // TODO Eventually this should be 6.0. But it is 7.0 temporarily for bwc
-        if (streamInput.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (streamInput.getVersion().onOrAfter(Version.V_6_1_0)) {
             boolean hasExercisedTrial = streamInput.readBoolean();
             if (hasExercisedTrial) {
                 this.trialVersion = Version.readVersion(streamInput);

@@ -11,7 +11,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
@@ -65,7 +65,7 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
 
     protected Settings localExporterSettings() {
         return Settings.builder()
-                       .put(MonitoringSettings.INTERVAL.getKey(), "-1")
+                       .put(MonitoringService.INTERVAL.getKey(), "-1")
                        .put("xpack.monitoring.exporters." + exporterName + ".type", LocalExporter.TYPE)
                        .put("xpack.monitoring.exporters." + exporterName +  ".enabled", false)
                        .put("xpack.monitoring.exporters." + exporterName +  "." + CLUSTER_ALERTS_MANAGEMENT_SETTING, useClusterAlerts())

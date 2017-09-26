@@ -10,6 +10,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -36,6 +37,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class MonitoringService extends AbstractLifecycleComponent {
 
+    /**
+     * Minimum value for sampling interval (1 second)
+     */
+    static final TimeValue MIN_INTERVAL = TimeValue.timeValueSeconds(1L);
+
+    /**
+     * Sampling interval between two collections (default to 10s)
+     */
+    public static final Setting<TimeValue> INTERVAL = new Setting<>("xpack.monitoring.collection.interval", "10s",
+            (s) -> {
+                TimeValue value = TimeValue.parseTimeValue(s, null, "xpack.monitoring.collection.interval");
+                if (TimeValue.MINUS_ONE.equals(value) || value.millis() >= MIN_INTERVAL.millis()) {
+                    return value;
+                }
+                throw new IllegalArgumentException("Failed to parse monitoring interval [" + s + "], value must be >= " + MIN_INTERVAL);
+            },
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     /** State of the monitoring service, either started or stopped **/
     private final AtomicBoolean started = new AtomicBoolean(false);
 
@@ -55,8 +74,8 @@ public class MonitoringService extends AbstractLifecycleComponent {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.collectors = Objects.requireNonNull(collectors);
         this.exporters = Objects.requireNonNull(exporters);
-        this.interval = MonitoringSettings.INTERVAL.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(MonitoringSettings.INTERVAL, this::setInterval);
+        this.interval = INTERVAL.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(INTERVAL, this::setInterval);
     }
 
     void setInterval(TimeValue interval) {
@@ -71,7 +90,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
     boolean isMonitoringActive() {
         return isStarted()
                 && interval != null
-                && interval.millis() >= MonitoringSettings.MIN_INTERVAL.millis();
+                && interval.millis() >= MIN_INTERVAL.millis();
     }
 
     private String threadPoolName() {

@@ -283,7 +283,7 @@ public class MachineLearning implements ActionPlugin {
                     // This will only only happen when path.home is not set, which is disallowed in production
                     throw new ElasticsearchException("Failed to create native process controller for Machine Learning");
                 }
-                autodetectProcessFactory = new NativeAutodetectProcessFactory(jobProvider, env, settings, nativeController, internalClient);
+                autodetectProcessFactory = new NativeAutodetectProcessFactory(env, settings, nativeController, internalClient);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(env, settings, nativeController);
             } catch (IOException e) {
                 // This also should not happen in production, as the MachineLearningFeatureSet should have

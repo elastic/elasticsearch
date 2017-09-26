@@ -9,21 +9,21 @@ The `preference` is a query string parameter which can be set to:
 [horizontal]
 `_primary`:: 
 	The operation will go and be executed only on the primary
-	shards. The `_primary` option is deprecated in 6.0.0 and will be removed in Elasticsearch 7.0.
+	shards. deprecated[6.0.0, will be removed in 7.0, use `_only_nodes` or `_prefer_nodes`]
 
 `_primary_first`:: 
 	The operation will go and be executed on the primary
 	shard, and if not available (failover), will execute on other shards.
-	The `_primary_first` option is deprecated in 6.0.0 and will be removed in Elasticsearch 7.0.
+	deprecated[6.0.0, will be removed in 7.0, use `_only_nodes` or `_prefer_nodes`]
 
 `_replica`::
   The operation will go and be executed only on a replica shard.
-  The `_replica` option is deprecated in 6.0.0 and will be removed in Elasticsearch 7.0.
+  deprecated[6.0.0, will be removed in 7.0, use `_only_nodes` or `_prefer_nodes`]
 
 `_replica_first`::
   The operation will go and be executed only on a replica shard, and if
   not available (failover), will execute on other shards.
-  The `_replica_first` option is deprecated in 6.0.0 and will be removed in Elasticsearch 7.0.
+  deprecated[6.0.0, will be removed in 7.0, use `_only_nodes` or `_prefer_nodes`]
 
 `_local`:: 
 	The operation will prefer to be executed on a local

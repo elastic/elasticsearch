@@ -33,6 +33,12 @@ All operations on index templates.
 `manage_ml`::
 All {ml} operations, such as creating and deleting {dfeeds}, jobs, and model
 snapshots.
++
+--
+NOTE: Datafeeds run as a system user with elevated privileges, including
+permission to read all indices.
+
+--
 
 `manage_pipeline`::
 All operations on ingest pipelines.
@@ -43,6 +49,12 @@ cache clearing.
 
 `manage_watcher`::
 All watcher operations, such as putting watches, executing, activate or acknowledging.
++
+--
+NOTE: Watches run as a system user with elevated privileges, including permission
+to read and write all indices.
+
+--
 
 `transport_client`::
 All privileges necessary for a transport client to connect.  Required by the remote

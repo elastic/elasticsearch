@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResult
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
@@ -202,6 +203,13 @@ public class AutodetectCommunicator implements Closeable {
         submitOperation(() -> {
             String flushId = autodetectProcess.flushJob(params);
             return waitFlushToCompletion(flushId);
+        }, handler);
+    }
+
+    public void forecastJob(ForecastParams params, BiConsumer<Void, Exception> handler) {
+        submitOperation(() -> {
+            autodetectProcess.forecastJob(params);
+            return null;
         }, handler);
     }
 

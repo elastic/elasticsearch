@@ -26,12 +26,12 @@ esplugin {
 }
 
 integTestCluster {
-  // Whitelist reindexing from the local node so we can test it.
+  // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
 run {
-  // Whitelist reindexing from the local node so we can test it.
+  // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 

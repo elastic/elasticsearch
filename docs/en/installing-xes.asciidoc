@@ -163,7 +163,7 @@ This command generates a zip file with the CA certificate, private key, and
 signed certificates and keys in the PEM format for each node that you specify.
 If you want to use a commercial or organization-specific CA, you can use the
 `-csr` parameter to generate certificate signing requests (CSR) for the nodes
-in your cluster. For more information, see <<certgen>>. 
+in your cluster. For more information, see <<certgen>>.
 
 TIP: For easier setup, use the node name as the instance name when you run
 this tool.
@@ -217,7 +217,7 @@ that is no longer valid after the command runs successfully. You cannot run the
 the **Management > Users** UI in {kib} or use the security user API.
 
 For more information, see
-{ref}/setting-up-authentication.html#set-built-in-user-passwords[Setting Built-in User Passwords].
+{xpack-ref}/setting-up-authentication.html#set-built-in-user-passwords[Setting Built-in User Passwords].
 --
 
 . {kibana-ref}/installing-xpack-kb.html[Install {xpack} on {kib}].

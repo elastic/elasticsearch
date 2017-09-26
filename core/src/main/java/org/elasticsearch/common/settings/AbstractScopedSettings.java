@@ -495,6 +495,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 // we don't validate if there is any dynamic setting with that prefix yet we could do in the future
                 toRemove.add(entry.getKey());
                 // we don't set changed here it's set after we apply deletes below if something actually changed
+            } else if (get(entry.getKey()) == null) {
+                throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not recognized");
             } else if (entry.getValue() != null && canUpdate.test(entry.getKey())) {
                 validate(entry.getKey(), toApply);
                 settingsBuilder.put(entry.getKey(), entry.getValue());

@@ -39,7 +39,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
 
     private static final Logger LOGGER = Loggers.getLogger(NativeAutodetectProcessFactory.class);
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
-    private static final Duration PROCESS_STARTUP_TIMEOUT = Duration.ofSeconds(10);
+    public static final Duration PROCESS_STARTUP_TIMEOUT = Duration.ofSeconds(10);
 
     private final Client client;
     private final Environment env;

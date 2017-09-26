@@ -459,7 +459,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
         assertFalse(manager.jobHasActiveAutodetectProcess(jobTask));
-        when(communicator.getJobTask()).thenReturn(jobTask);
 
         manager.openJob(jobTask, e -> {});
         manager.processData(jobTask, createInputStream(""), randomFrom(XContentType.values()),

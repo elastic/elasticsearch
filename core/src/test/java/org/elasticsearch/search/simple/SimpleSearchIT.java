@@ -313,7 +313,6 @@ public class SimpleSearchIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse;
-        boolean hasEarlyTerminated = false;
         for (int i = 1; i < max; i++) {
             searchResponse = client().prepareSearch("test")
                 .addDocValueField("rank")
@@ -321,16 +320,11 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 .addSort("rank", SortOrder.ASC)
                 .setSize(i).execute().actionGet();
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(-1L));
-            if (searchResponse.isTerminatedEarly() != null) {
-                assertTrue(searchResponse.isTerminatedEarly());
-                hasEarlyTerminated = true;
-            }
             for (int j = 0; j < i; j++) {
                 assertThat(searchResponse.getHits().getAt(j).field("rank").getValue(),
                     equalTo((long) j));
             }
         }
-        assertTrue(hasEarlyTerminated);
     }
 
     public void testInsaneFromAndSize() throws Exception {

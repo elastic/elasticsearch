@@ -91,9 +91,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     protected ResultSet executeJdbcQuery(Connection con, String query) throws SQLException {
         Statement statement = con.createStatement();
-        //statement.setFetchSize(randomInt(10));
-        // NOCOMMIT: hook up pagination
-        statement.setFetchSize(1000);
+        statement.setFetchSize(between(1, 500));
         return statement.executeQuery(query);
     }
 

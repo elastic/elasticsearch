@@ -136,7 +136,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                     rolloverRequest),
                                 ActionListener.wrap(aliasClusterStateUpdateResponse -> {
                                     if (aliasClusterStateUpdateResponse.isAcknowledged()) {
-                                        activeShardsObserver.waitForActiveShards(rolloverIndexName,
+                                        activeShardsObserver.waitForActiveShards(new String[]{rolloverIndexName},
                                             rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                                             rolloverRequest.masterNodeTimeout(),
                                             isShardsAcked -> listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName,

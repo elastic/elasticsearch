@@ -302,7 +302,9 @@ public class GetActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
             .addMapping("type1", mapping1, XContentType.JSON)
             .addMapping("type2", mapping2, XContentType.JSON)
-            .setSettings("index.refresh_interval", -1, "index.version.created", Version.V_5_6_0.id)); // multi types in 5.6
+            // multi types in 5.6
+            .setSettings(Settings.builder().put("index.refresh_interval", -1).put("index.version.created", Version.V_5_6_0.id)));
+
         ensureGreen();
 
         GetResponse response = client().prepareGet("test", "type1", "1").get();
@@ -576,7 +578,8 @@ public class GetActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
             .addMapping("doc", "field1", "type=keyword,store=true")
             .addAlias(new Alias("alias"))
-            .setSettings("index.refresh_interval", -1,  "index.version.created", Version.V_5_6_0.id)); // multi types in 5.6
+            .setSettings(Settings.builder().put("index.refresh_interval", -1).put("index.version.created", Version.V_5_6_0.id)));
+            // multi types in 5.6
 
         client().prepareIndex("test", "doc", "1")
             .setRouting("1")
@@ -612,7 +615,8 @@ public class GetActionIT extends ESIntegTestCase {
                 .addMapping("parent")
                 .addMapping("my-type1", "_parent", "type=parent", "field1", "type=keyword,store=true")
                 .addAlias(new Alias("alias"))
-                .setSettings("index.refresh_interval", -1,  "index.version.created", Version.V_5_6_0.id)); // multi types in 5.6
+                .setSettings(Settings.builder().put("index.refresh_interval", -1).put("index.version.created", Version.V_5_6_0.id)));
+                // multi types in 5.6
 
         client().prepareIndex("test", "my-type1", "1")
                 .setRouting("1")
@@ -676,7 +680,8 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGetFieldsComplexField() throws Exception {
         assertAcked(prepareCreate("my-index")
-                .setSettings("index.refresh_interval", -1,  "index.version.created", Version.V_5_6_0.id) // multi types in 5.6
+            // multi types in 5.6
+            .setSettings(Settings.builder().put("index.refresh_interval", -1).put("index.version.created", Version.V_5_6_0.id))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")

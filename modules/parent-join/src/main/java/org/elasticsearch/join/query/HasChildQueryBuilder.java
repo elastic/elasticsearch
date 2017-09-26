@@ -76,8 +76,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
-    private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
-    private static final ParseField TYPE_FIELD = new ParseField("type", "child_type");
+    private static final ParseField QUERY_FIELD = new ParseField("query");
+    private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField MAX_CHILDREN_FIELD = new ParseField("max_children");
     private static final ParseField MIN_CHILDREN_FIELD = new ParseField("min_children");
     private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");

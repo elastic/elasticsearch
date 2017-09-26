@@ -31,6 +31,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -147,8 +148,8 @@ public class RecoverySourceHandler {
             final Translog translog = shard.getTranslog();
 
             final long startingSeqNo;
-            boolean isSequenceNumberBasedRecoveryPossible = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO &&
-                isTranslogReadyForSequenceNumberBasedRecovery();
+            final boolean isSequenceNumberBasedRecoveryPossible = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO &&
+                isTargetSameHistory() && isTranslogReadyForSequenceNumberBasedRecovery();
 
             if (isSequenceNumberBasedRecoveryPossible) {
                 logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
@@ -196,6 +197,13 @@ public class RecoverySourceHandler {
             finalizeRecovery(targetLocalCheckpoint);
         }
         return response;
+    }
+
+    private boolean isTargetSameHistory() {
+        final String targetHistoryUUID = request.metadataSnapshot().getHistoryUUID();
+        assert targetHistoryUUID != null || shard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
+            "incoming target history N/A but index was created after or on 6.0.0-rc1";
+        return targetHistoryUUID != null && targetHistoryUUID.equals(shard.getHistoryUUID());
     }
 
     private void runUnderPrimaryPermit(CancellableThreads.Interruptable runnable) {
@@ -467,7 +475,9 @@ public class RecoverySourceHandler {
          * the permit then the state of the shard will be relocated and this recovery will fail.
          */
         runUnderPrimaryPermit(() -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint));
-        cancellableThreads.execute(() -> recoveryTarget.finalizeRecovery(shard.getGlobalCheckpoint()));
+        final long globalCheckpoint = shard.getGlobalCheckpoint();
+        cancellableThreads.execute(() -> recoveryTarget.finalizeRecovery(globalCheckpoint));
+        runUnderPrimaryPermit(() -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint));
 
         if (request.isPrimaryRelocation()) {
             logger.trace("performing relocation hand-off");

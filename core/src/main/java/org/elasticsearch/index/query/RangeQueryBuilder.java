@@ -53,11 +53,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
-    private static final ParseField FIELDDATA_FIELD = new ParseField("fielddata").withAllDeprecated("[no replacement]");
-    private static final ParseField NAME_FIELD = new ParseField("_name")
-        .withAllDeprecated("query name is not supported in short version of range query");
-    public static final ParseField LTE_FIELD = new ParseField("lte", "le");
-    public static final ParseField GTE_FIELD = new ParseField("gte", "ge");
+    public static final ParseField LTE_FIELD = new ParseField("lte");
+    public static final ParseField GTE_FIELD = new ParseField("gte");
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField TO_FIELD = new ParseField("to");
     private static final ParseField INCLUDE_LOWER_FIELD = new ParseField("include_lower");
@@ -115,8 +112,18 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             String relationString = in.readOptionalString();
             if (relationString != null) {
                 relation = ShapeRelation.getRelationByName(relationString);
+                if (relation != null && !isRelationAllowed(relation)) {
+                    throw new IllegalArgumentException(
+                        "[range] query does not support relation [" + relationString + "]");
+                }
             }
         }
+    }
+
+    private boolean isRelationAllowed(ShapeRelation relation) {
+        return relation == ShapeRelation.INTERSECTS
+            || relation == ShapeRelation.CONTAINS
+            || relation == ShapeRelation.WITHIN;
     }
 
     @Override
@@ -317,6 +324,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (this.relation == null) {
             throw new IllegalArgumentException(relation + " is not a valid relation");
         }
+        if (!isRelationAllowed(this.relation)) {
+            throw new IllegalArgumentException("[range] query does not support relation [" + relation + "]");
+        }
         return this;
     }
 
@@ -403,13 +413,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                     }
                 }
             } else if (token.isValue()) {
-                if (NAME_FIELD.match(currentFieldName)) {
-                    queryName = parser.text();
-                } else if (FIELDDATA_FIELD.match(currentFieldName)) {
-                    // ignore
-                } else {
                     throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");
-                }
             }
         }
 

@@ -57,9 +57,6 @@ public abstract class MasterNodeReadRequest<Request extends MasterNodeReadReques
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        // TODO(talevy): throw exception once all MasterNodeReadRequest
-        //               subclasses have been migrated to Writeable Readers
-        super.readFrom(in);
-        local = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

@@ -420,7 +420,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         diff = settings.diff(
             Settings.builder().put("some.group.foo", 5).build(),
-            Settings.builder().put("some.group.foobar", 17, "some.group.foo", 25).build());
+            Settings.builder().put("some.group.foobar", 17).put("some.group.foo", 25).build());
         assertEquals(6, diff.size()); // 6 since foo.bar.quux has 3 values essentially
         assertThat(diff.getAsInt("some.group.foobar", null), equalTo(17));
         assertNull(diff.get("some.group.foo"));
@@ -430,8 +430,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         diff = settings.diff(
             Settings.builder().put("some.prefix.foo.somekey", 5).build(),
-            Settings.builder().put("some.prefix.foobar.somekey", 17,
-                "some.prefix.foo.somekey", 18).build());
+            Settings.builder().put("some.prefix.foobar.somekey", 17).put("some.prefix.foo.somekey", 18).build());
         assertEquals(6, diff.size()); // 6 since foo.bar.quux has 3 values essentially
         assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
         assertNull(diff.get("some.prefix.foo.somekey"));
@@ -464,7 +463,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         diff = settings.diff(
             Settings.builder().put("some.group.foo", 5).build(),
-            Settings.builder().put("some.group.foobar", 17, "some.group.foo", 25).build());
+            Settings.builder().put("some.group.foobar", 17).put("some.group.foo", 25).build());
         assertEquals(3, diff.size());
         assertThat(diff.getAsInt("some.group.foobar", null), equalTo(17));
         assertNull(diff.get("some.group.foo"));
@@ -474,8 +473,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         diff = settings.diff(
             Settings.builder().put("some.prefix.foo.somekey", 5).build(),
-            Settings.builder().put("some.prefix.foobar.somekey", 17,
-                "some.prefix.foo.somekey", 18).build());
+            Settings.builder().put("some.prefix.foobar.somekey", 17).put("some.prefix.foo.somekey", 18).build());
         assertEquals(3, diff.size());
         assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
         assertNull(diff.get("some.prefix.foo.somekey"));
@@ -485,8 +483,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         diff = settings.diff(
             Settings.builder().put("some.prefix.foo.somekey", 5).build(),
-            Settings.builder().put("some.prefix.foobar.somekey", 17,
-                "some.prefix.foo.somekey", 18)
+            Settings.builder().put("some.prefix.foobar.somekey", 17).put("some.prefix.foo.somekey", 18)
             .putArray("foo.bar.quux", "x", "y", "z")
             .putArray("foo.baz.quux", "d", "e", "f")
                 .build());
@@ -540,15 +537,15 @@ public class ScopedSettingsTests extends ESTestCase {
         settings.validate(Settings.builder().put("index.store.type", "boom"));
         settings.validate(Settings.builder().put("index.store.type", "boom").build());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true)));
+            settings.validate(Settings.builder().put("index.store.type", "boom").put("i.am.not.a.setting", true)));
         assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true).build()));
+            settings.validate(Settings.builder().put("index.store.type", "boom").put("i.am.not.a.setting", true).build()));
         assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate(Settings.builder().put("index.store.type", "boom", "index.number_of_replicas", true).build()));
+            settings.validate(Settings.builder().put("index.store.type", "boom").put("index.number_of_replicas", true).build()));
         assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->

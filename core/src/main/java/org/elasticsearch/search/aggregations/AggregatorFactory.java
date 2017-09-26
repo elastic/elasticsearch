@@ -130,7 +130,11 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
                             aggregators.set(bucket, aggregator);
                         }
                         collector = aggregator.getLeafCollector(ctx);
-                        collector.setScorer(scorer);
+                        if (scorer != null) {
+                            // Passing a null scorer can cause unexpected NPE at a later time,
+                            // which can't not be directly linked to the fact that a null scorer has been supplied.
+                            collector.setScorer(scorer);
+                        }
                         collectors.set(bucket, collector);
                     }
                     collector.collect(doc, 0);

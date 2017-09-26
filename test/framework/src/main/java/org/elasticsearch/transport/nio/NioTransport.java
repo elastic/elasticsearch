@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
+import java.net.StandardSocketOptions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -99,7 +99,12 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    protected void closeChannels(List<NioChannel> channels, boolean blocking) throws IOException {
+    protected void closeChannels(List<NioChannel> channels, boolean blocking, boolean closingTransport) throws IOException {
+        if (closingTransport) {
+            for (NioChannel channel : channels) {
+                channel.getRawChannel().setOption(StandardSocketOptions.SO_LINGER, 0);
+            }
+        }
         ArrayList<CloseFuture> futures = new ArrayList<>(channels.size());
         for (final NioChannel channel : channels) {
             if (channel != null && channel.isOpen()) {

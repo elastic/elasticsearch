@@ -117,12 +117,12 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     @Override
     protected MockChannel bind(final String name, InetSocketAddress address) throws IOException {
         MockServerSocket socket = new MockServerSocket();
-        socket.bind(address);
         socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings));
         ByteSizeValue tcpReceiveBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);
         if (tcpReceiveBufferSize.getBytes() > 0) {
             socket.setReceiveBufferSize(tcpReceiveBufferSize.bytesAsInt());
         }
+        socket.bind(address);
         MockChannel serverMockChannel = new MockChannel(socket, name);
         CountDownLatch started = new CountDownLatch(1);
         executor.execute(new AbstractRunnable() {
@@ -242,8 +242,15 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected void closeChannels(List<MockChannel> channel, boolean blocking) throws IOException {
-        IOUtils.close(channel);
+    protected void closeChannels(List<MockChannel> channels, boolean blocking, boolean closingTransport) throws IOException {
+        if (closingTransport) {
+            for (MockChannel channel : channels) {
+                if (channel.activeChannel != null) {
+                    channel.activeChannel.setSoLinger(true, 0);
+                }
+            }
+        }
+        IOUtils.close(channels);
     }
 
     @Override

@@ -331,7 +331,12 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void closeChannels(final List<Channel> channels, boolean blocking) throws IOException {
+    protected void closeChannels(final List<Channel> channels, boolean blocking, boolean closingTransport) throws IOException {
+        if (closingTransport) {
+            for (Channel channel : channels) {
+                channel.config().setOption(ChannelOption.SO_LINGER, 0);
+            }
+        }
         if (blocking) {
             Netty4Utils.closeChannels(channels);
         } else {

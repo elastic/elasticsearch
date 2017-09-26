@@ -43,8 +43,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         when(licenseState.isMonitoringAllowed()).thenReturn(false);
         whenLocalNodeElectedMaster(randomBoolean());
 
-        final IndexStatsCollector collector =
-                new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+        final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(), is(false));
         verify(licenseState).isMonitoringAllowed();
@@ -55,8 +54,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         // this controls the blockage
         whenLocalNodeElectedMaster(false);
 
-        final IndexStatsCollector collector =
-                new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+        final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(), is(false));
         verify(licenseState).isMonitoringAllowed();
@@ -67,8 +65,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
         whenLocalNodeElectedMaster(true);
 
-        final IndexStatsCollector collector =
-                new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+        final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(), is(true));
         verify(licenseState).isMonitoringAllowed();
@@ -76,6 +73,9 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testDoCollect() throws Exception {
+        final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
+        withCollectionTimeout(IndexStatsCollector.INDEX_STATS_TIMEOUT, timeout);
+
         whenLocalNodeElectedMaster(true);
 
         final String clusterName = randomAlphaOfLength(10);
@@ -85,9 +85,6 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         whenClusterStateWithUUID(clusterUUID);
 
         final MonitoringDoc.Node node = randomMonitoringNode(random());
-
-        final TimeValue timeout = mock(TimeValue.class);
-        when(monitoringSettings.indexStatsTimeout()).thenReturn(timeout);
 
         final Map<String, IndexStats> indicesStats = new HashMap<>();
         final int indices = randomIntBetween(0, 10);
@@ -114,8 +111,8 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final Client client = mock(Client.class);
         when(client.admin()).thenReturn(adminClient);
 
-        final IndexStatsCollector collector =
-                new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringSettings, licenseState, client);
+        final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
+        assertEquals(timeout, collector.getCollectionTimeout());
 
         final Collection<MonitoringDoc> results = collector.doCollect(node);
         verify(indicesAdminClient).prepareStats();

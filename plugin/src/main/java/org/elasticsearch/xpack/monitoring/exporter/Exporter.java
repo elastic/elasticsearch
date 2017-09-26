@@ -9,7 +9,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
@@ -73,11 +72,11 @@ public abstract class Exporter implements AutoCloseable {
     protected abstract void doClose();
 
     protected static String settingFQN(final Config config) {
-        return MonitoringSettings.EXPORTERS_SETTINGS.getKey() + config.name;
+        return Exporters.EXPORTERS_SETTINGS.getKey() + config.name;
     }
 
     protected static String settingFQN(final Config config, final String setting) {
-        return MonitoringSettings.EXPORTERS_SETTINGS.getKey() + config.name + "." + setting;
+        return Exporters.EXPORTERS_SETTINGS.getKey() + config.name + "." + setting;
     }
 
     protected static DateTimeFormatter dateTimeFormatter(final Config config) {

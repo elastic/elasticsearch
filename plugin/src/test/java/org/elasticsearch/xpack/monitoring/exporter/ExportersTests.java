@@ -19,8 +19,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.action.MonitoringBulkDoc;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.security.InternalClient;
@@ -40,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -75,7 +75,7 @@ public class ExportersTests extends ESTestCase {
         // default state.version() will be 0, which is "valid"
         state = mock(ClusterState.class);
         clusterSettings = new ClusterSettings(Settings.EMPTY,
-                new HashSet<>(Arrays.asList(MonitoringSettings.INTERVAL, MonitoringSettings.EXPORTERS_SETTINGS)));
+                new HashSet<>(Arrays.asList(MonitoringService.INTERVAL, Exporters.EXPORTERS_SETTINGS)));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.state()).thenReturn(state);
 
@@ -180,7 +180,7 @@ public class ExportersTests extends ESTestCase {
                 .put("xpack.monitoring.exporters._name0.type", "_type")
                 .put("xpack.monitoring.exporters._name1.type", "_type")
                 .build();
-        clusterSettings = new ClusterSettings(nodeSettings, new HashSet<>(Arrays.asList(MonitoringSettings.EXPORTERS_SETTINGS)));
+        clusterSettings = new ClusterSettings(nodeSettings, singleton(Exporters.EXPORTERS_SETTINGS));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         exporters = new Exporters(nodeSettings, factories, clusterService, licenseState, threadContext) {

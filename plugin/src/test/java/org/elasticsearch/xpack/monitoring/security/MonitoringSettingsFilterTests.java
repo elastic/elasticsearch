@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 
 import java.util.ArrayList;
@@ -35,7 +35,7 @@ public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
+                .put(MonitoringService.INTERVAL.getKey(), "-1")
                 .put("xpack.monitoring.exporters._http.type", "http")
                 .put("xpack.monitoring.exporters._http.enabled", false)
                 .put("xpack.monitoring.exporters._http.auth.username", "_user")

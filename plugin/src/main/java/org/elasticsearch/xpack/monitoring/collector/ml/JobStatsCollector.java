@@ -6,15 +6,15 @@
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.client.MachineLearningClient;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
@@ -32,18 +32,21 @@ import java.util.stream.Collectors;
  */
 public class JobStatsCollector extends Collector {
 
+    /**
+     * Timeout value when collecting ML job statistics (default to 10s)
+     */
+    public static final Setting<TimeValue> JOB_STATS_TIMEOUT = collectionTimeoutSetting("ml.job.stats.timeout");
+
     private final MachineLearningClient client;
 
     public JobStatsCollector(final Settings settings, final ClusterService clusterService,
-                             final MonitoringSettings monitoringSettings,
                              final XPackLicenseState licenseState, final InternalClient client) {
-        this(settings, clusterService, monitoringSettings, licenseState, new XPackClient(client).machineLearning());
+        this(settings, clusterService, licenseState, new XPackClient(client).machineLearning());
     }
 
     JobStatsCollector(final Settings settings, final ClusterService clusterService,
-                      final MonitoringSettings monitoringSettings,
                       final XPackLicenseState licenseState, final MachineLearningClient client) {
-        super(settings, JobStatsMonitoringDoc.TYPE, clusterService, monitoringSettings, licenseState);
+        super(settings, JobStatsMonitoringDoc.TYPE, clusterService, JOB_STATS_TIMEOUT, licenseState);
 
         this.client = client;
     }
@@ -61,7 +64,7 @@ public class JobStatsCollector extends Collector {
         // fetch details about all jobs
         final GetJobsStatsAction.Response jobs =
                 client.getJobsStats(new GetJobsStatsAction.Request(MetaData.ALL))
-                      .actionGet(monitoringSettings.jobStatsTimeout());
+                      .actionGet(getCollectionTimeout());
 
         final long timestamp = timestamp();
         final String clusterUuid = clusterUUID();

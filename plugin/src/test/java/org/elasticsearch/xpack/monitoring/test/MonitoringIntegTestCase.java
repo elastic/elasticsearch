@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
@@ -404,7 +403,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     protected void updateMonitoringInterval(long value, TimeUnit timeUnit) {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), value, timeUnit)));
+                Settings.builder().put(MonitoringService.INTERVAL.getKey(), value, timeUnit)));
     }
 
     /** security related settings */

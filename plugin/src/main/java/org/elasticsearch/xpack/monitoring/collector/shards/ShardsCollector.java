@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
@@ -33,10 +32,9 @@ public class ShardsCollector extends Collector {
 
     public ShardsCollector(final Settings settings,
                            final ClusterService clusterService,
-                           final MonitoringSettings monitoringSettings,
                            final XPackLicenseState licenseState) {
 
-        super(settings, ShardMonitoringDoc.TYPE, clusterService, monitoringSettings, licenseState);
+        super(settings, ShardMonitoringDoc.TYPE, clusterService, null, licenseState);
     }
 
     @Override
@@ -48,7 +46,7 @@ public class ShardsCollector extends Collector {
     protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node) throws Exception {
         final List<MonitoringDoc> results = new ArrayList<>(1);
 
-        ClusterState clusterState = clusterService.state();
+        final ClusterState clusterState = clusterService.state();
         if (clusterState != null) {
             RoutingTable routingTable = clusterState.routingTable();
             if (routingTable != null) {
@@ -58,8 +56,11 @@ public class ShardsCollector extends Collector {
                     final String stateUUID = clusterState.stateUUID();
                     final long timestamp = timestamp();
 
+                    final String[] indices = getCollectionIndices();
+                    final boolean isAllIndices = IndexNameExpressionResolver.isAllIndices(Arrays.asList(indices));
+
                     for (ShardRouting shard : shards) {
-                        if (match(shard.getIndexName())) {
+                        if (isAllIndices || Regex.simpleMatch(indices, shard.getIndexName())) {
                             MonitoringDoc.Node shardNode = null;
                             if (shard.assignedToNode()) {
                                 // If the shard is assigned to a node, the shard monitoring document refers to this node
@@ -72,10 +73,5 @@ public class ShardsCollector extends Collector {
             }
         }
         return Collections.unmodifiableCollection(results);
-    }
-
-    private boolean match(final String indexName) {
-        final String[] indices = monitoringSettings.indices();
-        return IndexNameExpressionResolver.isAllIndices(Arrays.asList(indices)) || Regex.simpleMatch(indices, indexName);
     }
 }

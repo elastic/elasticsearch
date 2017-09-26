@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.cleaner;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledFuture;
-
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -18,9 +14,13 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
+
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledFuture;
 
 /**
  * {@code CleanerService} takes care of deleting old monitoring indices.
@@ -41,11 +41,11 @@ public class CleanerService extends AbstractLifecycleComponent {
         this.licenseState = licenseState;
         this.threadPool = threadPool;
         this.executionScheduler = executionScheduler;
-        this.globalRetention = MonitoringSettings.HISTORY_DURATION.get(settings);
+        this.globalRetention = Monitoring.HISTORY_DURATION.get(settings);
         this.runnable = new IndicesCleaner();
 
         // the validation is performed by the setting's object itself
-        clusterSettings.addSettingsUpdateConsumer(MonitoringSettings.HISTORY_DURATION, this::setGlobalRetention);
+        clusterSettings.addSettingsUpdateConsumer(Monitoring.HISTORY_DURATION, this::setGlobalRetention);
     }
 
     public CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, XPackLicenseState licenseState) {
@@ -91,7 +91,7 @@ public class CleanerService extends AbstractLifecycleComponent {
             return globalRetention;
         }
         else {
-            return MonitoringSettings.HISTORY_DURATION.getDefault(Settings.EMPTY);
+            return Monitoring.HISTORY_DURATION.getDefault(Settings.EMPTY);
         }
     }
 
@@ -106,8 +106,7 @@ public class CleanerService extends AbstractLifecycleComponent {
     public void setGlobalRetention(TimeValue globalRetention) {
         // notify the user that their setting will be ignored until they get the right license
         if (licenseState.isUpdateRetentionAllowed() == false) {
-            logger.warn("[{}] setting will be ignored until an appropriate license is applied",
-                    MonitoringSettings.HISTORY_DURATION.getKey());
+            logger.warn("[{}] setting will be ignored until an appropriate license is applied", Monitoring.HISTORY_DURATION.getKey());
         }
 
         this.globalRetention = globalRetention;

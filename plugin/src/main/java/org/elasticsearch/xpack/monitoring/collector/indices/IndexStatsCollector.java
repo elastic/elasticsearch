@@ -10,9 +10,10 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
@@ -29,14 +30,18 @@ import java.util.List;
  */
 public class IndexStatsCollector extends Collector {
 
+    /**
+     * Timeout value when collecting index statistics (default to 10s)
+     */
+    public static final Setting<TimeValue> INDEX_STATS_TIMEOUT = collectionTimeoutSetting("index.stats.timeout");
+
     private final Client client;
 
     public IndexStatsCollector(final Settings settings,
                                final ClusterService clusterService,
-                               final MonitoringSettings monitoringSettings,
                                final XPackLicenseState licenseState,
                                final Client client) {
-        super(settings, "index-stats", clusterService, monitoringSettings, licenseState);
+        super(settings, "index-stats", clusterService, INDEX_STATS_TIMEOUT, licenseState);
         this.client = client;
     }
 
@@ -49,7 +54,7 @@ public class IndexStatsCollector extends Collector {
     protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node) throws Exception {
         final List<MonitoringDoc> results = new ArrayList<>();
         final IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
-                .setIndices(monitoringSettings.indices())
+                .setIndices(getCollectionIndices())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .clear()
                 .setDocs(true)
@@ -62,7 +67,7 @@ public class IndexStatsCollector extends Collector {
                 .setRefresh(true)
                 .setQueryCache(true)
                 .setRequestCache(true)
-                .get(monitoringSettings.indexStatsTimeout());
+                .get(getCollectionTimeout());
 
         final long timestamp = timestamp();
         final String clusterUuid = clusterUUID();

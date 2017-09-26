@@ -12,7 +12,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -40,7 +40,7 @@ public class CleanerServiceTests extends ESTestCase {
 
     @Before
     public void start() {
-        clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(MonitoringSettings.HISTORY_DURATION));
+        clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Monitoring.HISTORY_DURATION));
         threadPool = new TestThreadPool("CleanerServiceTests");
     }
 
@@ -54,14 +54,14 @@ public class CleanerServiceTests extends ESTestCase {
         expectedException.expect(IllegalArgumentException.class);
 
         TimeValue expected = TimeValue.timeValueHours(1);
-        Settings settings = Settings.builder().put(MonitoringSettings.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
+        Settings settings = Settings.builder().put(Monitoring.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
 
         new CleanerService(settings, clusterSettings, threadPool, licenseState);
     }
 
     public void testGetRetentionWithSettingWithUpdatesAllowed() {
         TimeValue expected = TimeValue.timeValueHours(25);
-        Settings settings = Settings.builder().put(MonitoringSettings.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
+        Settings settings = Settings.builder().put(Monitoring.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
 
         when(licenseState.isUpdateRetentionAllowed()).thenReturn(true);
 
@@ -73,7 +73,7 @@ public class CleanerServiceTests extends ESTestCase {
     public void testGetRetentionDefaultValueWithNoSettings() {
         when(licenseState.isUpdateRetentionAllowed()).thenReturn(true);
 
-        assertEquals(MonitoringSettings.HISTORY_DURATION.get(Settings.EMPTY),
+        assertEquals(Monitoring.HISTORY_DURATION.get(Settings.EMPTY),
                      new CleanerService(Settings.EMPTY, clusterSettings, threadPool, licenseState).getRetention());
 
         verify(licenseState).isUpdateRetentionAllowed();
@@ -81,11 +81,11 @@ public class CleanerServiceTests extends ESTestCase {
 
     public void testGetRetentionDefaultValueWithSettingsButUpdatesNotAllowed() {
         TimeValue notExpected = TimeValue.timeValueHours(25);
-        Settings settings = Settings.builder().put(MonitoringSettings.HISTORY_DURATION.getKey(), notExpected.getStringRep()).build();
+        Settings settings = Settings.builder().put(Monitoring.HISTORY_DURATION.getKey(), notExpected.getStringRep()).build();
 
         when(licenseState.isUpdateRetentionAllowed()).thenReturn(false);
 
-        assertEquals(MonitoringSettings.HISTORY_DURATION.get(Settings.EMPTY),
+        assertEquals(Monitoring.HISTORY_DURATION.get(Settings.EMPTY),
                      new CleanerService(settings, clusterSettings, threadPool, licenseState).getRetention());
 
         verify(licenseState).isUpdateRetentionAllowed();

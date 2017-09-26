@@ -145,6 +145,11 @@ public class LicensingTribeIT extends ESIntegTestCase {
         });
     }
 
+    public void testDummy() throws Exception {
+        // this test is here so that testLicensePropagateToTribeNode's assumption
+        // doesn't result in this test suite to have no tests run and trigger a build failure
+    }
+
     private static final String PLATINUM_LICENSE = "{\"license\":{\"uid\":\"1\",\"type\":\"platinum\"," +
             "\"issue_date_in_millis\":1411948800000,\"expiry_date_in_millis\":1914278399999,\"max_nodes\":1," +
             "\"issued_to\":\"issuedTo\",\"issuer\":\"issuer\"," +

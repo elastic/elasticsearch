@@ -98,7 +98,6 @@
           sort: ["rank"]
           size: 1
 
-  - is_true: terminated_early
   - match: {hits.total: 8 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._id: "2" }
@@ -113,7 +112,6 @@
           track_total_hits: false
           size: 1
 
-  - match: {terminated_early: true}
   - match: {hits.total: -1 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._id: "2" }
@@ -134,7 +132,6 @@
         body:
           sort: _doc
 
-  - is_false: terminated_early
   - match: {hits.total: 8 }
   - length: {hits.hits: 8 }
   - match: {hits.hits.0._id: "2" }
@@ -156,7 +153,6 @@
           track_total_hits: false
           size: 3
 
-  - match: {terminated_early: true }
   - match: {hits.total: -1 }
   - length: {hits.hits: 3 }
   - match: {hits.hits.0._id: "2" }

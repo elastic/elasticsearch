@@ -7,6 +7,6 @@ the <<secure-settings,keystore tool>>). It is expected that this be maintained s
 that the Elasticsearch process can read the files under this directory via the
 group permissions.
 
-Elasticsearch loads its configuration from the `/etc/elasticsearch/elasticsearch.yml`
-file by default.  The format of this config file is explained in
-<<settings>>.
+Elasticsearch loads its configuration from the
+`/etc/elasticsearch/elasticsearch.yml` file by default.  The format of this
+config file is explained in <<settings>>.

@@ -278,7 +278,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         assertThat(result.metaData().index("test").getAliases(), not(hasKey("alias1")));
         assertThat(result.metaData().index("test").getCustoms(), not(hasKey("custom1")));
-        assertThat(result.metaData().index("test").getSettings().getAsMap(), not(Matchers.hasKey("key1")));
+        assertThat(result.metaData().index("test").getSettings().keySet(), not(Matchers.contains("key1")));
         assertThat(getMappingsFromResponse(), not(Matchers.hasKey("mapping1")));
     }
 

@@ -328,7 +328,7 @@ public class Setting<T> implements ToXContentObject {
      * Returns <code>true</code> iff this setting is present in the given settings object. Otherwise <code>false</code>
      */
     public boolean exists(Settings settings) {
-        return settings.getAsMap().containsKey(getKey());
+        return settings.keySet().contains(getKey());
     }
 
     /**
@@ -529,7 +529,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         private Stream<String> matchStream(Settings settings) {
-            return settings.getAsMap().keySet().stream().filter((key) -> match(key)).map(settingKey -> key.getConcreteString(settingKey));
+            return settings.keySet().stream().filter((key) -> match(key)).map(settingKey -> key.getConcreteString(settingKey));
         }
 
         AbstractScopedSettings.SettingUpdater<Map<AbstractScopedSettings.SettingUpdater<T>, T>> newAffixUpdater(
@@ -736,8 +736,8 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public boolean exists(Settings settings) {
-            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                if (entry.getKey().startsWith(key)) {
+            for (String settingsKey : settings.keySet()) {
+                if (settingsKey.startsWith(key)) {
                     return true;
                 }
             }

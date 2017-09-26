@@ -8,10 +8,11 @@
 {xpack} includes commands that help you configure security:
 
 * <<certgen>>
-//* <<setup-passwords>>
+* <<setup-passwords>>
 * <<users-command>>
 
 --
 
 include::certgen.asciidoc[]
+include::setup-passwords.asciidoc[]
 include::users-command.asciidoc[]

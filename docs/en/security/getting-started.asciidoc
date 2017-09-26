@@ -16,23 +16,12 @@ To get started with {security}:
 
 . <<installing-xpack, Install X-Pack>>.
 
-. On at least one of the nodes in your cluster, set the "bootstrap.password" secure setting in the keystore.
-+
---
-[source,shell]
---------------------------------------------------
-bin/elasticsearch-keystore create
-bin/elasticsearch-keystore add "bootstrap.password"
---------------------------------------------------
+.  Start {es} and {kib}.
 
---
-
-.  Start Elasticsearch and Kibana. The Elasticsearch node with the "bootstrap.password" setting will use that
-setting to set the `elastic` user password on node startup.
-
-
-. Set the passwords of the built in `elastic`, `kibana`, and `logstash_system` users using the provided setup
-passwords tool. In "auto" mode this tool will randomly generate passwords and print them to the console.
+. Set the passwords of the built in `elastic`, `kibana`, and `logstash_system` users.
+In most cases, you can simply run the `bin/x-pack/setup-passwords` tool on one of the nodes in your cluster.
+Run that command with the same user that is running your {es} process.
+In "auto" mode this tool will randomly generate passwords and print them to the console.
 +
 --
 [source,shell]
@@ -40,9 +29,10 @@ passwords tool. In "auto" mode this tool will randomly generate passwords and pr
 bin/x-pack/setup-passwords auto
 --------------------------------------------------
 
+For more information, see <<set-built-in-user-passwords>>.
 --
 
-. Set up roles and users to control access to Elasticsearch and Kibana.
+. Set up roles and users to control access to {es} and {kib}.
 For example, to grant _John Doe_ full access to all indices that match
 the pattern `events*` and enable him to create visualizations and dashboards
 for those indices in Kibana, you could create an `events_admin` role and
@@ -76,7 +66,7 @@ curl -XPOST -u elastic 'localhost:9200/_xpack/security/user/johndoe' -H "Content
 
 [[enable-auditing]]
 . Enable Auditing to keep track of attempted and successful interactions with
-  your Elasticsearch cluster:
+  your {es} cluster:
 +
 --
 .. Add the following setting to `elasticsearch.yml` on all nodes in your cluster:
@@ -85,10 +75,10 @@ curl -XPOST -u elastic 'localhost:9200/_xpack/security/user/johndoe' -H "Content
 ----------------------------
 xpack.security.audit.enabled: true
 ----------------------------
-.. Restart Elasticsearch.
+.. Restart {es}.
 
 By default, events are logged to a dedicated `elasticsearch-access.log` file in
-`ES_HOME/logs`. You can also store the events in an Elasticsearch index for
+`ES_HOME/logs`. You can also store the events in an {es} index for
 easier analysis and control what events are logged. For more information, see
 {xpack-ref}/auditing.html[Configuring Auditing].
 --

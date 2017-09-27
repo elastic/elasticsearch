@@ -24,7 +24,7 @@ For more information about categories, see
   (string) Identifier for the job.
 
 `category_id`::
-  (string) Identifier for the category. If you do not specify this optional parameter,
+  (long) Identifier for the category. If you do not specify this optional parameter,
   the API returns information about all categories in the job.
 
 

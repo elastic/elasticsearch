@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import joptsimple.internal.Strings;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.Diff;
@@ -33,6 +32,7 @@ import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -916,7 +916,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             //    while these datastructures aren't even used.
             // 2) The aliasAndIndexLookup can be updated instead of rebuilding it all the time.
 
-            final Set<String> allIndices = new HashSet<>();
+            final Set<String> allIndices = new HashSet<>(indices.size());
             final List<String> allOpenIndices = new ArrayList<>();
             final List<String> allClosedIndices = new ArrayList<>();
             final Set<String> duplicateAliasesIndices = new HashSet<>();
@@ -945,7 +945,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 }
                 assert duplicates.size() > 0;
                 throw new IllegalStateException("index and alias names need to be unique, but the following duplicates were found ["
-                    + Strings.join(duplicates, ", ")+ "]");
+                    + Strings.collectionToCommaDelimitedString(duplicates)+ "]");
 
             }
 
@@ -953,19 +953,20 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
-                AliasOrIndex exiting = aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
-                assert exiting == null : "duplicate for " + indexMetaData.getIndex();
+                AliasOrIndex existing = aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
+                assert existing == null : "duplicate for " + indexMetaData.getIndex();
 
                 for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
                     AliasMetaData aliasMetaData = aliasCursor.value;
-                    AliasOrIndex alias = aliasAndIndexLookup.get(aliasMetaData.getAlias());
-                    if (alias == null) {
-                        alias = new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
-                        aliasAndIndexLookup.put(aliasMetaData.getAlias(), alias);
-                    } else {
-                        assert alias instanceof AliasOrIndex.Alias : alias.getClass().getName();
-                        ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
-                    }
+                    aliasAndIndexLookup.compute(aliasMetaData.getAlias(), (aliasName, alias) -> {
+                        if (alias == null) {
+                            return new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
+                        } else {
+                            assert alias instanceof AliasOrIndex.Alias : alias.getClass().getName();
+                            ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
+                            return alias;
+                        }
+                    });
                 }
             }
             aliasAndIndexLookup = Collections.unmodifiableSortedMap(aliasAndIndexLookup);

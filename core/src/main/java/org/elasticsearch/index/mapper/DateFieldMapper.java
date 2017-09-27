@@ -182,7 +182,7 @@ public class DateFieldMapper extends FieldMapper {
         protected FormatDateTimeFormatter dateTimeFormatter;
         protected DateMathParser dateMathParser;
 
-        DateFieldType() {
+        public DateFieldType() {
             super();
             setTokenized(false);
             setHasDocValues(true);

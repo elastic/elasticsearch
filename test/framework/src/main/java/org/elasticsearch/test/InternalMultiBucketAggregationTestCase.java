@@ -17,11 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations;
+package org.elasticsearch.test;
 
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,8 +44,8 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
     private static final int DEFAULT_MAX_NUMBER_OF_BUCKETS = 10;
 
-    Supplier<InternalAggregations> subAggregationsSupplier;
-    int maxNumberOfBuckets = DEFAULT_MAX_NUMBER_OF_BUCKETS;
+    private Supplier<InternalAggregations> subAggregationsSupplier;
+    private int maxNumberOfBuckets = DEFAULT_MAX_NUMBER_OF_BUCKETS;
 
     protected int randomNumberOfBuckets() {
         return randomIntBetween(minNumberOfBuckets(), maxNumberOfBuckets());
@@ -51,6 +57,14 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
     protected int maxNumberOfBuckets() {
         return maxNumberOfBuckets;
+    }
+
+    public void setMaxNumberOfBuckets(int maxNumberOfBuckets) {
+        this.maxNumberOfBuckets = maxNumberOfBuckets;
+    }
+
+    public void setSubAggregationsSupplier(Supplier<InternalAggregations> subAggregationsSupplier) {
+        this.subAggregationsSupplier = subAggregationsSupplier;
     }
 
     @Override
@@ -127,7 +141,9 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                         break;
                     }
                 }
-                assertTrue("Failed to find bucket with key [" + expectedBucket.getKey() + "]", found);
+                if (!found) {
+                    assertTrue("Failed to find bucket with key [" + expectedBucket.getKey() + "]", found);
+                }
             }
         }
     }

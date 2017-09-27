@@ -22,6 +22,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static java.util.Collections.singleton;
 
@@ -42,12 +43,18 @@ public class CliFixture {
         if (false == Files.isRegularFile(cliJar)) {
             throw new IllegalArgumentException(cliJar + " is not a regular file");
         }
-        Path javaExecutable = Paths.get(System.getProperty("java.home"), "bin", "java");
+        String javaExec = "java";
+        boolean isWindows = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win");
+
+        if (isWindows) {
+            javaExec += ".exe";
+        }
+        Path javaExecutable = Paths.get(System.getProperty("java.home"), "bin", javaExec);
         if (false == Files.exists(javaExecutable)) {
-            throw new IllegalArgumentException(cliJar + " doesn't exist");
+            throw new IllegalArgumentException(javaExec + " doesn't exist");
         }
         if (false == Files.isExecutable(javaExecutable)) {
-            throw new IllegalArgumentException(cliJar + " isn't executable");
+            throw new IllegalArgumentException(javaExec + " isn't executable");
         }
 
         try (ServerSocket server = new ServerSocket()) {
@@ -63,13 +70,15 @@ public class CliFixture {
             InetSocketAddress bound = (InetSocketAddress) server.getLocalSocketAddress();
             if (bound.getAddress() instanceof Inet6Address) {
                 Files.write(tmp, singleton("[" + bound.getHostString() + "]:" + bound.getPort()));
-            } else {
+            }
+            else {
                 Files.write(tmp, singleton(bound.getHostString() + ":" + bound.getPort()));
             }
             Files.move(tmp, dir.resolve("ports"), StandardCopyOption.ATOMIC_MOVE);
 
+            boolean run = true;
             // Run forever until killed
-            while (true) {
+            while (run) {
                 try {
                     println("accepting on localhost:" + server.getLocalPort());
                     Socket s = server.accept();
@@ -79,7 +88,7 @@ public class CliFixture {
                     }
                     List<String> command = new ArrayList<>();
                     command.add(javaExecutable.toString());
-//                    command.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000");
+                    //                    command.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000");
                     // Force a specific terminal type so we have consistent responses for testing.
                     command.add("-Dorg.jline.terminal.type=xterm-256color");
                     // Disable terminal types that won't work with stdin isn't actually a tty
@@ -95,30 +104,30 @@ public class CliFixture {
                     Process process = cliBuilder.start();
                     println("started " + command);
                     new Thread(() -> {
-                       int i;
-                       try {
-                           while ((i = process.getInputStream().read()) != -1) {
-                               s.getOutputStream().write(i);
-                               s.getOutputStream().flush();
-                           }
-                       } catch (IOException e) {
-                           throw new RuntimeException("failed to copy from process to socket", e);
-                       } finally {
-                           process.destroyForcibly();
-                       }
+                        int i;
+                        try {
+                            while ((i = process.getInputStream().read()) != -1) {
+                                s.getOutputStream().write(i);
+                                s.getOutputStream().flush();
+                            }
+                        } catch (IOException e) {
+                            throw new RuntimeException("failed to copy from process to socket", e);
+                        } finally {
+                            process.destroyForcibly();
+                        }
                     }).start();
                     new Thread(() -> {
-                       int i;
-                       try {
-                           while ((i = s.getInputStream().read()) != -1) {
-                               process.getOutputStream().write(i);
-                               process.getOutputStream().flush();
-                           }
-                       } catch (IOException e) {
-                           throw new RuntimeException("failed to copy from socket to process", e);
-                       } finally {
-                           process.destroyForcibly();
-                       }
+                        int i;
+                        try {
+                            while ((i = s.getInputStream().read()) != -1) {
+                                process.getOutputStream().write(i);
+                                process.getOutputStream().flush();
+                            }
+                        } catch (IOException e) {
+                            throw new RuntimeException("failed to copy from socket to process", e);
+                        } finally {
+                            process.destroyForcibly();
+                        }
                     }).start();
                     process.waitFor();
                 } catch (IOException e) {

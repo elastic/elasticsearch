@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.sql.plugin.sql.action.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.TransportSqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.TransportSqlTranslateAction;
 import org.elasticsearch.xpack.sql.plugin.sql.rest.RestSqlAction;
+import org.elasticsearch.xpack.sql.plugin.sql.rest.RestSqlTranslateAction;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.util.Arrays;
@@ -72,6 +73,7 @@ public class SqlPlugin implements ActionPlugin {
             IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
 
         return Arrays.asList(new RestSqlAction(settings, restController),
+                             new RestSqlTranslateAction(settings, restController),
                              new RestSqlCliAction(settings, restController),
                              new RestSqlJdbcAction(settings, restController, sqlLicenseChecker));
     }

@@ -62,15 +62,13 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
     public void testNextPage() throws IOException {
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 20; i++) {
-            // NOCOMMIT we need number2 because we can't process the same column twice in two ways
             bulk.append("{\"index\":{\"_id\":\"" + i + "\"}}\n");
-            bulk.append("{\"text\":\"text" + i + "\", \"number\":" + i + ", \"number2\": " + i + "}\n");
+            bulk.append("{\"text\":\"text" + i + "\", \"number\":" + i + "}\n");
         }
         client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
-        // NOCOMMIT we need tests for inner hits extractor and const extractor
-        String request = "{\"query\":\"SELECT text, number, SIN(number2) FROM test ORDER BY number\", \"fetch_size\":2}";
+        String request = "{\"query\":\"SELECT text, number, SIN(number) AS s FROM test ORDER BY number\", \"fetch_size\":2}";
 
         String cursor = null;
         for (int i = 0; i < 20; i += 2) {
@@ -86,7 +84,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
                 expected.put("columns", Arrays.asList(
                         columnInfo("text", "text"),
                         columnInfo("number", "long"),
-                        columnInfo("SIN(number2)", "double")));
+                        columnInfo("s", "double")));
             }
             expected.put("rows", Arrays.asList(
                     Arrays.asList("text" + i, i, Math.sin(i)),
@@ -122,7 +120,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
                 new StringEntity("{\"query\":\"SELECT DAY_OF_YEAR(test), COUNT(*) FROM test\"}", ContentType.APPLICATION_JSON)));
     }
 
-    public void testMissingIndex() throws IOException {
+    public void missingIndex() throws IOException {
         expectBadRequest(() -> runSql("SELECT foo FROM missing"), containsString("1:17: index [missing] does not exist"));
     }
 
@@ -156,11 +154,19 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
     }
 
     private Map<String, Object> runSql(String sql) throws IOException {
-        return runSql(new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON));
+        return runSql(sql, "");
+    }
+
+    private Map<String, Object> runSql(String sql, String suffix) throws IOException {
+        return runSql(suffix, new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON));
     }
 
     private Map<String, Object> runSql(HttpEntity sql) throws IOException {
-        Response response = client().performRequest("POST", "/_sql", singletonMap("error_trace", "true"), sql);
+        return runSql("", sql);
+    }
+
+    private Map<String, Object> runSql(String suffix, HttpEntity sql) throws IOException {
+        Response response = client().performRequest("POST", "/_sql" + suffix, singletonMap("error_trace", "true"), sql);
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
@@ -172,5 +178,23 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
             message.compareMaps(actual, expected);
             fail("Response does not match:\n" + message.toString());
         }
+    }
+
+    public void testBasicTranslateQuery() throws IOException {
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
+        bulk.append("{\"test\":\"test\"}\n");
+        bulk.append("{\"index\":{\"_id\":\"2\"}}\n");
+        bulk.append("{\"test\":\"test\"}\n");
+        client().performRequest("POST", "/test_translate/test/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+
+        Map<String, Object> response = runSql("SELECT * FROM test_translate", "/translate/");
+        assertEquals(response.get("size"), 1000);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> source = (Map<String, Object>) response.get("_source");
+        assertNotNull(source);
+        assertEquals(emptyList(), source.get("excludes"));
+        assertEquals(singletonList("test"), source.get("includes"));
     }
 }

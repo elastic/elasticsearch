@@ -6,7 +6,7 @@
 showFunctions
 SHOW FUNCTIONS;
 
-     name       |     type
+    name:s      |    type:s
 AVG             |AGGREGATE
 COUNT           |AGGREGATE
 MAX             |AGGREGATE
@@ -64,7 +64,7 @@ TAN             |SCALAR
 showFunctionsWithExactMatch
 SHOW FUNCTIONS LIKE 'ABS';
 
-     name       |     type
+    name:s      |    type:s
 ABS             |SCALAR
 ;
 
@@ -72,7 +72,7 @@ ABS             |SCALAR
 showFunctionsWithPatternWildcard
 SHOW FUNCTIONS LIKE 'A%';
 
-     name       |     type
+    name:s      |    type:s
 AVG             |AGGREGATE
 ABS             |SCALAR
 ACOS            |SCALAR
@@ -83,7 +83,7 @@ ATAN            |SCALAR
 showFunctionsWithPatternChar
 SHOW FUNCTIONS LIKE 'A__';
 
-     name       |     type
+    name:s      |    type:s
 AVG             |AGGREGATE
 ABS             |SCALAR
 ;
@@ -91,7 +91,7 @@ ABS             |SCALAR
 showFunctions
 SHOW FUNCTIONS '%DAY%';
 
-     name       |     type
+    name:s      |    type:s
 DAY_OF_MONTH    |SCALAR
 DAY             |SCALAR
 DAY_OF_WEEK     |SCALAR
@@ -103,7 +103,7 @@ MINUTE_OF_DAY   |SCALAR
 showTables
 SHOW TABLES;
 
- table
+ table:s
 test_emp
 ;
 
@@ -112,7 +112,7 @@ test_emp
 describe
 DESCRIBE "test_emp";
 
-    column     |         type
+    column:s   |   type:s
 birth_date     |TIMESTAMP
 emp_no         |INTEGER
 first_name     |VARCHAR

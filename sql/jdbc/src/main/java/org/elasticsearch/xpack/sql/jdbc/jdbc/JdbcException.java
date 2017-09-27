@@ -5,17 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
-import java.util.Locale;
-
-import static java.lang.String.format;
-
 public class JdbcException extends RuntimeException {
-    public JdbcException(String message, Object... args) {
-        // NOCOMMIT we very rarely use this on new classes in core, instead appending strings.
-        super(format(Locale.ROOT, message, args));
+    public JdbcException(String message) {
+        super(message);
     }
 
-    public JdbcException(Throwable cause, String message, Object... args) {
-        super(format(Locale.ROOT, message, args), cause);
+    public JdbcException(Throwable cause, String message) {
+        super(message, cause);
     }
 }

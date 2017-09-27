@@ -32,14 +32,14 @@ class PreparedQuery {
 
     ParamInfo getParam(int param) {
         if (param < 1 || param > params.length) {
-            throw new JdbcException("Invalid parameter index %s", param);
+            throw new JdbcException("Invalid parameter index [" + param + "]");
         }
         return params[param - 1];
     }
 
     void setParam(int param, Object value, JDBCType type) {
         if (param < 1 || param > params.length) {
-            throw new JdbcException("Invalid parameter index %s", param);
+            throw new JdbcException("Invalid parameter index [" + param + "]");
         }
         params[param - 1].value = value;
         params[param - 1].type = type;

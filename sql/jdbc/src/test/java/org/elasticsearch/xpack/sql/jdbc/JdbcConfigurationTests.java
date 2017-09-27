@@ -19,7 +19,7 @@ public class JdbcConfigurationTests extends ESTestCase {
 
     public void testJustThePrefix() throws Exception {
        Exception e = expectThrows(JdbcException.class, () -> ci("jdbc:es:"));
-       assertEquals("Invalid URL jdbc:es:, format should be jdbc:es://[host[:port]]*/[prefix]*[?[option=value]&]*", e.getMessage());
+       assertEquals("Invalid URL [jdbc:es:], format should be [jdbc:es://[host[:port]]*/[prefix]*[?[option=value]&]*]", e.getMessage());
     }
 
     public void testJustTheHost() throws Exception {

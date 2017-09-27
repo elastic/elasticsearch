@@ -60,7 +60,7 @@ abstract class DebuggingInvoker implements InvocationHandler {
         } catch (Exception ex) {
             // should not occur
             log.logException(method, args, ex);
-            throw new JdbcException(ex, "Debugging failed for %s ", method);
+            throw new JdbcException(ex, "Debugging failed for [" + method + "]");
         }
     }
 

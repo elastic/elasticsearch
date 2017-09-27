@@ -119,7 +119,7 @@ public abstract class JdbcUtils {
             return DECIMAL;
         }
 
-        throw new JdbcException("Unrecognized class %s", clazz);
+        throw new JdbcException("Unrecognized class [" + clazz + "]");
     }
 
     static boolean isSigned(int type) {

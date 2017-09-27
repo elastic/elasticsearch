@@ -24,7 +24,7 @@ abstract class ArrayUtils {
 
         if (minTargetSize < 0) {
             // catch usage that accidentally overflows int
-            throw new JdbcException("invalid array size %d", minTargetSize);
+            throw new JdbcException("invalid array size [" + minTargetSize + "]");
         }
 
         if (minTargetSize == 0) {

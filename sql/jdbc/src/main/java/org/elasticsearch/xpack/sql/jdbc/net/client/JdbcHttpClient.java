@@ -136,7 +136,7 @@ public class JdbcHttpClient implements Closeable {
         }
         if (response.responseType() == ResponseType.ERROR) {
             ErrorResponse error = (ErrorResponse) response;
-            throw new JdbcException("Server returned error: %s", error.stack);
+            throw new JdbcException("Server returned error: [" + error.stack + "]");
         }
         return response;
     }

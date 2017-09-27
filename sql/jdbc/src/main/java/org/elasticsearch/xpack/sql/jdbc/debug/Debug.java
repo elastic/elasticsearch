@@ -142,7 +142,7 @@ public final class Debug {
                     OUTPUT_CACHE.put(out, log);
                     OUTPUT_REFS.put(out, Integer.valueOf(0));
                 } catch (Exception ex) {
-                    throw new JdbcException(ex, "Cannot open debug output %s", out);
+                    throw new JdbcException(ex, "Cannot open debug output [" + out + "]");
                 }
             }
             OUTPUT_REFS.put(out, Integer.valueOf(OUTPUT_REFS.get(out).intValue() + 1));

@@ -44,7 +44,7 @@ class HttpClient {
         try {
             return new URL(baseUrl, subPath);
         } catch (MalformedURLException ex) {
-            throw new JdbcException(ex, "Invalid subpath %s", subPath);
+            throw new JdbcException(ex, "Invalid subpath [" + subPath + "]");
         }
     }
 

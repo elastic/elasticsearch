@@ -39,7 +39,6 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.BM25SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -59,6 +58,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
@@ -108,8 +108,7 @@ public final class IndexModule {
 
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
-    // pkg private so tests can mock
-    final SetOnce<EngineFactory> engineFactory = new SetOnce<>();
+    private final EngineFactory engineFactory;
     private SetOnce<IndexSearcherWrapperFactory> indexSearcherWrapper = new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, SimilarityProvider.Factory> similarities = new HashMap<>();
@@ -119,9 +118,18 @@ public final class IndexModule {
     private final List<IndexingOperationListener> indexOperationListeners = new ArrayList<>();
     private final AtomicBoolean frozen = new AtomicBoolean(false);
 
-    public IndexModule(IndexSettings indexSettings, AnalysisRegistry analysisRegistry) {
+    /**
+     * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
+     * via {@link org.elasticsearch.plugins.PluginsService#onIndexModule(IndexModule)}.
+     *
+     * @param indexSettings    the index settings
+     * @param analysisRegistry the analysis registry
+     * @param engineFactory    the engine factory
+     */
+    public IndexModule(final IndexSettings indexSettings, final AnalysisRegistry analysisRegistry, final EngineFactory engineFactory) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
+        this.engineFactory = Objects.requireNonNull(engineFactory);
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
     }
@@ -160,6 +168,15 @@ public final class IndexModule {
      */
     public Index getIndex() {
         return indexSettings.getIndex();
+    }
+
+    /**
+     * The engine factory provided during construction of this index module.
+     *
+     * @return the engine factory
+     */
+    EngineFactory getEngineFactory() {
+        return engineFactory;
     }
 
     /**
@@ -363,7 +380,7 @@ public final class IndexModule {
         }
         return new IndexService(indexSettings, environment, xContentRegistry,
                 new SimilarityService(indexSettings, scriptService, similarities),
-                shardStoreDeleter, analysisRegistry, engineFactory.get(), circuitBreakerService, bigArrays, threadPool, scriptService,
+                shardStoreDeleter, analysisRegistry, engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService,
                 client, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry,
                 indicesFieldDataCache, searchOperationListeners, indexOperationListeners, namedWriteableRegistry);
     }

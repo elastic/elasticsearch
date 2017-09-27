@@ -12,6 +12,7 @@ Java classes as the `TransportClient` uses.
 
 This Java High Level REST Client is designed to replace the `TransportClient` in a near future.
 
+[[breaking_56_packaging_changes]]
 [float]
 === RPM and Debian packages `setgid` on `/etc/elasticsearch`
 

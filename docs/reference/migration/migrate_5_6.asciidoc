@@ -11,3 +11,12 @@ Elasticsearch can be used to execute search, index, delete, update and bulk oper
 Java classes as the `TransportClient` uses.
 
 This Java High Level REST Client is designed to replace the `TransportClient` in a near future.
+
+[float]
+=== RPM and Debian packages `setgid` on `/etc/elasticsearch`
+
+The RPM and Debian packages now set the `setgid` flag on `/etc/elasticsearch` so
+that any files and subdirectories created under `/etc/elasticsearch` have the
+same ownership as `/etc/elasticsearch` (`root:elasticsearch`). This is used to
+ensure that files and subdirectories created under `/etc/elasticsearch` (e.g., a
+keystore) are readable by the `elasticsearch` user.

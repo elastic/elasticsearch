@@ -160,9 +160,7 @@ include::check-running.asciidoc[]
 [[deb-configuring]]
 ==== Configuring Elasticsearch
 
-Elasticsearch loads its configuration from the `/etc/elasticsearch/elasticsearch.yml`
-file by default.  The format of this config file is explained in
-<<settings>>.
+include::etc-elasticsearch.asciidoc[]
 
 The Debian package also has a system configuration file (`/etc/default/elasticsearch`),
 which allows you to set the following parameters:

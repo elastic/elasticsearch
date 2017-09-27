@@ -148,9 +148,7 @@ include::check-running.asciidoc[]
 [[rpm-configuring]]
 ==== Configuring Elasticsearch
 
-Elasticsearch loads its configuration from the `/etc/elasticsearch/elasticsearch.yml`
-file by default.  The format of this config file is explained in
-<<settings>>.
+include::etc-elasticsearch.asciidoc[]
 
 The RPM also has a system configuration file (`/etc/sysconfig/elasticsearch`),
 which allows you to set the following parameters:

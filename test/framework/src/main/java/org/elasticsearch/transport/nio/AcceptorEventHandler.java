@@ -84,7 +84,7 @@ public class AcceptorEventHandler extends EventHandler {
      * @param exception that occurred
      */
     void acceptException(NioServerSocketChannel nioServerChannel, Exception exception) {
-        logger.debug(new ParameterizedMessage("exception while accepting new channel from server channel: {}",
+        logger.debug(() -> new ParameterizedMessage("exception while accepting new channel from server channel: {}",
             nioServerChannel), exception);
     }
 }

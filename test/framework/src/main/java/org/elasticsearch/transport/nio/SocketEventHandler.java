@@ -60,7 +60,7 @@ public class SocketEventHandler extends EventHandler {
      * @param exception that occurred
      */
     void registrationException(NioSocketChannel channel, Exception exception) {
-        logger.debug(new ParameterizedMessage("failed to register socket channel: {}", channel), exception);
+        logger.debug(() -> new ParameterizedMessage("failed to register socket channel: {}", channel), exception);
         exceptionCaught(channel, exception);
     }
 
@@ -81,9 +81,8 @@ public class SocketEventHandler extends EventHandler {
      * @param exception that occurred
      */
     void connectException(NioSocketChannel channel, Exception exception) {
-        logger.debug(new ParameterizedMessage("failed to connect to socket channel: {}", channel), exception);
+        logger.debug(() -> new ParameterizedMessage("failed to connect to socket channel: {}", channel), exception);
         exceptionCaught(channel, exception);
-
     }
 
     /**
@@ -106,7 +105,7 @@ public class SocketEventHandler extends EventHandler {
      * @param exception that occurred
      */
     void readException(NioSocketChannel channel, Exception exception) {
-        logger.debug(new ParameterizedMessage("exception while reading from socket channel: {}", channel), exception);
+        logger.debug(() -> new ParameterizedMessage("exception while reading from socket channel: {}", channel), exception);
         exceptionCaught(channel, exception);
     }
 
@@ -133,7 +132,7 @@ public class SocketEventHandler extends EventHandler {
      * @param exception that occurred
      */
     void writeException(NioSocketChannel channel, Exception exception) {
-        logger.debug(new ParameterizedMessage("exception while writing to socket channel: {}", channel), exception);
+        logger.debug(() -> new ParameterizedMessage("exception while writing to socket channel: {}", channel), exception);
         exceptionCaught(channel, exception);
     }
 

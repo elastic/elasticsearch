@@ -18,62 +18,87 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 
 public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) {
+    public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
         if (context.hasScriptFields() == false) {
             return;
         }
-        for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
-            /* Because this is called once per document we end up creating new ScriptDocValues for every document which is important because
-             * the values inside ScriptDocValues might be reused for different documents (Dates do this). */
-            SearchScript leafScript;
-            try {
-                leafScript = scriptField.script().newInstance(hitContext.readerContext());
-            } catch (IOException e1) {
-                throw new IllegalStateException("Failed to load script", e1);
-            }
-            leafScript.setDocument(hitContext.docId());
 
-            final Object value;
-            try {
-                value = leafScript.run();
-            } catch (RuntimeException e) {
-                if (scriptField.ignoreException()) {
-                    continue;
+        hits = hits.clone(); // don't modify the incoming hits
+        Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
+
+        int lastReaderId = -1;
+        SearchScript[] leafScripts = null;
+        List<ScriptFieldsContext.ScriptField> scriptFields = context.scriptFields().fields();
+        final IndexReader reader = context.searcher().getIndexReader();
+        for (SearchHit hit : hits) {
+            int readerId = ReaderUtil.subIndex(hit.docId(), reader.leaves());
+            LeafReaderContext leafReaderContext = reader.leaves().get(readerId);
+            if (readerId != lastReaderId) {
+                leafScripts = createLeafScripts(leafReaderContext, scriptFields);
+                lastReaderId = readerId;
+            }
+            int docId = hit.docId() - leafReaderContext.docBase;
+            for (int i = 0; i < leafScripts.length; i++) {
+                leafScripts[i].setDocument(docId);
+                final Object value;
+                try {
+                    value = leafScripts[i].run();
+                } catch (RuntimeException e) {
+                    if (scriptFields.get(i).ignoreException()) {
+                        continue;
+                    }
+                    throw e;
                 }
-                throw e;
-            }
-
-            if (hitContext.hit().fieldsOrNull() == null) {
-                hitContext.hit().fields(new HashMap<>(2));
-            }
-
-            DocumentField hitField = hitContext.hit().getFields().get(scriptField.name());
-            if (hitField == null) {
-                final List<Object> values;
-                if (value instanceof Collection) {
-                    // TODO: use diamond operator once JI-9019884 is fixed
-                    values = new ArrayList<>((Collection<?>) value);
-                } else {
-                    values = Collections.singletonList(value);
+                if (hit.fieldsOrNull() == null) {
+                    hit.fields(new HashMap<>(2));
                 }
-                hitField = new DocumentField(scriptField.name(), values);
-                hitContext.hit().getFields().put(scriptField.name(), hitField);
+                String scriptFieldName = scriptFields.get(i).name();
+                DocumentField hitField = hit.getFields().get(scriptFieldName);
+                if (hitField == null) {
+                    final List<Object> values;
+                    if (value instanceof Collection) {
+                        values = new ArrayList<>((Collection<?>) value);
+                    } else {
+                        values = Collections.singletonList(value);
+                    }
+                    hitField = new DocumentField(scriptFieldName, values);
+                    hit.getFields().put(scriptFieldName, hitField);
+                }
             }
         }
+    }
+
+    private SearchScript[] createLeafScripts(LeafReaderContext context,
+                                             List<ScriptFieldsContext.ScriptField> scriptFields) {
+        SearchScript[] scripts = new SearchScript[scriptFields.size()];
+        for (int i = 0; i < scripts.length; i++) {
+            try {
+                scripts[i] = scriptFields.get(i).script().newInstance(context);
+            } catch (IOException e1) {
+                throw new IllegalStateException("Failed to load script " + scriptFields.get(i).name(), e1);
+            }
+        }
+        return scripts;
     }
 }

@@ -583,8 +583,8 @@ public class SettingTests extends ESTestCase {
         Settings build = Settings.builder().put("foo.bar.baz", 2).put("foo.bar.foobar", 3).build();
         Map<String, String> asMap = setting.getAsMap(build);
         assertEquals(2, asMap.size());
-        assertEquals("2", asMap.get("foo.bar.baz"));
-        assertEquals("3", asMap.get("foo.bar.foobar"));
+        assertEquals("2", asMap.get("baz"));
+        assertEquals("3", asMap.get("foobar"));
     }
 
     public void testGetAllConcreteSettings() {

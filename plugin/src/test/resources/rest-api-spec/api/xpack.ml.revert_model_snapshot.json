@@ -13,6 +13,7 @@
         },
         "snapshot_id": {
           "type": "string",
+          "required": true,
           "description": "The ID of the snapshot to revert to"
         }
       },

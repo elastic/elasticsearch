@@ -241,7 +241,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
     }
 
     /**
-     * This is a hack for filter scripts, which return must return true/false.
+     * This is a hack for filter scripts, which must return booleans instead of doubles as expression do.
      * See https://github.com/elastic/elasticsearch/issues/26429.
      */
     private FilterScript.LeafFactory newFilterScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {

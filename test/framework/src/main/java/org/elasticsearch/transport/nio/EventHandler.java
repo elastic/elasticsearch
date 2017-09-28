@@ -86,6 +86,6 @@ public abstract class EventHandler {
      * @param exception that occurred
      */
     void closeException(NioChannel channel, Exception exception) {
-        logger.debug(new ParameterizedMessage("exception while closing channel: {}", channel), exception);
+        logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), exception);
     }
 }

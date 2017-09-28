@@ -23,6 +23,7 @@ package org.elasticsearch.repositories.azure;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -48,6 +49,7 @@ import org.elasticsearch.test.store.MockFSIndexStore;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 
 import java.net.URISyntaxException;
 import java.util.Arrays;
@@ -71,6 +73,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
         supportsDedicatedMasters = false, numDataNodes = 1,
         transportClientRatio = 0.0)
 @ThirdParty
+@Ignore
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26812")
 public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCase {
 
     private static Settings.Builder generateMockSettings() {

@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.session.RowSet;
@@ -40,23 +40,28 @@ public class ShowColumns extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(new RootFieldAttribute(location(), "column", DataTypes.KEYWORD), 
-                      new RootFieldAttribute(location(), "type", DataTypes.KEYWORD));
+        return asList(new RootFieldAttribute(location(), "column", DataTypes.KEYWORD),
+                new RootFieldAttribute(location(), "type", DataTypes.KEYWORD));
+    }
+
+    @Override
+    public void execute(SqlSession session, ActionListener<RowSet> listener) {
+        session.getIndices(new String[]{index}, IndicesOptions.strictExpandOpenAndForbidClosed(), ActionListener.wrap(
+                esIndices -> {
+                    List<List<?>> rows = new ArrayList<>();
+                    if (esIndices.isEmpty() == false) {
+                        //TODO: we are using only the first index for now - add support for aliases
+                        fillInRows(esIndices.get(0).mapping(), null, rows);
+                    }
+                    listener.onResponse(Rows.of(output(), rows));
+                },
+                listener::onFailure
+        ));
     }
 
     @Override
     protected RowSet execute(SqlSession session) {
-        List<List<?>> rows = new ArrayList<>();
-        EsIndex fetched;
-        try {
-            fetched = session.getIndexSync(index);
-        } catch (SqlIllegalArgumentException e) {
-            throw new IllegalArgumentException(e);
-        }
-        if (fetched != null) {
-            fillInRows(fetched.mapping(), null, rows);
-        }
-        return Rows.of(output(), rows);
+        throw new UnsupportedOperationException("No synchronous exec");
     }
 
     private void fillInRows(Map<String, DataType> mapping, String prefix, List<List<?>> rows) {
@@ -83,11 +88,11 @@ public class ShowColumns extends Command {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         ShowColumns other = (ShowColumns) obj;
         return Objects.equals(index, other.index);
     }

@@ -162,9 +162,15 @@ public class FetchPhase implements SearchPhase {
                     fetchSubPhase.hitExecute(context, hitContext);
                 }
             }
+            if (context.isCancelled()) {
+                throw new TaskCancelledException("cancelled");
+            }
 
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
                 fetchSubPhase.hitsExecute(context, hits);
+                if (context.isCancelled()) {
+                    throw new TaskCancelledException("cancelled");
+                }
             }
 
             context.fetchResult().hits(new SearchHits(hits, context.queryResult().getTotalHits(), context.queryResult().getMaxScore()));

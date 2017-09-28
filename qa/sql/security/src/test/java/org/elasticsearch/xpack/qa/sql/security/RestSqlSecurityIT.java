@@ -199,7 +199,7 @@ public class RestSqlSecurityIT extends ESRestTestCase {
         assertAuditForSqlGetTableSyncGranted("test_admin", "test");
         assertAuditForSqlGetTableSyncGranted("only_a", "test");
         clearAuditEvents();
-        expectBadRequest(() -> runSql("SELECT c FROM test", "only_a"), containsString("line 1:8: Unresolved item 'c'"));
+        expectBadRequest(() -> runSql("SELECT c FROM test", "only_a"), containsString("line 1:8: Unknown column [c]"));
         /* The user has permission to query the index but one of the
          * columns that they explicitly mention is hidden from them
          * by field level access control. This *looks* like a successful
@@ -216,7 +216,7 @@ public class RestSqlSecurityIT extends ESRestTestCase {
         assertAuditForSqlGetTableSyncGranted("test_admin", "test");
         assertAuditForSqlGetTableSyncGranted("not_c", "test");
         clearAuditEvents();
-        expectBadRequest(() -> runSql("SELECT c FROM test", "not_c"), containsString("line 1:8: Unresolved item 'c'"));
+        expectBadRequest(() -> runSql("SELECT c FROM test", "not_c"), containsString("line 1:8: Unknown column [c]"));
         /* The user has permission to query the index but one of the
          * columns that they explicitly mention is hidden from them
          * by field level access control. This *looks* like a successful

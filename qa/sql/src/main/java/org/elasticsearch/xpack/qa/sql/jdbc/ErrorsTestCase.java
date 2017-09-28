@@ -15,7 +15,7 @@ public class ErrorsTestCase extends JdbcIntegrationTestCase {
     public void testSelectFromMissingTable() throws Exception {
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * from test").executeQuery());
-            assertEquals("line 1:15: index [test] does not exist", e.getMessage());
+            assertEquals("Found 1 problem(s)\nline 1:15: Unknown index [test]", e.getMessage());
         }
     }
 }

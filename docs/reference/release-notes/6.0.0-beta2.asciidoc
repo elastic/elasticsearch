@@ -69,9 +69,6 @@ Percolator::
 * Store the QueryBuilder's Writable representation instead of its XContent representation {pull}25456[#25456]
 * Add support for selecting percolator query candidate matches containing wildcard / prefix queries {pull}25351[#25351]
 
-Query DSL::
-* Add support for auto_generate_synonyms_phrase_query in match_query, multi_match_query, query_string and simple_query_string {pull}23147[#23147]
-
 Settings::
 * Persist created keystore on startup unless keystore is present {pull}26253[#26253] (issue: {issue}26126[#26126])
 * Settings: Add keystore.seed auto generated secure setting {pull}26149[#26149]

@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
@@ -60,7 +61,7 @@ public class AcceptorEventHandler extends EventHandler {
      * @param exception that occurred
      */
     public void registrationException(NioServerSocketChannel channel, Exception exception) {
-        logger.error("failed to register server channel", exception);
+        logger.error(new ParameterizedMessage("failed to register server channel: ", channel), exception);
     }
 
     /**
@@ -83,7 +84,8 @@ public class AcceptorEventHandler extends EventHandler {
      * @param exception that occurred
      */
     public void acceptException(NioServerSocketChannel nioServerChannel, Exception exception) {
-        logger.debug("exception while accepting new channel", exception);
+        logger.debug(new ParameterizedMessage("exception while accepting new channel from server channel: {}",
+            nioServerChannel), exception);
     }
 
     /**
@@ -95,6 +97,6 @@ public class AcceptorEventHandler extends EventHandler {
      * @param exception that was thrown
      */
     public void genericServerChannelException(NioServerSocketChannel channel, Exception exception) {
-        logger.debug("event handling exception", exception);
+        logger.debug(new ParameterizedMessage("exception while handling event for server channel: {}", channel), exception);
     }
 }

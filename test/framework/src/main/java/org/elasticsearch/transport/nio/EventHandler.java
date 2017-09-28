@@ -41,7 +41,7 @@ public abstract class EventHandler {
      * @param exception the exception
      */
     void selectException(IOException exception) {
-        logger.warn("io exception during select", exception);
+        logger.warn(new ParameterizedMessage("io exception during select [thread={}]", Thread.currentThread().getName()), exception);
     }
 
     /**
@@ -50,7 +50,8 @@ public abstract class EventHandler {
      * @param exception the exception
      */
     void closeSelectorException(IOException exception) {
-        logger.warn("io exception while closing selector", exception);
+        logger.warn(new ParameterizedMessage("io exception while closing selector [thread={}]", Thread.currentThread().getName()),
+            exception);
     }
 
     /**

@@ -56,9 +56,6 @@ statement
     | (DESCRIBE | DESC) tableIdentifier                                                                   #showColumns
     | SHOW FUNCTIONS (LIKE? pattern=STRING)?                                                              #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
-    | SHOW SESSION (key=identifier | (LIKE? pattern=STRING) | ALL)                                        #showSession
-    | SET SESSION? key=identifier EQ? value=constant                                                      #sessionSet
-    | RESET SESSION? (key=identifier | (LIKE? pattern=STRING) | ALL)                                      #sessionReset
     ;
 
 query

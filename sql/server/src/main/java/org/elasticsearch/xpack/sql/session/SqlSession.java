@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.session;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.plugin.SqlGetIndicesAction;
 
 import java.util.List;
-import java.util.function.Function;
 
 public class SqlSession {
 
@@ -34,10 +32,11 @@ public class SqlSession {
     private final Optimizer optimizer;
     private final Planner planner;
 
-    private final SqlSettings defaults;
+    private final SqlSettings defaults; // NOCOMMIT this doesn't look used
     private SqlSettings settings;
 
     // thread-local used for sharing settings across the plan compilation
+    // TODO investigate removing
     public static final ThreadLocal<SqlSettings> CURRENT = new ThreadLocal<SqlSettings>() {
         @Override
         public String toString() {
@@ -145,11 +144,6 @@ public class SqlSession {
     }
 
     public SqlSettings settings() {
-        return settings;
-    }
-
-    public SqlSettings updateSettings(Function<Settings, Settings> transformer) {
-        settings = new SqlSettings(transformer.apply(settings.cfg()));
         return settings;
     }
 

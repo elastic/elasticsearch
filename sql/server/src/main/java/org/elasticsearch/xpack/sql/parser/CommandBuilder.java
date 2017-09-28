@@ -8,23 +8,17 @@ package org.elasticsearch.xpack.sql.parser;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DebugContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExplainContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SessionResetContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SessionSetContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowColumnsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowFunctionsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowSchemasContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowSessionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowTablesContext;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.plan.logical.command.Debug;
 import org.elasticsearch.xpack.sql.plan.logical.command.Explain;
-import org.elasticsearch.xpack.sql.plan.logical.command.SessionReset;
-import org.elasticsearch.xpack.sql.plan.logical.command.SessionSet;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowColumns;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowFunctions;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowSchemas;
-import org.elasticsearch.xpack.sql.plan.logical.command.ShowSession;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
 import org.elasticsearch.xpack.sql.tree.Location;
 
@@ -121,20 +115,5 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public Object visitShowColumns(ShowColumnsContext ctx) {
         TableIdentifier identifier = visitTableIdentifier(ctx.tableIdentifier());
         return new ShowColumns(source(ctx), identifier.index());
-    }
-
-    @Override
-    public Object visitShowSession(ShowSessionContext ctx) {
-        return new ShowSession(source(ctx), visitIdentifier(ctx.key), text(ctx.pattern));
-    }
-
-    @Override
-    public Object visitSessionSet(SessionSetContext ctx) {
-        return new SessionSet(source(ctx), visitIdentifier(ctx.key), text(ctx.value));
-    }
-
-    @Override
-    public Object visitSessionReset(SessionResetContext ctx) {
-        return new SessionReset(source(ctx), visitIdentifier(ctx.key), text(ctx.pattern));
     }
 }

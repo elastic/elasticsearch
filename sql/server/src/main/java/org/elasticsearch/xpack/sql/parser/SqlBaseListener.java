@@ -117,42 +117,6 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitShowSchemas(SqlBaseParser.ShowSchemasContext ctx);
   /**
-   * Enter a parse tree produced by the {@code showSession}
-   * labeled alternative in {@link SqlBaseParser#statement}.
-   * @param ctx the parse tree
-   */
-  void enterShowSession(SqlBaseParser.ShowSessionContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code showSession}
-   * labeled alternative in {@link SqlBaseParser#statement}.
-   * @param ctx the parse tree
-   */
-  void exitShowSession(SqlBaseParser.ShowSessionContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code sessionSet}
-   * labeled alternative in {@link SqlBaseParser#statement}.
-   * @param ctx the parse tree
-   */
-  void enterSessionSet(SqlBaseParser.SessionSetContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code sessionSet}
-   * labeled alternative in {@link SqlBaseParser#statement}.
-   * @param ctx the parse tree
-   */
-  void exitSessionSet(SqlBaseParser.SessionSetContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code sessionReset}
-   * labeled alternative in {@link SqlBaseParser#statement}.
-   * @param ctx the parse tree
-   */
-  void enterSessionReset(SqlBaseParser.SessionResetContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code sessionReset}
-   * labeled alternative in {@link SqlBaseParser#statement}.
-   * @param ctx the parse tree
-   */
-  void exitSessionReset(SqlBaseParser.SessionResetContext ctx);
-  /**
    * Enter a parse tree produced by {@link SqlBaseParser#query}.
    * @param ctx the parse tree
    */

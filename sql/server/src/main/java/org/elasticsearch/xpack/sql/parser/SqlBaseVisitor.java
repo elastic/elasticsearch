@@ -77,27 +77,6 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitShowSchemas(SqlBaseParser.ShowSchemasContext ctx);
   /**
-   * Visit a parse tree produced by the {@code showSession}
-   * labeled alternative in {@link SqlBaseParser#statement}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitShowSession(SqlBaseParser.ShowSessionContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code sessionSet}
-   * labeled alternative in {@link SqlBaseParser#statement}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitSessionSet(SqlBaseParser.SessionSetContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code sessionReset}
-   * labeled alternative in {@link SqlBaseParser#statement}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitSessionReset(SqlBaseParser.SessionResetContext ctx);
-  /**
    * Visit a parse tree produced by {@link SqlBaseParser#query}.
    * @param ctx the parse tree
    * @return the visitor result

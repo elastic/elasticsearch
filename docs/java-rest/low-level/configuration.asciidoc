@@ -27,11 +27,9 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-time
 
 === Number of threads
 
-The Apache Http Async Client starts by default one dispatcher thread, and a
-number of worker threads used by the connection manager, as many as the number
-of locally detected processors (depending on what
-`Runtime.getRuntime().availableProcessors()` returns). The number of threads
-can be modified as follows:
+The Apache Http Async Client starts by default one dispatcher thread for each
+locally detected processor (using `Runtime.getRuntime().availableProcessors()`), and a
+number of worker threads. The number of dispatcher threads can be modified as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

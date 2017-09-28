@@ -585,6 +585,15 @@ public class SettingTests extends ESTestCase {
         assertEquals(2, asMap.size());
         assertEquals("2", asMap.get("baz"));
         assertEquals("3", asMap.get("foobar"));
+
+        setting = Setting.prefixKeySetting("foo.bar.", key ->
+            Setting.simpleString(key, Property.NodeScope));
+        build = Settings.builder().put("foo.bar.baz", 2).put("foo.bar.foobar", 3).put("foo.bar.baz.deep", 45).build();
+        asMap = setting.getAsMap(build);
+        assertEquals(3, asMap.size());
+        assertEquals("2", asMap.get("baz"));
+        assertEquals("3", asMap.get("foobar"));
+        assertEquals("45", asMap.get("baz.deep"));
     }
 
     public void testGetAllConcreteSettings() {

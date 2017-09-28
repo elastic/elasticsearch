@@ -211,7 +211,6 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
                 if (!skippedSettings.isEmpty() && !openIndices.isEmpty()) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
-                            "Can't update non dynamic settings [%s] for open indices %s",
                             "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices
                     ));
                 }

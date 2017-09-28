@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
+
+import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
@@ -40,7 +40,7 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public String qualifiedName() {
-        return qualifier == null ? name() : qualifier.concat(".").concat(name());
+        return qualifier == null ? name() : qualifier + "." + name();
     }
 
     public boolean nullable() {

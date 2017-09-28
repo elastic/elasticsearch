@@ -5,13 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.util;
 
+import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -19,6 +23,7 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toList;
 
 public abstract class StringUtils {
 
@@ -171,5 +176,20 @@ public abstract class StringUtils {
         } catch (IOException e) {
             throw new RuntimeException("error rendering", e);
         }
+    }
+
+    public static List<String> findSimilar(String match, Iterable<String> potentialMatches) {
+        LevensteinDistance ld = new LevensteinDistance();
+        List<Tuple<Float, String>> scoredMatches = new ArrayList<>();
+        for (String potentialMatch : potentialMatches) {
+            float distance = ld.getDistance(match, potentialMatch);
+            if (distance >= 0.5f) {
+                scoredMatches.add(new Tuple<>(distance, potentialMatch));    
+            }
+        }
+        CollectionUtil.timSort(scoredMatches, (a,b) -> b.v1().compareTo(a.v1()));
+        return scoredMatches.stream()
+                .map(a -> a.v2())
+                .collect(toList());
     }
 }

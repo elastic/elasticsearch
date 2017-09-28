@@ -38,7 +38,8 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
             defs.put(def.name(), def);
             for (String alias : def.aliases()) {
                 Assert.isTrue(defs.containsKey(alias) == false, "Alias %s already exists", alias);
-                defs.put(alias, def);
+                // alias should be already normalized but to be double sure
+                defs.put(normalize(alias), def);
             }
         }
     }

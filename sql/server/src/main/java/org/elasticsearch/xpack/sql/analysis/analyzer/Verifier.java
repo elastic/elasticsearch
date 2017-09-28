@@ -5,16 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.tree.Node;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -78,34 +80,66 @@ abstract class Verifier {
     static Collection<Failure> verify(LogicalPlan plan) {
         Set<Failure> failures = new LinkedHashSet<>();
 
+        // start bottom-up
         plan.forEachUp(p -> {
 
             if (p.analyzed()) {
                 return;
             }
-            
+
+            // if the children are unresolved, this node will also so counting it will only add noise 
+            if (!p.childrenResolved()) {
+                return;
+            }
+
             Set<Failure> localFailures = new LinkedHashSet<>();
             
             //
-            // Handle unresolved items first
+            // First handle usual suspects
             //
-            
-            // first look at expressions
-            p.forEachExpressions(e -> e.forEachUp(ae -> {
-                if (ae.typeResolved().unresolved()) {
-                    localFailures.add(fail(ae, ae.typeResolved().message()));
-                }
-                else if (ae.childrenResolved() && !ae.resolved()) {
-                    localFailures.add(fail(ae, "Unresolved item '%s'", Expressions.name(e)));
-                }
-                else if (ae instanceof Attribute && !ae.resolved()) {
-                    localFailures.add(fail(e, "Cannot resolved '%s' from columns %s", Expressions.name(ae), p.intputSet()));
-                }
-            }));
 
-            // consider only nodes that are by themselves unresolved (to avoid unresolved dependencies)
-            if (p.childrenResolved() && p.expressionsResolved() && !p.resolved()) {
-                localFailures.add(fail(p, "Unresolved item '%s'", p.nodeString()));
+            if (p instanceof Unresolvable) {
+                localFailures.add(fail(p, ((Unresolvable) p).unresolvedMessage()));
+            }
+            else {
+                // then take a look at the expressions
+                p.forEachExpressions(e -> {
+                    // everything is fine, skip expression
+                    if (e.resolved()) {
+                        return;
+                    }
+
+                    e.forEachUp(ae -> {
+                        // we're only interested in the children
+                        if (!ae.childrenResolved()) {
+                            return;
+                        }
+                        // again the usual suspects
+                        if (ae instanceof Unresolvable) {
+                            // handle Attributes different to provide more context
+                            if (ae instanceof UnresolvedAttribute) {
+                                UnresolvedAttribute ua = (UnresolvedAttribute) ae;
+                                boolean useQualifier = ua.qualifier() != null;
+                                List<String> potentialMatches = new ArrayList<>();
+                                for (Attribute a : p.intputSet()) {
+                                    potentialMatches.add(useQualifier ? a.qualifiedName() : a.name());
+                                }
+                                
+                                List<String> matches = StringUtils.findSimilar(ua.qualifiedName(), potentialMatches);
+                                if (!matches.isEmpty()) {
+                                    ae = new UnresolvedAttribute(ua.location(), ua.name(), ua.qualifier(), UnresolvedAttribute.errorMessage(ua.qualifiedName(), matches));
+                                }
+                            }
+
+                            localFailures.add(fail(ae, ((Unresolvable) ae).unresolvedMessage()));
+                            return;
+                        }
+                        // type resolution
+                        if (ae.typeResolved().unresolved()) {
+                            localFailures.add(fail(ae, ae.typeResolved().message()));
+                        }
+                    });
+                });
             }
 
             //

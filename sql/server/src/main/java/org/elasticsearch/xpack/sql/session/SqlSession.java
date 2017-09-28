@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.session;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.plugin.SqlGetIndicesAction;
 
 import java.util.List;
+import java.util.function.Function;
 
 public class SqlSession {
 
@@ -31,13 +33,14 @@ public class SqlSession {
     private final FunctionRegistry functionRegistry;
     private final Optimizer optimizer;
     private final Planner planner;
+    private final Analyzer analyzer;
 
-    private final SqlSettings defaults; // NOCOMMIT this doesn't look used
+    private final SqlSettings defaults; // NOCOMMIT this doesn't look used - it is for RESET SESSION
     private SqlSettings settings;
 
     // thread-local used for sharing settings across the plan compilation
     // TODO investigate removing
-    public static final ThreadLocal<SqlSettings> CURRENT = new ThreadLocal<SqlSettings>() {
+    public static final ThreadLocal<SqlSettings> CURRENT_SETTINGS = new ThreadLocal<SqlSettings>() {
         @Override
         public String toString() {
             return "SQL Session";
@@ -45,18 +48,22 @@ public class SqlSession {
     };
 
     public SqlSession(SqlSession other) {
-        this(other.defaults(), other.client(), other.catalog(), other.parser,
-                other.functionRegistry(), other.optimizer(), other.planner());
+        this(other.defaults(), other.client(), other.catalog(), other.functionRegistry(),
+                other.parser, other.optimizer(), other.planner());
     }
 
     public SqlSession(SqlSettings defaults, Client client,
-            Catalog catalog, SqlParser parser, FunctionRegistry functionRegistry, Optimizer optimizer,
+            Catalog catalog, FunctionRegistry functionRegistry, 
+            SqlParser parser, 
+            Optimizer optimizer,
             Planner planner) {
         this.client = client;
         this.catalog = catalog;
 
         this.parser = parser;
         this.functionRegistry = functionRegistry;
+        //TODO: analyzer should really be a singleton
+        this.analyzer = new Analyzer(functionRegistry, catalog);
         this.optimizer = optimizer;
         this.planner = planner;
 
@@ -98,7 +105,7 @@ public class SqlSession {
     }
 
     public Analyzer analyzer() {
-        return new Analyzer(this, functionRegistry);
+        return analyzer;
     }
 
     public Optimizer optimizer() {
@@ -127,11 +134,11 @@ public class SqlSession {
     }
 
     public PhysicalPlan executable(String sql) {
-        CURRENT.set(settings);
+        CURRENT_SETTINGS.set(settings);
         try {
             return physicalPlan(parse(sql), true);
         } finally {
-            CURRENT.remove();
+            CURRENT_SETTINGS.remove();
         }
     }
 
@@ -144,6 +151,12 @@ public class SqlSession {
     }
 
     public SqlSettings settings() {
+        return settings;
+    }
+
+    // session SET
+    public SqlSettings updateSettings(Function<Settings, Settings> transformer) {
+        settings = new SqlSettings(transformer.apply(settings.cfg()));
         return settings;
     }
 

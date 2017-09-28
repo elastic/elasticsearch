@@ -14,4 +14,6 @@ public interface Unresolvable extends Resolvable {
     default boolean resolved() {
         return false;
     }
+
+    String unresolvedMessage();
 }

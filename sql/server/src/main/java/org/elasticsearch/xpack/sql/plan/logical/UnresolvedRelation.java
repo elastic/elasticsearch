@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.tree.Location;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 public class UnresolvedRelation extends LeafPlan implements Unresolvable {
 
@@ -36,6 +36,11 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
     @Override
     public boolean resolved() {
         return false;
+    }
+
+    @Override
+    public String unresolvedMessage() {
+        return "Unknown index [" + table.index() + "]";
     }
 
     @Override

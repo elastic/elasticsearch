@@ -53,7 +53,7 @@ public abstract class ProtoHttpServer {
     }
 
     public String url() {
-        return server != null ? "localhost:" + address().getPort() + protoSuffix : "<not started>";
+        return server != null ? "localhost:" + address().getPort() : "<not started>";
     }
 
     public Client client() {

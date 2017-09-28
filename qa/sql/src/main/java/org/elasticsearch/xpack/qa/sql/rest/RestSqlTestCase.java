@@ -25,7 +25,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -131,20 +130,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
         client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
-        // NOCOMMIT "unresolved" should probably be changed to something users will understand like "missing"
-        expectBadRequest(() -> runSql("SELECT foo FROM test"), containsString("1:8: Unresolved item 'foo'"));
-        // NOCOMMIT the ones below one should include (foo) but it looks like the function is missing
-        expectBadRequest(() -> runSql("SELECT DAY_OF_YEAR(foo) FROM test"), containsString("1:20: Unresolved item 'DAY_OF_YEAR'"));
-        expectBadRequest(() -> runSql("SELECT foo, * FROM test GROUP BY DAY_OF_YEAR(foo)"),
-                both(containsString("1:8: Unresolved item 'foo'"))
-                    .and(containsString("1:46: Unresolved item 'DAY_OF_YEAR'")));
-        // NOCOMMIT broken because we bail on the resolution phase if we can't resolve something in a previous phase
-//        expectBadRequest(() -> runSql("SELECT * FROM test WHERE foo = 1"), containsString("500"));
-//        expectBadRequest(() -> runSql("SELECT * FROM test WHERE DAY_OF_YEAR(foo) = 1"), containsString("500"));
-        // NOCOMMIT this should point to the column, no the (incorrectly capitalized) start or ORDER BY
-        expectBadRequest(() -> runSql("SELECT * FROM test ORDER BY foo"), containsString("line 1:29: Unresolved item 'Order'"));
-        expectBadRequest(() -> runSql("SELECT * FROM test ORDER BY DAY_OF_YEAR(foo)"),
-                containsString("line 1:41: Unresolved item 'Order'"));
+        expectBadRequest(() -> runSql("SELECT foo FROM test"), containsString("1:8: Unknown column [foo]"));
     }
 
     private void expectBadRequest(ThrowingRunnable code, Matcher<String> errorMessageMatcher) {

@@ -14,10 +14,10 @@ import static java.util.stream.Collectors.toMap;
 /**
  * In memory implementation of catalog designed for testing.
  */
-class InMemoryCatalog implements Catalog {
+public class InMemoryCatalog implements Catalog {
     private final Map<String, EsIndex> indices;
 
-    InMemoryCatalog(List<EsIndex> indices) {
+    public InMemoryCatalog(List<EsIndex> indices) {
         this.indices = indices.stream().collect(toMap(EsIndex::name, Function.identity()));
     }
 

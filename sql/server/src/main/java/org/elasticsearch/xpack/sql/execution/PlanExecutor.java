@@ -45,13 +45,14 @@ public class PlanExecutor {
 
         this.parser = new SqlParser();
         this.functionRegistry = new DefaultFunctionRegistry();
+
         this.optimizer = new Optimizer();
         this.planner = new Planner();
     }
 
     public SqlSession newSession(SqlSettings settings) {
-        return new SqlSession(settings, client, catalogSupplier.apply(stateSupplier.get()), parser,
-                functionRegistry, optimizer, planner);
+        Catalog catalog = catalogSupplier.apply(stateSupplier.get());
+        return new SqlSession(settings, client, catalog, functionRegistry, parser, optimizer, planner);
     }
 
 

@@ -33,7 +33,7 @@ public interface Catalog {
         }
         public static GetIndexResult notFound(String name) {
             Objects.requireNonNull(name, "name must not be null");
-            return invalid("index [" + name + "] does not exist");
+            return invalid("Index '" + name + "' does not exist");
         }
 
         @Nullable

@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
  * Tests comparing sql queries executed against our jdbc client
  * with hard coded result sets.
  */
-public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
+public class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
     private final CsvTestCase testCase;
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)

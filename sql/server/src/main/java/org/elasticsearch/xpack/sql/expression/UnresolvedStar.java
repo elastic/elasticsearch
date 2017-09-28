@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.sql.tree.Location;
+
+import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
@@ -45,8 +45,17 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
         return Objects.equals(qualifier, other.qualifier);
     }
 
+    private String message() {
+        return (qualifier() != null ? qualifier() + "." : "") + "*";
+    }
+
+    @Override
+    public String unresolvedMessage() {
+        return "Cannot determine columns for " + message();
+    }
+
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + (qualifier() != null ? qualifier() + "." : "") + "*";
+        return UNRESOLVED_PREFIX + message();
     }
 }

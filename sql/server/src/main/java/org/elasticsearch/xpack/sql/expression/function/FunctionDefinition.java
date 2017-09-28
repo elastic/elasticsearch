@@ -29,7 +29,7 @@ public class FunctionDefinition {
         return name;
     }
 
-    List<String> aliases() {
+    public List<String> aliases() {
         return aliases;
     }
 

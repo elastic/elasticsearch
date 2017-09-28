@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
+
+import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
@@ -22,6 +22,11 @@ public class UnresolvedAlias extends UnresolvedNamedExpression {
 
     public Expression child() {
         return child;
+    }
+
+    @Override
+    public String unresolvedMessage() {
+        return "Unknown alias [" + name() + "]";
     }
 
     @Override

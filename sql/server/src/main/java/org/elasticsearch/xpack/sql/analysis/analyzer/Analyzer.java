@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
-import org.elasticsearch.xpack.sql.analysis.UnknownFunctionException;
-import org.elasticsearch.xpack.sql.analysis.UnknownIndexException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
+import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
+import org.elasticsearch.xpack.sql.analysis.catalog.Catalog.GetIndexResult;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.expression.Alias;
@@ -29,6 +28,7 @@ import org.elasticsearch.xpack.sql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.Function;
+import org.elasticsearch.xpack.sql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
@@ -61,10 +61,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -75,12 +77,12 @@ import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
 
-    private final SqlSession session;
     private final FunctionRegistry functionRegistry;
+    private final Catalog catalog;
 
-    public Analyzer(SqlSession session, FunctionRegistry functionRegistry) {
-        this.session = session;
+    public Analyzer(FunctionRegistry functionRegistry, Catalog catalog) {
         this.functionRegistry = functionRegistry;
+        this.catalog = catalog;
     }
 
     @Override
@@ -256,14 +258,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan) {
             TableIdentifier table = plan.table();
-            EsIndex found;
-            try {
-                found = session.getIndexSync(table.index());
-            } catch (SqlIllegalArgumentException e) {
-                throw new AnalysisException(plan, e.getMessage(), e);
+            EsIndex found = null;
+            
+            GetIndexResult index = catalog.getIndex(table.index());
+            if (index.isValid()) {
+                found = index.get();
             }
             if (found == null) {
-                throw new UnknownIndexException(table.index(), plan);
+                return plan;
+                //throw new UnknownIndexException(table.index(), plan);
             }
 
             LogicalPlan catalogTable = new EsRelation(plan.location(), found);
@@ -666,7 +669,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
 
                     // need to normalize the name for the lookup
-                    List<Function> list = getList(seen, StringUtils.camelCaseToUnderscore(name));
+                    String normalizedName = StringUtils.camelCaseToUnderscore(name);
+                    
+                    List<Function> list = getList(seen, normalizedName);
                     // first try to resolve from seen functions
                     if (!list.isEmpty()) {
                         for (Function seenFunction : list) {
@@ -678,10 +683,24 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
                     // not seen before, use the registry
                     if (!functionRegistry.functionExists(name)) {
-                        throw new UnknownFunctionException(name, uf);
+                        
+                        // try to find alternatives
+                        Set<String> names = new LinkedHashSet<>();
+                        for (FunctionDefinition def : functionRegistry.listFunctions()) {
+                            names.add(def.name());
+                            names.addAll(def.aliases());
+                        }
+                        
+                        List<String> matches = StringUtils.findSimilar(normalizedName, names);
+                        if (!matches.isEmpty()) {
+                            return new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(), uf.children(), UnresolvedFunction.errorMessage(normalizedName, matches));
+                        }
+                        else {
+                            return uf;
+                        }
                     }
                     // TODO: look into Generator for significant terms, etc..
-                    Function f = functionRegistry.resolveFunction(uf, SqlSession.CURRENT.get());
+                    Function f = functionRegistry.resolveFunction(uf, SqlSession.CURRENT_SETTINGS.get());
 
                     list.add(f);
                     return f;

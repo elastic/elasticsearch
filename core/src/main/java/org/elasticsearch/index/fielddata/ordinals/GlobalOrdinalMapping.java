@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.index.MultiDocValues.OrdinalMap;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;

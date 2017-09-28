@@ -154,7 +154,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().prepareUpdateSettings()
             .setTransientSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192.168.1.1."))
             .execute().actionGet());
-        assertEquals("invalid IP address [192.168.1.1.] for [" + ipKey + "]", e.getMessage());
+        assertEquals("invalid IP address [192.168.1.1.] for [" + filterSetting.getKey() + ipKey + "]", e.getMessage());
     }
 }
 

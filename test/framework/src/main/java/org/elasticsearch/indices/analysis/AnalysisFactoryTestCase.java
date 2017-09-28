@@ -191,6 +191,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("flattengraph",              MovedToAnalysisCommon.class)
 
         // TODO: these tokenfilters are not yet exposed: useful?
+        .put("bengalinormalization",      Void.class)
+        .put("bengalistem",               Void.class)
 
         // suggest stop
         .put("suggeststop",               Void.class)

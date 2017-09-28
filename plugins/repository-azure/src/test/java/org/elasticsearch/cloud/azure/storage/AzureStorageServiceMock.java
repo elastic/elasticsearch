@@ -25,13 +25,13 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.nio.file.NoSuchFileException;
 import java.util.Locale;
@@ -85,13 +85,6 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     }
 
     @Override
-    public OutputStream getOutputStream(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        blobs.put(blob, outputStream);
-        return outputStream;
-    }
-
-    @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix) {
         MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
         blobs.forEach((String blobName, ByteArrayOutputStream bos) -> {
@@ -117,6 +110,17 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
                 blobs.put(blobName.replace(sourceBlob, targetBlob), outputStream);
                 blobs.remove(blobName);
             }
+        }
+    }
+
+    @Override
+    public void writeBlob(String account, LocationMode mode, String container, String blobName, InputStream inputStream, long blobSize)
+        throws URISyntaxException, StorageException {
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            blobs.put(blobName, outputStream);
+            Streams.copy(inputStream, outputStream);
+        } catch (IOException e) {
+            throw new StorageException("MOCK", "Error while writing mock stream", e);
         }
     }
 

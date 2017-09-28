@@ -26,13 +26,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.repositories.RepositoryException;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
@@ -99,24 +96,11 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         if (blobExists(blobName)) {
             throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
         }
-        logger.trace("writeBlob({}, stream, {})", blobName, blobSize);
-        try (OutputStream stream = createOutput(blobName)) {
-            Streams.copy(inputStream, stream);
-        }
-    }
-
-    private OutputStream createOutput(String blobName) throws IOException {
+        logger.trace("writeBlob({}, stream, {})", buildKey(blobName), blobSize);
         try {
-            return new AzureOutputStream(blobStore.getOutputStream(blobStore.container(), buildKey(blobName)));
-        } catch (StorageException e) {
-            if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
-                throw new NoSuchFileException(e.getMessage());
-            }
-            throw new IOException(e);
-        } catch (URISyntaxException e) {
-            throw new IOException(e);
-        } catch (IllegalArgumentException e) {
-            throw new RepositoryException(repositoryName, e.getMessage());
+            blobStore.writeBlob(buildKey(blobName), inputStream, blobSize);
+        } catch (URISyntaxException|StorageException e) {
+            throw new IOException("Can not write blob " + blobName, e);
         }
     }
 

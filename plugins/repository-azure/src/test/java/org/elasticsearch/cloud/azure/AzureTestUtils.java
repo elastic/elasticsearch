@@ -20,36 +20,26 @@
 package org.elasticsearch.cloud.azure;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-
-import java.io.IOException;
 
 public class AzureTestUtils {
     /**
-     * Read settings from file when running integration tests with ThirdParty annotation.
-     * elasticsearch.yml file path has to be set with -Dtests.config=/path/to/elasticsearch.yml.
-     * @return Settings from elasticsearch.yml integration test file (for 3rd party tests)
+     * Mock settings from sysprops when running integration tests with ThirdParty annotation.
+     * Start the tests with {@code -Dtests.azure.account=AzureStorageAccount and -Dtests.azure.key=AzureStorageKey}
+     * @return Mock Settings from sysprops
      */
-    public static Settings readSettingsFromFile() {
+    public static Settings generateMockSecureSettings() {
         Settings.Builder settings = Settings.builder();
 
-        // if explicit, just load it and don't load from env
-        try {
-            if (Strings.hasText(System.getProperty("tests.config"))) {
-                try {
-                    settings.loadFromPath(PathUtils.get((System.getProperty("tests.config"))));
-                } catch (IOException e) {
-                    throw new IllegalArgumentException("could not load azure tests config", e);
-                }
-            } else {
-                throw new IllegalStateException("to run integration tests, you need to set -Dtests.thirdparty=true and " +
-                    "-Dtests.config=/path/to/elasticsearch.yml");
-            }
-        } catch (SettingsException exception) {
-            throw new IllegalStateException("your test configuration file is incorrect: " + System.getProperty("tests.config"), exception);
+        if (Strings.isEmpty(System.getProperty("tests.azure.account")) ||
+            Strings.isEmpty(System.getProperty("tests.azure.key"))) {
+            throw new IllegalStateException("to run integration tests, you need to set -Dtests.thirdparty=true and " +
+                "-Dtests.azure.account=azure-account -Dtests.azure.key=azure-key");
         }
+
+        settings.put("cloud.azure.storage.default.account", System.getProperty("tests.azure.account"));
+        settings.put("cloud.azure.storage.default.key", System.getProperty("tests.azure.key"));
+
         return settings.build();
     }
 }

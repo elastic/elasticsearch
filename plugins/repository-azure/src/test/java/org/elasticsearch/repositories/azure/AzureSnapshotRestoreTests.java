@@ -53,7 +53,6 @@ import org.elasticsearch.test.store.MockFSIndexStore;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 
 import java.net.URISyntaxException;
 import java.util.Arrays;
@@ -77,7 +76,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
         supportsDedicatedMasters = false, numDataNodes = 1,
         transportClientRatio = 0.0)
 @ThirdParty
-@Ignore
 @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26812")
 public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCase {
 
@@ -85,8 +83,10 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
         return Settings.builder().setSecureSettings(generateMockSecureSettings());
     }
 
-    private static final AzureStorageService azureStorageService = new AzureStorageServiceImpl(generateMockSettings().build(),
-        AzureStorageSettings.load(generateMockSettings().build()));
+    // disabled for https://github.com/elastic/elasticsearch/issues/26812
+    private static final AzureStorageService azureStorageService = null;
+    //private static final AzureStorageService azureStorageService = new AzureStorageServiceImpl(generateMockSettings().build(),
+    //    AzureStorageSettings.load(generateMockSettings().build()));
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

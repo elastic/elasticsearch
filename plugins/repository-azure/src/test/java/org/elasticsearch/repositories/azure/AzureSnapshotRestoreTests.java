@@ -50,7 +50,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.net.URISyntaxException;
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Locale;

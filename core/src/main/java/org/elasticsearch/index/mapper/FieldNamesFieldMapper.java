@@ -206,7 +206,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        super.parse(context);
     }
 
     @Override

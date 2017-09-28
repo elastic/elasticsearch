@@ -37,6 +37,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -207,6 +208,12 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         }
         if (fieldType.hasDocValues()) {
             context.doc().add(new LatLonDocValuesField(fieldType().name(), point.lat(), point.lon()));
+        } else {
+            List<IndexableField> fields = new ArrayList<>(1);
+            createFieldNamesField(context, fields);
+            for (IndexableField field : fields) {
+                context.doc().add(field);
+            }
         }
         // if the mapping contains multifields then use the geohash string
         if (multiFields.iterator().hasNext()) {

@@ -801,11 +801,11 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testExistsFieldQuery() throws Exception {
         QueryShardContext context = createShardContext();
-        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
+        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(STRING_FIELD_NAME + ":*");
         Query query = queryBuilder.toQuery(context);
         Query expected;
         if (getCurrentTypes().length > 0) {
-            expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "foo")));
+            expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", STRING_FIELD_NAME)));
         } else {
             expected = new MatchNoDocsQuery();
         }

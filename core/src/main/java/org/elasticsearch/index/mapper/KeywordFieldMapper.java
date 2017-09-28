@@ -328,6 +328,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
         if (fieldType().hasDocValues()) {
             fields.add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+        } else {
+            createFieldNamesField(context, fields);
         }
     }
 

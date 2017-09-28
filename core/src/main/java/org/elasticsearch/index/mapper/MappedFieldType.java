@@ -29,6 +29,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -37,6 +38,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -377,6 +379,20 @@ public abstract class MappedFieldType extends FieldType {
             return null;
         }
         return new ConstantScoreQuery(termQuery(nullValue, null));
+    }
+
+    public Query existsQuery(QueryShardContext context) {
+        if (hasDocValues()) {
+            return new DocValuesFieldExistsQuery(name());
+        } else {
+            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
+                    .getMapperService().fullName(FieldNamesFieldMapper.NAME);
+            if (fieldNamesFieldType == null) {
+                // can only happen when no types exist, so no docs exist either
+                return Queries.newMatchNoDocsQuery("Missing types in \"" + name() + "\" field.");
+            }
+            return fieldNamesFieldType.termQuery(name(), context);
+        }
     }
 
     /**

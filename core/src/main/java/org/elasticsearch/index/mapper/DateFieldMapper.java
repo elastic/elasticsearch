@@ -451,6 +451,8 @@ public class DateFieldMapper extends FieldMapper {
         }
         if (fieldType().hasDocValues()) {
             fields.add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+        } else {
+            createFieldNamesField(context, fields);
         }
         if (fieldType().stored()) {
             fields.add(new StoredField(fieldType().name(), timestamp));

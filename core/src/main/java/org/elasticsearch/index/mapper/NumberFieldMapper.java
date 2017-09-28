@@ -1001,6 +1001,9 @@ public class NumberFieldMapper extends FieldMapper {
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
         fields.addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, docValued, stored));
+        if (docValued == false) {
+            createFieldNamesField(context, fields);
+        }
     }
 
     @Override

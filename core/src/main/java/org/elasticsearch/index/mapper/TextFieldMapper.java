@@ -333,6 +333,7 @@ public class TextFieldMapper extends FieldMapper {
             Field field = new Field(fieldType().name(), value, fieldType());
             fields.add(field);
         }
+        createFieldNamesField(context, fields);
     }
 
     @Override

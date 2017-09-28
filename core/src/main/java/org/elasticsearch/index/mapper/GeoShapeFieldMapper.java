@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
@@ -29,6 +28,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.SpatialStrategy;
@@ -44,6 +44,8 @@ import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -123,6 +125,11 @@ public class GeoShapeFieldMapper extends FieldMapper {
         public Builder coerce(boolean coerce) {
             this.coerce = coerce;
             return builder;
+        }
+
+        @Override
+        protected boolean defaultDocValues(Version indexCreated) {
+            return false;
         }
 
         protected Explicit<Boolean> coerce(BuilderContext context) {
@@ -440,11 +447,9 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a " +
                         ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass()) + " was found");
             }
-            Field[] fields = fieldType().defaultStrategy().createIndexableFields(shape);
-            if (fields == null || fields.length == 0) {
-                return null;
-            }
-            for (Field field : fields) {
+            List<IndexableField> fields = new ArrayList<>(Arrays.asList(fieldType().defaultStrategy().createIndexableFields(shape)));
+            createFieldNamesField(context, fields);
+            for (IndexableField field : fields) {
                 context.doc().add(field);
             }
         } catch (Exception e) {

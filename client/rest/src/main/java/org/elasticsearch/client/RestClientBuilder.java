@@ -39,7 +39,7 @@ import java.util.Objects;
  */
 public final class RestClientBuilder {
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 1000;
-    public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
+    public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 3000000;
     public static final int DEFAULT_MAX_RETRY_TIMEOUT_MILLIS = DEFAULT_SOCKET_TIMEOUT_MILLIS;
     public static final int DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS = 500;
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;

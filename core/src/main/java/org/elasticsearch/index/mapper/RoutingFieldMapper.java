@@ -166,6 +166,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
                 fields.add(new Field(fieldType().name(), routing, fieldType()));
             }
+            createFieldNamesField(context, fields);
         }
     }
 

@@ -61,7 +61,7 @@ public class AcceptorEventHandler extends EventHandler {
      * @param exception that occurred
      */
     public void registrationException(NioServerSocketChannel channel, Exception exception) {
-        logger.error(new ParameterizedMessage("failed to register server channel: ", channel), exception);
+        logger.error(new ParameterizedMessage("failed to register server channel: {}", channel), exception);
     }
 
     /**

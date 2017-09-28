@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
-import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.io.IOException;
 import java.nio.channels.Selector;

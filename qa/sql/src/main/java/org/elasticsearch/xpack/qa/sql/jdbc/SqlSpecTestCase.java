@@ -19,7 +19,7 @@ import java.util.List;
  * Tests comparing sql queries executed against our jdbc client
  * with those executed against H2's jdbc client.
  */
-public class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
+public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
     private String query;
 
     @ClassRule

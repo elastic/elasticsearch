@@ -266,7 +266,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             }
             if (found == null) {
                 return plan;
-                //throw new UnknownIndexException(table.index(), plan);
             }
 
             LogicalPlan catalogTable = new EsRelation(plan.location(), found);

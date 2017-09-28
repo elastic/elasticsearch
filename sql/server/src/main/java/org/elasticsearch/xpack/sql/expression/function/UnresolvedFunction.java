@@ -25,6 +25,15 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         this(location, name, distinct, children, null);
     }
 
+    /**
+     * Constructor used for specifying a more descriptive message (typically 'did you mean') instead of the default one.
+     * 
+     * @param location
+     * @param name
+     * @param distinct
+     * @param children
+     * @param unresolvedMessage
+     */
     public UnresolvedFunction(Location location, String name, boolean distinct, List<Expression> children, String unresolvedMessage) {
         super(location, children);
         this.name = name;

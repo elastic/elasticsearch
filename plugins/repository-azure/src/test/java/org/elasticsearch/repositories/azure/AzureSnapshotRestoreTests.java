@@ -23,7 +23,6 @@ package org.elasticsearch.repositories.azure;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -76,17 +75,16 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
         supportsDedicatedMasters = false, numDataNodes = 1,
         transportClientRatio = 0.0)
 @ThirdParty
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26812")
 public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCase {
 
     private static Settings.Builder generateMockSettings() {
         return Settings.builder().setSecureSettings(generateMockSecureSettings());
     }
 
-    // disabled for https://github.com/elastic/elasticsearch/issues/26812
-    private static final AzureStorageService azureStorageService = null;
-    //private static final AzureStorageService azureStorageService = new AzureStorageServiceImpl(generateMockSettings().build(),
-    //    AzureStorageSettings.load(generateMockSettings().build()));
+    private static AzureStorageService getAzureStorageService() {
+        return new AzureStorageServiceImpl(generateMockSettings().build(),
+            AzureStorageSettings.load(generateMockSettings().build()));
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -129,7 +127,7 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
         // It could happen that we run this test really close to a previous one
         // so we might need some time to be able to create the container
         assertBusy(() -> {
-            azureStorageService.createContainer("default", LocationMode.PRIMARY_ONLY, containerName);
+            getAzureStorageService().createContainer("default", LocationMode.PRIMARY_ONLY, containerName);
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -138,7 +136,7 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
      * @param containerName container name to use
      */
     private static void removeTestContainer(String containerName) throws URISyntaxException, StorageException {
-        azureStorageService.removeContainer("default", LocationMode.PRIMARY_ONLY, containerName);
+        getAzureStorageService().removeContainer("default", LocationMode.PRIMARY_ONLY, containerName);
     }
 
     @Override

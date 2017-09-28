@@ -104,7 +104,7 @@ setup:
 ---
 "Sliced scroll with invalid arguments":
   - do:
-        catch:  /query_phase_execution_exception.*The number of slices.*index.max_slices_per_scroll/
+        catch: bad_request
         search:
           index: test_sliced_scroll
           size: 1

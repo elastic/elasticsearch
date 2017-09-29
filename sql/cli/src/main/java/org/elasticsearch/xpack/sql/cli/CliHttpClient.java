@@ -35,7 +35,7 @@ public class CliHttpClient implements AutoCloseable {
     }
 
     public QueryInitResponse queryInit(String query, int fetchSize) {
-        // TODO allow customizing the time zone
+        // TODO allow customizing the time zone - this is what session set/reset/get should be about
         QueryInitRequest request = new QueryInitRequest(query, fetchSize, TimeZone.getTimeZone("UTC"), new TimeoutInfo(0, 0, 0));
         return (QueryInitResponse) sendRequest(request);
     }

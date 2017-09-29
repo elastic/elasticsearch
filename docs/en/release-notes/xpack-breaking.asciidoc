@@ -1,0 +1,18 @@
+[role="xpack"]
+[[breaking-changes-xes]]
+= {xpack} Breaking Changes
+
+[partintro]
+--
+This section summarizes the changes that you need to be aware of when migrating
+your application from one version of {xpack} to another.
+
+* <<breaking-6.1.0-xes>>
+
+See also:
+
+* <<breaking-changes,{es} Breaking Changes>>
+* {kibana-ref}/breaking-changes-xpackkb.html[{kib} {xpack} Breaking Changes]
+* {logstash-ref}/breaking-changes-xls.html[Logstash {xpack} Breaking Changes]
+
+--

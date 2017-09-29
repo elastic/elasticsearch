@@ -17,6 +17,9 @@ include::setup-xes.asciidoc[]
 :edit_url:
 include::{es-repo-dir}/reference/index-shared2.asciidoc[]
 
+:edit_url!:
+include::release-notes/breaking-changes-xpack.asciidoc[]
+
 :edit_url:
 include::{es-repo-dir}/reference/index-shared3.asciidoc[]
 
@@ -28,6 +31,9 @@ include::commands/index.asciidoc[]
 
 :edit_url:
 include::{es-repo-dir}/reference/index-shared4.asciidoc[]
+
+:edit_url!:
+include::release-notes/xpack.asciidoc[]
 
 :edit_url:
 include::{es-repo-dir}/reference/index-shared5.asciidoc[]

@@ -82,7 +82,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 /**
  * An immutable settings implementation.
  */
-public final class Settings implements ToXContentFragment, Iterable<String> {
+public final class Settings implements ToXContentFragment {
 
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
@@ -320,9 +320,11 @@ public final class Settings implements ToXContentFragment, Iterable<String> {
         }
     }
 
-    @Override
-    public Iterator<String> iterator() {
-        return settings.keySet().iterator();
+    /**
+     * Returns a set of all keys in this settings object
+     */
+    public Set<String> getKeys() {
+        return Collections.unmodifiableSet(settings.keySet());
     }
 
     /**

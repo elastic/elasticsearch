@@ -165,7 +165,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
         indexScopedSettings.validate(normalizedSettings);
         // never allow to change the number of shards
-        for (String key : normalizedSettings) {
+        for (String key : normalizedSettings.getKeys()) {
             Setting setting = indexScopedSettings.get(key);
             assert setting != null; // we already validated the normalized settings
             settingsForClosedIndices.copy(key, normalizedSettings);

@@ -74,4 +74,4 @@ Watcher::
 See also:
 
 * <<release-notes-6.0.0-rc1,{es} 6.0.0-rc1 Release Notes>>
-* {logstash-ref}/xls-6.0.0-rc1.html[Logstash {xpack} 6.0.0-rc1 Release Notes]
+//*  {logstash-ref}/xls-6.0.0-rc1.html[Logstash {xpack} 6.0.0-rc1 Release Notes]

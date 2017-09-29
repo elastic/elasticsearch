@@ -37,7 +37,7 @@ public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
         String json = "/org/elasticsearch/analysis/common/pattern_capture.json";
         Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .loadFromStream(json, getClass().getResourceAsStream(json))
+                .loadFromStream(json, getClass().getResourceAsStream(json), false)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 

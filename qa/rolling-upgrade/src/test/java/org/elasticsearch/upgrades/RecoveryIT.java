@@ -71,6 +71,17 @@ public class RecoveryIT extends ESRestTestCase {
 
     private final CLUSTER_TYPE clusterType = CLUSTER_TYPE.parse(System.getProperty("tests.rest.suite"));
 
+    @Override
+    protected Settings restClientSettings() {
+        return Settings.builder().put(super.restClientSettings())
+            // increase the timeout here to 90 seconds to handle long waits for a green
+            // cluster health. the waits for green need to be longer than a minute to
+            // account for delayed shards
+            .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "90s")
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
+            .build();
+    }
+
     private void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
@@ -79,6 +90,8 @@ public class RecoveryIT extends ESRestTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("wait_for_status", "green");
         params.put("wait_for_no_relocating_shards", "true");
+        params.put("timeout", "70s");
+        params.put("level", "shards");
         assertOK(client().performRequest("GET", "_cluster/health", params));
     }
 
@@ -87,14 +100,19 @@ public class RecoveryIT extends ESRestTestCase {
             new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }", ContentType.APPLICATION_JSON)));
     }
 
-
     public void testHistoryUUIDIsGenerated() throws Exception {
         final String index = "index_history_uuid";
         if (clusterType == CLUSTER_TYPE.OLD) {
+            assertOK(client().performRequest("PUT", "_cluster/settings", Collections.emptyMap(),
+                new StringEntity("{ \"persistent\": " +
+                    "{ \"logger._root\": \"DEBUG\", \"logger.org.elasticsearch.cluster.service\": \"TRACE\" } " +
+                    "}", ContentType.APPLICATION_JSON)));
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
             createIndex(index, settings.build());
+            ensureGreen();
+
         } else if (clusterType == CLUSTER_TYPE.UPGRADED) {
             ensureGreen();
             Response response = client().performRequest("GET", index + "/_stats", Collections.singletonMap("level", "shards"));
@@ -113,6 +131,11 @@ public class RecoveryIT extends ESRestTestCase {
                     assertThat("different history uuid found for shard on " + nodeID, historyUUID, equalTo(expectHistoryUUID));
                 }
             }
+        } else {
+            // we are now in mixed cluster mode. we want to make sure the shard is fully allocated on the new node that was just
+            // started in order not to run into delayed unassigned shards when we bring down the old node (there must be a fully valid
+            // copy)
+            ensureGreen();
         }
     }
 

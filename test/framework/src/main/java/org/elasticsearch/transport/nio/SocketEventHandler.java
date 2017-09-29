@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 import org.elasticsearch.transport.nio.channel.WriteContext;
@@ -47,7 +48,7 @@ public class SocketEventHandler extends EventHandler {
      *
      * @param channel that was registered
      */
-    public void handleRegistration(NioSocketChannel channel) {
+    void handleRegistration(NioSocketChannel channel) {
         SelectionKeyUtils.setConnectAndReadInterested(channel);
     }
 
@@ -57,8 +58,8 @@ public class SocketEventHandler extends EventHandler {
      * @param channel that was registered
      * @param exception that occurred
      */
-    public void registrationException(NioSocketChannel channel, Exception exception) {
-        logger.trace("failed to register channel", exception);
+    void registrationException(NioSocketChannel channel, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("failed to register socket channel: {}", channel), exception);
         exceptionCaught(channel, exception);
     }
 
@@ -68,7 +69,7 @@ public class SocketEventHandler extends EventHandler {
      *
      * @param channel that was registered
      */
-    public void handleConnect(NioSocketChannel channel) {
+    void handleConnect(NioSocketChannel channel) {
         SelectionKeyUtils.removeConnectInterested(channel);
     }
 
@@ -78,8 +79,8 @@ public class SocketEventHandler extends EventHandler {
      * @param channel that was connecting
      * @param exception that occurred
      */
-    public void connectException(NioSocketChannel channel, Exception exception) {
-        logger.trace("failed to connect to channel", exception);
+    void connectException(NioSocketChannel channel, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("failed to connect to socket channel: {}", channel), exception);
         exceptionCaught(channel, exception);
 
     }
@@ -90,7 +91,7 @@ public class SocketEventHandler extends EventHandler {
      *
      * @param channel that can be read
      */
-    public void handleRead(NioSocketChannel channel) throws IOException {
+    void handleRead(NioSocketChannel channel) throws IOException {
         int bytesRead = channel.getReadContext().read();
         if (bytesRead == -1) {
             handleClose(channel);
@@ -103,8 +104,8 @@ public class SocketEventHandler extends EventHandler {
      * @param channel that was being read
      * @param exception that occurred
      */
-    public void readException(NioSocketChannel channel, Exception exception) {
-        logger.trace("failed to read from channel", exception);
+    void readException(NioSocketChannel channel, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("exception while reading from socket channel: {}", channel), exception);
         exceptionCaught(channel, exception);
     }
 
@@ -114,7 +115,7 @@ public class SocketEventHandler extends EventHandler {
      *
      * @param channel that can be read
      */
-    public void handleWrite(NioSocketChannel channel) throws IOException {
+    void handleWrite(NioSocketChannel channel) throws IOException {
         WriteContext channelContext = channel.getWriteContext();
         channelContext.flushChannel();
         if (channelContext.hasQueuedWriteOps()) {
@@ -130,8 +131,8 @@ public class SocketEventHandler extends EventHandler {
      * @param channel that was being written to
      * @param exception that occurred
      */
-    public void writeException(NioSocketChannel channel, Exception exception) {
-        logger.trace("failed to write to channel", exception);
+    void writeException(NioSocketChannel channel, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("exception while writing to socket channel: {}", channel), exception);
         exceptionCaught(channel, exception);
     }
 
@@ -143,8 +144,8 @@ public class SocketEventHandler extends EventHandler {
      * @param channel that caused the exception
      * @param exception that was thrown
      */
-    public void genericChannelException(NioSocketChannel channel, Exception exception) {
-        logger.trace("event handling failed", exception);
+    void genericChannelException(NioSocketChannel channel, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("exception while handling event for socket channel: {}", channel), exception);
         exceptionCaught(channel, exception);
     }
 

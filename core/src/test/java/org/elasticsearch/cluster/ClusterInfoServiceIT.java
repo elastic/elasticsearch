@@ -179,7 +179,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         internalCluster().startNodes(2,
                 // manually control publishing
                 Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m").build());
-        prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).get();
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen("test");
         InternalTestCluster internalTestCluster = internalCluster();
         InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());

@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -68,6 +69,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -998,55 +1000,70 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             //    while these datastructures aren't even used.
             // 2) The aliasAndIndexLookup can be updated instead of rebuilding it all the time.
 
-            // build all concrete indices arrays:
-            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
-            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
-            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            List<String> allIndicesLst = new ArrayList<>();
+            final Set<String> allIndices = new HashSet<>(indices.size());
+            final List<String> allOpenIndices = new ArrayList<>();
+            final List<String> allClosedIndices = new ArrayList<>();
+            final Set<String> duplicateAliasesIndices = new HashSet<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                allIndicesLst.add(cursor.value.getIndex().getName());
-            }
-            String[] allIndices = allIndicesLst.toArray(new String[allIndicesLst.size()]);
-
-            List<String> allOpenIndicesLst = new ArrayList<>();
-            List<String> allClosedIndicesLst = new ArrayList<>();
-            for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                IndexMetaData indexMetaData = cursor.value;
+                final IndexMetaData indexMetaData = cursor.value;
+                final String name = indexMetaData.getIndex().getName();
+                boolean added = allIndices.add(name);
+                assert added : "double index named [" + name + "]";
                 if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
-                    allOpenIndicesLst.add(indexMetaData.getIndex().getName());
+                    allOpenIndices.add(indexMetaData.getIndex().getName());
                 } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                    allClosedIndicesLst.add(indexMetaData.getIndex().getName());
+                    allClosedIndices.add(indexMetaData.getIndex().getName());
                 }
+                indexMetaData.getAliases().keysIt().forEachRemaining(duplicateAliasesIndices::add);
             }
-            String[] allOpenIndices = allOpenIndicesLst.toArray(new String[allOpenIndicesLst.size()]);
-            String[] allClosedIndices = allClosedIndicesLst.toArray(new String[allClosedIndicesLst.size()]);
+            duplicateAliasesIndices.retainAll(allIndices);
+            if (duplicateAliasesIndices.isEmpty() == false) {
+                // iterate again and constructs a helpful message
+                ArrayList<String> duplicates = new ArrayList<>();
+                for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
+                    for (String alias: duplicateAliasesIndices) {
+                        if (cursor.value.getAliases().containsKey(alias)) {
+                            duplicates.add(alias + " (alias of " + cursor.value.getIndex() + ")");
+                        }
+                    }
+                }
+                assert duplicates.size() > 0;
+                throw new IllegalStateException("index and alias names need to be unique, but the following duplicates were found ["
+                    + Strings.collectionToCommaDelimitedString(duplicates)+ "]");
+
+            }
 
             // build all indices map
             SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
-                aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
+                AliasOrIndex existing = aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
+                assert existing == null : "duplicate for " + indexMetaData.getIndex();
 
                 for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
                     AliasMetaData aliasMetaData = aliasCursor.value;
-                    AliasOrIndex aliasOrIndex = aliasAndIndexLookup.get(aliasMetaData.getAlias());
-                    if (aliasOrIndex == null) {
-                        aliasOrIndex = new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
-                        aliasAndIndexLookup.put(aliasMetaData.getAlias(), aliasOrIndex);
-                    } else if (aliasOrIndex instanceof AliasOrIndex.Alias) {
-                        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
-                        alias.addIndex(indexMetaData);
-                    } else if (aliasOrIndex instanceof AliasOrIndex.Index) {
-                        AliasOrIndex.Index index = (AliasOrIndex.Index) aliasOrIndex;
-                        throw new IllegalStateException("index and alias names need to be unique, but alias [" + aliasMetaData.getAlias() + "] and index " + index.getIndex().getIndex() + " have the same name");
-                    } else {
-                        throw new IllegalStateException("unexpected alias [" + aliasMetaData.getAlias() + "][" + aliasOrIndex + "]");
-                    }
+                    aliasAndIndexLookup.compute(aliasMetaData.getAlias(), (aliasName, alias) -> {
+                        if (alias == null) {
+                            return new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
+                        } else {
+                            assert alias instanceof AliasOrIndex.Alias : alias.getClass().getName();
+                            ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
+                            return alias;
+                        }
+                    });
                 }
             }
             aliasAndIndexLookup = Collections.unmodifiableSortedMap(aliasAndIndexLookup);
+            // build all concrete indices arrays:
+            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
+            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
+            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
+            String[] allIndicesArray = allIndices.toArray(new String[allIndices.size()]);
+            String[] allOpenIndicesArray = allOpenIndices.toArray(new String[allOpenIndices.size()]);
+            String[] allClosedIndicesArray = allClosedIndices.toArray(new String[allClosedIndices.size()]);
+
             return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(),
-                                customs.build(), allIndices, allOpenIndices, allClosedIndices, aliasAndIndexLookup);
+                                customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray, aliasAndIndexLookup);
         }
 
         public static String toXContent(MetaData metaData) throws IOException {

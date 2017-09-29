@@ -171,6 +171,18 @@ setup:
   - match: { buckets.0.result_type: bucket}
 
 ---
+"Test result single bucket api with empty body":
+  - do:
+      xpack.ml.get_buckets:
+        job_id: "jobs-get-result-buckets"
+        timestamp: "2016-06-01T00:00:00Z"
+        body: {}
+
+  - match: { buckets.0.timestamp: 1464739200000}
+  - match: { buckets.0.job_id: jobs-get-result-buckets }
+  - match: { buckets.0.result_type: bucket}
+
+---
 "Test mutually-exclusive params":
   - do:
       catch: bad_request

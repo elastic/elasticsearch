@@ -65,7 +65,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                         BigArrays.NON_RECYCLING_INSTANCE,
                         new NoneCircuitBreakerService(),
                         new NamedWriteableRegistry(Collections.emptyList()),
-                        new NetworkService(settings, Collections.emptyList()));
+                        new NetworkService(Collections.emptyList()));
         TransportService transportService = new MockTransportService(settings, transport, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, (boundAddress) -> new DiscoveryNode(
             nodeNameAndId,

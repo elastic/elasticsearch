@@ -112,6 +112,7 @@ public class RestClient implements Closeable {
 
     /**
      * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
+     * Creates a new builder instance and sets the hosts that the client will send requests to.
      */
     public static RestClientBuilder builder(HttpHost... hosts) {
         return new RestClientBuilder(hosts);
@@ -706,8 +707,8 @@ public class RestClient implements Closeable {
      * safe, volatile way.
      */
     private static class HostTuple<T> {
-        public final T hosts;
-        public final AuthCache authCache;
+        final T hosts;
+        final AuthCache authCache;
 
         HostTuple(final T hosts, final AuthCache authCache) {
             this.hosts = hosts;

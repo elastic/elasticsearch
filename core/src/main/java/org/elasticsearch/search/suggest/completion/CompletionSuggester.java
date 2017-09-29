@@ -18,17 +18,16 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggest;
@@ -53,12 +52,14 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             final CompletionSuggestionContext suggestionContext, final IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
         if (suggestionContext.getFieldType() != null) {
             final CompletionFieldMapper.CompletionFieldType fieldType = suggestionContext.getFieldType();
-            CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
+            CompletionSuggestion completionSuggestion =
+                new CompletionSuggestion(name, suggestionContext.getSize(), suggestionContext.isSkipDuplicates());
             spare.copyUTF8Bytes(suggestionContext.getText());
             CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(
                 new Text(spare.toString()), 0, spare.length());
             completionSuggestion.addTerm(completionSuggestEntry);
-            TopSuggestDocsCollector collector = new TopDocumentsCollector(suggestionContext.getSize());
+            int shardSize = suggestionContext.getShardSize() != null ? suggestionContext.getShardSize() : suggestionContext.getSize();
+            TopSuggestDocsCollector collector = new TopDocumentsCollector(shardSize, suggestionContext.isSkipDuplicates());
             suggest(searcher, suggestionContext.toQuery(), collector);
             int numResult = 0;
             for (TopSuggestDocs.SuggestScoreDoc suggestScoreDoc : collector.get().scoreLookupDocs()) {
@@ -97,8 +98,21 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         }
     }
 
-    // TODO: this should be refactored and moved to lucene
-    // see https://issues.apache.org/jira/browse/LUCENE-6880
+    /**
+     * TODO: this should be refactored and moved to lucene see https://issues.apache.org/jira/browse/LUCENE-6880
+     *
+     * Custom collector that returns top documents from the completion suggester.
+     * When suggestions are augmented with contexts values this collector groups suggestions coming from the same document
+     * but matching different contexts together. Each document is counted as 1 entry and the provided size is the expected number
+     * of documents that should be returned (not the number of suggestions).
+     * This collector is also able to filter duplicate suggestion coming from different documents.
+     * When different contexts match the same suggestion form only the best one (sorted by weight) is kept.
+     * In order to keep this feature fast, the de-duplication of suggestions with different contexts is done
+     * only on the top N*num_contexts (where N is the number of documents to return) suggestions per segment.
+     * This means that skip_duplicates will visit at most N*num_contexts suggestions per segment to find unique suggestions
+     * that match the input. If more than N*num_contexts suggestions are duplicated with different contexts this collector
+     * will not be able to return more than one suggestion even when N is greater than 1.
+     **/
     private static final class TopDocumentsCollector extends TopSuggestDocsCollector {
 
         /**
@@ -150,93 +164,53 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             }
         }
 
-        private static final class SuggestDocPriorityQueue extends PriorityQueue<SuggestDoc> {
+        private final Map<Integer, SuggestDoc> docsMap;
 
-            SuggestDocPriorityQueue(int maxSize) {
-                super(maxSize);
-            }
-
-            @Override
-            protected boolean lessThan(SuggestDoc a, SuggestDoc b) {
-                if (a.score == b.score) {
-                    int cmp = Lookup.CHARSEQUENCE_COMPARATOR.compare(a.key, b.key);
-                    if (cmp == 0) {
-                        // prefer smaller doc id, in case of a tie
-                        return a.doc > b.doc;
-                    } else {
-                        return cmp > 0;
-                    }
-                }
-                return a.score < b.score;
-            }
-
-            public SuggestDoc[] getResults() {
-                int size = size();
-                SuggestDoc[] res = new SuggestDoc[size];
-                for (int i = size - 1; i >= 0; i--) {
-                    res[i] = pop();
-                }
-                return res;
-            }
-        }
-
-        private final int num;
-        private final SuggestDocPriorityQueue pq;
-        private final Map<Integer, SuggestDoc> scoreDocMap;
-
-        // TODO: expose dup removal
-
-        TopDocumentsCollector(int num) {
-            super(1, false); // TODO hack, we don't use the underlying pq, so we allocate a size of 1
-            this.num = num;
-            this.scoreDocMap = new LinkedHashMap<>(num);
-            this.pq = new SuggestDocPriorityQueue(num);
-        }
-
-        @Override
-        public int getCountToCollect() {
-            // This is only needed because we initialize
-            // the base class with 1 instead of the actual num
-            return num;
-        }
-
-
-        @Override
-        protected void doSetNextReader(LeafReaderContext context) throws IOException {
-            super.doSetNextReader(context);
-            updateResults();
-        }
-
-        private void updateResults() {
-            for (SuggestDoc suggestDoc : scoreDocMap.values()) {
-                if (pq.insertWithOverflow(suggestDoc) == suggestDoc) {
-                    break;
-                }
-            }
-            scoreDocMap.clear();
+        TopDocumentsCollector(int num, boolean skipDuplicates) {
+            super(Math.max(1, num), skipDuplicates);
+            this.docsMap = new LinkedHashMap<>(num);
         }
 
         @Override
         public void collect(int docID, CharSequence key, CharSequence context, float score) throws IOException {
-            if (scoreDocMap.containsKey(docID)) {
-                SuggestDoc suggestDoc = scoreDocMap.get(docID);
-                suggestDoc.add(key, context, score);
-            } else if (scoreDocMap.size() <= num) {
-                scoreDocMap.put(docID, new SuggestDoc(docBase + docID, key, context, score));
+            int globalDoc = docID + docBase;
+            if (docsMap.containsKey(globalDoc)) {
+                docsMap.get(globalDoc).add(key, context, score);
             } else {
-                throw new CollectionTerminatedException();
+                docsMap.put(globalDoc, new SuggestDoc(globalDoc, key, context, score));
+                super.collect(docID, key, context, score);
             }
         }
 
         @Override
         public TopSuggestDocs get() throws IOException {
-            updateResults(); // to empty the last set of collected suggest docs
-            TopSuggestDocs.SuggestScoreDoc[] suggestScoreDocs = pq.getResults();
-            if (suggestScoreDocs.length > 0) {
-                return new TopSuggestDocs(suggestScoreDocs.length, suggestScoreDocs, suggestScoreDocs[0].score);
-            } else {
+            TopSuggestDocs entries = super.get();
+            if (entries.scoreDocs.length == 0) {
                 return TopSuggestDocs.EMPTY;
             }
+            // The parent class returns suggestions, not documents, and dedup only the surface form (without contexts).
+            // The following code groups suggestions matching different contexts by document id and dedup the surface form + contexts
+            // if needed (skip_duplicates).
+            int size = entries.scoreDocs.length;
+            final List<TopSuggestDocs.SuggestScoreDoc> suggestDocs = new ArrayList(size);
+            final CharArraySet seenSurfaceForms = doSkipDuplicates() ? new CharArraySet(size, false) : null;
+            for (TopSuggestDocs.SuggestScoreDoc suggestEntry : entries.scoreLookupDocs()) {
+                final SuggestDoc suggestDoc;
+                if (docsMap != null) {
+                    suggestDoc = docsMap.get(suggestEntry.doc);
+                } else {
+                    suggestDoc = new SuggestDoc(suggestEntry.doc, suggestEntry.key, suggestEntry.context, suggestEntry.score);
+                }
+                if (doSkipDuplicates()) {
+                    if (seenSurfaceForms.contains(suggestDoc.key)) {
+                        continue;
+                    }
+                    seenSurfaceForms.add(suggestDoc.key);
+                }
+                suggestDocs.add(suggestDoc);
+            }
+            return new TopSuggestDocs((int) entries.totalHits,
+                suggestDocs.toArray(new TopSuggestDocs.SuggestScoreDoc[0]), entries.getMaxScore());
         }
     }
 }

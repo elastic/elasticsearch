@@ -156,17 +156,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         if (shardRoutingTable == null) {
             return null;
         }
-        for (ShardRouting shardRouting : shardRoutingTable.assignedShards()) {
-            if (shardRouting.allocationId().getId().equals(allocationId)) {
-                return shardRouting;
-            }
-            if (shardRouting.relocating()) {
-                if (shardRouting.getTargetRelocatingShard().allocationId().getId().equals(allocationId)) {
-                    return shardRouting.getTargetRelocatingShard();
-                }
-            }
-        }
-        return null;
+        return shardRoutingTable.getByAllocationId(allocationId);
     }
 
 

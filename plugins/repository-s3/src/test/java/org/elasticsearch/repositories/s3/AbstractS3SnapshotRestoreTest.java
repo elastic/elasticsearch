@@ -452,7 +452,7 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
                 //we can do at most 1K objects per delete
                 //We don't know the bucket name until first object listing
                 DeleteObjectsRequest multiObjectDeleteRequest = null;
-                ArrayList<DeleteObjectsRequest.KeyVersion> keys = new ArrayList<DeleteObjectsRequest.KeyVersion>();
+                ArrayList<DeleteObjectsRequest.KeyVersion> keys = new ArrayList<>();
                 while (true) {
                     ObjectListing list;
                     if (prevListing != null) {

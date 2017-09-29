@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -110,6 +110,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.INDEX_WARMER_ENABLED_SETTING,
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
         IndexSettings.MAX_RESULT_WINDOW_SETTING,
+        IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING,
+        IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
+        IndexSettings.MAX_SCRIPT_FIELDS_SETTING,
         IndexSettings.MAX_RESCORE_WINDOW_SETTING,
         IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
         IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
@@ -138,7 +141,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
-        MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING,
         BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
         IndexModule.INDEX_STORE_TYPE_SETTING,
         IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
@@ -197,6 +199,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case MergePolicyConfig.INDEX_MERGE_ENABLED:
             case IndexMetaData.INDEX_SHRINK_SOURCE_UUID_KEY:
             case IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY:
+            case IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY:
+                // this was settable in 5.x but not anymore in 6.x so we have to preserve the value ie. make it read-only
+                // this can be removed in later versions
                 return true;
             default:
                 return IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);

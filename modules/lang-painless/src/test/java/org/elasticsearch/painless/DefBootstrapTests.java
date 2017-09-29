@@ -119,7 +119,7 @@ public class DefBootstrapTests extends ESTestCase {
         assertEquals(3, (int)handle.invokeExact((Object) Arrays.asList("x", "y", "z")));
         assertEquals(2, (int)handle.invokeExact((Object) Arrays.asList("u", "v")));
         
-        final HashMap<String,String> map = new HashMap<String,String>();
+        final HashMap<String,String> map = new HashMap<>();
         map.put("x", "y");
         map.put("a", "b");
         assertEquals(2, (int)handle.invokeExact((Object) map));

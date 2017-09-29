@@ -24,12 +24,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ import java.util.Objects;
  * @see GetRequest
  * @see org.elasticsearch.client.Client#get(GetRequest)
  */
-public class GetResponse extends ActionResponse implements Iterable<GetField>, ToXContentObject {
+public class GetResponse extends ActionResponse implements Iterable<DocumentField>, ToXContentObject {
 
     GetResult getResult;
 
@@ -138,11 +138,11 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
         return getResult.getSource();
     }
 
-    public Map<String, GetField> getFields() {
+    public Map<String, DocumentField> getFields() {
         return getResult.getFields();
     }
 
-    public GetField getField(String name) {
+    public DocumentField getField(String name) {
         return getResult.field(name);
     }
 
@@ -151,7 +151,7 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
      */
     @Deprecated
     @Override
-    public Iterator<GetField> iterator() {
+    public Iterator<DocumentField> iterator() {
         return getResult.iterator();
     }
 

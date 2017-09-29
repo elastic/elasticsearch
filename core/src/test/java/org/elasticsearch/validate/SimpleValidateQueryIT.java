@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(randomDynamicTemplates = false, scope = Scope.SUITE)
+@ClusterScope(scope = Scope.SUITE)
 public class SimpleValidateQueryIT extends ESIntegTestCase {
     public void testSimpleValidateQuery() throws Exception {
         createIndex("test");
@@ -111,7 +111,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                     .execute().actionGet();
             assertThat(response.isValid(), equalTo(true));
             assertThat(response.getQueryExplanation().size(), equalTo(1));
-            assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("(foo:foo | baz:foo)"));
+            assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("(MatchNoDocsQuery(\"failed [bar] query, caused by number_format_exception:[For input string: \"foo\"]\") | foo:foo | baz:foo)"));
             assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
         }
     }
@@ -215,7 +215,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     public void testExplainWithRewriteValidateQuery() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field", "type=text,analyzer=whitespace")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)).get();
         client().prepareIndex("test", "type1", "1").setSource("field", "quick lazy huge brown pidgin").get();
         client().prepareIndex("test", "type1", "2").setSource("field", "the quick brown fox").get();
         client().prepareIndex("test", "type1", "3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
@@ -258,7 +258,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     public void testExplainWithRewriteValidateQueryAllShards() throws Exception {
         client().admin().indices().prepareCreate("test")
             .addMapping("type1", "field", "type=text,analyzer=whitespace")
-            .setSettings(SETTING_NUMBER_OF_SHARDS, 2).get();
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2)).get();
         // We are relying on specific routing behaviors for the result to be right, so
         // we cannot randomize the number of shards or change ids here.
         client().prepareIndex("test", "type1", "1")

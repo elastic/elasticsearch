@@ -98,7 +98,6 @@ The following parameters are accepted by `keyword` fields:
 
 <<normalizer,`normalizer`>>::
 
-    experimental[]
     How to pre-process the keyword prior to indexing. Defaults to `null`,
     meaning the keyword is kept as-is.
 

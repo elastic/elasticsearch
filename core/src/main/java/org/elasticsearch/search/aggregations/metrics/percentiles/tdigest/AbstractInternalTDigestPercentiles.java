@@ -37,7 +37,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
     protected final double[] keys;
     protected final TDigestState state;
-    private final boolean keyed;
+    final boolean keyed;
 
     AbstractInternalTDigestPercentiles(String name, double[] keys, TDigestState state, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators,
@@ -74,6 +74,10 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     }
 
     public abstract double value(double key);
+
+    DocValueFormat formatter() {
+        return format;
+    }
 
     public long getEstimatedMemoryFootprint() {
         return state.byteSize();

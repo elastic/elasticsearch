@@ -2,9 +2,9 @@
 "Stored Template validate tests":
 
   - do:
-      put_template:
+      put_script:
         id: "1"
-        body: { "template": { "query": { "match": { "text": "{{my_value}}" } }, "aggs": { "my_terms": { "terms": { "field": "{{my_field}}" } } } } }
+        body: { "script": { "lang": "mustache", "source": { "query": { "match": { "text": "{{my_value}}" } }, "aggs": { "my_terms": { "terms": { "field": "{{my_field}}" } } } } } }
   - match: { acknowledged: true }
 
   - do:
@@ -54,9 +54,9 @@
 "Escaped Stored Template validate tests":
 
   - do:
-      put_template:
+      put_script:
         id: "1"
-        body: { "template": "{ \"query\": { \"match\": { \"text\": \"{{my_value}}\" } }, \"size\": {{my_size}} }" }
+        body: { "script": { "lang" : "mustache", "source" : "{ \"query\": { \"match\": { \"text\": \"{{my_value}}\" } }, \"size\": {{my_size}} }" } }
   - match: { acknowledged: true }
 
   - do:
@@ -122,9 +122,9 @@
       indices.refresh: {}
 
   - do:
-      put_template:
+      put_script:
         id: "1"
-        body: { "template": { "query": { "match" : { "text": "{{my_value}}" } }, "size": "{{my_size}}" } }
+        body: { "script": { "lang": "mustache", "source": { "query": { "match" : { "text": "{{my_value}}" } }, "size": "{{my_size}}" } } }
   - match: { acknowledged: true }
 
   - do:

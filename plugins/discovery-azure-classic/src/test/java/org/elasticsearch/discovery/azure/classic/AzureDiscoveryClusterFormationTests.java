@@ -37,7 +37,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.TcpTransport;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -108,7 +108,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), AzureDiscoveryPlugin.AZURE)
             .put(Environment.PATH_LOGS_SETTING.getKey(), resolve)
-            .put(TransportSettings.PORT.getKey(), 0)
+            .put(TcpTransport.PORT.getKey(), 0)
             .put(Node.WRITE_PORTS_FILE_SETTING.getKey(), "true")
             .put(AzureComputeService.Management.ENDPOINT_SETTING.getKey(), "https://" + InetAddress.getLoopbackAddress().getHostAddress() +
                 ":" + httpsServer.getAddress().getPort())

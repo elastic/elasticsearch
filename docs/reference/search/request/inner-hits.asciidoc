@@ -158,8 +158,10 @@ An example of a response snippet that could be generated from the above search r
                   },
                   "_score": 1.0,
                   "_source": {
-                    "author": "nik9000",
-                    "number": 2
+                    "comments" : {
+                      "author": "nik9000",
+                      "number": 2
+                    }
                   }
                 }
               ]
@@ -190,7 +192,7 @@ So in the above example only the comment part is returned per nested hit and not
 document that contained the comment.
 
 [[nested-inner-hits-source]]
-==== Nested inner hits and _source
+==== Nested inner hits and +_source+
 
 Nested document don't have a `_source` field, because the entire source of document is stored with the root document under
 its `_source` field. To include the source of just the nested document, the source of the root document is parsed and just
@@ -404,8 +406,12 @@ Which would look like:
                   },
                   "_score": 0.6931472,
                   "_source": {
-                    "value": 1,
-                    "voter": "kimchy"
+                    "comments": {
+                      "votes": {
+                        "value": 1,
+                        "voter": "kimchy"
+                      }
+                    }
                   }
                 }
               ]
@@ -498,11 +504,6 @@ An example of a response snippet that could be generated from the above search r
                     "number": 1,
                     "my_join_field": "my_parent"
                 },
-                "fields": {
-                    "my_join_field": [
-                        "my_parent"
-                    ]
-                },
                 "inner_hits": {
                     "my_child": {
                         "hits": {
@@ -520,14 +521,6 @@ An example of a response snippet that could be generated from the above search r
                                             "name": "my_child",
                                             "parent": "1"
                                         }
-                                    },
-                                    "fields": {
-                                        "my_join_field": [
-                                            "my_child"
-                                        ],
-                                        "my_join_field#my_parent": [
-                                            "1"
-                                        ]
                                     }
                                 }
                             ]

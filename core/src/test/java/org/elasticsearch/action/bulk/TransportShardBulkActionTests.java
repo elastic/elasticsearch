@@ -20,6 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -30,14 +31,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.elasticsearch.action.support.replication.TransportWriteAction.WritePrimaryResult;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -59,9 +58,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.action.bulk.TransportShardBulkAction.replicaItemExecutionMode;
-import static org.junit.Assert.assertNotNull;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.any;
@@ -204,6 +204,56 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         // Assert that the document count is still 1
         assertDocCount(shard, 1);
+        closeShards(shard);
+    }
+
+    public void testSkipBulkIndexRequestIfAborted() throws Exception {
+        IndexShard shard = newStartedShard(true);
+
+        BulkItemRequest[] items = new BulkItemRequest[randomIntBetween(2, 5)];
+        for (int i = 0; i < items.length; i++) {
+            DocWriteRequest writeRequest = new IndexRequest("index", "type", "id_" + i)
+                .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar-" + i)
+                .opType(DocWriteRequest.OpType.INDEX);
+            items[i] = new BulkItemRequest(i, writeRequest);
+        }
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        // Preemptively abort one of the bulk items, but allow the others to proceed
+        BulkItemRequest rejectItem = randomFrom(items);
+        RestStatus rejectionStatus = randomFrom(RestStatus.BAD_REQUEST, RestStatus.CONFLICT, RestStatus.FORBIDDEN, RestStatus.LOCKED);
+        final ElasticsearchStatusException rejectionCause = new ElasticsearchStatusException("testing rejection", rejectionStatus);
+        rejectItem.abort("index", rejectionCause);
+
+        UpdateHelper updateHelper = null;
+        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer());
+
+        // since at least 1 item passed, the tran log location should exist,
+        assertThat(result.location, notNullValue());
+        // and the response should exist and match the item count
+        assertThat(result.finalResponseIfSuccessful, notNullValue());
+        assertThat(result.finalResponseIfSuccessful.getResponses(), arrayWithSize(items.length));
+
+        // check each response matches the input item, including the rejection
+        for (int i = 0; i < items.length; i++) {
+            BulkItemResponse response = result.finalResponseIfSuccessful.getResponses()[i];
+            assertThat(response.getItemId(), equalTo(i));
+            assertThat(response.getIndex(), equalTo("index"));
+            assertThat(response.getType(), equalTo("type"));
+            assertThat(response.getId(), equalTo("id_" + i));
+            assertThat(response.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+            if (response.getItemId() == rejectItem.id()) {
+                assertTrue(response.isFailed());
+                assertThat(response.getFailure().getCause(), equalTo(rejectionCause));
+                assertThat(response.status(), equalTo(rejectionStatus));
+            } else {
+                assertFalse(response.isFailed());
+            }
+        }
+
+        // Check that the non-rejected updates made it to the shard
+        assertDocCount(shard, items.length - 1);
         closeShards(shard);
     }
 
@@ -521,8 +571,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Translog.Location newLocation = new Translog.Location(1, 1, 1);
         final long version = randomNonNegativeLong();
         final long seqNo = randomNonNegativeLong();
-        final long primaryTerm = randomIntBetween(1, 16);
-        Engine.IndexResult indexResult = new IndexResultWithLocation(version, seqNo, primaryTerm, created, newLocation);
+        Engine.IndexResult indexResult = new IndexResultWithLocation(version, seqNo, created, newLocation);
         results = new BulkItemResultHolder(indexResponse, indexResult, replicaRequest);
         assertThat(TransportShardBulkAction.calculateTranslogLocation(original, results),
                 equalTo(newLocation));
@@ -550,9 +599,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         itemRequests[0] = itemRequest;
         BulkShardRequest bulkShardRequest = new BulkShardRequest(
                 shard.shardId(), RefreshPolicy.NONE, itemRequests);
-        bulkShardRequest.primaryTerm(randomIntBetween(1, (int) shard.getPrimaryTerm()));
         TransportShardBulkAction.performOnReplica(bulkShardRequest, shard);
-        verify(shard, times(1)).markSeqNoAsNoop(1, bulkShardRequest.primaryTerm(), exception.toString());
+        verify(shard, times(1)).markSeqNoAsNoop(1, exception.toString());
         closeShards(shard);
     }
 
@@ -616,7 +664,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     public class IndexResultWithLocation extends Engine.IndexResult {
         private final Translog.Location location;
-        public IndexResultWithLocation(long version, long seqNo, long primaryTerm, boolean created, Translog.Location newLocation) {
+        public IndexResultWithLocation(long version, long seqNo, boolean created, Translog.Location newLocation) {
             super(version, seqNo, created);
             this.location = newLocation;
         }
@@ -628,7 +676,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testProcessUpdateResponse() throws Exception {
-        IndexMetaData metaData = indexMetaData();
         IndexShard shard = newStartedShard(false);
 
         UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");

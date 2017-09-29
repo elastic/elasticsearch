@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Supplier;
@@ -56,7 +57,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         return new TreeSet<>(Arrays.asList(values));
     }
 
-    void assertFieldNames(SortedSet<String> expected, ParsedDocument doc) {
+    void assertFieldNames(Set<String> expected, ParsedDocument doc) {
         String[] got = doc.rootDoc().getValues("_field_names");
         assertEquals(expected, set(got));
     }
@@ -118,6 +119,26 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
 
         assertFieldNames(set("field", "field.keyword", "_id", "_version", "_seq_no", "_primary_term", "_source"), doc);
+    }
+
+    public void testDedup() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_field_names").field("enabled", true).endObject()
+            .endObject().endObject().string();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
+        assertTrue(fieldNamesMapper.fieldType().isEnabled());
+
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+            .startObject()
+            .field("field", 3) // will create 2 lucene fields under the hood: index and doc values
+            .endObject()
+            .bytes(),
+            XContentType.JSON));
+
+        Set<String> fields = set("field", "_id", "_version", "_seq_no", "_primary_term", "_source");
+        assertFieldNames(fields, doc);
+        assertEquals(fields.size(), doc.rootDoc().getValues("_field_names").length);
     }
 
     public void testDisabled() throws Exception {
@@ -239,7 +260,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         );
         final MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         Supplier<QueryShardContext> queryShardContext = () -> {
-            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
+            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         MapperService mapperService = new MapperService(indexService.getIndexSettings(), indexService.getIndexAnalyzers(),
                 indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext);

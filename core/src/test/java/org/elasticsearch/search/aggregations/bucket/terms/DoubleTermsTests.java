@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +68,94 @@ public class DoubleTermsTests extends InternalTermsTestCase {
     @Override
     protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
         return ParsedDoubleTerms.class;
+    }
+
+    @Override
+    protected InternalTerms<?, ?> mutateInstance(InternalTerms<?, ?> instance) {
+        if (instance instanceof DoubleTerms) {
+            DoubleTerms doubleTerms = (DoubleTerms) instance;
+            String name = doubleTerms.getName();
+            BucketOrder order = doubleTerms.order;
+            int requiredSize = doubleTerms.requiredSize;
+            long minDocCount = doubleTerms.minDocCount;
+            DocValueFormat format = doubleTerms.format;
+            int shardSize = doubleTerms.getShardSize();
+            boolean showTermDocCountError = doubleTerms.showTermDocCountError;
+            long otherDocCount = doubleTerms.getSumOfOtherDocCounts();
+            List<DoubleTerms.Bucket> buckets = doubleTerms.getBuckets();
+            long docCountError = doubleTerms.getDocCountError();
+            List<PipelineAggregator> pipelineAggregators = doubleTerms.pipelineAggregators();
+            Map<String, Object> metaData = doubleTerms.getMetaData();
+            switch (between(0, 8)) {
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                requiredSize += between(1, 100);
+                break;
+            case 2:
+                minDocCount += between(1, 100);
+                break;
+            case 3:
+                shardSize += between(1, 100);
+                break;
+            case 4:
+                showTermDocCountError = showTermDocCountError == false;
+                break;
+            case 5:
+                otherDocCount += between(1, 100);
+                break;
+            case 6:
+                docCountError += between(1, 100);
+                break;
+            case 7:
+                buckets = new ArrayList<>(buckets);
+                buckets.add(new DoubleTerms.Bucket(randomDouble(), randomNonNegativeLong(), InternalAggregations.EMPTY,
+                        showTermDocCountError, docCountError, format));
+                break;
+            case 8:
+                if (metaData == null) {
+                    metaData = new HashMap<>(1);
+                } else {
+                    metaData = new HashMap<>(instance.getMetaData());
+                }
+                metaData.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+            }
+            return new DoubleTerms(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format, shardSize,
+                    showTermDocCountError, otherDocCount, buckets, docCountError);
+        } else {
+            String name = instance.getName();
+            BucketOrder order = instance.order;
+            int requiredSize = instance.requiredSize;
+            long minDocCount = instance.minDocCount;
+            List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+            Map<String, Object> metaData = instance.getMetaData();
+            switch (between(0, 3)) {
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                requiredSize += between(1, 100);
+                break;
+            case 2:
+                minDocCount += between(1, 100);
+                break;
+            case 3:
+                if (metaData == null) {
+                    metaData = new HashMap<>(1);
+                } else {
+                    metaData = new HashMap<>(instance.getMetaData());
+                }
+                metaData.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+            }
+            return new UnmappedTerms(name, order, requiredSize, minDocCount, pipelineAggregators, metaData);
+        }
     }
 
 }

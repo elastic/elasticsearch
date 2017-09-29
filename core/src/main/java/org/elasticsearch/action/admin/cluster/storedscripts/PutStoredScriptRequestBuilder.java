@@ -43,9 +43,4 @@ public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<Pu
         request.content(source, xContentType);
         return this;
     }
-
-    public PutStoredScriptRequestBuilder setLang(String lang) {
-        request.lang(lang);
-        return this;
-    }
 }

@@ -43,8 +43,13 @@ import java.util.function.UnaryOperator;
 
 
 /**
- * Script level doc values, the assumption is that any implementation will implement a <code>getValue</code>
- * and a <code>getValues</code> that return the relevant type that then can be used in scripts.
+ * Script level doc values, the assumption is that any implementation will
+ * implement a <code>getValue</code> and a <code>getValues</code> that return
+ * the relevant type that then can be used in scripts.
+ * 
+ * Implementations should not internally re-use objects for the values that they
+ * return as a single {@link ScriptDocValues} instance can be reused to return
+ * values form multiple documents.
  */
 public abstract class ScriptDocValues<T> extends AbstractList<T> {
     /**
@@ -199,7 +204,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          */
         @Deprecated
         public ReadableDateTime getDate() {
-            deprecationLogger.deprecated("getDate is no longer necisary on date fields as the value is now a date.");
+            deprecationLogger.deprecated("getDate is no longer necessary on date fields as the value is now a date.");
             return getValue();
         }
 
@@ -208,7 +213,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          */
         @Deprecated
         public List<ReadableDateTime> getDates() {
-            deprecationLogger.deprecated("getDates is no longer necisary on date fields as the values are now dates.");
+            deprecationLogger.deprecated("getDates is no longer necessary on date fields as the values are now dates.");
             return this;
         }
 
@@ -266,7 +271,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 return;
             }
             for (int i = 0; i < count; i++) {
-                dates[i].setMillis(in.nextValue());
+                dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
             }
         }
     }
@@ -340,7 +345,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
                     GeoPoint point = in.nextValue();
-                    values[i].reset(point.lat(), point.lon());
+                    values[i] = new GeoPoint(point.lat(), point.lon());
                 }
             } else {
                 resize(0);

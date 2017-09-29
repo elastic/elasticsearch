@@ -52,7 +52,7 @@ public class TestZenDiscovery extends ZenDiscovery {
 
     /** A plugin which installs mock discovery and configures it to be used. */
     public static class TestPlugin extends Plugin implements DiscoveryPlugin {
-        private Settings settings;
+        protected final Settings settings;
         public TestPlugin(Settings settings) {
             this.settings = settings;
         }
@@ -83,7 +83,7 @@ public class TestZenDiscovery extends ZenDiscovery {
                              ClusterApplier clusterApplier, ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider,
                              AllocationService allocationService) {
         super(settings, threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier, clusterSettings,
-            hostsProvider, allocationService);
+            hostsProvider, allocationService, Collections.emptyList());
     }
 
     @Override

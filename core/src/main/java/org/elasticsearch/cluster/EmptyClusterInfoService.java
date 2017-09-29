@@ -36,9 +36,4 @@ public class EmptyClusterInfoService extends AbstractComponent implements Cluste
     public ClusterInfo getClusterInfo() {
         return ClusterInfo.EMPTY;
     }
-
-    @Override
-    public void addListener(Listener listener) {
-        // no-op, no new info is ever gathered, so adding listeners is useless
-    }
 }

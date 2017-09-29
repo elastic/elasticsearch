@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.transport;
 
+import com.carrotsearch.randomizedtesting.SysGlobals;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -49,13 +51,13 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.RequestHandlerRegistry;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
@@ -88,6 +90,7 @@ import java.util.function.Function;
 public final class MockTransportService extends TransportService {
 
     private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
+    private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -97,10 +100,16 @@ public final class MockTransportService extends TransportService {
     }
 
     public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool,
-            @Nullable ClusterSettings clusterSettings) {
+                                                        @Nullable ClusterSettings clusterSettings) {
+        // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
+        // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
+        // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
+        // a different default port range per JVM unless the incoming settings override it
+        int basePort = 10300 + (JVM_ORDINAL * 100); // use a non-default port otherwise some cluster in this JVM might reuse a port
+        settings = Settings.builder().put(TcpTransport.PORT.getKey(), basePort + "-" + (basePort + 100)).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         final Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-                new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version);
+            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version);
         return createNewService(settings, transport, version, threadPool, clusterSettings);
     }
 
@@ -108,8 +117,8 @@ public final class MockTransportService extends TransportService {
                                                         @Nullable ClusterSettings clusterSettings) {
         return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress ->
-            new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), UUIDs.randomBase64UUID(), boundAddress.publishAddress(),
-                Node.NODE_ATTRIBUTES.get(settings).getAsMap(), DiscoveryNode.getRolesFromSettings(settings), version),
+                new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), UUIDs.randomBase64UUID(), boundAddress.publishAddress(),
+                    Node.NODE_ATTRIBUTES.get(settings).getAsMap(), DiscoveryNode.getRolesFromSettings(settings), version),
             clusterSettings);
     }
 
@@ -118,11 +127,11 @@ public final class MockTransportService extends TransportService {
     /**
      * Build the service.
      *
-     * @param clusterSettings if non null the the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
-     *        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
+     * @param clusterSettings if non null the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
+     *                        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
      */
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
-            @Nullable ClusterSettings clusterSettings) {
+                                @Nullable ClusterSettings clusterSettings) {
         this(settings, transport, threadPool, interceptor, (boundAddress) ->
             DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), settings.get(Node.NODE_NAME_SETTING.getKey(),
                 UUIDs.randomBase64UUID())), clusterSettings);
@@ -131,8 +140,8 @@ public final class MockTransportService extends TransportService {
     /**
      * Build the service.
      *
-     * @param clusterSettings if non null the the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
-     *        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
+     * @param clusterSettings if non null the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
+     *                        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
      */
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
                                 Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
@@ -153,7 +162,7 @@ public final class MockTransportService extends TransportService {
     protected TaskManager createTaskManager() {
         if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
             return new MockTaskManager(settings);
-         } else {
+        } else {
             return super.createTaskManager();
         }
     }
@@ -337,7 +346,7 @@ public final class MockTransportService extends TransportService {
         final long startTime = System.currentTimeMillis();
 
         addDelegate(transportAddress, new ClearableTransport(original) {
-            private final Queue<Runnable> requestsToSendWhenCleared = new LinkedBlockingDeque<Runnable>();
+            private final Queue<Runnable> requestsToSendWhenCleared = new LinkedBlockingDeque<>();
             private boolean cleared = false;
 
             TimeValue getDelay() {
@@ -359,7 +368,7 @@ public final class MockTransportService extends TransportService {
                 }
 
                 // TODO: Replace with proper setting
-                TimeValue connectingTimeout = NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
+                TimeValue connectingTimeout = TcpTransport.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
                 try {
                     if (delay.millis() < connectingTimeout.millis()) {
                         Thread.sleep(delay.millis());
@@ -381,7 +390,7 @@ public final class MockTransportService extends TransportService {
                 }
 
                 // TODO: Replace with proper setting
-                TimeValue connectingTimeout = NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
+                TimeValue connectingTimeout = TcpTransport.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
                 try {
                     if (delay.millis() < connectingTimeout.millis()) {
                         Thread.sleep(delay.millis());
@@ -409,8 +418,7 @@ public final class MockTransportService extends TransportService {
                 RequestHandlerRegistry reg = MockTransportService.this.getRequestHandler(action);
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 request.writeTo(bStream);
-                final TransportRequest clonedRequest = reg.newRequest();
-                clonedRequest.readFrom(bStream.bytes().streamInput());
+                final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
 
                 Runnable runnable = new AbstractRunnable() {
                     AtomicBoolean requestSent = new AtomicBoolean();
@@ -538,8 +546,8 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public void transportServiceAdapter(TransportServiceAdapter service) {
-            transport.transportServiceAdapter(service);
+        public void setTransportService(TransportService service) {
+            transport.setTransportService(service);
         }
 
         @Override
@@ -632,7 +640,9 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public void close() { transport.close(); }
+        public void close() {
+            transport.close();
+        }
 
         @Override
         public Map<String, BoundTransportAddress> profileBoundAddresses() {
@@ -695,55 +705,47 @@ public final class MockTransportService extends TransportService {
     }
 
     @Override
-    protected Adapter createAdapter() {
-        return new MockAdapter();
+    protected boolean traceEnabled() {
+        return super.traceEnabled() || activeTracers.isEmpty() == false;
     }
 
-    class MockAdapter extends Adapter {
-
-        @Override
-        protected boolean traceEnabled() {
-            return super.traceEnabled() || activeTracers.isEmpty() == false;
+    @Override
+    protected void traceReceivedRequest(long requestId, String action) {
+        super.traceReceivedRequest(requestId, action);
+        for (Tracer tracer : activeTracers) {
+            tracer.receivedRequest(requestId, action);
         }
+    }
 
-        @Override
-        protected void traceReceivedRequest(long requestId, String action) {
-            super.traceReceivedRequest(requestId, action);
-            for (Tracer tracer : activeTracers) {
-                tracer.receivedRequest(requestId, action);
-            }
+    @Override
+    protected void traceResponseSent(long requestId, String action) {
+        super.traceResponseSent(requestId, action);
+        for (Tracer tracer : activeTracers) {
+            tracer.responseSent(requestId, action);
         }
+    }
 
-        @Override
-        protected void traceResponseSent(long requestId, String action) {
-            super.traceResponseSent(requestId, action);
-            for (Tracer tracer : activeTracers) {
-                tracer.responseSent(requestId, action);
-            }
+    @Override
+    protected void traceResponseSent(long requestId, String action, Exception e) {
+        super.traceResponseSent(requestId, action, e);
+        for (Tracer tracer : activeTracers) {
+            tracer.responseSent(requestId, action, e);
         }
+    }
 
-        @Override
-        protected void traceResponseSent(long requestId, String action, Exception e) {
-            super.traceResponseSent(requestId, action, e);
-            for (Tracer tracer : activeTracers) {
-                tracer.responseSent(requestId, action, e);
-            }
+    @Override
+    protected void traceReceivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
+        super.traceReceivedResponse(requestId, sourceNode, action);
+        for (Tracer tracer : activeTracers) {
+            tracer.receivedResponse(requestId, sourceNode, action);
         }
+    }
 
-        @Override
-        protected void traceReceivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
-            super.traceReceivedResponse(requestId, sourceNode, action);
-            for (Tracer tracer : activeTracers) {
-                tracer.receivedResponse(requestId, sourceNode, action);
-            }
-        }
-
-        @Override
-        protected void traceRequestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
-            super.traceRequestSent(node, requestId, action, options);
-            for (Tracer tracer : activeTracers) {
-                tracer.requestSent(node, requestId, action, options);
-            }
+    @Override
+    protected void traceRequestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
+        super.traceRequestSent(node, requestId, action, options);
+        for (Tracer tracer : activeTracers) {
+            tracer.requestSent(node, requestId, action, options);
         }
     }
 
@@ -793,6 +795,7 @@ public final class MockTransportService extends TransportService {
     public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
         FilteredConnection filteredConnection = new FilteredConnection(super.openConnection(node, profile)) {
             final AtomicBoolean closed = new AtomicBoolean(false);
+
             @Override
             public void close() throws IOException {
                 try {

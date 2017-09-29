@@ -1,0 +1,10 @@
+[[breaking_70_mappings_changes]]
+=== Mapping changes
+
+==== The `_all` meta field is removed
+
+The `_all` field deprecated in 6 have now been removed.
+
+==== `index_options` for numeric fields has been removed
+
+The `index_options` field for numeric  fields has been deprecated in 6 and has now been removed.

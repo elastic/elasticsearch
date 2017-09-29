@@ -156,8 +156,6 @@ import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesIndexAction;
-import org.elasticsearch.action.fieldstats.FieldStatsAction;
-import org.elasticsearch.action.fieldstats.TransportFieldStatsAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -213,7 +211,6 @@ import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
-import org.elasticsearch.rest.action.RestFieldStatsAction;
 import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCancelTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
@@ -318,6 +315,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -344,7 +342,7 @@ public class ActionModule extends AbstractModule {
     private final SettingsFilter settingsFilter;
     private final List<ActionPlugin> actionPlugins;
     private final Map<String, ActionHandler<?, ?>> actions;
-    private final List<Class<? extends ActionFilter>> actionFilters;
+    private final ActionFilters actionFilters;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
@@ -493,7 +491,6 @@ public class ActionModule extends AbstractModule {
         actions.register(GetStoredScriptAction.INSTANCE, TransportGetStoredScriptAction.class);
         actions.register(DeleteStoredScriptAction.INSTANCE, TransportDeleteStoredScriptAction.class);
 
-        actions.register(FieldStatsAction.INSTANCE, TransportFieldStatsAction.class);
         actions.register(FieldCapabilitiesAction.INSTANCE, TransportFieldCapabilitiesAction.class,
             TransportFieldCapabilitiesIndexAction.class);
 
@@ -507,8 +504,9 @@ public class ActionModule extends AbstractModule {
         return unmodifiableMap(actions.getRegistry());
     }
 
-    private List<Class<? extends ActionFilter>> setupActionFilters(List<ActionPlugin> actionPlugins) {
-        return unmodifiableList(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toList()));
+    private ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
+        return new ActionFilters(
+            Collections.unmodifiableSet(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet())));
     }
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
@@ -607,7 +605,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutStoredScriptAction(settings, restController));
         registerHandler.accept(new RestDeleteStoredScriptAction(settings, restController));
 
-        registerHandler.accept(new RestFieldStatsAction(settings, restController));
         registerHandler.accept(new RestFieldCapabilitiesAction(settings, restController));
 
         // Tasks API
@@ -654,11 +651,7 @@ public class ActionModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        Multibinder<ActionFilter> actionFilterMultibinder = Multibinder.newSetBinder(binder(), ActionFilter.class);
-        for (Class<? extends ActionFilter> actionFilter : actionFilters) {
-            actionFilterMultibinder.addBinding().to(actionFilter);
-        }
-        bind(ActionFilters.class).asEagerSingleton();
+        bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
 
         if (false == transportClient) {
@@ -679,6 +672,10 @@ public class ActionModule extends AbstractModule {
                 }
             }
         }
+    }
+
+    public ActionFilters getActionFilters() {
+        return actionFilters;
     }
 
     public RestController getRestController() {

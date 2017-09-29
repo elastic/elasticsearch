@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuilder> {
 

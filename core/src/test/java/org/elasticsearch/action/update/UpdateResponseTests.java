@@ -26,10 +26,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.get.GetResultTests;
 import org.elasticsearch.index.shard.ShardId;
@@ -68,9 +68,9 @@ public class UpdateResponseTests extends ESTestCase {
         }
         {
             BytesReference source = new BytesArray("{\"title\":\"Book title\",\"isbn\":\"ABC-123\"}");
-            Map<String, GetField> fields = new HashMap<>();
-            fields.put("title", new GetField("title", Collections.singletonList("Book title")));
-            fields.put("isbn", new GetField("isbn", Collections.singletonList("ABC-123")));
+            Map<String, DocumentField> fields = new HashMap<>();
+            fields.put("title", new DocumentField("title", Collections.singletonList("Book title")));
+            fields.put("isbn", new DocumentField("isbn", Collections.singletonList("ABC-123")));
 
             UpdateResponse updateResponse = new UpdateResponse(new ReplicationResponse.ShardInfo(3, 2),
                     new ShardId("books", "books_uuid", 2), "book", "1", 7, 17, 2, UPDATED);

@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -329,9 +330,9 @@ public final class SearchPhaseController extends AbstractComponent {
                         }
                         FetchSearchResult fetchResult = searchResultProvider.fetchResult();
                         final int index = fetchResult.counterGetAndIncrement();
-                        assert index < fetchResult.hits().internalHits().length : "not enough hits fetched. index [" + index + "] length: "
-                            + fetchResult.hits().internalHits().length;
-                        SearchHit hit = fetchResult.hits().internalHits()[index];
+                        assert index < fetchResult.hits().getHits().length : "not enough hits fetched. index [" + index + "] length: "
+                            + fetchResult.hits().getHits().length;
+                        SearchHit hit = fetchResult.hits().getHits()[index];
                         CompletionSuggestion.Entry.Option suggestOption =
                             suggestionOptions.get(scoreDocIndex - currentOffset);
                         hit.score(shardDoc.score);
@@ -381,9 +382,9 @@ public final class SearchPhaseController extends AbstractComponent {
                 }
                 FetchSearchResult fetchResult = fetchResultProvider.fetchResult();
                 final int index = fetchResult.counterGetAndIncrement();
-                assert index < fetchResult.hits().internalHits().length : "not enough hits fetched. index [" + index + "] length: "
-                    + fetchResult.hits().internalHits().length;
-                SearchHit searchHit = fetchResult.hits().internalHits()[index];
+                assert index < fetchResult.hits().getHits().length : "not enough hits fetched. index [" + index + "] length: "
+                    + fetchResult.hits().getHits().length;
+                SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.score(shardDoc.score);
                 searchHit.shard(fetchResult.getSearchShardTarget());
                 if (sorted) {
@@ -606,12 +607,12 @@ public final class SearchPhaseController extends AbstractComponent {
     }
 
     /**
-     * A {@link org.elasticsearch.action.search.InitialSearchPhase.SearchPhaseResults} implementation
+     * A {@link InitialSearchPhase.ArraySearchPhaseResults} implementation
      * that incrementally reduces aggregation results as shard results are consumed.
      * This implementation can be configured to batch up a certain amount of results and only reduce them
      * iff the buffer is exhausted.
      */
-    static final class QueryPhaseResultConsumer extends InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> {
+    static final class QueryPhaseResultConsumer extends InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> {
         private final InternalAggregations[] aggsBuffer;
         private final TopDocs[] topDocsBuffer;
         private final boolean hasAggs;
@@ -713,9 +714,9 @@ public final class SearchPhaseController extends AbstractComponent {
     }
 
     /**
-     * Returns a new SearchPhaseResults instance. This might return an instance that reduces search responses incrementally.
+     * Returns a new ArraySearchPhaseResults instance. This might return an instance that reduces search responses incrementally.
      */
-    InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(SearchRequest request, int numShards) {
+    InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(SearchRequest request, int numShards) {
         SearchSourceBuilder source = request.source();
         boolean isScrollRequest = request.scroll() != null;
         final boolean hasAggs = source != null && source.aggregations() != null;
@@ -729,7 +730,7 @@ public final class SearchPhaseController extends AbstractComponent {
                 return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs);
             }
         }
-        return new InitialSearchPhase.SearchPhaseResults(numShards) {
+        return new InitialSearchPhase.ArraySearchPhaseResults(numShards) {
             @Override
             public ReducedQueryPhase reduce() {
                 return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHits);

@@ -1,7 +1,7 @@
 [[analysis-normalizers]]
 == Normalizers
 
-experimental[]
+beta[]
 
 Normalizers are similar to analyzers except that they may only emit a single
 token. As a consequence, they do not have a tokenizer and only accept a subset

@@ -29,6 +29,9 @@ import java.math.BigInteger;
  */
 public final class Numbers {
 
+    private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
+    private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
+
     private Numbers() {
 
     }
@@ -203,6 +206,33 @@ public final class Numbers {
             throw new IllegalArgumentException("Cannot check whether [" + n + "] of class [" + n.getClass().getName()
                     + "] is actually a long");
         }
+    }
+
+    /** Return the long that {@code stringValue} stores or throws an exception if the
+     *  stored value cannot be converted to a long that stores the exact same
+     *  value and {@code coerce} is false. */
+    public static long toLong(String stringValue, boolean coerce) {
+        try {
+            return Long.parseLong(stringValue);
+        } catch (NumberFormatException e) {
+            // we will try again with BigDecimal
+        }
+
+        final BigInteger bigIntegerValue;
+        try {
+            BigDecimal bigDecimalValue = new BigDecimal(stringValue);
+            bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
+        }
+
+        if (bigIntegerValue.compareTo(MAX_LONG_VALUE) > 0 || bigIntegerValue.compareTo(MIN_LONG_VALUE) < 0) {
+            throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
+        }
+
+        return bigIntegerValue.longValue();
     }
 
     /** Return the int that {@code n} stores, or throws an exception if the

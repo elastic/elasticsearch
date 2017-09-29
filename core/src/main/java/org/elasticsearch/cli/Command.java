@@ -79,10 +79,12 @@ public abstract class Command implements Closeable {
             Runtime.getRuntime().addShutdownHook(shutdownHookThread.get());
         }
 
-        // initialize default for es.logger.level because we will not read the log4j2.properties
-        final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
-        final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
-        LogConfigurator.configureWithoutConfig(settings);
+        if (shouldConfigureLoggingWithoutConfig()) {
+            // initialize default for es.logger.level because we will not read the log4j2.properties
+            final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
+            final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
+            LogConfigurator.configureWithoutConfig(settings);
+        }
 
         try {
             mainWithoutErrorHandling(args, terminal);
@@ -98,6 +100,16 @@ public abstract class Command implements Closeable {
             return e.exitCode;
         }
         return ExitCodes.OK;
+    }
+
+    /**
+     * Indicate whether or not logging should be configured without reading a log4j2.properties. Most commands should do this because we do
+     * not configure logging for CLI tools. Only commands that configure logging on their own should not do this.
+     *
+     * @return true if logging should be configured without reading a log4j2.properties file
+     */
+    protected boolean shouldConfigureLoggingWithoutConfig() {
+        return true;
     }
 
     /**

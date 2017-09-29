@@ -49,7 +49,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
-import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -91,7 +91,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         // be 0
         assertEquals(1, ((BooleanQuery) parsedQuery).getMinimumNumberShouldMatch());
     }
-    
+
     /**
      * Uses the significant terms aggregation to find the keywords in text fields
      */
@@ -102,6 +102,9 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
+        
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             addMixedTextDocs(textFieldType, w);
 
@@ -116,6 +119,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             sigNumAgg.executionHint(randomExecutionHint());
 
             try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 // Search "odd"
@@ -182,6 +186,8 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         final long ODD_VALUE = 3;
         final long EVEN_VALUE = 6;
         final long COMMON_VALUE = 2;
@@ -205,6 +211,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             sigNumAgg.executionHint(randomExecutionHint());
 
             try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 // Search "odd"
@@ -236,6 +243,8 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             addMixedTextDocs(textFieldType, w);
 
@@ -244,6 +253,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             sigAgg.executionHint(randomExecutionHint());
 
             try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 // Search "odd"

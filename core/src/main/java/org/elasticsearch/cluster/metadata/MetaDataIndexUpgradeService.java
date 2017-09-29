@@ -18,13 +18,11 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -35,7 +33,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.plugins.Plugin;
 
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -59,7 +56,6 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     private final IndexScopedSettings indexScopedSettings;
     private final UnaryOperator<IndexMetaData> upgraders;
 
-    @Inject
     public MetaDataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
                                        IndexScopedSettings indexScopedSettings,
                                        Collection<UnaryOperator<IndexMetaData>> indexMetaDataUpgraders) {
@@ -140,8 +136,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             // We cannot instantiate real analysis server at this point because the node might not have
             // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
             IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings);
-            SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
-            final NamedAnalyzer fakeDefault = new NamedAnalyzer("fake_default", AnalyzerScope.INDEX, new Analyzer() {
+            SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
+            final NamedAnalyzer fakeDefault = new NamedAnalyzer("default", AnalyzerScope.INDEX, new Analyzer() {
                 @Override
                 protected TokenStreamComponents createComponents(String fieldName) {
                     throw new UnsupportedOperationException("shouldn't be here");

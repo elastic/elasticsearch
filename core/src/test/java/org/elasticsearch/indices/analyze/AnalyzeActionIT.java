@@ -458,6 +458,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(token.getEndOffset(), equalTo(3));
         assertThat(token.getPosition(), equalTo(0));
         assertThat(token.getPositionLength(), equalTo(1));
-
     }
+
+
 }

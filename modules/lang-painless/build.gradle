@@ -24,6 +24,10 @@ esplugin {
   classname 'org.elasticsearch.painless.PainlessPlugin'
 }
 
+integTestCluster {
+  module project.project(':modules:mapper-extras')
+}
+
 dependencies {
   compile 'org.antlr:antlr4-runtime:4.5.1-1'
   compile 'org.ow2.asm:asm-debug-all:5.1'
@@ -37,14 +41,11 @@ test {
   jvmArg '-XX:-OmitStackTraceInFastThrow'
 }
 
-integTestCluster {
-  setting 'script.max_compilations_per_minute', '1000'
-}
-
 /* Build Javadoc for the Java classes in Painless's public API that are in the
  * Painless plugin */
 task apiJavadoc(type: Javadoc) {
   source = sourceSets.main.allJava
+  classpath = sourceSets.main.runtimeClasspath
   include '**/org/elasticsearch/painless/api/'
   destinationDir = new File(docsDir, 'apiJavadoc')
 }
@@ -58,7 +59,7 @@ assemble.dependsOn apiJavadocJar
 task generatePainlessApi(type: JavaExec) {
   main = 'org.elasticsearch.painless.PainlessDocGenerator'
   classpath = sourceSets.test.runtimeClasspath
-  args file('../../docs/reference/painless-api-reference')
+  args file('../../docs/painless/painless-api-reference')
 }
 
 /**********************************************

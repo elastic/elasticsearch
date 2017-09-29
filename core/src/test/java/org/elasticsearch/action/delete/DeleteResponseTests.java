@@ -26,7 +26,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
@@ -44,7 +44,7 @@ public class DeleteResponseTests extends ESTestCase {
         {
             DeleteResponse response = new DeleteResponse(new ShardId("index", "index_uuid", 0), "type", "id", 3, 17, 5, true);
             String output = Strings.toString(response);
-            assertEquals("{\"found\":true,\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":5,\"result\":\"deleted\"," +
+            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":5,\"result\":\"deleted\"," +
                 "\"_shards\":null,\"_seq_no\":3,\"_primary_term\":17}", output);
         }
         {
@@ -52,7 +52,7 @@ public class DeleteResponseTests extends ESTestCase {
             response.setForcedRefresh(true);
             response.setShardInfo(new ReplicationResponse.ShardInfo(10, 5));
             String output = Strings.toString(response);
-            assertEquals("{\"found\":true,\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":7,\"result\":\"deleted\"," +
+            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":7,\"result\":\"deleted\"," +
                 "\"forced_refresh\":true,\"_shards\":{\"total\":10,\"successful\":5,\"failed\":0}}", output);
         }
     }
@@ -114,8 +114,8 @@ public class DeleteResponseTests extends ESTestCase {
         int shardId = randomIntBetween(0, 5);
         String type = randomAlphaOfLength(5);
         String id = randomAlphaOfLength(5);
-        long seqNo = randomFrom(SequenceNumbersService.UNASSIGNED_SEQ_NO, randomNonNegativeLong(), (long) randomIntBetween(0, 10000));
-        long primaryTerm = seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO ? 0 : randomIntBetween(1, 10000);
+        long seqNo = randomFrom(SequenceNumbers.UNASSIGNED_SEQ_NO, randomNonNegativeLong(), (long) randomIntBetween(0, 10000));
+        long primaryTerm = seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO ? 0 : randomIntBetween(1, 10000);
         long version = randomBoolean() ? randomNonNegativeLong() : randomIntBetween(0, 10000);
         boolean found = randomBoolean();
         boolean forcedRefresh = randomBoolean();

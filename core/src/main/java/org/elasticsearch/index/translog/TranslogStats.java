@@ -19,15 +19,16 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class TranslogStats extends ToXContentToBytes implements Streamable {
+public class TranslogStats implements Streamable, ToXContentFragment {
 
     private long translogSizeInBytes;
     private int numberOfOperations;
@@ -97,10 +98,15 @@ public class TranslogStats extends ToXContentToBytes implements Streamable {
     }
 
     @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         numberOfOperations = in.readVInt();
         translogSizeInBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             uncommittedOperations = in.readVInt();
             uncommittedSizeInBytes = in.readVLong();
         } else {
@@ -113,7 +119,7 @@ public class TranslogStats extends ToXContentToBytes implements Streamable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(numberOfOperations);
         out.writeVLong(translogSizeInBytes);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             out.writeVInt(uncommittedOperations);
             out.writeVLong(uncommittedSizeInBytes);
         }

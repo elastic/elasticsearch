@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +47,10 @@ import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.hasToString;
 
 public class ScopedSettingsTests extends ESTestCase {
 
@@ -253,6 +257,94 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(15, bC.get());
     }
 
+    private static final Setting<Integer> FOO_BAR_LOW_SETTING = new Setting<>(
+            "foo.bar.low",
+            "1",
+            Integer::parseInt,
+            new FooBarLowValidator(),
+            Property.Dynamic,
+            Property.NodeScope);
+
+    private static final Setting<Integer> FOO_BAR_HIGH_SETTING = new Setting<>(
+            "foo.bar.high",
+            "2",
+            Integer::parseInt,
+            new FooBarHighValidator(),
+            Property.Dynamic,
+            Property.NodeScope);
+
+    static class FooBarLowValidator implements Setting.Validator<Integer> {
+        @Override
+        public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
+            final int high = settings.get(FOO_BAR_HIGH_SETTING);
+            if (value > high) {
+                throw new IllegalArgumentException("low [" + value + "] more than high [" + high + "]");
+            }
+        }
+
+        @Override
+        public Iterator<Setting<Integer>> settings() {
+            return Collections.singletonList(FOO_BAR_HIGH_SETTING).iterator();
+        }
+    }
+
+    static class FooBarHighValidator implements Setting.Validator<Integer> {
+        @Override
+        public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
+            final int low = settings.get(FOO_BAR_LOW_SETTING);
+            if (value < low) {
+                throw new IllegalArgumentException("high [" + value + "] less than low [" + low + "]");
+            }
+        }
+
+        @Override
+        public Iterator<Setting<Integer>> settings() {
+            return Collections.singletonList(FOO_BAR_LOW_SETTING).iterator();
+        }
+    }
+
+    public void testValidator() {
+        final AbstractScopedSettings service =
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(FOO_BAR_LOW_SETTING, FOO_BAR_HIGH_SETTING)));
+
+        final AtomicInteger consumerLow = new AtomicInteger();
+        final AtomicInteger consumerHigh = new AtomicInteger();
+
+        service.addSettingsUpdateConsumer(FOO_BAR_LOW_SETTING, consumerLow::set);
+
+        service.addSettingsUpdateConsumer(FOO_BAR_HIGH_SETTING, consumerHigh::set);
+
+        final Settings newSettings = Settings.builder().put("foo.bar.low", 17).put("foo.bar.high", 13).build();
+        {
+            final IllegalArgumentException e =
+                    expectThrows(
+                            IllegalArgumentException.class,
+                            () -> service.validateUpdate(newSettings));
+            assertThat(e, hasToString(containsString("illegal value can't update [foo.bar.low] from [1] to [17]")));
+            assertNotNull(e.getCause());
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
+            assertThat(cause, hasToString(containsString("low [17] more than high [13]")));
+            assertThat(e.getSuppressed(), arrayWithSize(1));
+            assertThat(e.getSuppressed()[0], instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException suppressed = (IllegalArgumentException) e.getSuppressed()[0];
+            assertThat(suppressed, hasToString(containsString("illegal value can't update [foo.bar.high] from [2] to [13]")));
+            assertNotNull(suppressed.getCause());
+            assertThat(suppressed.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException suppressedCause = (IllegalArgumentException) suppressed.getCause();
+            assertThat(suppressedCause, hasToString(containsString("high [13] less than low [17]")));
+            assertThat(consumerLow.get(), equalTo(0));
+            assertThat(consumerHigh.get(), equalTo(0));
+        }
+
+        {
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.applySettings(newSettings));
+            assertThat(e, hasToString(containsString("illegal value can't update [foo.bar.low] from [1] to [17]")));
+            assertThat(consumerLow.get(), equalTo(0));
+            assertThat(consumerHigh.get(), equalTo(0));
+        }
+    }
+
     public void testGet() {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
@@ -328,7 +420,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         diff = settings.diff(
             Settings.builder().put("some.group.foo", 5).build(),
-            Settings.builder().put("some.group.foobar", 17, "some.group.foo", 25).build());
+            Settings.builder().put("some.group.foobar", 17).put("some.group.foo", 25).build());
         assertEquals(6, diff.size()); // 6 since foo.bar.quux has 3 values essentially
         assertThat(diff.getAsInt("some.group.foobar", null), equalTo(17));
         assertNull(diff.get("some.group.foo"));
@@ -338,8 +430,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         diff = settings.diff(
             Settings.builder().put("some.prefix.foo.somekey", 5).build(),
-            Settings.builder().put("some.prefix.foobar.somekey", 17,
-                "some.prefix.foo.somekey", 18).build());
+            Settings.builder().put("some.prefix.foobar.somekey", 17).put("some.prefix.foo.somekey", 18).build());
         assertEquals(6, diff.size()); // 6 since foo.bar.quux has 3 values essentially
         assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
         assertNull(diff.get("some.prefix.foo.somekey"));
@@ -372,7 +463,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         diff = settings.diff(
             Settings.builder().put("some.group.foo", 5).build(),
-            Settings.builder().put("some.group.foobar", 17, "some.group.foo", 25).build());
+            Settings.builder().put("some.group.foobar", 17).put("some.group.foo", 25).build());
         assertEquals(3, diff.size());
         assertThat(diff.getAsInt("some.group.foobar", null), equalTo(17));
         assertNull(diff.get("some.group.foo"));
@@ -382,8 +473,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         diff = settings.diff(
             Settings.builder().put("some.prefix.foo.somekey", 5).build(),
-            Settings.builder().put("some.prefix.foobar.somekey", 17,
-                "some.prefix.foo.somekey", 18).build());
+            Settings.builder().put("some.prefix.foobar.somekey", 17).put("some.prefix.foo.somekey", 18).build());
         assertEquals(3, diff.size());
         assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
         assertNull(diff.get("some.prefix.foo.somekey"));
@@ -393,8 +483,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         diff = settings.diff(
             Settings.builder().put("some.prefix.foo.somekey", 5).build(),
-            Settings.builder().put("some.prefix.foobar.somekey", 17,
-                "some.prefix.foo.somekey", 18)
+            Settings.builder().put("some.prefix.foobar.somekey", 17).put("some.prefix.foo.somekey", 18)
             .putArray("foo.bar.quux", "x", "y", "z")
             .putArray("foo.baz.quux", "d", "e", "f")
                 .build());
@@ -448,15 +537,15 @@ public class ScopedSettingsTests extends ESTestCase {
         settings.validate(Settings.builder().put("index.store.type", "boom"));
         settings.validate(Settings.builder().put("index.store.type", "boom").build());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true)));
+            settings.validate(Settings.builder().put("index.store.type", "boom").put("i.am.not.a.setting", true)));
         assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true).build()));
+            settings.validate(Settings.builder().put("index.store.type", "boom").put("i.am.not.a.setting", true).build()));
         assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate(Settings.builder().put("index.store.type", "boom", "index.number_of_replicas", true).build()));
+            settings.validate(Settings.builder().put("index.store.type", "boom").put("index.number_of_replicas", true).build()));
         assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->

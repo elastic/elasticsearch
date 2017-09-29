@@ -19,6 +19,7 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
@@ -36,27 +37,41 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -75,7 +90,19 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(FailOnRewriteQueryPlugin.class);
+        return pluginList(FailOnRewriteQueryPlugin.class, CustomScriptPlugin.class);
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+
+        static final String DUMMY_SCRIPT = "dummyScript";
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.singletonMap(DUMMY_SCRIPT, vars -> {
+                return "dummy";
+            });
+        }
     }
 
     @Override
@@ -253,6 +280,68 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     }
 
+    /**
+     * test that getting more than the allowed number of docvalue_fields throws an exception
+     */
+    public void testMaxDocvalueFieldsSearch() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        // adding the maximum allowed number of docvalue_fields to retrieve
+        for (int i = 0; i < indexService.getIndexSettings().getMaxDocvalueFields(); i++) {
+            searchSourceBuilder.docValueField("field" + i);
+        }
+        try (SearchContext context = service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f), null)) {
+            assertNotNull(context);
+            searchSourceBuilder.docValueField("one_field_too_much");
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                    () -> service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                            searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f), null));
+            assertEquals(
+                    "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [100] but was [101]. "
+                            + "This limit can be set by changing the [index.max_docvalue_fields_search] index level setting.",
+                    ex.getMessage());
+        }
+    }
+
+    /**
+     * test that getting more than the allowed number of script_fields throws an exception
+     */
+    public void testMaxScriptFieldsSearch() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        // adding the maximum allowed number of script_fields to retrieve
+        int maxScriptFields = indexService.getIndexSettings().getMaxScriptFields();
+        for (int i = 0; i < maxScriptFields; i++) {
+            searchSourceBuilder.scriptField("field" + i,
+                    new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap()));
+        }
+        try (SearchContext context = service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f), null)) {
+            assertNotNull(context);
+            searchSourceBuilder.scriptField("anotherScriptField",
+                    new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap()));
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                    () -> service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                            searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f), null));
+            assertEquals(
+                    "Trying to retrieve too many script_fields. Must be less than or equal to: [" + maxScriptFields + "] but was ["
+                            + (maxScriptFields + 1)
+                            + "]. This limit can be set by changing the [index.max_script_fields] index level setting.",
+                    ex.getMessage());
+        }
+    }
+
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<QuerySpec<?>> getQueries() {
@@ -272,8 +361,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-            throw new IllegalStateException("Fail on rewrite phase");
+        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+            if (queryRewriteContext.convertToShardContext() != null) {
+                throw new IllegalStateException("Fail on rewrite phase");
+            }
+            return this;
         }
 
         @Override
@@ -303,5 +395,54 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         public String getWriteableName() {
             return null;
         }
+    }
+
+    public void testCanMatch() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+        assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH, null,
+            Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f)));
+
+        assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
+            new SearchSourceBuilder(), Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f)));
+
+        assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
+            new SearchSourceBuilder().query(new MatchAllQueryBuilder()), Strings.EMPTY_ARRAY, false,
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f)));
+
+        assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
+            new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
+            .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(0)), Strings.EMPTY_ARRAY, false,
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f)));
+        assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
+            new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
+                .aggregation(new GlobalAggregationBuilder("test")), Strings.EMPTY_ARRAY, false,
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f)));
+
+        assertFalse(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
+            new SearchSourceBuilder().query(new MatchNoneQueryBuilder()), Strings.EMPTY_ARRAY, false,
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f)));
+
+    }
+
+    public void testCanRewriteToMatchNone() {
+        assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
+            .aggregation(new GlobalAggregationBuilder("test"))));
+        assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder()));
+        assertFalse(SearchService.canRewriteToMatchNone(null));
+        assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
+            .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(0))));
+        assertTrue(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar"))));
+        assertTrue(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
+            .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(1))));
+        assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
+            .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(1))
+            .suggest(new SuggestBuilder())));
+        assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar"))
+            .suggest(new SuggestBuilder())));
+
     }
 }

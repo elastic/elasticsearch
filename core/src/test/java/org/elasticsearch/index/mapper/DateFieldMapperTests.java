@@ -35,8 +35,10 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -213,6 +215,32 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(1457654400000L, pointField.numericValue().longValue());
     }
 
+    public void testFloatEpochFormat() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "date")
+                .field("format", "epoch_millis").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        double epochFloatMillisFromEpoch = (randomDouble() * 2 - 1) * 1000000;
+        String epochFloatValue = String.format(Locale.US, "%f", epochFloatMillisFromEpoch);
+
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", epochFloatValue)
+                .endObject()
+                .bytes(),
+                XContentType.JSON));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        IndexableField pointField = fields[0];
+        assertEquals((long)epochFloatMillisFromEpoch, pointField.numericValue().longValue());
+    }
+
     public void testChangeLocale() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date").field("locale", "fr").endObject().endObject()
@@ -344,5 +372,27 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(2, fields.length);
 
         assertEquals(randomDate.withZone(DateTimeZone.UTC).getMillis(), fields[0].numericValue().longValue());
+    }
+
+    public void testMergeDate() throws IOException {
+        String initMapping = XContentFactory.jsonBuilder().startObject().startObject("movie")
+            .startObject("properties")
+            .startObject("release_date").field("type", "date").field("format", "yyyy/MM/dd").endObject()
+            .endObject().endObject().endObject().string();
+        DocumentMapper initMapper = indexService.mapperService().merge("movie", new CompressedXContent(initMapping),
+            MapperService.MergeReason.MAPPING_UPDATE, randomBoolean());
+
+        assertThat(initMapper.mappers().getMapper("release_date"), notNullValue());
+        assertFalse(initMapper.mappers().getMapper("release_date").fieldType().stored());
+
+        String updateFormatMapping = XContentFactory.jsonBuilder().startObject().startObject("movie")
+            .startObject("properties")
+            .startObject("release_date").field("type", "date").field("format", "epoch_millis").endObject()
+            .endObject().endObject().endObject().string();
+
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> indexService.mapperService().merge("movie", new CompressedXContent(updateFormatMapping),
+                MapperService.MergeReason.MAPPING_UPDATE, randomBoolean()));
+        assertThat(e.getMessage(), containsString("[mapper [release_date] has different [format] values]"));
     }
 }

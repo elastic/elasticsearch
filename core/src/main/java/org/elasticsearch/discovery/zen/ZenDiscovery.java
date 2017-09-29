@@ -69,6 +69,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -78,6 +80,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -113,7 +116,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     private final TransportService transportService;
     private final MasterService masterService;
-    private final ClusterName clusterName;
     private final DiscoverySettings discoverySettings;
     protected final ZenPing zenPing; // protected to allow tests access
     private final MasterFaultDetection masterFD;
@@ -125,9 +127,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private final TimeValue pingTimeout;
     private final TimeValue joinTimeout;
 
-    /** how many retry attempts to perform if join request failed with an retriable error */
+    /** how many retry attempts to perform if join request failed with an retryable error */
     private final int joinRetryAttempts;
-    /** how long to wait before performing another join attempt after a join request failed with an retriable error */
+    /** how long to wait before performing another join attempt after a join request failed with an retryable error */
     private final TimeValue joinRetryDelay;
 
     /** how many pings from *another* master to tolerate before forcing a rejoin on other or local master */
@@ -147,15 +149,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     private final NodeJoinController nodeJoinController;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
-
     private final ClusterApplier clusterApplier;
     private final AtomicReference<ClusterState> committedState; // last committed cluster state
     private final Object stateMutex = new Object();
+    private final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators;
 
     public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
                         NamedWriteableRegistry namedWriteableRegistry, MasterService masterService, ClusterApplier clusterApplier,
-                        ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider, AllocationService allocationService) {
+                        ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider, AllocationService allocationService,
+                        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators) {
         super(settings);
+        this.onJoinValidators = addBuiltInJoinValidators(onJoinValidators);
         this.masterService = masterService;
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
@@ -169,7 +173,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         this.maxPingsFromAnotherMaster = MAX_PINGS_FROM_ANOTHER_MASTER_SETTING.get(settings);
         this.sendLeaveRequest = SEND_LEAVE_REQUEST_SETTING.get(settings);
         this.threadPool = threadPool;
-        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
+        ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.committedState = new AtomicReference<>();
 
         this.masterElectionIgnoreNonMasters = MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING.get(settings);
@@ -212,7 +216,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         namedWriteableRegistry,
                         this,
                         discoverySettings);
-        this.membership = new MembershipAction(settings, transportService, new MembershipListener());
+        this.membership = new MembershipAction(settings, transportService, new MembershipListener(), onJoinValidators);
         this.joinThreadControl = new JoinThreadControl();
 
         this.nodeJoinController = new NodeJoinController(masterService, allocationService, electMaster, settings);
@@ -222,6 +226,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         transportService.registerRequestHandler(
             DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
+    }
+
+    static Collection<BiConsumer<DiscoveryNode,ClusterState>> addBuiltInJoinValidators(
+        Collection<BiConsumer<DiscoveryNode,ClusterState>> onJoinValidators) {
+        Collection<BiConsumer<DiscoveryNode, ClusterState>> validators = new ArrayList<>();
+        validators.add((node, state) -> {
+            MembershipAction.ensureNodesCompatibility(node.getVersion(), state.getNodes());
+            MembershipAction.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
+        });
+        validators.addAll(onJoinValidators);
+        return Collections.unmodifiableCollection(validators);
     }
 
     // protected to allow overriding in tests
@@ -238,7 +253,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // set initial state
             assert committedState.get() == null;
             assert localNode != null;
-            ClusterState initialState = ClusterState.builder(clusterName)
+            ClusterState.Builder builder = clusterApplier.newClusterStateBuilder();
+            ClusterState initialState = builder
                 .blocks(ClusterBlocks.builder()
                     .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
                     .addGlobalBlock(discoverySettings.getNoMasterBlock()))
@@ -885,7 +901,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         } else {
             // we do this in a couple of places including the cluster update thread. This one here is really just best effort
             // to ensure we fail as fast as possible.
-            MembershipAction.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
+            onJoinValidators.stream().forEach(a -> a.accept(node, state));
+            if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
+                MembershipAction.ensureMajorVersionBarrier(node.getVersion(), state.getNodes().getMinNodeVersion());
+            }
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
 
@@ -894,7 +913,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             try {
                 membership.sendValidateJoinRequestBlocking(node, state, joinTimeout);
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", node), e);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", node),
+                    e);
                 callback.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
                 return;
             }
@@ -1309,4 +1329,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
 
     }
+
+    public final Collection<BiConsumer<DiscoveryNode, ClusterState>> getOnJoinValidators() {
+        return onJoinValidators;
+    }
+
 }

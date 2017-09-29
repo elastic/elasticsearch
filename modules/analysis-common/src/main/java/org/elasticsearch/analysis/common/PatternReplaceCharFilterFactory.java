@@ -35,7 +35,7 @@ public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory i
     private final Pattern pattern;
     private final String replacement;
 
-    public PatternReplaceCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    PatternReplaceCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name);
 
         String sPattern = settings.get("pattern");

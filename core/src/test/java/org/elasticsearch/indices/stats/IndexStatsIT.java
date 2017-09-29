@@ -92,7 +92,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, randomDynamicTemplates = false)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0)
 @SuppressCodecs("*") // requires custom completion format
 public class IndexStatsIT extends ESIntegTestCase {
 
@@ -226,7 +226,8 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testQueryCache() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).get());
+        assertAcked(client().admin().indices().prepareCreate("idx")
+            .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)).get());
         ensureGreen();
 
         // index docs until we have at least one doc on each shard, otherwise, our tests will not work
@@ -390,7 +391,8 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testSimpleStats() throws Exception {
         // this test has some type stats tests that can be removed in 7.0
-        assertAcked(prepareCreate("test1").setSettings("index.version.created", Version.V_5_6_0.id)); // allows for multiple types
+        assertAcked(prepareCreate("test1")
+            .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))); // allows for multiple types
         createIndex("test2");
         ensureGreen();
 
@@ -556,7 +558,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testSegmentsStats() {
         assertAcked(prepareCreate("test_index")
-                .setSettings(SETTING_NUMBER_OF_REPLICAS, between(0, 1)));
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
         ensureGreen();
 
         NumShards test1 = getNumShards("test_index");
@@ -742,7 +744,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testFieldDataFieldsParam() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test1")
-                .setSettings("index.version.created", Version.V_5_6_0.id)
+                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
                 .addMapping("doc", "bar", "type=text,fielddata=true",
                         "baz", "type=text,fielddata=true").get());
 

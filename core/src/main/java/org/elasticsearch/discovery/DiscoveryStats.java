@@ -23,13 +23,13 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.zen.PendingClusterStateStats;
 
 import java.io.IOException;
 
-public class DiscoveryStats implements Writeable, ToXContent {
+public class DiscoveryStats implements Writeable, ToXContentFragment {
 
     @Nullable
     private final PendingClusterStateStats queueStats;

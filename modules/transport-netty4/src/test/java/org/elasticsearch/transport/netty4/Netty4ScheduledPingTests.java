@@ -40,7 +40,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -54,21 +53,21 @@ public class Netty4ScheduledPingTests extends ESTestCase {
 
         Settings settings = Settings.builder()
             .put(TcpTransport.PING_SCHEDULE.getKey(), "5ms")
-            .put(TransportSettings.PORT.getKey(), 0)
+            .put(TcpTransport.PORT.getKey(), 0)
             .put("cluster.name", "test")
             .build();
 
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
 
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
-        final Netty4Transport nettyA = new Netty4Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
+        final Netty4Transport nettyA = new Netty4Transport(settings, threadPool, new NetworkService(Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
         MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         serviceA.start();
         serviceA.acceptIncomingRequests();
 
-        final Netty4Transport nettyB = new Netty4Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
+        final Netty4Transport nettyB = new Netty4Transport(settings, threadPool, new NetworkService(Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
         MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);

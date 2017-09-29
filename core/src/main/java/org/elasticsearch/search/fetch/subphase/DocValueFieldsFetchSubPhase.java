@@ -18,15 +18,19 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 
@@ -38,7 +42,8 @@ import java.util.HashMap;
 public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws IOException {
+    public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
+
         if (context.collapse() != null) {
             // retrieve the `doc_value` associated with the collapse field
             String name = context.collapse().getFieldType().name();
@@ -48,26 +53,40 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                 context.docValueFieldsContext().fields().add(name);
             }
         }
+
         if (context.docValueFieldsContext() == null) {
             return;
         }
+
+        hits = hits.clone(); // don't modify the incoming hits
+        Arrays.sort(hits, (a, b) -> Integer.compare(a.docId(), b.docId()));
+
         for (String field : context.docValueFieldsContext().fields()) {
-            if (hitContext.hit().fieldsOrNull() == null) {
-                hitContext.hit().fields(new HashMap<>(2));
-            }
-            SearchHitField hitField = hitContext.hit().getFields().get(field);
-            if (hitField == null) {
-                hitField = new SearchHitField(field, new ArrayList<>(2));
-                hitContext.hit().getFields().put(field, hitField);
-            }
             MappedFieldType fieldType = context.mapperService().fullName(field);
             if (fieldType != null) {
-                /* Because this is called once per document we end up creating a new ScriptDocValues for every document which is important
-                 * because the values inside ScriptDocValues might be reused for different documents (Dates do this). */
-                AtomicFieldData data = context.fieldData().getForField(fieldType).load(hitContext.readerContext());
-                ScriptDocValues<?> values = data.getScriptValues();
-                values.setNextDocId(hitContext.docId());
-                hitField.getValues().addAll(values);
+                LeafReaderContext subReaderContext = null;
+                AtomicFieldData data = null;
+                ScriptDocValues<?> values = null;
+                for (SearchHit hit : hits) {
+                    // if the reader index has changed we need to get a new doc values reader instance
+                    if (subReaderContext == null || hit.docId() >= subReaderContext.docBase + subReaderContext.reader().maxDoc()) {
+                        int readerIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
+                        subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+                        data = context.getForField(fieldType).load(subReaderContext);
+                        values = data.getScriptValues();
+                    }
+                    int subDocId = hit.docId() - subReaderContext.docBase;
+                    values.setNextDocId(subDocId);
+                    if (hit.fieldsOrNull() == null) {
+                        hit.fields(new HashMap<>(2));
+                    }
+                    DocumentField hitField = hit.getFields().get(field);
+                    if (hitField == null) {
+                        hitField = new DocumentField(field, new ArrayList<>(2));
+                        hit.getFields().put(field, hitField);
+                    }
+                    hitField.getValues().addAll(values);
+                }
             }
         }
     }

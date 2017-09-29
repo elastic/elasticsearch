@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -68,12 +69,13 @@ import static org.hamcrest.Matchers.sameInstance;
 public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     protected IndexService indexService;
-    protected IndexFieldDataService ifdService;
     protected MapperService mapperService;
     protected IndexWriter writer;
     protected List<LeafReaderContext> readerContexts = null;
     protected DirectoryReader topLevelReader = null;
     protected IndicesFieldDataCache indicesFieldDataCache;
+    protected QueryShardContext shardContext;
+
     protected abstract String getFieldDataType();
 
     protected boolean hasDocValues() {
@@ -129,7 +131,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         } else {
             throw new UnsupportedOperationException(type);
         }
-        return ifdService.getForField(fieldType);
+        return shardContext.getForField(fieldType);
     }
 
     @Before
@@ -137,9 +139,9 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         indexService = createIndex("test", Settings.builder().build());
         mapperService = indexService.mapperService();
         indicesFieldDataCache = getInstanceFromNode(IndicesService.class).getIndicesFieldDataCache();
-        ifdService = indexService.fieldData();
         // LogByteSizeMP to preserve doc ID order
         writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy()));
+        shardContext = indexService.newQueryShardContext(0, null, () -> 0, null);
     }
 
     protected final List<LeafReaderContext> refreshReader() throws Exception {
@@ -159,6 +161,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
             topLevelReader.close();
         }
         writer.close();
+        shardContext = null;
     }
 
     protected Nested createNested(IndexSearcher searcher, Query parentFilter, Query childFilter) throws IOException {

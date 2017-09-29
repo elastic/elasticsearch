@@ -45,7 +45,6 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -77,8 +76,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
-    private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
-    private static final ParseField TYPE_FIELD = new ParseField("type", "child_type");
+    private static final ParseField QUERY_FIELD = new ParseField("query");
+    private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField MAX_CHILDREN_FIELD = new ParseField("max_children");
     private static final ParseField MIN_CHILDREN_FIELD = new ParseField("min_children");
     private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
@@ -242,8 +241,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         builder.endObject();
     }
 
-    public static HasChildQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static HasChildQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String childType = null;
         ScoreMode scoreMode = ScoreMode.None;
@@ -258,13 +256,11 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(currentFieldName)) {
-                    iqb = parseContext.parseInnerQueryBuilder();
+                    iqb = parseInnerQueryBuilder(parser);
                 } else if (INNER_HITS_FIELD.match(currentFieldName)) {
-                    innerHitBuilder = InnerHitBuilder.fromXContent(parseContext);
+                    innerHitBuilder = InnerHitBuilder.fromXContent(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[has_child] query does not support [" + currentFieldName + "]");
                 }

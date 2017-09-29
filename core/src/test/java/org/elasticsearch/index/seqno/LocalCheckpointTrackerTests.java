@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isOneOf;
 
@@ -55,8 +56,8 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
                     .builder()
                     .put(LocalCheckpointTracker.SETTINGS_BIT_ARRAYS_SIZE.getKey(), SMALL_CHUNK_SIZE)
                     .build()),
-            SequenceNumbersService.NO_OPS_PERFORMED,
-            SequenceNumbersService.NO_OPS_PERFORMED
+            SequenceNumbers.NO_OPS_PERFORMED,
+            SequenceNumbers.NO_OPS_PERFORMED
         );
     }
 
@@ -69,7 +70,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
 
     public void testSimplePrimary() {
         long seqNo1, seqNo2;
-        assertThat(tracker.getCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
+        assertThat(tracker.getCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
         seqNo1 = tracker.generateSeqNo();
         assertThat(seqNo1, equalTo(0L));
         tracker.markSeqNoAsCompleted(seqNo1);
@@ -85,7 +86,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
     }
 
     public void testSimpleReplica() {
-        assertThat(tracker.getCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
+        assertThat(tracker.getCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
         tracker.markSeqNoAsCompleted(0L);
         assertThat(tracker.getCheckpoint(), equalTo(0L));
         tracker.markSeqNoAsCompleted(2L);
@@ -235,5 +236,24 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertTrue(complete.get());
 
         thread.join();
+    }
+
+    public void testResetCheckpoint() {
+        final int operations = 1024 - scaledRandomIntBetween(0, 1024);
+        int maxSeqNo = Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED);
+        for (int i = 0; i < operations; i++) {
+            if (!rarely()) {
+                tracker.markSeqNoAsCompleted(i);
+                maxSeqNo = i;
+            }
+        }
+
+        final int localCheckpoint =
+                randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Math.toIntExact(tracker.getCheckpoint()));
+        tracker.resetCheckpoint(localCheckpoint);
+        assertThat(tracker.getCheckpoint(), equalTo((long) localCheckpoint));
+        assertThat(tracker.getMaxSeqNo(), equalTo((long) maxSeqNo));
+        assertThat(tracker.processedSeqNo, empty());
+        assertThat(tracker.generateSeqNo(), equalTo((long) (maxSeqNo + 1)));
     }
 }

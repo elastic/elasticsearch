@@ -32,7 +32,7 @@ public class CzechAnalyzerProvider extends AbstractIndexAnalyzerProvider<CzechAn
     public CzechAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         analyzer = new CzechAnalyzer(
-            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, CzechAnalyzer.getDefaultStopSet()),
+            Analysis.parseStopWords(env, settings, CzechAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);

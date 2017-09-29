@@ -59,14 +59,6 @@ changed since the last refresh visible. In order to disable realtime GET,
 one can set the `realtime` parameter to `false`.
 
 [float]
-[[type]]
-=== Optional Type
-
-The get API allows for `_type` to be optional. Set it to `_all` in order
-to fetch the first document matching the id across all types.
-
-
-[float]
 [[get-source-filtering]]
 === Source filtering
 
@@ -178,7 +170,7 @@ The result of the above get operation is:
 Field values fetched from the document it self are always returned as an array.
 Since the `counter` field is not stored the get request simply ignores it when trying to get the `stored_fields.`
 
-It is also possible to retrieve metadata fields like `_routing` and `_parent` fields:
+It is also possible to retrieve metadata fields like the `_routing` field:
 
 [source,js]
 --------------------------------------------------
@@ -222,15 +214,8 @@ Also only leaf fields can be returned via the `stored_field` option. So object f
 will fail.
 
 [float]
-[[generated-fields]]
-=== Generated fields
-If no refresh occurred between indexing and refresh, GET will access the transaction log to fetch the document. However, some fields are generated only when indexing. 
-If you try to access a field that is only generated when indexing, you will get an exception (default). You can choose to ignore field that are generated if the transaction log is accessed by setting `ignore_errors_on_generated_fields=true`.
-
-
-[float]
 [[_source]]
-=== Getting the _source directly
+=== Getting the +_source+ directly
 
 Use the `/{index}/{type}/{id}/_source` endpoint to get
 just the `_source` field of the document,
@@ -290,15 +275,15 @@ replicas.
 
 The `preference` can be set to:
 
-`_primary`:: 
+`_primary`::
 	The operation will go and be executed only on the primary
 	shards.
 
-`_local`:: 
+`_local`::
 	The operation will prefer to be executed on a local
 	allocated shard if possible.
 
-Custom (string) value:: 
+Custom (string) value::
 	A custom value will be used to guarantee that
 	the same shards will be used for the same custom value. This can help
 	with "jumping values" when hitting different shards in different refresh

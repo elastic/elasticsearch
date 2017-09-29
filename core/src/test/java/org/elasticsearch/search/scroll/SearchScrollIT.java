@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.scroll;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -35,10 +37,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.Map;
@@ -54,6 +58,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSe
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -63,6 +68,13 @@ import static org.hamcrest.Matchers.notNullValue;
  * Tests for scrolling.
  */
 public class SearchScrollIT extends ESIntegTestCase {
+    @After
+    public void cleanup() throws Exception {
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("*"))
+            .setTransientSettings(Settings.builder().putNull("*")));
+    }
+
     public void testSimpleScrollQueryThenFetch() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -516,6 +528,74 @@ public class SearchScrollIT extends ESIntegTestCase {
         } else {
             client().admin().indices().prepareDelete("test").get();
         }
+    }
+
+    public void testScrollInvalidDefaultKeepAlive() throws IOException {
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () ->
+            client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "1m").put("search.default_keep_alive", "2m")).get
+            ());
+        assertThat(exc.getMessage(), containsString("was (2 minutes > 1 minute)"));
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m")).get());
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "2m")).get());
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "2m")).get());
+
+
+        exc = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "3m")).get());
+        assertThat(exc.getMessage(), containsString("was (3 minutes > 2 minutes)"));
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "1m")).get());
+
+        exc = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "30s")).get());
+        assertThat(exc.getMessage(), containsString("was (1 minute > 30 seconds)"));
+    }
+
+    public void testInvalidScrollKeepAlive() throws IOException {
+        createIndex("test");
+        for (int i = 0; i < 2; i++) {
+            client().prepareIndex("test", "type1",
+                Integer.toString(i)).setSource(jsonBuilder().startObject().field("field", i).endObject()).execute().actionGet();
+        }
+        refresh();
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m")).get());
+
+        Exception exc = expectThrows(Exception.class,
+            () -> client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(1)
+                .setScroll(TimeValue.timeValueHours(2))
+                .execute().actionGet());
+        QueryPhaseExecutionException queryPhaseExecutionException =
+            (QueryPhaseExecutionException) ExceptionsHelper.unwrap(exc, QueryPhaseExecutionException.class);
+        assertNotNull(queryPhaseExecutionException);
+        assertThat(queryPhaseExecutionException.getMessage(), containsString("Keep alive for scroll (2 hours) is too large"));
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .setSize(1)
+            .setScroll(TimeValue.timeValueMinutes(5))
+            .execute().actionGet();
+        assertNotNull(searchResponse.getScrollId());
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+
+        exc = expectThrows(Exception.class,
+            () -> client().prepareSearchScroll(searchResponse.getScrollId())
+                    .setScroll(TimeValue.timeValueHours(3)).get());
+        queryPhaseExecutionException =
+            (QueryPhaseExecutionException) ExceptionsHelper.unwrap(exc, QueryPhaseExecutionException.class);
+        assertNotNull(queryPhaseExecutionException);
+        assertThat(queryPhaseExecutionException.getMessage(), containsString("Keep alive for scroll (3 hours) is too large"));
     }
 
     private void assertToXContentResponse(ClearScrollResponse response, boolean succeed, int numFreed) throws IOException {

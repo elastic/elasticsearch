@@ -157,12 +157,11 @@ thirdPartyAudit.excludes = [
   'com.fasterxml.jackson.databind.ObjectMapper',
 
   // from log4j
-  'com.beust.jcommander.IStringConverter',
-  'com.beust.jcommander.JCommander',
   'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
   'com.conversantmedia.util.concurrent.SpinPolicy',
   'com.fasterxml.jackson.annotation.JsonInclude$Include',
   'com.fasterxml.jackson.databind.DeserializationContext',
+  'com.fasterxml.jackson.databind.DeserializationFeature',
   'com.fasterxml.jackson.databind.JsonMappingException',
   'com.fasterxml.jackson.databind.JsonNode',
   'com.fasterxml.jackson.databind.Module$SetupContext',
@@ -203,11 +202,11 @@ thirdPartyAudit.excludes = [
   'javax.jms.Connection',
   'javax.jms.ConnectionFactory',
   'javax.jms.Destination',
+  'javax.jms.JMSException',
+  'javax.jms.MapMessage',
   'javax.jms.Message',
   'javax.jms.MessageConsumer',
-  'javax.jms.MessageListener',
   'javax.jms.MessageProducer',
-  'javax.jms.ObjectMessage',
   'javax.jms.Session',
   'javax.mail.Authenticator',
   'javax.mail.Message$RecipientType',
@@ -247,6 +246,7 @@ thirdPartyAudit.excludes = [
   'org.osgi.framework.BundleEvent',
   'org.osgi.framework.BundleReference',
   'org.osgi.framework.FrameworkUtil',
+  'org.osgi.framework.ServiceRegistration',
   'org.osgi.framework.SynchronousBundleListener',
   'org.osgi.framework.wiring.BundleWire',
   'org.osgi.framework.wiring.BundleWiring',
@@ -257,6 +257,10 @@ thirdPartyAudit.excludes = [
   // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
   'org.noggit.JSONParser',
 ]
+
+if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
+}
 
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'

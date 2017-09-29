@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
@@ -77,6 +76,7 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(1, fields.length);
         assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());
         assertTrue(fields[0].fieldType().stored());
-        assertEquals("id", fields[0].stringValue());
+        assertEquals(Uid.encodeId("id"), fields[0].binaryValue());
     }
+
 }

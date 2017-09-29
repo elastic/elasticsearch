@@ -30,13 +30,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -291,7 +291,7 @@ public abstract class ScrollableHitSource {
     /**
      * A failure during search. Like {@link ShardSearchFailure} but useful for reindex from remote as well.
      */
-    public static class SearchFailure implements Writeable, ToXContent {
+    public static class SearchFailure implements Writeable, ToXContentObject {
         private final Throwable reason;
         @Nullable
         private final String index;

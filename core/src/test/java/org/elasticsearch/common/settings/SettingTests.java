@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,6 +37,8 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
@@ -64,8 +67,13 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
             fail("no unit");
         } catch (IllegalArgumentException ex) {
-            assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized",
-                    ex.getMessage());
+            assertThat(ex, hasToString(containsString("illegal value can't update [a.byte.size] from [2048b] to [12]")));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            final String expected =
+                    "failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
+            assertThat(cause, hasToString(containsString(expected)));
         }
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
@@ -99,8 +107,13 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
             fail("no unit");
         } catch (IllegalArgumentException ex) {
-            assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized",
-                    ex.getMessage());
+            assertThat(ex, hasToString(containsString("illegal value can't update [a.byte.size] from [25%] to [12]")));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            final String expected =
+                    "failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
+            assertThat(cause, hasToString(containsString(expected)));
         }
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
@@ -127,9 +140,56 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(build, Settings.EMPTY);
             fail("not a boolean");
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [I am not a boolean] as only [true] or [false] are allowed.",
-                    ex.getMessage());
+            assertThat(ex, hasToString(containsString("illegal value can't update [foo.bar] from [false] to [I am not a boolean]")));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            assertThat(
+                    cause,
+                    hasToString(containsString("Failed to parse value [I am not a boolean] as only [true] or [false] are allowed.")));
         }
+    }
+
+    private static final Setting<String> FOO_BAR_SETTING = new Setting<>(
+            "foo.bar",
+            "foobar",
+            Function.identity(),
+            new FooBarValidator(),
+            Property.Dynamic,
+            Property.NodeScope);
+
+    private static final Setting<String> BAZ_QUX_SETTING = Setting.simpleString("baz.qux", Property.NodeScope);
+    private static final Setting<String> QUUX_QUUZ_SETTING = Setting.simpleString("quux.quuz", Property.NodeScope);
+
+    static class FooBarValidator implements Setting.Validator<String> {
+
+        public static boolean invoked;
+
+        @Override
+        public void validate(String value, Map<Setting<String>, String> settings) {
+            invoked = true;
+            assertThat(value, equalTo("foo.bar value"));
+            assertTrue(settings.keySet().contains(BAZ_QUX_SETTING));
+            assertThat(settings.get(BAZ_QUX_SETTING), equalTo("baz.qux value"));
+            assertTrue(settings.keySet().contains(QUUX_QUUZ_SETTING));
+            assertThat(settings.get(QUUX_QUUZ_SETTING), equalTo("quux.quuz value"));
+        }
+
+        @Override
+        public Iterator<Setting<String>> settings() {
+            return Arrays.asList(BAZ_QUX_SETTING, QUUX_QUUZ_SETTING).iterator();
+        }
+    }
+
+    // the purpose of this test is merely to ensure that a validator is invoked with the appropriate values
+    public void testValidator() {
+        final Settings settings = Settings.builder()
+                .put("foo.bar", "foo.bar value")
+                .put("baz.qux", "baz.qux value")
+                .put("quux.quuz", "quux.quuz value")
+                .build();
+        FOO_BAR_SETTING.get(settings);
+        assertTrue(FooBarValidator.invoked);
     }
 
     public void testUpdateNotDynamic() {
@@ -299,6 +359,12 @@ public class SettingTests extends ESTestCase {
             this.a = a;
             this.b = b;
         }
+
+        public void validate(Integer a, Integer b) {
+            if (Integer.signum(a) != Integer.signum(b)) {
+                throw new IllegalArgumentException("boom");
+            }
+        }
     }
 
 
@@ -306,7 +372,7 @@ public class SettingTests extends ESTestCase {
         Composite c = new Composite();
         Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, Property.Dynamic, Property.NodeScope);
-        ClusterSettings.SettingUpdater<Tuple<Integer, Integer>> settingUpdater = Setting.compoundUpdater(c::set, a, b, logger);
+        ClusterSettings.SettingUpdater<Tuple<Integer, Integer>> settingUpdater = Setting.compoundUpdater(c::set, c::validate, a, b, logger);
         assertFalse(settingUpdater.apply(Settings.EMPTY, Settings.EMPTY));
         assertNull(c.a);
         assertNull(c.b);
@@ -324,6 +390,40 @@ public class SettingTests extends ESTestCase {
         assertTrue(settingUpdater.apply(build, previous));
         assertEquals(2, c.a.intValue());
         assertEquals(5, c.b.intValue());
+
+        // reset to default
+        assertTrue(settingUpdater.apply(Settings.EMPTY, build));
+        assertEquals(1, c.a.intValue());
+        assertEquals(1, c.b.intValue());
+
+    }
+
+    public void testCompositeValidator() {
+        Composite c = new Composite();
+        Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, Property.Dynamic, Property.NodeScope);
+        ClusterSettings.SettingUpdater<Tuple<Integer, Integer>> settingUpdater = Setting.compoundUpdater(c::set, c::validate, a, b, logger);
+        assertFalse(settingUpdater.apply(Settings.EMPTY, Settings.EMPTY));
+        assertNull(c.a);
+        assertNull(c.b);
+
+        Settings build = Settings.builder().put("foo.int.bar.a", 2).build();
+        assertTrue(settingUpdater.apply(build, Settings.EMPTY));
+        assertEquals(2, c.a.intValue());
+        assertEquals(1, c.b.intValue());
+
+        Integer aValue = c.a;
+        assertFalse(settingUpdater.apply(build, build));
+        assertSame(aValue, c.a);
+        Settings previous = build;
+        build = Settings.builder().put("foo.int.bar.a", 2).put("foo.int.bar.b", 5).build();
+        assertTrue(settingUpdater.apply(build, previous));
+        assertEquals(2, c.a.intValue());
+        assertEquals(5, c.b.intValue());
+
+        Settings invalid = Settings.builder().put("foo.int.bar.a", -2).put("foo.int.bar.b", 5).build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> settingUpdater.apply(invalid, previous));
+        assertThat(exc.getMessage(), equalTo("boom"));
 
         // reset to default
         assertTrue(settingUpdater.apply(Settings.EMPTY, build));

@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -149,8 +148,7 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
         return builder;
     }
 
-    public static SerialDiffPipelineAggregationBuilder parse(String reducerName, QueryParseContext context) throws IOException {
-        XContentParser parser = context.parser();
+    public static SerialDiffPipelineAggregationBuilder parse(String reducerName, XContentParser parser) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
@@ -167,7 +165,7 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
                 } else if (BUCKETS_PATH.match(currentFieldName)) {
                     bucketsPaths = new String[] { parser.text() };
                 } else if (GAP_POLICY.match(currentFieldName)) {
-                    gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
+                    gapPolicy = GapPolicy.parse(parser.text(), parser.getTokenLocation());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");

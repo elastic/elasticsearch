@@ -396,34 +396,3 @@ PUT my_index
 <1> Like the default dynamic mapping rules, doubles are mapped as floats, which
     are usually accurate enough, yet require half the disk space.
 
-
-[[override-default-template]]
-=== Override default template
-
-You can override the default mappings for all indices and all types
-by specifying a `_default_` type mapping in an index template
-which matches all indices.
-
-For example, to disable the `_field_names` field by default for all types in all
-new indices, you could create the following index template:
-
-[source,js]
---------------------------------------------------
-PUT _template/disable_field_names
-{
-  "order": 0,
-  "index_patterns": ["*"], <1>
-  "mappings": {
-    "_default_": { <2>
-      "_field_names": { <3>
-        "enabled": false
-      }
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-<1> Applies the mappings to an `index` which matches the pattern `*`, in other
-    words, all new indices.
-<2> Defines the `_default_` type mapping types within the index.
-<3> Disables the `_field_names` field by default.

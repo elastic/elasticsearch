@@ -3,6 +3,12 @@ setup:
   - do:
       indices.create:
           index: test
+          body:
+           settings:
+             index:
+               # initializing replicas maintain the translog causing the test to fail.
+               # remove once https://github.com/elastic/elasticsearch/issues/25623 is fixed.
+               number_of_replicas: 0
 
 ---
 "Translog retention":

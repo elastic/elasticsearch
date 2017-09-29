@@ -31,6 +31,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -51,7 +52,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
     public void testStartDeleteIndexEventCallback() throws Throwable {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         ensureGreen();
         Index idx = resolveIndex("test");
         IndexMetaData metaData = indicesService.indexService(idx).getMetaData();
@@ -129,15 +130,15 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             newRouting = newRouting.moveToUnassigned(unassignedInfo)
                 .updateUnassigned(unassignedInfo, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
-            IndexShard shard = index.createShard(newRouting);
-            shard.updateRoutingEntry(newRouting);
+            IndexShard shard = index.createShard(newRouting, s -> {});
+            IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
             final DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
                     emptyMap(), emptySet(), Version.CURRENT);
             shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
             shard.recoverFromStore();
             newRouting = ShardRoutingHelper.moveToStarted(newRouting);
-            shard.updateRoutingEntry(newRouting);
+            IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(6, counter.get());
         } finally {
             indicesService.removeIndex(idx, DELETED, "simon says");

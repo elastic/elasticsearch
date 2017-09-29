@@ -36,9 +36,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -54,7 +54,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
     public static MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
             ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        Transport transport = new Netty4Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
+        Transport transport = new Netty4Transport(settings, threadPool, new NetworkService(Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
 
             @Override
@@ -80,7 +80,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
 
     @Override
     protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
-        settings = Settings.builder().put(settings).put(TransportSettings.PORT.getKey(), "0").build();
+        settings = Settings.builder().put(settings).put(TcpTransport.PORT.getKey(), "0").build();
         MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
         transportService.start();
         return transportService;

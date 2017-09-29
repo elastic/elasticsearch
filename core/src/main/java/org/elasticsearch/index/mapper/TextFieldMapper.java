@@ -122,7 +122,7 @@ public class TextFieldMapper extends FieldMapper {
             }
             setupFieldType(context);
             return new TextFieldMapper(
-                    name, fieldType, defaultFieldType, positionIncrementGap, includeInAll,
+                    name, fieldType, defaultFieldType, positionIncrementGap,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -283,7 +283,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             if (fielddata == false) {
                 throw new IllegalArgumentException("Fielddata is disabled on text fields by default. Set fielddata=true on [" + name()
                         + "] in order to load fielddata in memory by uninverting the inverted index. Note that this can however "
@@ -293,11 +293,10 @@ public class TextFieldMapper extends FieldMapper {
         }
     }
 
-    private Boolean includeInAll;
     private int positionIncrementGap;
 
     protected TextFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                int positionIncrementGap, Boolean includeInAll,
+                                int positionIncrementGap,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized();
@@ -306,17 +305,11 @@ public class TextFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + name() + "]");
         }
         this.positionIncrementGap = positionIncrementGap;
-        this.includeInAll = includeInAll;
     }
 
     @Override
     protected TextFieldMapper clone() {
         return (TextFieldMapper) super.clone();
-    }
-
-    // pkg-private for testing
-    Boolean includeInAll() {
-        return includeInAll;
     }
 
     public int getPositionIncrementGap() {
@@ -336,10 +329,6 @@ public class TextFieldMapper extends FieldMapper {
             return;
         }
 
-        if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(fieldType().name(), value, fieldType().boost());
-        }
-
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             Field field = new Field(fieldType().name(), value, fieldType());
             fields.add(field);
@@ -354,7 +343,6 @@ public class TextFieldMapper extends FieldMapper {
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         super.doMerge(mergeWith, updateAllTypes);
-        this.includeInAll = ((TextFieldMapper) mergeWith).includeInAll;
     }
 
     @Override
@@ -366,12 +354,6 @@ public class TextFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         doXContentAnalyzers(builder, includeDefaults);
-
-        if (includeInAll != null) {
-            builder.field("include_in_all", includeInAll);
-        } else if (includeDefaults) {
-            builder.field("include_in_all", true);
-        }
 
         if (includeDefaults || positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
             builder.field("position_increment_gap", positionIncrementGap);

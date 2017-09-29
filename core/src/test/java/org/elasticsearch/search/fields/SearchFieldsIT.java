@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -39,7 +40,6 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.sort.SortOrder;
@@ -487,7 +487,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         assertNoFailures(response);
 
-        SearchHitField fieldObj = response.getHits().getAt(0).field("test_script_1");
+        DocumentField fieldObj = response.getHits().getAt(0).field("test_script_1");
         assertThat(fieldObj, notNullValue());
         List<?> fieldValues = fieldObj.getValues();
         assertThat(fieldValues, hasSize(1));
@@ -641,7 +641,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
     public void testGetFieldsComplexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
-                .setSettings("index.refresh_interval", -1)
+                .setSettings(Settings.builder().put("index.refresh_interval", -1))
                 .addMapping("doc", jsonBuilder()
                         .startObject()
                             .startObject("doc")
@@ -713,9 +713,9 @@ public class SearchFieldsIT extends ESIntegTestCase {
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setSource(
-                new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).fieldDataField("test_field")).get();
+                new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).docValueField("test_field")).get();
         assertHitCount(searchResponse, 1);
-        Map<String,SearchHitField> fields = searchResponse.getHits().getHits()[0].getFields();
+        Map<String, DocumentField> fields = searchResponse.getHits().getHits()[0].getFields();
         assertThat(fields.get("test_field").getValue(), equalTo("foobar"));
     }
 
@@ -854,7 +854,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertSearchResponse(resp);
         for (SearchHit hit : resp.getHits().getHits()) {
             final int id = Integer.parseInt(hit.getId());
-            Map<String, SearchHitField> fields = hit.getFields();
+            Map<String, DocumentField> fields = hit.getFields();
             assertThat(fields.get("s").getValues(), equalTo(Collections.<Object> singletonList(Integer.toString(id))));
             assertThat(fields.get("l").getValues(), equalTo(Collections.<Object> singletonList((long) id)));
             assertThat(fields.get("d").getValues(), equalTo(Collections.<Object> singletonList((double) id)));
@@ -876,7 +876,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertSearchResponse(response);
         assertHitCount(response, 1);
 
-        Map<String, SearchHitField> fields = response.getHits().getAt(0).getFields();
+        Map<String, DocumentField> fields = response.getHits().getAt(0).getFields();
 
         assertThat(fields.get("field1"), nullValue());
         assertThat(fields.get("_routing").isMetadataField(), equalTo(true));

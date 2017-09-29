@@ -1,0 +1,8 @@
+include::_index.asciidoc[]
+include::get.asciidoc[]
+include::delete.asciidoc[]
+include::update.asciidoc[]
+include::bulk.asciidoc[]
+include::search.asciidoc[]
+include::scroll.asciidoc[]
+include::main.asciidoc[]

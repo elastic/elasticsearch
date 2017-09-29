@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -61,7 +62,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -91,8 +91,11 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         // map for each address of the nodes a cluster state request should respond with
         final Map<TransportAddress, DiscoveryNodes> nodeMap;
 
+        TestIteration() {
+            this(Settings.EMPTY);
+        }
 
-        TestIteration(Object... extraSettings) {
+        TestIteration(Settings extraSettings) {
             Settings settings = Settings.builder().put(extraSettings).put("cluster.name", "test").build();
             ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
             List<TransportAddress> listNodes = new ArrayList<>();
@@ -270,7 +273,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     });
                 }, actionListener);
 
-                assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
+                latch.await();
 
                 //there can be only either one failure that causes the request to fail straightaway or success
                 assertThat(preSendFailures.get() + iteration.transport.failures() + iteration.transport.successes(), lessThanOrEqualTo(1));
@@ -319,7 +322,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     }
 
     private void checkRemoveAddress(boolean sniff) {
-        Object[] extraSettings = {TransportClient.CLIENT_TRANSPORT_SNIFF.getKey(), sniff};
+        Settings extraSettings = Settings.builder().put(TransportClient.CLIENT_TRANSPORT_SNIFF.getKey(), sniff).build();
         try(TestIteration iteration = new TestIteration(extraSettings)) {
             final TransportClientNodesService service = iteration.transportClientNodesService;
             assertEquals(iteration.listNodesCount + iteration.sniffNodesCount, service.connectedNodes().size());
@@ -341,7 +344,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         Settings remoteSettings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "remote").build();
         try (MockTransportService remoteService = createNewService(remoteSettings, Version.CURRENT, threadPool, null)) {
             final MockHandler handler = new MockHandler(remoteService);
-            remoteService.registerRequestHandler(ClusterStateAction.NAME, ClusterStateRequest::new, ThreadPool.Names.SAME, handler);
+            remoteService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,  handler);
             remoteService.start();
             remoteService.acceptIncomingRequests();
 

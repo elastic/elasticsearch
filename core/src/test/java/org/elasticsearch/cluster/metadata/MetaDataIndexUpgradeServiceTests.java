@@ -87,20 +87,26 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             Collections.emptyList());
+        Version minCompat = Version.CURRENT.minimumIndexCompatibilityVersion();
+        Version indexUpgraded = VersionUtils.randomVersionBetween(random(), minCompat, VersionUtils.getPreviousVersion(Version.CURRENT));
+        Version indexCreated = Version.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
         final IndexMetaData metaData = newIndexMeta("foo", Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_5_0_0_beta1)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.fromString("2.4.0"))
+            .put(IndexMetaData.SETTING_VERSION_UPGRADED, indexUpgraded)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, indexCreated)
             .build());
         String message = expectThrows(IllegalStateException.class, () -> service.upgradeIndexMetaData(metaData,
             Version.CURRENT.minimumIndexCompatibilityVersion())).getMessage();
-        assertEquals(message, "The index [[foo/BOOM]] was created with version [2.4.0] but the minimum compatible version is [5.0.0]." +
-            " It should be re-indexed in Elasticsearch 5.x before upgrading to " + Version.CURRENT.toString() + ".");
+        assertEquals(message, "The index [[foo/BOOM]] was created with version [" + indexCreated + "] " +
+             "but the minimum compatible version is [" + minCompat + "]." +
+            " It should be re-indexed in Elasticsearch " + minCompat.major + ".x before upgrading to " + Version.CURRENT.toString() + ".");
 
+        indexCreated = VersionUtils.randomVersionBetween(random(), minCompat, Version.CURRENT);
+        indexUpgraded = VersionUtils.randomVersionBetween(random(), indexCreated, Version.CURRENT);
         IndexMetaData goodMeta = newIndexMeta("foo", Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_5_0_0_beta1)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.fromString("5.1.0"))
+            .put(IndexMetaData.SETTING_VERSION_UPGRADED, indexUpgraded)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, indexCreated)
             .build());
-        service.upgradeIndexMetaData(goodMeta, Version.V_5_0_0.minimumIndexCompatibilityVersion());
+        service.upgradeIndexMetaData(goodMeta, Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
     public void testPluginUpgrade() {

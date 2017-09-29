@@ -71,12 +71,31 @@ public final class Sets {
         return !left.stream().anyMatch(k -> right.contains(k));
     }
 
+    /**
+     * The relative complement, or difference, of the specified left and right set. Namely, the resulting set contains all the elements that
+     * are in the left set but not in the right set. Neither input is mutated by this operation, an entirely new set is returned.
+     *
+     * @param left  the left set
+     * @param right the right set
+     * @param <T>   the type of the elements of the sets
+     * @return the relative complement of the left set with respect to the right set
+     */
     public static <T> Set<T> difference(Set<T> left, Set<T> right) {
         Objects.requireNonNull(left);
         Objects.requireNonNull(right);
         return left.stream().filter(k -> !right.contains(k)).collect(Collectors.toSet());
     }
 
+    /**
+     * The relative complement, or difference, of the specified left and right set, returned as a sorted set. Namely, the resulting set
+     * contains all the elements that are in the left set but not in the right set, and the set is sorted using the natural ordering of
+     * element type. Neither input is mutated by this operation, an entirely new set is returned.
+     *
+     * @param left  the left set
+     * @param right the right set
+     * @param <T>   the type of the elements of the sets
+     * @return the sorted relative complement of the left set with respect to the right set
+     */
     public static <T> SortedSet<T> sortedDifference(Set<T> left, Set<T> right) {
         Objects.requireNonNull(left);
         Objects.requireNonNull(right);

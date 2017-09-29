@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -101,5 +102,34 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
     @Override
     protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
         return ParsedAdjacencyMatrix.class;
+    }
+
+    @Override
+    protected InternalAdjacencyMatrix mutateInstance(InternalAdjacencyMatrix instance) {
+        String name = instance.getName();
+        List<InternalAdjacencyMatrix.InternalBucket> buckets = instance.getBuckets();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 2)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            buckets = new ArrayList<>(buckets);
+            buckets.add(new InternalAdjacencyMatrix.InternalBucket(randomAlphaOfLength(10), randomNonNegativeLong(),
+                    InternalAggregations.EMPTY));
+            break;
+        case 2:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators, metaData);
     }
 }

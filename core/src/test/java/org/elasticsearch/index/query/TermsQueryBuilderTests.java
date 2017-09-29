@@ -31,6 +31,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.get.GetResult;
@@ -78,8 +79,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             String fieldName;
             do {
                 fieldName = getRandomFieldName();
-            } while (fieldName.equals(GEO_POINT_FIELD_NAME) || fieldName.equals(GEO_SHAPE_FIELD_NAME)
-                || fieldName.equals(INT_RANGE_FIELD_NAME) || fieldName.equals(DATE_RANGE_FIELD_NAME));
+            } while (fieldName.equals(GEO_POINT_FIELD_NAME) || fieldName.equals(GEO_SHAPE_FIELD_NAME));
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
                 values[i] = getRandomValueForFieldName(fieldName);
@@ -93,7 +93,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     private TermsLookup randomTermsLookup() {
-        return new TermsLookup(randomBoolean() ? randomAlphaOfLength(10) : null, randomAlphaOfLength(10), randomAlphaOfLength(10),
+        return new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
                 termsPath).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
     }
 
@@ -254,7 +254,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
                 () -> termsQueryBuilder.toQuery(createShardContext()));
         assertEquals("query must be rewritten first", e.getMessage());
-        assertEquals(termsQueryBuilder.rewrite(createShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME,
+        assertEquals(rewriteAndFetch(termsQueryBuilder, createShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME,
             randomTerms.stream().filter(x -> x != null).collect(Collectors.toList()))); // terms lookup removes null values
     }
 
@@ -273,6 +273,15 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         // even though we use a terms lookup here we do this during rewrite and that means we are cachable on toQuery
         // that's why we return true here all the time
         return super.isCachable(queryBuilder);
+    }
+
+    public void testSerializationFailsUnlessFetched() throws IOException {
+        QueryBuilder builder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
+        QueryBuilder termsQueryBuilder = Rewriteable.rewrite(builder, createShardContext());
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> termsQueryBuilder.writeTo(new BytesStreamOutput(10)));
+        assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+        builder = rewriteAndFetch(builder, createShardContext());
+        builder.writeTo(new BytesStreamOutput(10));
     }
 
     public void testConversion() {

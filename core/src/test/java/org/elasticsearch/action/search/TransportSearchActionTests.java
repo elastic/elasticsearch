@@ -198,7 +198,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     assertArrayEquals(new String[]{"some_alias_for_foo", "some_other_foo_alias"},
                         iterator.getOriginalIndices().indices());
                     assertTrue(iterator.shardId().getId() == 0 || iterator.shardId().getId() == 1);
-                    assertEquals("test_cluster_1:foo", iterator.shardId().getIndexName());
+                    assertEquals("test_cluster_1", iterator.getClusterAlias());
+                    assertEquals("foo", iterator.shardId().getIndexName());
                     ShardRouting shardRouting = iterator.nextOrNull();
                     assertNotNull(shardRouting);
                     assertEquals(shardRouting.getIndexName(), "foo");
@@ -209,7 +210,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 } else if (iterator.shardId().getIndexName().endsWith("bar")) {
                     assertArrayEquals(new String[]{"bar"}, iterator.getOriginalIndices().indices());
                     assertEquals(0, iterator.shardId().getId());
-                    assertEquals("test_cluster_1:bar", iterator.shardId().getIndexName());
+                    assertEquals("test_cluster_1", iterator.getClusterAlias());
+                    assertEquals("bar", iterator.shardId().getIndexName());
                     ShardRouting shardRouting = iterator.nextOrNull();
                     assertNotNull(shardRouting);
                     assertEquals(shardRouting.getIndexName(), "bar");
@@ -220,7 +222,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 } else if (iterator.shardId().getIndexName().endsWith("xyz")) {
                     assertArrayEquals(new String[]{"some_alias_for_xyz"}, iterator.getOriginalIndices().indices());
                     assertEquals(0, iterator.shardId().getId());
-                    assertEquals("test_cluster_2:xyz", iterator.shardId().getIndexName());
+                    assertEquals("xyz", iterator.shardId().getIndexName());
+                    assertEquals("test_cluster_2", iterator.getClusterAlias());
                     ShardRouting shardRouting = iterator.nextOrNull();
                     assertNotNull(shardRouting);
                     assertEquals(shardRouting.getIndexName(), "xyz");

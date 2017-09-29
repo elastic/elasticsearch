@@ -21,8 +21,6 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
-import org.elasticsearch.cloud.azure.blobstore.AzureBlobStore;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
@@ -43,8 +41,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
-import static org.elasticsearch.cloud.azure.storage.AzureStorageService.MAX_CHUNK_SIZE;
-import static org.elasticsearch.cloud.azure.storage.AzureStorageService.MIN_CHUNK_SIZE;
+import static org.elasticsearch.repositories.azure.AzureStorageService.MAX_CHUNK_SIZE;
+import static org.elasticsearch.repositories.azure.AzureStorageService.MIN_CHUNK_SIZE;
 
 /**
  * Azure file system implementation of the BlobStoreRepository
@@ -62,7 +60,12 @@ public class AzureRepository extends BlobStoreRepository {
     public static final String TYPE = "azure";
 
     public static final class Repository {
-        public static final Setting<String> ACCOUNT_SETTING = Setting.simpleString("account", Property.NodeScope);
+
+        @Deprecated // Replaced by client
+        public static final Setting<String> ACCOUNT_SETTING = new Setting<>("account", "default", Function.identity(),
+            Property.NodeScope, Property.Deprecated);
+        public static final Setting<String> CLIENT_NAME = new Setting<>("client", ACCOUNT_SETTING, Function.identity());
+
         public static final Setting<String> CONTAINER_SETTING =
             new Setting<>("container", "elasticsearch-snapshots", Function.identity(), Property.NodeScope);
         public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", Property.NodeScope);
@@ -154,6 +157,7 @@ public class AzureRepository extends BlobStoreRepository {
             throw new IllegalArgumentException("The bucket [" + blobStore.container() + "] does not exist. Please create it before " +
                 " creating an azure snapshot repository backed by it.");
         }
+        super.initializeSnapshot(snapshotId, indices, clusterMetadata);
     }
 
     @Override

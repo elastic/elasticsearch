@@ -26,6 +26,7 @@ import java.util.Map;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
@@ -34,7 +35,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new CreateKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path configPath) {
+            protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
                 return env;
             }
         };

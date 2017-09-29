@@ -21,3 +21,13 @@ grant {
    // reindex opens socket connections using the rest client
    permission java.net.SocketPermission "*", "connect";
 };
+
+grant codeBase "${codebase.elasticsearch-rest-client}" {
+  // rest client uses system properties which gets the default proxy
+  permission java.net.NetPermission "getProxySelector";
+};
+
+grant codeBase "${codebase.httpasyncclient-4.1.2.jar}" {
+  // rest client uses system properties which gets the default proxy
+  permission java.net.NetPermission "getProxySelector";
+};

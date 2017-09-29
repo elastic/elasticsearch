@@ -104,7 +104,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.prepareGet("idx", "type", "id").execute(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
         client.prepareSearch().execute(new AssertingActionListener<>(SearchAction.NAME, client.threadPool()));
         client.prepareDelete("idx", "type", "id").execute(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
-        client.admin().cluster().prepareDeleteStoredScript("lang", "id").execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
+        client.admin().cluster().prepareDeleteStoredScript("id").execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
         client.prepareIndex("idx", "type", "id").setSource("source", XContentType.JSON).execute(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
 
         // choosing arbitrary cluster admin actions to test
@@ -144,7 +144,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
     }
 
     protected static void assertHeaders(ThreadPool pool) {
-        assertHeaders(pool.getThreadContext().getHeaders(), (Map)HEADER_SETTINGS.getAsSettings(ThreadContext.PREFIX).getAsStructuredMap());
+        assertHeaders(pool.getThreadContext().getHeaders(), HEADER_SETTINGS.getAsSettings(ThreadContext.PREFIX).getAsMap());
     }
 
     public static class InternalException extends Exception {
@@ -163,7 +163,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         private final ThreadPool pool;
 
         public AssertingActionListener(String action, ThreadPool pool) {
-            this(action, (Map)HEADER_SETTINGS.getAsSettings(ThreadContext.PREFIX).getAsStructuredMap(), pool);
+            this(action, HEADER_SETTINGS.getAsSettings(ThreadContext.PREFIX).getAsMap(), pool);
         }
 
        public AssertingActionListener(String action, Map<String, String> expectedHeaders, ThreadPool pool) {

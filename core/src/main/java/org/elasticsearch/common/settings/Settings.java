@@ -19,30 +19,34 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.Level;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.loader.SettingsLoader;
-import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
@@ -55,7 +59,6 @@ import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -79,7 +82,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 /**
  * An immutable settings implementation.
  */
-public final class Settings implements ToXContent {
+public final class Settings implements ToXContentFragment {
 
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
@@ -122,10 +125,7 @@ public final class Settings implements ToXContent {
         return this.settings;
     }
 
-    /**
-     * The settings as a structured {@link java.util.Map}.
-     */
-    public Map<String, Object> getAsStructuredMap() {
+    private Map<String, Object> getAsStructuredMap() {
         Map<String, Object> map = new HashMap<>(2);
         for (Map.Entry<String, String> entry : settings.entrySet()) {
             processSetting(map, "", entry.getKey(), entry.getValue());
@@ -321,41 +321,20 @@ public final class Settings implements ToXContent {
     }
 
     /**
+     * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
+     * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
+     * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
+     */
+    static class DeprecationLoggerHolder {
+        static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Settings.class));
+    }
+
+    /**
      * Returns the setting value (as boolean) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
     public Boolean getAsBoolean(String setting, Boolean defaultValue) {
         return Booleans.parseBoolean(get(setting), defaultValue);
-    }
-
-    // TODO #22298: Delete this method and update call sites to <code>#getAsBoolean(String, Boolean)</code>.
-    /**
-     * Returns the setting value (as boolean) associated with the setting key. If it does not exist, returns the default value provided.
-     * If the index was created on Elasticsearch below 6.0, booleans will be parsed leniently otherwise they are parsed strictly.
-     *
-     * See {@link Booleans#isBooleanLenient(char[], int, int)} for the definition of a "lenient boolean"
-     * and {@link Booleans#isBoolean(char[], int, int)} for the definition of a "strict boolean".
-     *
-     * @deprecated Only used to provide automatic upgrades for pre 6.0 indices.
-     */
-    @Deprecated
-    public Boolean getAsBooleanLenientForPreEs6Indices(
-        final Version indexVersion,
-        final String setting,
-        final Boolean defaultValue,
-        final DeprecationLogger deprecationLogger) {
-        if (indexVersion.before(Version.V_6_0_0_alpha1)) {
-            //Only emit a warning if the setting's value is not a proper boolean
-            final String value = get(setting, "false");
-            if (Booleans.isBoolean(value) == false) {
-                @SuppressWarnings("deprecation")
-                boolean convertedValue = Booleans.parseBooleanLenient(get(setting), defaultValue);
-                deprecationLogger.deprecated("The value [{}] of setting [{}] is not coerced into boolean anymore. Please change " +
-                    "this value to [{}].", value, setting, String.valueOf(convertedValue));
-                return convertedValue;
-            }
-        }
-        return getAsBoolean(setting, defaultValue);
     }
 
     /**
@@ -641,6 +620,117 @@ public final class Settings implements ToXContent {
         return builder;
     }
 
+    /**
+     * Parsers the generated xconten from {@link Settings#toXContent(XContentBuilder, Params)} into a new Settings object.
+     * Note this method requires the parser to either be positioned on a null token or on
+     * {@link org.elasticsearch.common.xcontent.XContentParser.Token#START_OBJECT}.
+     */
+    public static Settings fromXContent(XContentParser parser) throws IOException {
+        return fromXContent(parser, true, false);
+    }
+
+    private static Settings fromXContent(XContentParser parser, boolean allowNullValues,
+                                                 boolean validateEndOfStream)
+        throws IOException {
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        Builder innerBuilder = Settings.builder();
+        StringBuilder currentKeyBuilder = new StringBuilder();
+        fromXContent(parser, currentKeyBuilder, innerBuilder, allowNullValues);
+        if (validateEndOfStream) {
+            // ensure we reached the end of the stream
+            XContentParser.Token lastToken = null;
+            try {
+                while (!parser.isClosed() && (lastToken = parser.nextToken()) == null) ;
+            } catch (Exception e) {
+                throw new ElasticsearchParseException(
+                    "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
+                        + "column number: [{}]",
+                    e, parser.getTokenLocation().lineNumber, parser.getTokenLocation().columnNumber);
+            }
+            if (lastToken != null) {
+                throw new ElasticsearchParseException(
+                    "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
+                        + "column number: [{}]",
+                    parser.getTokenLocation().lineNumber, parser.getTokenLocation().columnNumber);
+            }
+        }
+        return innerBuilder.build();
+    }
+
+    private static void fromXContent(XContentParser parser, StringBuilder keyBuilder, Settings.Builder builder,
+                                     boolean allowNullValues) throws IOException {
+        final int length = keyBuilder.length();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                keyBuilder.setLength(length);
+                keyBuilder.append(parser.currentName());
+            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                keyBuilder.append('.');
+                fromXContent(parser, keyBuilder, builder, allowNullValues);
+            } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                List<String> list = new ArrayList<>();
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                        list.add(parser.text());
+                    } else if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                        list.add(parser.text()); // just use the string representation here
+                    } else if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
+                        list.add(String.valueOf(parser.text()));
+                    } else {
+                        throw new IllegalStateException("only value lists are allowed in serialized settings");
+                    }
+                }
+                String key = keyBuilder.toString();
+                validateValue(key, list, builder, parser, allowNullValues);
+                builder.putArray(key, list);
+            } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                String key = keyBuilder.toString();
+                validateValue(key, null, builder, parser, allowNullValues);
+                builder.putNull(key);
+            } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING
+                || parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                String key = keyBuilder.toString();
+                String value = parser.text();
+                validateValue(key, value, builder, parser, allowNullValues);
+                builder.put(key, value);
+            } else if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
+                String key = keyBuilder.toString();
+                validateValue(key, parser.text(), builder, parser, allowNullValues);
+                builder.put(key, parser.booleanValue());
+            } else {
+                XContentParserUtils.throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
+            }
+        }
+    }
+
+    private static void validateValue(String key, Object currentValue, Settings.Builder builder, XContentParser parser,
+                                      boolean allowNullValues) {
+        if (builder.map.containsKey(key)) {
+            throw new ElasticsearchParseException(
+                "duplicate settings key [{}] found at line number [{}], column number [{}], previous value [{}], current value [{}]",
+                key,
+                parser.getTokenLocation().lineNumber,
+                parser.getTokenLocation().columnNumber,
+                builder.map.get(key),
+                currentValue
+            );
+        }
+
+        if (currentValue == null && allowNullValues == false) {
+            throw new ElasticsearchParseException(
+                "null-valued setting found for key [{}] found at line number [{}], column number [{}]",
+                key,
+                parser.getTokenLocation().lineNumber,
+                parser.getTokenLocation().columnNumber
+            );
+        }
+    }
+
+
+
     public static final Set<String> FORMAT_PARAMS =
         Collections.unmodifiableSet(new HashSet<>(Arrays.asList("settings_filter", "flat_settings")));
 
@@ -727,27 +817,69 @@ public final class Settings implements ToXContent {
         }
 
         /**
-         * Puts tuples of key value pairs of settings. Simplified version instead of repeating calling
-         * put for each one.
+         * Sets a path setting with the provided setting key and path.
+         *
+         * @param key  The setting key
+         * @param path The setting path
+         * @return The builder
          */
-        public Builder put(Object... settings) {
-            if (settings.length == 1) {
-                // support cases where the actual type gets lost down the road...
-                if (settings[0] instanceof Map) {
-                    //noinspection unchecked
-                    return put((Map) settings[0]);
-                } else if (settings[0] instanceof Settings) {
-                    return put((Settings) settings[0]);
-                }
-            }
-            if ((settings.length % 2) != 0) {
-                throw new IllegalArgumentException(
-                        "array settings of key + value order doesn't hold correct number of arguments (" + settings.length + ")");
-            }
-            for (int i = 0; i < settings.length; i++) {
-                put(settings[i++].toString(), settings[i].toString());
-            }
-            return this;
+        public Builder put(String key, Path path) {
+            return put(key, path.toString());
+        }
+
+        /**
+         * Sets a time value setting with the provided setting key and value.
+         *
+         * @param key  The setting key
+         * @param timeValue The setting timeValue
+         * @return The builder
+         */
+        public Builder put(String key, TimeValue timeValue) {
+            return put(key, timeValue.toString());
+        }
+
+        /**
+         * Sets a byteSizeValue setting with the provided setting key and byteSizeValue.
+         *
+         * @param key  The setting key
+         * @param byteSizeValue The setting value
+         * @return The builder
+         */
+        public Builder put(String key, ByteSizeValue byteSizeValue) {
+            return put(key, byteSizeValue.toString());
+        }
+
+        /**
+         * Sets an enum setting with the provided setting key and enum instance.
+         *
+         * @param key  The setting key
+         * @param enumValue The setting value
+         * @return The builder
+         */
+        public Builder put(String key, Enum<?> enumValue) {
+            return put(key, enumValue.toString());
+        }
+
+        /**
+         * Sets an level setting with the provided setting key and level instance.
+         *
+         * @param key  The setting key
+         * @param level The setting value
+         * @return The builder
+         */
+        public Builder put(String key, Level level) {
+            return put(key, level.toString());
+        }
+
+        /**
+         * Sets an lucene version setting with the provided setting key and lucene version instance.
+         *
+         * @param key  The setting key
+         * @param luceneVersion The setting value
+         * @return The builder
+         */
+        public Builder put(String key, org.apache.lucene.util.Version luceneVersion) {
+            return put(key, luceneVersion.toString());
         }
 
         /**
@@ -762,6 +894,9 @@ public final class Settings implements ToXContent {
             return this;
         }
 
+        /**
+         * Sets a null value for the given setting key
+         */
         public Builder putNull(String key) {
             return put(key, (String) null);
         }
@@ -867,13 +1002,6 @@ public final class Settings implements ToXContent {
             return this;
         }
 
-        /**
-         * Sets the setting with the provided setting key and an array of values.
-         *
-         * @param setting The setting key
-         * @param values  The values
-         * @return The builder
-         */
 
         /**
          * Sets the setting with the provided setting key and an array of values.
@@ -909,26 +1037,6 @@ public final class Settings implements ToXContent {
         }
 
         /**
-         * Sets the setting as an array of values, but keeps existing elements for the key.
-         */
-        public Builder extendArray(String setting, String... values) {
-            // check for a singular (non array) value
-            String oldSingle = remove(setting);
-            // find the highest array index
-            int counter = 0;
-            while (map.containsKey(setting + '.' + counter)) {
-                ++counter;
-            }
-            if (oldSingle != null) {
-                put(setting + '.' + counter++, oldSingle);
-            }
-            for (String value : values) {
-                put(setting + '.' + counter++, value);
-            }
-            return this;
-        }
-
-        /**
          * Sets the setting group.
          */
         public Builder put(String settingPrefix, String groupName, String[] settings, String[] values) throws SettingsException {
@@ -945,23 +1053,23 @@ public final class Settings implements ToXContent {
         }
 
         /**
-         * Sets all the provided settings.
+         * Sets all the provided settings including secure settings
          */
         public Builder put(Settings settings) {
-            removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings.getAsMap());
-            map.putAll(settings.getAsMap());
-            if (settings.getSecureSettings() != null) {
-                setSecureSettings(settings.getSecureSettings());
-            }
-            return this;
+            return put(settings, true);
         }
 
         /**
          * Sets all the provided settings.
+         * @param settings the settings to set
+         * @param copySecureSettings if <code>true</code> all settings including secure settings are copied.
          */
-        public Builder put(Map<String, String> settings) {
-            removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings);
-            map.putAll(settings);
+        public Builder put(Settings settings, boolean copySecureSettings) {
+            removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings.getAsMap());
+            map.putAll(settings.getAsMap());
+            if (copySecureSettings && settings.getSecureSettings() != null) {
+                setSecureSettings(settings.getSecureSettings());
+            }
             return this;
         }
 
@@ -1007,31 +1115,11 @@ public final class Settings implements ToXContent {
         }
 
         /**
-         * Loads settings from the actual string content that represents them using the
-         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
-         * @deprecated use {@link #loadFromSource(String, XContentType)} to avoid content type detection
-         */
-        @Deprecated
-        public Builder loadFromSource(String source) {
-            SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromSource(source);
-            try {
-                Map<String, String> loadedSettings = settingsLoader.load(source);
-                put(loadedSettings);
-            } catch (Exception e) {
-                throw new SettingsException("Failed to load settings from [" + source + "]", e);
-            }
-            return this;
-        }
-
-        /**
-         * Loads settings from the actual string content that represents them using the
-         * {@link SettingsLoaderFactory#loaderFromXContentType(XContentType)} method to obtain a loader
+         * Loads settings from the actual string content that represents them using {@link #fromXContent(XContentParser)}
          */
         public Builder loadFromSource(String source, XContentType xContentType) {
-            SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromXContentType(xContentType);
-            try {
-                Map<String, String> loadedSettings = settingsLoader.load(source);
-                put(loadedSettings);
+            try (XContentParser parser =  XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY, source)) {
+                this.put(fromXContent(parser, true, true));
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + source + "]", e);
             }
@@ -1039,31 +1127,47 @@ public final class Settings implements ToXContent {
         }
 
         /**
-         * Loads settings from a url that represents them using the
-         * {@link SettingsLoaderFactory#loaderFromResource(String)}.
+         * Loads settings from a url that represents them using {@link #fromXContent(XContentParser)}
+         * Note: Loading from a path doesn't allow <code>null</code> values in the incoming xcontent
          */
         public Builder loadFromPath(Path path) throws IOException {
             // NOTE: loadFromStream will close the input stream
-            return loadFromStream(path.getFileName().toString(), Files.newInputStream(path));
+            return loadFromStream(path.getFileName().toString(), Files.newInputStream(path), false);
         }
 
         /**
-         * Loads settings from a stream that represents them using the
-         * {@link SettingsLoaderFactory#loaderFromResource(String)}.
+         * Loads settings from a stream that represents them using {@link #fromXContent(XContentParser)}
          */
-        public Builder loadFromStream(String resourceName, InputStream is) throws IOException {
-            SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromResource(resourceName);
-            // NOTE: copyToString will close the input stream
-            Map<String, String> loadedSettings =
-                settingsLoader.load(Streams.copyToString(new InputStreamReader(is, StandardCharsets.UTF_8)));
-            put(loadedSettings);
+        public Builder loadFromStream(String resourceName, InputStream is, boolean acceptNullValues) throws IOException {
+            final XContentType xContentType;
+            if (resourceName.endsWith(".json")) {
+                xContentType = XContentType.JSON;
+            } else if (resourceName.endsWith(".yml") || resourceName.endsWith(".yaml")) {
+                xContentType = XContentType.YAML;
+            } else {
+                throw new IllegalArgumentException("unable to detect content type from resource name [" + resourceName + "]");
+            }
+            try (XContentParser parser =  XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY, is)) {
+                if (parser.currentToken() == null) {
+                    if (parser.nextToken() == null) {
+                        return this; // empty file
+                    }
+                }
+                put(fromXContent(parser, acceptNullValues, true));
+            } catch (ElasticsearchParseException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new SettingsException("Failed to load settings from [" + resourceName + "]", e);
+            } finally {
+                IOUtils.close(is);
+            }
             return this;
         }
 
         public Builder putProperties(final Map<String, String> esSettings, final Function<String, String> keyFunction) {
             for (final Map.Entry<String, String> esSetting : esSettings.entrySet()) {
                 final String key = esSetting.getKey();
-                map.put(keyFunction.apply(key), esSetting.getValue());
+                put(keyFunction.apply(key), esSetting.getValue());
             }
             return this;
         }

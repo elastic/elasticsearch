@@ -78,8 +78,6 @@ include::types/numeric.asciidoc[]
 
 include::types/object.asciidoc[]
 
-include::types/string.asciidoc[]
-
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]

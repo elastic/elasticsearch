@@ -32,8 +32,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
-
 /**
  * Rest handler for reindex actions that accepts a search request like Update-By-Query or Delete-By-Query
  */
@@ -51,15 +49,12 @@ public abstract class AbstractBulkByQueryRestHandler<
         assert restRequest != null : "RestRequest should not be null";
 
         SearchRequest searchRequest = internal.getSearchRequest();
-        int scrollSize = searchRequest.source().size();
-        searchRequest.source().size(SIZE_ALL_MATCHES);
 
         try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser);
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, internal::setSize);
         }
 
-        internal.setSize(searchRequest.source().size());
-        searchRequest.source().size(restRequest.paramAsInt("scroll_size", scrollSize));
+        searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));
 
         String conflicts = restRequest.param("conflicts");
         if (conflicts != null) {

@@ -19,27 +19,29 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
+import org.hamcrest.CoreMatchers;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -90,55 +92,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.get("setting2"), is("${prompt.secret}"));
     }
 
-    public void testUnFlattenedSettings() {
-        Settings settings = Settings.builder()
-                .put("foo", "abc")
-                .put("bar", "def")
-                .put("baz.foo", "ghi")
-                .put("baz.bar", "jkl")
-                .putArray("baz.arr", "a", "b", "c")
-                .build();
-        Map<String, Object> map = settings.getAsStructuredMap();
-        assertThat(map.keySet(), Matchers.<String>hasSize(3));
-        assertThat(map, allOf(
-                Matchers.<String, Object>hasEntry("foo", "abc"),
-                Matchers.<String, Object>hasEntry("bar", "def")));
-
-        @SuppressWarnings("unchecked") Map<String, Object> bazMap = (Map<String, Object>) map.get("baz");
-        assertThat(bazMap.keySet(), Matchers.<String>hasSize(3));
-        assertThat(bazMap, allOf(
-                Matchers.<String, Object>hasEntry("foo", "ghi"),
-                Matchers.<String, Object>hasEntry("bar", "jkl")));
-        @SuppressWarnings("unchecked") List<String> bazArr = (List<String>) bazMap.get("arr");
-        assertThat(bazArr, contains("a", "b", "c"));
-
-    }
-
-    public void testFallbackToFlattenedSettings() {
-        Settings settings = Settings.builder()
-                .put("foo", "abc")
-                .put("foo.bar", "def")
-                .put("foo.baz", "ghi").build();
-        Map<String, Object> map = settings.getAsStructuredMap();
-        assertThat(map.keySet(), Matchers.<String>hasSize(3));
-        assertThat(map, allOf(
-                Matchers.<String, Object>hasEntry("foo", "abc"),
-                Matchers.<String, Object>hasEntry("foo.bar", "def"),
-                Matchers.<String, Object>hasEntry("foo.baz", "ghi")));
-
-        settings = Settings.builder()
-                .put("foo.bar", "def")
-                .put("foo", "abc")
-                .put("foo.baz", "ghi")
-                .build();
-        map = settings.getAsStructuredMap();
-        assertThat(map.keySet(), Matchers.<String>hasSize(3));
-        assertThat(map, allOf(
-                Matchers.<String, Object>hasEntry("foo", "abc"),
-                Matchers.<String, Object>hasEntry("foo.bar", "def"),
-                Matchers.<String, Object>hasEntry("foo.baz", "ghi")));
-    }
-
     public void testGetAsSettings() {
         Settings settings = Settings.builder()
                 .put("bar", "hello world")
@@ -151,72 +104,6 @@ public class SettingsTests extends ESTestCase {
         assertEquals(2, fooSettings.size());
         assertThat(fooSettings.get("bar"), equalTo("def"));
         assertThat(fooSettings.get("baz"), equalTo("ghi"));
-    }
-
-    @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
-    public void testLenientBooleanForPreEs6Index() throws IOException {
-        // time to say goodbye?
-        assertTrue(
-            "It's time to implement #22298. Please delete this test and Settings#getAsBooleanLenientForPreEs6Indices().",
-            Version.CURRENT.minimumCompatibilityVersion().before(Version.V_6_0_0_alpha1));
-
-
-        String falsy = randomFrom("false", "off", "no", "0");
-        String truthy = randomFrom("true", "on", "yes", "1");
-
-        Settings settings = Settings.builder()
-            .put("foo", falsy)
-            .put("bar", truthy).build();
-
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("testLenientBooleanForPreEs6Index"));
-
-        assertFalse(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "foo", null, deprecationLogger));
-        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "bar", null, deprecationLogger));
-        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "baz", true, deprecationLogger));
-
-        List<String> expectedDeprecationWarnings = new ArrayList<>();
-        if (Booleans.isBoolean(falsy) == false) {
-            expectedDeprecationWarnings.add(
-                "The value [" + falsy + "] of setting [foo] is not coerced into boolean anymore. Please change this value to [false].");
-        }
-        if (Booleans.isBoolean(truthy) == false) {
-            expectedDeprecationWarnings.add(
-                "The value [" + truthy + "] of setting [bar] is not coerced into boolean anymore. Please change this value to [true].");
-        }
-
-        if (expectedDeprecationWarnings.isEmpty() == false) {
-            assertWarnings(expectedDeprecationWarnings.toArray(new String[1]));
-        }
-    }
-
-    @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
-    public void testInvalidLenientBooleanForCurrentIndexVersion() {
-        String falsy = randomFrom("off", "no", "0");
-        String truthy = randomFrom("on", "yes", "1");
-
-        Settings settings = Settings.builder()
-            .put("foo", falsy)
-            .put("bar", truthy).build();
-
-        final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(ESLoggerFactory.getLogger("testInvalidLenientBooleanForCurrentIndexVersion"));
-        expectThrows(IllegalArgumentException.class,
-            () -> settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "foo", null, deprecationLogger));
-        expectThrows(IllegalArgumentException.class,
-            () -> settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "bar", null, deprecationLogger));
-    }
-
-    @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
-    public void testValidLenientBooleanForCurrentIndexVersion() {
-        Settings settings = Settings.builder()
-            .put("foo", "false")
-            .put("bar", "true").build();
-
-        final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(ESLoggerFactory.getLogger("testValidLenientBooleanForCurrentIndexVersion"));
-        assertFalse(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "foo", null, deprecationLogger));
-        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "bar", null, deprecationLogger));
-        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "baz", true, deprecationLogger));
     }
 
     public void testMultLevelGetPrefix() {
@@ -282,11 +169,9 @@ public class SettingsTests extends ESTestCase {
                 .put(Settings.builder().putArray("value", "2", "3").build())
                 .build();
         assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
-
-        settings = Settings.builder()
-                .put(new YamlSettingsLoader(false).load("value: 1"))
-                .put(new YamlSettingsLoader(false).load("value: [ 2, 3 ]"))
-                .build();
+        settings = Settings.builder().loadFromSource("value: 1", XContentType.YAML)
+            .loadFromSource("value: [ 2, 3 ]", XContentType.YAML)
+            .build();
         assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
 
         settings = Settings.builder()
@@ -628,4 +513,145 @@ public class SettingsTests extends ESTestCase {
         assertThat(e, hasToString(containsString("settings object contains values for [foobar=foo] and [foobar.0=bar]")));
     }
 
+    public void testToAndFromXContent() throws IOException {
+        Settings settings = Settings.builder()
+            .putArray("foo.bar.baz", "1", "2", "3")
+            .put("foo.foobar", 2)
+            .put("rootfoo", "test")
+            .put("foo.baz", "1,2,3,4")
+            .putNull("foo.null.baz")
+            .build();
+        final boolean flatSettings = randomBoolean();
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", ""+flatSettings)));
+        builder.endObject();
+        XContentParser parser = createParser(builder);
+        Settings build = Settings.fromXContent(parser);
+        assertEquals(7, build.size()); // each list element is it's own key hence 7 and not 5
+        assertArrayEquals(new String[] {"1", "2", "3"}, build.getAsArray("foo.bar.baz"));
+        assertEquals(2, build.getAsInt("foo.foobar", 0).intValue());
+        assertEquals("test", build.get("rootfoo"));
+        assertEquals("1,2,3,4", build.get("foo.baz"));
+        assertNull(build.get("foo.null.baz"));
+    }
+
+    public void testSimpleJsonSettings() throws Exception {
+        final String json = "/org/elasticsearch/common/settings/loader/test-settings.json";
+        final Settings settings = Settings.builder()
+            .loadFromStream(json, getClass().getResourceAsStream(json), false)
+            .build();
+
+        assertThat(settings.get("test1.value1"), equalTo("value1"));
+        assertThat(settings.get("test1.test2.value2"), equalTo("value2"));
+        assertThat(settings.getAsInt("test1.test2.value3", -1), equalTo(2));
+
+        // check array
+        assertThat(settings.get("test1.test3.0"), equalTo("test3-1"));
+        assertThat(settings.get("test1.test3.1"), equalTo("test3-2"));
+        assertThat(settings.getAsArray("test1.test3").length, equalTo(2));
+        assertThat(settings.getAsArray("test1.test3")[0], equalTo("test3-1"));
+        assertThat(settings.getAsArray("test1.test3")[1], equalTo("test3-2"));
+    }
+
+    public void testDuplicateKeysThrowsException() {
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
+        final String json = "{\"foo\":\"bar\",\"foo\":\"baz\"}";
+        final SettingsException e = expectThrows(SettingsException.class,
+            () -> Settings.builder().loadFromSource(json, XContentType.JSON).build());
+        assertThat(
+            e.toString(),
+            CoreMatchers.containsString("duplicate settings key [foo] " +
+                "found at line number [1], " +
+                "column number [20], " +
+                "previous value [bar], " +
+                "current value [baz]"));
+
+        String yaml = "foo: bar\nfoo: baz";
+        SettingsException e1 = expectThrows(SettingsException.class, () -> {
+            Settings.builder().loadFromSource(yaml, XContentType.YAML);
+        });
+        assertEquals(e1.getCause().getClass(), ElasticsearchParseException.class);
+        String msg = e1.getCause().getMessage();
+        assertTrue(
+            msg,
+            msg.contains("duplicate settings key [foo] found at line number [2], column number [6], " +
+                "previous value [bar], current value [baz]"));
+    }
+
+    public void testToXContent() throws IOException {
+        // this is just terrible but it's the existing behavior!
+        Settings test = Settings.builder().putArray("foo.bar", "1", "2", "3").put("foo.bar.baz", "test").build();
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
+        builder.endObject();
+        assertEquals("{\"foo\":{\"bar\":{\"0\":\"1\",\"1\":\"2\",\"2\":\"3\",\"baz\":\"test\"}}}", builder.string());
+
+        test = Settings.builder().putArray("foo.bar", "1", "2", "3").build();
+        builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
+        builder.endObject();
+        assertEquals("{\"foo\":{\"bar\":[\"1\",\"2\",\"3\"]}}", builder.string());
+
+        builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+        builder.endObject();
+        assertEquals("{\"foo.bar.0\":\"1\",\"foo.bar.1\":\"2\",\"foo.bar.2\":\"3\"}", builder.string());
+    }
+
+    public void testLoadEmptyStream() throws IOException {
+        Settings test = Settings.builder().loadFromStream(randomFrom("test.json", "test.yml"), new ByteArrayInputStream(new byte[0]), false)
+            .build();
+        assertEquals(0, test.size());
+    }
+
+    public void testSimpleYamlSettings() throws Exception {
+        final String yaml = "/org/elasticsearch/common/settings/loader/test-settings.yml";
+        final Settings settings = Settings.builder()
+            .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
+            .build();
+
+        assertThat(settings.get("test1.value1"), equalTo("value1"));
+        assertThat(settings.get("test1.test2.value2"), equalTo("value2"));
+        assertThat(settings.getAsInt("test1.test2.value3", -1), equalTo(2));
+
+        // check array
+        assertThat(settings.get("test1.test3.0"), equalTo("test3-1"));
+        assertThat(settings.get("test1.test3.1"), equalTo("test3-2"));
+        assertThat(settings.getAsArray("test1.test3").length, equalTo(2));
+        assertThat(settings.getAsArray("test1.test3")[0], equalTo("test3-1"));
+        assertThat(settings.getAsArray("test1.test3")[1], equalTo("test3-2"));
+    }
+
+    public void testIndentation() throws Exception {
+        String yaml = "/org/elasticsearch/common/settings/loader/indentation-settings.yml";
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
+    }
+
+    public void testIndentationWithExplicitDocumentStart() throws Exception {
+        String yaml = "/org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
+    }
+
+
+    public void testMissingValue() throws Exception {
+        Path tmp = createTempFile("test", ".yaml");
+        Files.write(tmp, Collections.singletonList("foo: # missing value\n"), StandardCharsets.UTF_8);
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            Settings.builder().loadFromPath(tmp);
+        });
+        assertTrue(
+            e.getMessage(),
+            e.getMessage().contains("null-valued setting found for key [foo] found at line number [1], column number [5]"));
+    }
 }

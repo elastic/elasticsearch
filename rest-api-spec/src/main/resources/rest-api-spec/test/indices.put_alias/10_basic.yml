@@ -39,7 +39,7 @@
         index: test_index
 
   - do:
-      catch: request
+      catch: bad_request
       indices.put_alias:
         index: test_index
         name: test_*
@@ -55,7 +55,7 @@
         index: foo
 
   - do:
-      catch: request
+      catch: bad_request
       indices.put_alias:
         index: test_index
         name: foo

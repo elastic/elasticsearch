@@ -42,7 +42,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -82,7 +82,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public static final String PREPARE_TRANSLOG = "internal:index/shard/recovery/prepare_translog";
         public static final String FINALIZE = "internal:index/shard/recovery/finalize";
         public static final String WAIT_CLUSTERSTATE = "internal:index/shard/recovery/wait_clusterstate";
-        public static final String HANDOFF_PRIMARY_CONTEXT = "internal:index/shard/recovery/hand_off_primary_context";
+        public static final String HANDOFF_PRIMARY_CONTEXT = "internal:index/shard/recovery/handoff_primary_context";
     }
 
     private final ThreadPool threadPool;
@@ -319,10 +319,10 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         if (metadataSnapshot.size() > 0) {
             startingSeqNo = getStartingSeqNo(recoveryTarget);
         } else {
-            startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
 
-        if (startingSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+        if (startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             logger.trace("{} preparing for file-based recovery from [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
         } else {
             logger.trace(
@@ -348,7 +348,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      * Get the starting sequence number for a sequence-number-based request.
      *
      * @param recoveryTarget the target of the recovery
-     * @return the starting sequence number or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO} if obtaining the starting sequence number
+     * @return the starting sequence number or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if obtaining the starting sequence number
      * failed
      */
     public static long getStartingSeqNo(final RecoveryTarget recoveryTarget) {
@@ -356,6 +356,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation());
             final SeqNoStats seqNoStats = recoveryTarget.store().loadSeqNoStats(globalCheckpoint);
             if (seqNoStats.getMaxSeqNo() <= seqNoStats.getGlobalCheckpoint()) {
+                assert seqNoStats.getLocalCheckpoint() <= seqNoStats.getGlobalCheckpoint();
                 /*
                  * Commit point is good for sequence-number based recovery as the maximum sequence number included in it is below the global
                  * checkpoint (i.e., it excludes any operations that may not be on the primary). Recovery will start at the first operation
@@ -363,7 +364,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                  */
                 return seqNoStats.getLocalCheckpoint() + 1;
             } else {
-                return SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                return SequenceNumbers.UNASSIGNED_SEQ_NO;
             }
         } catch (final IOException e) {
             /*
@@ -371,7 +372,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
              * translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk and
              * proceeds to attempt a sequence-number-based recovery.
              */
-            return SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            return SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
     }
 

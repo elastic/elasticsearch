@@ -32,6 +32,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggesterBuilderTes
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilderTests;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -87,7 +88,8 @@ public class SuggestBuilderTests extends ESTestCase {
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
-            checkEqualsAndHashCode(randomSuggestBuilder(), original -> {
+            // explicit about type parameters, see: https://bugs.eclipse.org/bugs/show_bug.cgi?id=481649
+            EqualsHashCodeTestUtils.<SuggestBuilder>checkEqualsAndHashCode(randomSuggestBuilder(), original -> {
                 return copyWriteable(original, namedWriteableRegistry, SuggestBuilder::new);
             }, this::createMutation);
         }

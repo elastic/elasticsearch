@@ -26,8 +26,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
@@ -256,7 +256,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
+    public void doValidate(AggregatorFactory<?> parent, List<AggregationBuilder> aggFactories,
             List<PipelineAggregationBuilder> pipelineAggregatoractories) {
         if (minimize != null && minimize && !model.canBeMinimized()) {
             // If the user asks to minimize, but this model doesn't support
@@ -304,8 +304,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
 
     public static MovAvgPipelineAggregationBuilder parse(
             ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageMdelParserRegistry,
-            String pipelineAggregatorName, QueryParseContext context) throws IOException {
-        XContentParser parser = context.parser();
+            String pipelineAggregatorName, XContentParser parser) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
@@ -344,7 +343,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
                 } else if (BUCKETS_PATH.match(currentFieldName)) {
                     bucketsPaths = new String[] { parser.text() };
                 } else if (GAP_POLICY.match(currentFieldName)) {
-                    gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
+                    gapPolicy = GapPolicy.parse(parser.text(), parser.getTokenLocation());
                 } else if (MODEL.match(currentFieldName)) {
                     model = parser.text();
                 } else {

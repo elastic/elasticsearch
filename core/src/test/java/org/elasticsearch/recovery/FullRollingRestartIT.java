@@ -54,7 +54,6 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         return 1;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25420")
     public void testFullRollingRestart() throws Exception {
         Settings settings = Settings.builder().put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "30s").build();
         internalCluster().startNode(settings);

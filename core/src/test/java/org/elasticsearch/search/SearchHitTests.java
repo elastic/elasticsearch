@@ -24,6 +24,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.text.Text;
@@ -60,7 +61,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class SearchHitTests extends ESTestCase {
 
-    private static Set<String> META_FIELDS = Sets.newHashSet("_uid", "_all", "_parent", "_routing", "_size", "_timestamp", "_ttl");
+    private static Set<String> META_FIELDS = Sets.newHashSet("_uid", "_parent", "_routing", "_size", "_timestamp", "_ttl");
 
     public static SearchHit createTestItem(boolean withOptionalInnerHits) {
         int internalId = randomInt();
@@ -70,7 +71,7 @@ public class SearchHitTests extends ESTestCase {
         if (randomBoolean()) {
             nestedIdentity = NestedIdentityTests.createTestItem(randomIntBetween(0, 2));
         }
-        Map<String, SearchHitField> fields = new HashMap<>();
+        Map<String, DocumentField> fields = new HashMap<>();
         if (randomBoolean()) {
             int size = randomIntBetween(0, 10);
             for (int i = 0; i < size; i++) {
@@ -78,10 +79,10 @@ public class SearchHitTests extends ESTestCase {
                         XContentType.JSON);
                 if (randomBoolean()) {
                     String metaField = randomFrom(META_FIELDS);
-                    fields.put(metaField, new SearchHitField(metaField, values.v1()));
+                    fields.put(metaField, new DocumentField(metaField, values.v1()));
                 } else {
                     String fieldName = randomAlphaOfLengthBetween(5, 10);
-                    fields.put(fieldName, new SearchHitField(fieldName, values.v1()));
+                    fields.put(fieldName, new DocumentField(fieldName, values.v1()));
                 }
             }
         }
@@ -206,7 +207,8 @@ public class SearchHitTests extends ESTestCase {
     }
 
     public void testSerializeShardTarget() throws Exception {
-        SearchShardTarget target = new SearchShardTarget("_node_id", new Index("_index", "_na_"), 0);
+        String clusterAlias = randomBoolean() ? null : "cluster_alias";
+        SearchShardTarget target = new SearchShardTarget("_node_id", new Index("_index", "_na_"), 0, clusterAlias);
 
         Map<String, SearchHits> innerHits = new HashMap<>();
         SearchHit innerHit1 = new SearchHit(0, "_id", new Text("_type"), null);
@@ -232,6 +234,7 @@ public class SearchHitTests extends ESTestCase {
 
         SearchHits hits = new SearchHits(new SearchHit[]{hit1, hit2}, 2, 1f);
 
+
         BytesStreamOutput output = new BytesStreamOutput();
         hits.writeTo(output);
         InputStream input = output.bytes().streamInput();
@@ -241,6 +244,17 @@ public class SearchHitTests extends ESTestCase {
         assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
         assertThat(results.getAt(0).getInnerHits().get("1").getAt(1).getShard(), notNullValue());
         assertThat(results.getAt(0).getInnerHits().get("2").getAt(0).getShard(), notNullValue());
+        for (SearchHit hit : results) {
+            assertEquals(clusterAlias, hit.getClusterAlias());
+            if (hit.getInnerHits() != null) {
+                for (SearchHits innerhits : hit.getInnerHits().values()) {
+                    for (SearchHit innerHit : innerhits) {
+                        assertEquals(clusterAlias, innerHit.getClusterAlias());
+                    }
+                }
+            }
+        }
+
         assertThat(results.getAt(1).getShard(), equalTo(target));
     }
 

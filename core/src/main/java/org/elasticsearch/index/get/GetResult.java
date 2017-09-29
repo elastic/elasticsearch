@@ -20,9 +20,9 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -44,9 +44,8 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.index.get.GetField.readGetField;
 
-public class GetResult implements Streamable, Iterable<GetField>, ToXContentObject {
+public class GetResult implements Streamable, Iterable<DocumentField>, ToXContentObject {
 
     public static final String _INDEX = "_index";
     public static final String _TYPE = "_type";
@@ -60,7 +59,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
     private String id;
     private long version;
     private boolean exists;
-    private Map<String, GetField> fields;
+    private Map<String, DocumentField> fields;
     private Map<String, Object> sourceAsMap;
     private BytesReference source;
     private byte[] sourceAsBytes;
@@ -69,7 +68,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
     }
 
     public GetResult(String index, String type, String id, long version, boolean exists, BytesReference source,
-                     Map<String, GetField> fields) {
+                     Map<String, DocumentField> fields) {
         this.index = index;
         this.type = type;
         this.id = id;
@@ -196,16 +195,16 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
         return sourceAsMap();
     }
 
-    public Map<String, GetField> getFields() {
+    public Map<String, DocumentField> getFields() {
         return fields;
     }
 
-    public GetField field(String name) {
+    public DocumentField field(String name) {
         return fields.get(name);
     }
 
     @Override
-    public Iterator<GetField> iterator() {
+    public Iterator<DocumentField> iterator() {
         if (fields == null) {
             return Collections.emptyIterator();
         }
@@ -213,10 +212,10 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
     }
 
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
-        List<GetField> metaFields = new ArrayList<>();
-        List<GetField> otherFields = new ArrayList<>();
+        List<DocumentField> metaFields = new ArrayList<>();
+        List<DocumentField> otherFields = new ArrayList<>();
         if (fields != null && !fields.isEmpty()) {
-            for (GetField field : fields.values()) {
+            for (DocumentField field : fields.values()) {
                 if (field.getValues().isEmpty()) {
                     continue;
                 }
@@ -228,8 +227,9 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
             }
         }
 
-        for (GetField field : metaFields) {
-            builder.field(field.getName(), field.getValue());
+        for (DocumentField field : metaFields) {
+            Object value = field.getValue();
+            builder.field(field.getName(), value);
         }
 
         builder.field(FOUND, exists);
@@ -240,7 +240,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
 
         if (!otherFields.isEmpty()) {
             builder.startObject(FIELDS);
-            for (GetField field : otherFields) {
+            for (DocumentField field : otherFields) {
                 field.toXContent(builder, params);
             }
             builder.endObject();
@@ -275,7 +275,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
         long version = -1;
         Boolean found = null;
         BytesReference source = null;
-        Map<String, GetField> fields = new HashMap<>();
+        Map<String, DocumentField> fields = new HashMap<>();
         while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -291,7 +291,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
                 } else if (FOUND.equals(currentFieldName)) {
                     found = parser.booleanValue();
                 } else {
-                    fields.put(currentFieldName, new GetField(currentFieldName, Collections.singletonList(parser.objectText())));
+                    fields.put(currentFieldName, new DocumentField(currentFieldName, Collections.singletonList(parser.objectText())));
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (SourceFieldMapper.NAME.equals(currentFieldName)) {
@@ -303,7 +303,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
                     }
                 } else if (FIELDS.equals(currentFieldName)) {
                     while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                        GetField getField = GetField.fromXContent(parser);
+                        DocumentField getField = DocumentField.fromXContent(parser);
                         fields.put(getField.getName(), getField);
                     }
                 } else {
@@ -347,7 +347,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
             } else {
                 fields = new HashMap<>(size);
                 for (int i = 0; i < size; i++) {
-                    GetField field = readGetField(in);
+                    DocumentField field = DocumentField.readDocumentField(in);
                     fields.put(field.getName(), field);
                 }
             }
@@ -367,7 +367,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
                 out.writeVInt(0);
             } else {
                 out.writeVInt(fields.size());
-                for (GetField field : fields.values()) {
+                for (DocumentField field : fields.values()) {
                     field.writeTo(out);
                 }
             }

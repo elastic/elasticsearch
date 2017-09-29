@@ -19,18 +19,23 @@
 
 package hdfs;
 
+import java.io.File;
 import java.lang.management.ManagementFactory;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.AclEntryType;
 import org.apache.hadoop.fs.permission.FsAction;
@@ -49,7 +54,8 @@ public class MiniHDFS {
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1 && args.length != 3) {
-            throw new IllegalArgumentException("MiniHDFS <baseDirectory> [<kerberosPrincipal> <kerberosKeytab>]");
+            throw new IllegalArgumentException("Expected: MiniHDFS <baseDirectory> [<kerberosPrincipal> <kerberosKeytab>], " +
+                "got: " + Arrays.toString(args));
         }
         boolean secure = args.length == 3;
 
@@ -83,6 +89,7 @@ public class MiniHDFS {
             cfg.set(DFSConfigKeys.DFS_NAMENODE_KEYTAB_FILE_KEY, keytabFile);
             cfg.set(DFSConfigKeys.DFS_DATANODE_KEYTAB_FILE_KEY, keytabFile);
             cfg.set(DFSConfigKeys.DFS_NAMENODE_ACLS_ENABLED_KEY, "true");
+            cfg.set(DFSConfigKeys.DFS_BLOCK_ACCESS_TOKEN_ENABLE_KEY, "true");
             cfg.set(DFSConfigKeys.IGNORE_SECURE_PORTS_FOR_TESTING_KEY, "true");
         }
 
@@ -97,15 +104,35 @@ public class MiniHDFS {
         }
         MiniDFSCluster dfs = builder.build();
 
-        // Set the elasticsearch user directory up
-        if (UserGroupInformation.isSecurityEnabled()) {
-            FileSystem fs = dfs.getFileSystem();
-            org.apache.hadoop.fs.Path esUserPath = new org.apache.hadoop.fs.Path("/user/elasticsearch");
+        // Configure contents of the filesystem
+        org.apache.hadoop.fs.Path esUserPath = new org.apache.hadoop.fs.Path("/user/elasticsearch");
+        try (FileSystem fs = dfs.getFileSystem()) {
+
+            // Set the elasticsearch user directory up
             fs.mkdirs(esUserPath);
-            List<AclEntry> acls = new ArrayList<>();
-            acls.add(new AclEntry.Builder().setType(AclEntryType.USER).setName("elasticsearch").setPermission(FsAction.ALL).build());
-            fs.modifyAclEntries(esUserPath, acls);
-            fs.close();
+            if (UserGroupInformation.isSecurityEnabled()) {
+                List<AclEntry> acls = new ArrayList<>();
+                acls.add(new AclEntry.Builder().setType(AclEntryType.USER).setName("elasticsearch").setPermission(FsAction.ALL).build());
+                fs.modifyAclEntries(esUserPath, acls);
+            }
+
+            // Install a pre-existing repository into HDFS
+            String directoryName = "readonly-repository";
+            String archiveName = directoryName + ".tar.gz";
+            URL readOnlyRepositoryArchiveURL = MiniHDFS.class.getClassLoader().getResource(archiveName);
+            if (readOnlyRepositoryArchiveURL != null) {
+                Path tempDirectory = Files.createTempDirectory(MiniHDFS.class.getName());
+                File readOnlyRepositoryArchive = tempDirectory.resolve(archiveName).toFile();
+                FileUtils.copyURLToFile(readOnlyRepositoryArchiveURL, readOnlyRepositoryArchive);
+                FileUtil.unTar(readOnlyRepositoryArchive, tempDirectory.toFile());
+
+                fs.copyFromLocalFile(true, true,
+                    new org.apache.hadoop.fs.Path(tempDirectory.resolve(directoryName).toAbsolutePath().toUri()),
+                    esUserPath.suffix("/existing/" + directoryName)
+                );
+
+                FileUtils.deleteDirectory(tempDirectory.toFile());
+            }
         }
 
         // write our PID file

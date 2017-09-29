@@ -7,11 +7,14 @@
           settings:
             index:
               number_of_replicas: 0
-
   - do:
       indices.create:
         index: index_with_replicas # dummy index to ensure we can recover indices with replicas just fine
-
+        body:
+          # if the node with the replica is the first to be restarted, then delayed
+          # allocation will kick in, and the cluster health won't return to GREEN
+          # before timing out
+          index.unassigned.node_left.delayed_timeout: "100ms"
   - do:
       bulk:
         refresh: true
@@ -79,12 +82,15 @@
   - match: { "acknowledged": true }
 
   - do:
-      put_template:
+      put_script:
         id: test_search_template
         body:
-          query:
-            match:
-              f1: "{{f1}}"
+          script:
+            lang: mustache
+            source:
+              query:
+                match:
+                  f1: "{{f1}}"
   - match: { acknowledged: true }
 
   - do:

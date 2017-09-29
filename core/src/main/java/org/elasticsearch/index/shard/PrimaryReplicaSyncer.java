@@ -35,7 +35,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -78,10 +78,33 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         this.chunkSize = chunkSize;
     }
 
-    public void resync(IndexShard indexShard, ActionListener<ResyncTask> listener) throws IOException {
-        try (Translog.View view = indexShard.acquireTranslogView()) {
+    public void resync(final IndexShard indexShard, final ActionListener<ResyncTask> listener) {
+        ActionListener<ResyncTask> resyncListener = null;
+        try {
             final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
-            Translog.Snapshot snapshot = view.snapshot(startingSeqNo);
+            Translog.Snapshot snapshot = indexShard.getTranslog().newSnapshotFromMinSeqNo(startingSeqNo);
+            resyncListener = new ActionListener<ResyncTask>() {
+                @Override
+                public void onResponse(final ResyncTask resyncTask) {
+                    try {
+                        snapshot.close();
+                        listener.onResponse(resyncTask);
+                    } catch (final Exception e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(final Exception e) {
+                    try {
+                        snapshot.close();
+                    } catch (final Exception inner) {
+                        e.addSuppressed(inner);
+                    } finally {
+                        listener.onFailure(e);
+                    }
+                }
+            };
             ShardId shardId = indexShard.shardId();
 
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
@@ -90,26 +113,38 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             Translog.Snapshot wrappedSnapshot = new Translog.Snapshot() {
 
                 @Override
+                public synchronized void close() throws IOException {
+                    snapshot.close();
+                }
+
+                @Override
                 public synchronized int totalOperations() {
                     return snapshot.totalOperations();
                 }
 
                 @Override
                 public synchronized Translog.Operation next() throws IOException {
-                    if (indexShard.state() != IndexShardState.STARTED) {
-                        assert indexShard.state() != IndexShardState.RELOCATED : "resync should never happen on a relocated shard";
-                        throw new IndexShardNotStartedException(shardId, indexShard.state());
+                    IndexShardState state = indexShard.state();
+                    if (state == IndexShardState.CLOSED) {
+                        throw new IndexShardClosedException(shardId);
+                    } else {
+                        assert state == IndexShardState.STARTED : "resync should only happen on a started shard, but state was: " + state;
                     }
                     return snapshot.next();
                 }
             };
-
-            resync(shardId, indexShard.routingEntry().allocationId().getId(), wrappedSnapshot,
-                startingSeqNo, listener);
+            resync(shardId, indexShard.routingEntry().allocationId().getId(), indexShard.getPrimaryTerm(), wrappedSnapshot,
+                startingSeqNo, resyncListener);
+        } catch (Exception e) {
+            if (resyncListener != null) {
+                resyncListener.onFailure(e);
+            } else {
+                listener.onFailure(e);
+            }
         }
     }
 
-    private void resync(final ShardId shardId, final String primaryAllocationId, final Translog.Snapshot snapshot,
+    private void resync(final ShardId shardId, final String primaryAllocationId, final long primaryTerm, final Translog.Snapshot snapshot,
                         long startingSeqNo, ActionListener<ResyncTask> listener) {
         ResyncRequest request = new ResyncRequest(shardId, primaryAllocationId);
         ResyncTask resyncTask = (ResyncTask) taskManager.register("transport", "resync", request); // it's not transport :-)
@@ -129,7 +164,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             }
         };
         try {
-            new SnapshotSender(logger, syncAction, resyncTask, shardId, primaryAllocationId, snapshot, chunkSize.bytesAsInt(),
+            new SnapshotSender(logger, syncAction, resyncTask, shardId, primaryAllocationId, primaryTerm, snapshot, chunkSize.bytesAsInt(),
                 startingSeqNo, wrappedListener).run();
         } catch (Exception e) {
             wrappedListener.onFailure(e);
@@ -137,7 +172,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
     }
 
     public interface SyncAction {
-        void sync(ResyncReplicationRequest request, Task parentTask, String primaryAllocationId,
+        void sync(ResyncReplicationRequest request, Task parentTask, String primaryAllocationId, long primaryTerm,
                   ActionListener<ResyncReplicationResponse> listener);
     }
 
@@ -146,6 +181,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         private final SyncAction syncAction;
         private final ResyncTask task; // to track progress
         private final String primaryAllocationId;
+        private final long primaryTerm;
         private final ShardId shardId;
         private final Translog.Snapshot snapshot;
         private final long startingSeqNo;
@@ -155,13 +191,14 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         private final AtomicInteger totalSkippedOps = new AtomicInteger();
         private AtomicBoolean closed = new AtomicBoolean();
 
-        SnapshotSender(Logger logger, SyncAction syncAction, ResyncTask task, ShardId shardId, String primaryAllocationId,
+        SnapshotSender(Logger logger, SyncAction syncAction, ResyncTask task, ShardId shardId, String primaryAllocationId, long primaryTerm,
                        Translog.Snapshot snapshot, int chunkSizeInBytes, long startingSeqNo, ActionListener<Void> listener) {
             this.logger = logger;
             this.syncAction = syncAction;
             this.task = task;
             this.shardId = shardId;
             this.primaryAllocationId = primaryAllocationId;
+            this.primaryTerm = primaryTerm;
             this.snapshot = snapshot;
             this.chunkSizeInBytes = chunkSizeInBytes;
             this.startingSeqNo = startingSeqNo;
@@ -194,7 +231,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             while ((operation = snapshot.next()) != null) {
                 final long seqNo = operation.seqNo();
                 if (startingSeqNo >= 0 &&
-                    (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) {
+                    (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) {
                     totalSkippedOps.incrementAndGet();
                     continue;
                 }
@@ -213,7 +250,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 ResyncReplicationRequest request = new ResyncReplicationRequest(shardId, operations);
                 logger.trace("{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])", shardId, operations.size(),
                     new ByteSizeValue(size), totalSentOps.get(), totalSkippedOps.get());
-                syncAction.sync(request, task, primaryAllocationId, this);
+                syncAction.sync(request, task, primaryAllocationId, primaryTerm, this);
             } else if (closed.compareAndSet(false, true)) {
                 logger.trace("{} resync completed (total sent: [{}], skipped: [{}])", shardId, totalSentOps.get(), totalSkippedOps.get());
                 listener.onResponse(null);

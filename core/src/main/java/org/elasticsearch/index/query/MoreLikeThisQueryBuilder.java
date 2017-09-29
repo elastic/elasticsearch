@@ -45,7 +45,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.lucene.search.XMoreLikeThis;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -59,7 +59,6 @@ import org.elasticsearch.index.mapper.UidFieldMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -97,15 +96,12 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         ParseField FIELDS = new ParseField("fields");
         ParseField LIKE = new ParseField("like");
         ParseField UNLIKE = new ParseField("unlike");
-        ParseField LIKE_TEXT = new ParseField("like_text").withAllDeprecated("like");
-        ParseField IDS = new ParseField("ids").withAllDeprecated("like");
-        ParseField DOCS = new ParseField("docs").withAllDeprecated("like");
         ParseField MAX_QUERY_TERMS = new ParseField("max_query_terms");
         ParseField MIN_TERM_FREQ = new ParseField("min_term_freq");
         ParseField MIN_DOC_FREQ = new ParseField("min_doc_freq");
         ParseField MAX_DOC_FREQ = new ParseField("max_doc_freq");
-        ParseField MIN_WORD_LENGTH = new ParseField("min_word_length", "min_word_len");
-        ParseField MAX_WORD_LENGTH = new ParseField("max_word_length", "max_word_len");
+        ParseField MIN_WORD_LENGTH = new ParseField("min_word_length");
+        ParseField MAX_WORD_LENGTH = new ParseField("max_word_length");
         ParseField STOP_WORDS = new ParseField("stop_words");
         ParseField ANALYZER = new ParseField("analyzer");
         ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
@@ -142,7 +138,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     /**
      * A single item to be used for a {@link MoreLikeThisQueryBuilder}.
      */
-    public static final class Item implements ToXContent, Writeable {
+    public static final class Item implements ToXContentObject, Writeable {
         public static final Item[] EMPTY_ARRAY = new Item[0];
 
         public interface Field {
@@ -489,7 +485,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     /**
-     * Constructs a new more like this query which uses the "_all" field.
+     * Constructs a new more like this query which uses the default search field.
      * @param likeTexts the text to use when generating the 'More Like This' query.
      * @param likeItems the documents to use when generating the 'More Like This' query.
      */
@@ -809,9 +805,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         builder.endObject();
     }
 
-    public static MoreLikeThisQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static MoreLikeThisQueryBuilder fromXContent(XContentParser parser) throws IOException {
         // document inputs
         List<String> fields = null;
         List<String> likeTexts = new ArrayList<>();
@@ -846,11 +840,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (Field.LIKE.match(currentFieldName)) {
-                    parseLikeField(parseContext, likeTexts, likeItems);
+                    parseLikeField(parser, likeTexts, likeItems);
                 } else if (Field.UNLIKE.match(currentFieldName)) {
-                    parseLikeField(parseContext, unlikeTexts, unlikeItems);
-                } else if (Field.LIKE_TEXT.match(currentFieldName)) {
-                    likeTexts.add(parser.text());
+                    parseLikeField(parser, unlikeTexts, unlikeItems);
                 } else if (Field.MAX_QUERY_TERMS.match(currentFieldName)) {
                     maxQueryTerms = parser.intValue();
                 } else if (Field.MIN_TERM_FREQ.match(currentFieldName)) {
@@ -888,25 +880,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     }
                 } else if (Field.LIKE.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        parseLikeField(parseContext, likeTexts, likeItems);
+                        parseLikeField(parser, likeTexts, likeItems);
                     }
                 } else if (Field.UNLIKE.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        parseLikeField(parseContext, unlikeTexts, unlikeItems);
-                    }
-                } else if (Field.IDS.match(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (!token.isValue()) {
-                            throw new IllegalArgumentException("ids array element should only contain ids");
-                        }
-                        likeItems.add(new Item(null, null, parser.text()));
-                    }
-                } else if (Field.DOCS.match(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token != XContentParser.Token.START_OBJECT) {
-                            throw new IllegalArgumentException("docs array element should include an object");
-                        }
-                        likeItems.add(Item.parse(parser, new Item()));
+                        parseLikeField(parser, unlikeTexts, unlikeItems);
                     }
                 } else if (Field.STOP_WORDS.match(currentFieldName)) {
                     stopWords = new ArrayList<>();
@@ -918,9 +896,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (Field.LIKE.match(currentFieldName)) {
-                    parseLikeField(parseContext, likeTexts, likeItems);
+                    parseLikeField(parser, likeTexts, likeItems);
                 } else if (Field.UNLIKE.match(currentFieldName)) {
-                    parseLikeField(parseContext, unlikeTexts, unlikeItems);
+                    parseLikeField(parser, unlikeTexts, unlikeItems);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
@@ -962,8 +940,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return moreLikeThisQueryBuilder;
     }
 
-    private static void parseLikeField(QueryParseContext parseContext, List<String> texts, List<Item> items) throws IOException {
-        XContentParser parser = parseContext.parser();
+    private static void parseLikeField(XContentParser parser, List<String> texts, List<Item> items) throws IOException {
         if (parser.currentToken().isValue()) {
             texts.add(parser.text());
         } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
@@ -1036,7 +1013,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         boolean useDefaultField = (fields == null);
         List<String> moreLikeFields = new ArrayList<>();
         if (useDefaultField) {
-            moreLikeFields = Collections.singletonList(context.defaultField());
+            moreLikeFields = context.defaultFields();
         } else {
             for (String field : fields) {
                 MappedFieldType fieldType = context.fieldMapper(field);
@@ -1205,7 +1182,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         // TODO this needs heavy cleanups before we can rewrite it
         return this;
     }

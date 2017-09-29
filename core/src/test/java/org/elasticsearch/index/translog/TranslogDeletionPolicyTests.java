@@ -21,8 +21,10 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -136,22 +138,23 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             assertMinGenRequired(deletionPolicy, readersAndWriter,
                 Math.min(committedGen, Math.max(selectedGenerationByAge, selectedGenerationBySize)));
             long viewGen = randomFrom(allGens).generation;
-            deletionPolicy.acquireTranslogGenForView(viewGen);
-            assertMinGenRequired(deletionPolicy, readersAndWriter,
-                Math.min(
-                    Math.min(committedGen, viewGen),
-                    Math.max(selectedGenerationByAge, selectedGenerationBySize)));
-            // disable age
-            deletionPolicy.setRetentionAgeInMillis(-1);
-            assertMinGenRequired(deletionPolicy, readersAndWriter, Math.min(Math.min(committedGen, viewGen), selectedGenerationBySize));
-            // disable size
-            deletionPolicy.setRetentionAgeInMillis(maxAge);
-            deletionPolicy.setRetentionSizeInBytes(-1);
-            assertMinGenRequired(deletionPolicy, readersAndWriter, Math.min(Math.min(committedGen, viewGen), selectedGenerationByAge));
-            // disable both
-            deletionPolicy.setRetentionAgeInMillis(-1);
-            deletionPolicy.setRetentionSizeInBytes(-1);
-            assertMinGenRequired(deletionPolicy, readersAndWriter, Math.min(committedGen, viewGen));
+            try (Releasable ignored = deletionPolicy.acquireTranslogGen(viewGen)) {
+                assertMinGenRequired(deletionPolicy, readersAndWriter,
+                    Math.min(
+                        Math.min(committedGen, viewGen),
+                        Math.max(selectedGenerationByAge, selectedGenerationBySize)));
+                // disable age
+                deletionPolicy.setRetentionAgeInMillis(-1);
+                assertMinGenRequired(deletionPolicy, readersAndWriter, Math.min(Math.min(committedGen, viewGen), selectedGenerationBySize));
+                // disable size
+                deletionPolicy.setRetentionAgeInMillis(maxAge);
+                deletionPolicy.setRetentionSizeInBytes(-1);
+                assertMinGenRequired(deletionPolicy, readersAndWriter, Math.min(Math.min(committedGen, viewGen), selectedGenerationByAge));
+                // disable both
+                deletionPolicy.setRetentionAgeInMillis(-1);
+                deletionPolicy.setRetentionSizeInBytes(-1);
+                assertMinGenRequired(deletionPolicy, readersAndWriter, Math.min(committedGen, viewGen));
+            }
         } finally {
             IOUtils.close(readersAndWriter.v1());
             IOUtils.close(readersAndWriter.v2());
@@ -170,13 +173,14 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
         TranslogWriter writer = null;
         List<TranslogReader> readers = new ArrayList<>();
         final int numberOfReaders = randomIntBetween(0, 10);
+        final String translogUUID = UUIDs.randomBase64UUID(random());
         for (long gen = 1; gen <= numberOfReaders + 1; gen++) {
             if (writer != null) {
                 final TranslogReader reader = Mockito.spy(writer.closeIntoReader());
                 Mockito.doReturn(writer.getLastModifiedTime()).when(reader).getLastModifiedTime();
                 readers.add(reader);
             }
-            writer = TranslogWriter.create(new ShardId("index", "uuid", 0), "translog_uuid", gen,
+            writer = TranslogWriter.create(new ShardId("index", "uuid", 0), translogUUID, gen,
                 tempDir.resolve(Translog.getFilename(gen)), FileChannel::open, TranslogConfig.DEFAULT_BUFFER_SIZE, () -> 1L, 1L, () -> 1L
             );
             writer = Mockito.spy(writer);

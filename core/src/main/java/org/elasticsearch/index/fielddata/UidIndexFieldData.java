@@ -19,17 +19,13 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -42,16 +38,14 @@ import java.io.IOException;
  *  already using: this is just a view.
  *  TODO: Remove fielddata access on _uid and _id, or add doc values to _id.
  */
-public final class UidIndexFieldData implements IndexOrdinalsFieldData {
+public final class UidIndexFieldData implements IndexFieldData<AtomicFieldData> {
 
     private final Index index;
-    private final String type;
     private final BytesRef prefix;
-    private final IndexOrdinalsFieldData idFieldData;
+    private final IndexFieldData<?> idFieldData;
 
-    public UidIndexFieldData(Index index, String type, IndexOrdinalsFieldData idFieldData) {
+    public UidIndexFieldData(Index index, String type, IndexFieldData<?> idFieldData) {
         this.index = index;
-        this.type = type;
         BytesRefBuilder prefix = new BytesRefBuilder();
         prefix.append(new BytesRef(type));
         prefix.append((byte) '#');
@@ -76,12 +70,12 @@ public final class UidIndexFieldData implements IndexOrdinalsFieldData {
     }
 
     @Override
-    public AtomicOrdinalsFieldData load(LeafReaderContext context) {
+    public AtomicFieldData load(LeafReaderContext context) {
         return new UidAtomicFieldData(prefix, idFieldData.load(context));
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public AtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
         return new UidAtomicFieldData(prefix, idFieldData.loadDirect(context));
     }
 
@@ -90,39 +84,19 @@ public final class UidIndexFieldData implements IndexOrdinalsFieldData {
         idFieldData.clear();
     }
 
-    @Override
-    public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
-        return new UidIndexFieldData(index, type, idFieldData.loadGlobal(indexReader));
-    }
-
-    @Override
-    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return new UidIndexFieldData(index, type, idFieldData.localGlobalDirect(indexReader));
-    }
-
-    @Override
-    public MultiDocValues.OrdinalMap getOrdinalMap() {
-        return idFieldData.getOrdinalMap();
-    }
-
-    static final class UidAtomicFieldData implements AtomicOrdinalsFieldData {
+    static final class UidAtomicFieldData implements AtomicFieldData {
 
         private final BytesRef prefix;
-        private final AtomicOrdinalsFieldData idFieldData;
+        private final AtomicFieldData idFieldData;
 
-        UidAtomicFieldData(BytesRef prefix, AtomicOrdinalsFieldData idFieldData) {
+        UidAtomicFieldData(BytesRef prefix, AtomicFieldData idFieldData) {
             this.prefix = prefix;
             this.idFieldData = idFieldData;
         }
 
         @Override
         public ScriptDocValues<?> getScriptValues() {
-            return AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION.apply(getOrdinalsValues());
-        }
-
-        @Override
-        public SortedBinaryDocValues getBytesValues() {
-            return FieldData.toString(getOrdinalsValues());
+            return new ScriptDocValues.Strings(getBytesValues());
         }
 
         @Override
@@ -136,54 +110,30 @@ public final class UidIndexFieldData implements IndexOrdinalsFieldData {
         }
 
         @Override
-        public SortedSetDocValues getOrdinalsValues() {
-            SortedSetDocValues idValues = idFieldData.getOrdinalsValues();
-            return new SortedSetDocValues() {
+        public SortedBinaryDocValues getBytesValues() {
+            SortedBinaryDocValues idValues = idFieldData.getBytesValues();
+            return new SortedBinaryDocValues() {
 
                 private final BytesRefBuilder scratch = new BytesRefBuilder();
 
                 @Override
-                public int nextDoc() throws IOException {
-                    return idValues.nextDoc();
+                public boolean advanceExact(int doc) throws IOException {
+                    return idValues.advanceExact(doc);
                 }
 
                 @Override
-                public int docID() {
-                    return idValues.docID();
+                public int docValueCount() {
+                    return idValues.docValueCount();
                 }
 
                 @Override
-                public long cost() {
-                    return idValues.cost();
-                }
-
-                @Override
-                public int advance(int target) throws IOException {
-                    return idValues.advance(target);
-                }
-
-                @Override
-                public boolean advanceExact(int target) throws IOException {
-                    return idValues.advanceExact(target);
-                }
-
-                @Override
-                public long nextOrd() throws IOException {
-                    return idValues.nextOrd();
-                }
-
-                @Override
-                public BytesRef lookupOrd(long ord) throws IOException {
-                    scratch.setLength(0);
-                    scratch.append(prefix);
-                    scratch.append(idValues.lookupOrd(ord));
+                public BytesRef nextValue() throws IOException {
+                    BytesRef nextID = idValues.nextValue();
+                    scratch.copyBytes(prefix);
+                    scratch.append(nextID);
                     return scratch.get();
                 }
 
-                @Override
-                public long getValueCount() {
-                    return idValues.getValueCount();
-                }
             };
         }
 

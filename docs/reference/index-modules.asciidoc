@@ -47,7 +47,7 @@ specific index module:
 `index.shard.check_on_startup`::
 +
 --
-experimental[] Whether or not shards should be checked for corruption before opening. When
+Whether or not shards should be checked for corruption before opening. When
 corruption is detected, it will prevent the shard from being opened. Accepts:
 
 `false`::
@@ -69,7 +69,7 @@ corruption is detected, it will prevent the shard from being opened. Accepts:
     as corrupted will be automatically removed. This option *may result in data loss*.
     Use with extreme caution!
 
-Checking shards may take a lot of time on large indices.
+WARNING: Expert only. Checking shards may take a lot of time on large indices.
 --
 
 [[index-codec]] `index.codec`::
@@ -78,6 +78,9 @@ Checking shards may take a lot of time on large indices.
     compression, but this can be set to +best_compression+
     which uses https://en.wikipedia.org/wiki/DEFLATE[DEFLATE] for a higher
     compression ratio, at the expense of slower stored fields performance.
+    If you are updating the compression type, the new one will be applied
+    after segments are merged. Segment merging can be forced using
+    <<indices-forcemerge,force merge>>.
 
 [[routing-partition-size]] `index.routing_partition_size`::
 
@@ -118,12 +121,28 @@ specific index module:
     <<search-request-scroll,Scroll>> or <<search-request-search-after,Search After>> for a more efficient alternative
     to raising this.
 
+`index.max_inner_result_window`::
+
+    The maximum value of `from + size` for inner hits definition and top hits aggregations to this index. Defaults to
+    `100`. Inner hits and top hits aggregation take heap memory and time proportional to `from + size` and this limits that memory.
+
 `index.max_rescore_window`::
 
-    The maximum value of `window_size` for `rescore`s in searches of this index.
+    The maximum value of `window_size` for `rescore` requests in searches of this index.
     Defaults to `index.max_result_window` which defaults to `10000`. Search
     requests take heap memory and time proportional to
     `max(window_size, from + size)` and this limits that memory.
+
+`index.max_docvalue_fields_search`::
+
+    The maximum number of `docvalue_fields` that are allowed in a query.
+    Defaults to `100`. Doc-value fields are costly since they might incur
+    a per-field per-document seek.
+
+`index.max_script_fields`::
+
+    The maximum number of `script_fields` that are allowed in a query.
+    Defaults to `32`.
 
 `index.blocks.read_only`::
 

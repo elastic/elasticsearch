@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -220,7 +221,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         // Nested document:
         assertNull(result.docs().get(0).getField(UidFieldMapper.NAME));
         assertNotNull(result.docs().get(0).getField(IdFieldMapper.NAME));
-        assertEquals("1", result.docs().get(0).getField(IdFieldMapper.NAME).stringValue());
+        assertEquals(Uid.encodeId("1"), result.docs().get(0).getField(IdFieldMapper.NAME).binaryValue());
         assertEquals(IdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
         assertNotNull(result.docs().get(0).getField(TypeFieldMapper.NAME));
         assertEquals("__foo", result.docs().get(0).getField(TypeFieldMapper.NAME).stringValue());
@@ -228,7 +229,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         // Root document:
         assertNull(result.docs().get(1).getField(UidFieldMapper.NAME));
         assertNotNull(result.docs().get(1).getField(IdFieldMapper.NAME));
-        assertEquals("1", result.docs().get(1).getField(IdFieldMapper.NAME).stringValue());
+        assertEquals(Uid.encodeId("1"), result.docs().get(1).getField(IdFieldMapper.NAME).binaryValue());
         assertEquals(IdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
         assertNull(result.docs().get(1).getField(TypeFieldMapper.NAME));
         assertEquals("value2", result.docs().get(1).getField("baz").binaryValue().utf8ToString());
@@ -1039,7 +1040,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         DocumentMapper builtDocMapper = parser.parse("person", new CompressedXContent(builtMapping));
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = builtDocMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.get(docMapper.idFieldMapper().fieldType().name()), equalTo("1"));
+        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().fieldType().name()), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
     }
 
@@ -1051,7 +1052,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.get(docMapper.idFieldMapper().fieldType().name()), equalTo("1"));
+        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().fieldType().name()), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
     }
 
@@ -1060,7 +1061,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
         Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.get(docMapper.idFieldMapper().fieldType().name()), equalTo("1"));
+        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().fieldType().name()), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
     }
 
@@ -1374,5 +1375,27 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             assertThat(e.getMessage(),
                     containsString("object field starting or ending with a [.] makes object resolution ambiguous: [top..foo..bar]"));
         }
+    }
+
+    public void testBlankFieldNames() throws Exception {
+        final BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("", "foo")
+                .endObject().bytes();
+
+        MapperParsingException err = expectThrows(MapperParsingException.class, () ->
+                client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get());
+        assertThat(ExceptionsHelper.detailedMessage(err), containsString("field name cannot be an empty string"));
+
+        final BytesReference bytes2 = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("foo")
+                .field("", "bar")
+                .endObject()
+                .endObject().bytes();
+
+        err = expectThrows(MapperParsingException.class, () ->
+                client().prepareIndex("idx", "type").setSource(bytes2, XContentType.JSON).get());
+        assertThat(ExceptionsHelper.detailedMessage(err), containsString("field name cannot be an empty string"));
     }
 }

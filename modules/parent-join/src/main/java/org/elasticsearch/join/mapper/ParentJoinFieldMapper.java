@@ -28,7 +28,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -224,7 +223,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder();
         }
@@ -250,7 +249,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                                     MetaJoinFieldMapper uniqueFieldMapper,
                                     List<ParentIdFieldMapper> parentIdFields,
                                     boolean eagerGlobalOrdinals) {
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), null);
+        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty());
         this.parentIdFields = parentIdFields;
         this.uniqueFieldMapper = uniqueFieldMapper;
         this.uniqueFieldMapper.setFieldMapper(this);
@@ -387,6 +386,12 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                         name = context.parser().text();
                     } else if ("parent".equals(currentFieldName)) {
                         parent = context.parser().text();
+                    } else {
+                        throw new IllegalArgumentException("unknown field name [" + currentFieldName + "] in join field [" + name() + "]");
+                    }
+                } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                    if ("parent".equals(currentFieldName)) {
+                        parent = context.parser().numberValue().toString();
                     } else {
                         throw new IllegalArgumentException("unknown field name [" + currentFieldName + "] in join field [" + name() + "]");
                     }

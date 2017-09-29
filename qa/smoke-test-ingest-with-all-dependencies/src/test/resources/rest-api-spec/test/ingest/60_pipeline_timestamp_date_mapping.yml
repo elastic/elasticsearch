@@ -1,5 +1,5 @@
 ---
-"Test timestamp templating does not match date-mapping defaults":
+"Test timestamp templating matches date-mapping defaults":
   - do:
       cluster.health:
           wait_for_status: green
@@ -23,25 +23,6 @@
                   "field": "my_time",
                   "value": "{{ _ingest.timestamp }}"
                 }
-              },
-              {
-                "grok" : {
-                  "field" : "my_time",
-                  "patterns": ["%{DAY:day} %{MONTH:month} %{MONTHDAY:monthday} %{TIME:time} %{WORD} %{YEAR:year}"]
-                }
-              },
-              {
-                "set": {
-                  "field": "my_time",
-                  "value": "{{day}} {{month}} {{monthday}} {{time}} {{year}}"
-                }
-              },
-              {
-                "date" : {
-                  "field" : "my_time",
-                  "target_field": "my_time",
-                  "formats": ["EEE MMM dd HH:mm:ss yyyy"]
-                }
               }
             ]
           }
@@ -55,65 +36,3 @@
         pipeline: "my_timely_pipeline"
         body: {}
 
----
-"Test timestamp templating matches date-mapping defaults with ingest.new_date_format":
-  - skip:
-      version: " - 5.3.99"
-      reason: deprecated in 5.4.0
-      features: "warnings"
-
-  - do:
-      cluster.health:
-          wait_for_status: green
-
-  - do:
-      indices.create:
-        index: timetest_newdateformat
-        body:
-          mappings:
-            test: { "properties": { "my_time": {"type": "date"}}}
-
-  - do:
-      cluster.put_settings:
-        body:
-          transient:
-            ingest.new_date_format: true
-      warnings:
-        - "[ingest.new_date_format] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
-
-  - match: {transient: {ingest: {new_date_format: "true"}}}
-
-  - do:
-      ingest.put_pipeline:
-        id: "my_timely_pipeline_with_new_date_format"
-        body:  >
-          {
-            "description": "_description",
-            "processors": [
-              {
-                "set" : {
-                  "field": "my_time",
-                  "value": "{{ _ingest.timestamp }}"
-                }
-              }
-            ]
-          }
-  - match: { acknowledged: true }
-
-  - do:
-      index:
-        index: timetest
-        type: test
-        id: 1
-        pipeline: "my_timely_pipeline_with_new_date_format"
-        body: {}
-
-  - do:
-      cluster.put_settings:
-        body:
-          transient:
-            ingest.new_date_format: false
-      warnings:
-        - "[ingest.new_date_format] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
-
-  - match: {transient: {ingest: {new_date_format: "false"}}}

@@ -53,7 +53,6 @@ import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -118,12 +117,12 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     @Override
     protected MockChannel bind(final String name, InetSocketAddress address) throws IOException {
         MockServerSocket socket = new MockServerSocket();
-        socket.bind(address);
         socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings));
         ByteSizeValue tcpReceiveBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);
         if (tcpReceiveBufferSize.getBytes() > 0) {
             socket.setReceiveBufferSize(tcpReceiveBufferSize.bytesAsInt());
         }
+        socket.bind(address);
         MockChannel serverMockChannel = new MockChannel(socket, name);
         CountDownLatch started = new CountDownLatch(1);
         executor.execute(new AbstractRunnable() {
@@ -243,8 +242,20 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected void closeChannels(List<MockChannel> channel) throws IOException {
-        IOUtils.close(channel);
+    protected void closeChannels(List<MockChannel> channels, boolean blocking, boolean closingTransport) throws IOException {
+        if (closingTransport) {
+            for (MockChannel channel : channels) {
+                if (channel.activeChannel != null) {
+                    /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't have a gazillion connections sitting
+                     * in TIME_WAIT to free up resources quickly. This is really the only part where we close the connection from the server
+                     * side otherwise the client (node) initiates the TCP closing sequence which doesn't cause these issues. Setting this
+                     * by default from the beginning can have unexpected side-effects an should be avoided, our protocol is designed
+                     * in a way that clients close connection which is how it should be*/
+                    channel.activeChannel.setSoLinger(true, 0);
+                }
+            }
+        }
+        IOUtils.close(channels);
     }
 
     @Override
@@ -389,10 +400,8 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         try {
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 // loop through all profiles and start them up, special handling for default one
-                for (Map.Entry<String, Settings> entry : buildProfileSettings().entrySet()) {
-                    final Settings settings = Settings.builder()
-                        .put(entry.getValue()).build();
-                    bindServer(entry.getKey(), settings);
+                for (ProfileSettings profileSettings : profileSettings) {
+                    bindServer(profileSettings);
                 }
             }
             super.doStart();

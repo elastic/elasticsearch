@@ -11,7 +11,7 @@
 
   - do:
      get_script:
-       lang: "1"
+       id: "1"
   - match: { found: true }
   - match: { _id: "1" }
   - match: { "script": {"lang": "painless", "source": "_score * doc['myParent.weight'].value"} }
@@ -19,20 +19,20 @@
   - do:
      catch: missing
      get_script:
-       lang: "2"
+       id: "2"
   - match: { found: false }
   - match: { _id: "2" }
   - is_false: script
 
   - do:
      delete_script:
-       lang: "1"
+       id: "1"
   - match: { acknowledged: true }
 
   - do:
      catch: missing
      delete_script:
-       lang: "non_existing"
+       id: "non_existing"
 
   - do:
       catch: request

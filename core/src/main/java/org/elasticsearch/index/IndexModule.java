@@ -21,9 +21,8 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -70,7 +69,7 @@ import java.util.function.Function;
  * IndexModule represents the central extension point for index level custom implementations like:
  * <ul>
  *     <li>{@link SimilarityProvider} - New {@link SimilarityProvider} implementations can be registered through
- *     {@link #addSimilarity(String, TriFunction)}while existing Providers can be referenced through Settings under the
+ *     {@link #addSimilarity(String, SimilarityProvider.Factory)} while existing Providers can be referenced through Settings under the
  *     {@link IndexModule#SIMILARITY_SETTINGS_PREFIX} prefix along with the "type" value.  For example, to reference the
  *     {@link BM25SimilarityProvider}, the configuration <tt>"index.similarity.my_similarity.type : "BM25"</tt> can be used.</li>
  *      <li>{@link IndexStore} - Custom {@link IndexStore} instances can be registered via {@link #addIndexStore(String, Function)}</li>
@@ -113,7 +112,7 @@ public final class IndexModule {
     final SetOnce<EngineFactory> engineFactory = new SetOnce<>();
     private SetOnce<IndexSearcherWrapperFactory> indexSearcherWrapper = new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
-    private final Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> similarities = new HashMap<>();
+    private final Map<String, SimilarityProvider.Factory> similarities = new HashMap<>();
     private final Map<String, Function<IndexSettings, IndexStore>> storeTypes = new HashMap<>();
     private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
     private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
@@ -257,7 +256,7 @@ public final class IndexModule {
      * @param name Name of the SimilarityProvider
      * @param similarity SimilarityProvider to register
      */
-    public void addSimilarity(String name, TriFunction<String, Settings, Settings, SimilarityProvider> similarity) {
+    public void addSimilarity(String name, SimilarityProvider.Factory similarity) {
         ensureNotFrozen();
         if (similarities.containsKey(name) || SimilarityService.BUILT_IN.containsKey(name)) {
             throw new IllegalArgumentException("similarity for name: [" + name + " is already registered");
@@ -330,7 +329,8 @@ public final class IndexModule {
             Client client,
             IndicesQueryCache indicesQueryCache,
             MapperRegistry mapperRegistry,
-            IndicesFieldDataCache indicesFieldDataCache)
+            IndicesFieldDataCache indicesFieldDataCache,
+            NamedWriteableRegistry namedWriteableRegistry)
         throws IOException {
         final IndexEventListener eventListener = freeze();
         IndexSearcherWrapperFactory searcherWrapperFactory = indexSearcherWrapper.get() == null
@@ -361,19 +361,21 @@ public final class IndexModule {
         } else {
             queryCache = new DisabledQueryCache(indexSettings);
         }
-        return new IndexService(indexSettings, environment, xContentRegistry, new SimilarityService(indexSettings, similarities),
+        return new IndexService(indexSettings, environment, xContentRegistry,
+                new SimilarityService(indexSettings, scriptService, similarities),
                 shardStoreDeleter, analysisRegistry, engineFactory.get(), circuitBreakerService, bigArrays, threadPool, scriptService,
                 client, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry,
-                indicesFieldDataCache, searchOperationListeners, indexOperationListeners);
+                indicesFieldDataCache, searchOperationListeners, indexOperationListeners, namedWriteableRegistry);
     }
 
     /**
      * creates a new mapper service to do administrative work like mapping updates. This *should not* be used for document parsing.
      * doing so will result in an exception.
      */
-    public MapperService newIndexMapperService(NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry) throws IOException {
+    public MapperService newIndexMapperService(NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
+            ScriptService scriptService) throws IOException {
         return new MapperService(indexSettings, analysisRegistry.build(indexSettings), xContentRegistry,
-            new SimilarityService(indexSettings, similarities), mapperRegistry,
+            new SimilarityService(indexSettings, scriptService, similarities), mapperRegistry,
             () -> { throw new UnsupportedOperationException("no index query shard context available"); });
     }
 

@@ -63,7 +63,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
 
     private void runTestThatVersionIsReturned(String... args) throws Exception {
         runTestVersion(ExitCodes.OK, output -> {
-            assertThat(output, containsString("Version: " + Version.CURRENT.toString()));
+            assertThat(output, containsString("Version: " + Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot())));
             assertThat(output, containsString("Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()));
             assertThat(output, containsString("JVM: " + JvmInfo.jvmInfo().version()));
         }, args);

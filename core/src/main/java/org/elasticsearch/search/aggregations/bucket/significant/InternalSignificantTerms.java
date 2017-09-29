@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -42,7 +41,7 @@ import java.util.Objects;
  * Result of the significant terms aggregation.
  */
 public abstract class InternalSignificantTerms<A extends InternalSignificantTerms<A, B>, B extends InternalSignificantTerms.Bucket<B>>
-        extends InternalMultiBucketAggregation<A, B> implements SignificantTerms, ToXContent {
+        extends InternalMultiBucketAggregation<A, B> implements SignificantTerms {
 
     public static final String SCORE = "score";
     public static final String BG_COUNT = "bg_count";

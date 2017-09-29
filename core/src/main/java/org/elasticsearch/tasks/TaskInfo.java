@@ -26,7 +26,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -45,7 +46,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * and use in APIs. Instead, immutable and streamable TaskInfo objects are used to represent
  * snapshot information about currently running tasks.
  */
-public final class TaskInfo implements Writeable, ToXContent {
+public final class TaskInfo implements Writeable, ToXContentFragment {
     private final TaskId taskId;
 
     private final String type;

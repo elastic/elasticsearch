@@ -67,12 +67,12 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
     protected BucketOrder doParseInstance(XContentParser parser) throws IOException {
         Token token = parser.nextToken();
         if (token == Token.START_OBJECT) {
-            return InternalOrder.Parser.parseOrderParam(parser, null);
+            return InternalOrder.Parser.parseOrderParam(parser);
         }
         if (token == Token.START_ARRAY) {
             List<BucketOrder> orders = new ArrayList<>();
             while (parser.nextToken() == Token.START_OBJECT) {
-                orders.add(InternalOrder.Parser.parseOrderParam(parser, null));
+                orders.add(InternalOrder.Parser.parseOrderParam(parser));
             }
             return BucketOrder.compound(orders);
         }
@@ -153,6 +153,23 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
         assertNotEquals(o1.hashCode(), o3.hashCode());
         assertNotEquals(o1, o4);
         assertNotEquals(o1.hashCode(), o4.hashCode());
+    }
+
+    @Override
+    protected BucketOrder mutateInstance(BucketOrder instance) throws IOException {
+        if (instance == InternalOrder.KEY_ASC) {
+            return InternalOrder.COUNT_ASC;
+        } else if (instance == InternalOrder.KEY_DESC) {
+            return InternalOrder.KEY_ASC;
+        } else if (instance == InternalOrder.COUNT_ASC) {
+            return BucketOrder.aggregation(randomAlphaOfLengthBetween(1, 20), randomBoolean());
+        } else if (instance == InternalOrder.COUNT_DESC) {
+            return BucketOrder.compound(getRandomOrder());
+        } else if (instance instanceof InternalOrder.Aggregation) {
+            return InternalOrder.COUNT_DESC;
+        } else {
+            return InternalOrder.KEY_DESC;
+        }
     }
 
 }

@@ -42,6 +42,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
@@ -57,26 +58,44 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.StringJoiner;
 
-final class Request {
+public final class Request {
 
     static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
 
-    final String method;
-    final String endpoint;
-    final Map<String, String> params;
-    final HttpEntity entity;
+    private final String method;
+    private final String endpoint;
+    private final Map<String, String> parameters;
+    private final HttpEntity entity;
 
-    Request(String method, String endpoint, Map<String, String> params, HttpEntity entity) {
-        this.method = method;
-        this.endpoint = endpoint;
-        this.params = params;
+    public Request(String method, String endpoint, Map<String, String> parameters, HttpEntity entity) {
+        this.method = Objects.requireNonNull(method, "method cannot be null");
+        this.endpoint = Objects.requireNonNull(endpoint, "endpoint cannot be null");
+        this.parameters = Objects.requireNonNull(parameters, "parameters cannot be null");
         this.entity = entity;
+    }
+
+    public String getMethod() {
+        return method;
+    }
+
+    public String getEndpoint() {
+        return endpoint;
+    }
+
+    public Map<String, String> getParameters() {
+        return parameters;
+    }
+
+    public HttpEntity getEntity() {
+        return entity;
     }
 
     @Override
@@ -84,7 +103,7 @@ final class Request {
         return "Request{" +
                 "method='" + method + '\'' +
                 ", endpoint='" + endpoint + '\'' +
-                ", params=" + params +
+                ", params=" + parameters +
                 ", hasBody=" + (entity != null) +
                 '}';
     }
@@ -139,8 +158,8 @@ final class Request {
             bulkContentType = XContentType.JSON;
         }
 
-        byte separator = bulkContentType.xContent().streamSeparator();
-        ContentType requestContentType = ContentType.create(bulkContentType.mediaType());
+        final byte separator = bulkContentType.xContent().streamSeparator();
+        final ContentType requestContentType = createContentType(bulkContentType);
 
         ByteArrayOutputStream content = new ByteArrayOutputStream();
         for (DocWriteRequest<?> request : bulkRequest.requests()) {
@@ -231,7 +250,7 @@ final class Request {
 
     static Request exists(GetRequest getRequest) {
         Request request = get(getRequest);
-        return new Request(HttpHead.METHOD_NAME, request.endpoint, request.params, null);
+        return new Request(HttpHead.METHOD_NAME, request.endpoint, request.parameters, null);
     }
 
     static Request get(GetRequest getRequest) {
@@ -268,7 +287,7 @@ final class Request {
         parameters.withWaitForActiveShards(indexRequest.waitForActiveShards());
 
         BytesRef source = indexRequest.source().toBytesRef();
-        ContentType contentType = ContentType.create(indexRequest.getContentType().mediaType());
+        ContentType contentType = createContentType(indexRequest.getContentType());
         HttpEntity entity = new ByteArrayEntity(source.bytes, source.offset, source.length, contentType);
 
         return new Request(method, endpoint, parameters.getParams(), entity);
@@ -352,7 +371,7 @@ final class Request {
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
-        return new ByteArrayEntity(source.bytes, source.offset, source.length, ContentType.create(xContentType.mediaType()));
+        return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
     static String endpoint(String[] indices, String[] types, String endpoint) {
@@ -370,6 +389,17 @@ final class Request {
             }
         }
         return joiner.toString();
+    }
+
+    /**
+     * Returns a {@link ContentType} from a given {@link XContentType}.
+     *
+     * @param xContentType the {@link XContentType}
+     * @return the {@link ContentType}
+     */
+    @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
+    public static ContentType createContentType(final XContentType xContentType) {
+        return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
     }
 
     /**

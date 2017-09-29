@@ -1,10 +1,13 @@
 [[mapping-id-field]]
 === `_id` field
 
-Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
-<<mapping-type>>) and an <<mapping-id-field,`_id`>>.  The `_id` field is not
-indexed as its value can be derived automatically from the
-<<mapping-uid-field,`_uid`>> field.
+Each document has an `_id` that uniquely identifies it, which is indexed
+so that documents can be looked up either with the <<docs-get,GET API>> or the
+<<query-dsl-ids-query,`ids` query>>.
+
+NOTE: This was not the case with pre-6.0 indices due to the fact that they
+supported multiple types, so the `_type` and `_id` were merged into a composite
+primary key called `_uid`.
 
 The value of the `_id` field is accessible in certain queries (`term`,
 `terms`, `match`, `query_string`, `simple_query_string`).

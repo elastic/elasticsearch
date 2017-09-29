@@ -36,7 +36,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.join.mapper.ParentIdFieldMapper;
@@ -54,7 +53,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
     private static final ParseField ID_FIELD = new ParseField("id");
-    private static final ParseField TYPE_FIELD = new ParseField("type", "child_type");
+    private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     private final String type;
@@ -121,8 +120,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         builder.endObject();
     }
 
-    public static ParentIdQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static ParentIdQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String type = null;
         String id = null;

@@ -115,6 +115,7 @@ public abstract class StringUtils {
             char curr = sqlPattern.charAt(i);
             if (shouldEscape && !escaped && (curr == escapeChar)) {
                 escaped = true;
+                regex.append(curr);
             }
             else {
                 switch (curr) {
@@ -143,7 +144,9 @@ public abstract class StringUtils {
                             case ']':
                             case '{':
                             case '}':
-                                regex.append('\\');
+                                if (!escaped) {
+                                    regex.append('\\');
+                                }
                         }
 
                         regex.append(curr);
@@ -166,7 +169,7 @@ public abstract class StringUtils {
     }
 
     public static Pattern likeRegex(String likePattern) {
-        return Pattern.compile(sqlToJavaPattern(likePattern, '\\', true));
+        return Pattern.compile(sqlToJavaPattern(likePattern));
     }
 
     public static String toString(SearchSourceBuilder source) {

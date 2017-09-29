@@ -57,8 +57,8 @@ public class MetaColumnRequest extends Request {
             return false;
         }
         MetaColumnRequest other = (MetaColumnRequest) obj;
-        return tablePattern.equals(other.tablePattern)
-                && columnPattern.equals(other.columnPattern);
+        return Objects.equals(tablePattern, other.tablePattern)
+                && Objects.equals(columnPattern, other.columnPattern);
     }
 
     @Override

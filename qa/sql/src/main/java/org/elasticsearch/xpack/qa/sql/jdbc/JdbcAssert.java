@@ -113,7 +113,7 @@ public class JdbcAssert {
                 }
 
                 else if (type == Types.DOUBLE) {
-                    // NOCOMMIT 1d/1f seems like a huge difference.
+                    // the 1d/1f difference is used due to rounding/flooring
                     assertEquals(msg, (double) expectedObject, (double) actualObject, 1d);
                 } else if (type == Types.FLOAT) {
                     assertEquals(msg, (float) expectedObject, (float) actualObject, 1f);

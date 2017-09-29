@@ -7,7 +7,7 @@
 This section summarizes the changes that you need to be aware of when migrating
 your application from one version of {xpack} to another.
 
-* <<breaking-6.1.0-xes>>
+* <<breaking-6.0.0-xes>>
 
 See also:
 
@@ -16,3 +16,43 @@ See also:
 * {logstash-ref}/breaking-changes-xls.html[Logstash {xpack} Breaking Changes]
 
 --
+
+[role="xpack"]
+[[breaking-6.0.0-xes]]
+== {xpack} Breaking changes in 6.0
+
+This section summarizes the changes that you need to be aware of when migrating
+your application to {xpack} 6.0.
+
+Security::
+* A new bootstrap check enforces that default passwords are disabled for the
+built-in users when running in
+{ref}/bootstrap-checks.html#_development_vs_production_mode[production mode].
+You must set `xpack.security.authc.accept_default_password` to `false` in your
+`elasticsearch.yml`. For more information, see <<security-settings>> and
+{xpack-ref}/setting-up-authentication.html[Setting Up User Authentication].
+* A new configuration setting is available to disable support for the default
+password (_"changeme"_). For more information, see
+{xpack-ref}/setting-up-authentication.html#disabling-default-password[Disable Default Password Functionality].
+* A new bootstrap check enforces that TLS/SSL is required for inter-node
+communication when running in
+{ref}/bootstrap-checks.html#_development_vs_production_mode[production mode]. See
+{xpack-ref}/encrypting-communications.html[Encrypting Communications].
+* A new bootstrap check enforces that HTTPS is used by the built-in token
+service when running in
+{ref}/bootstrap-checks.html#_development_vs_production_mode[production mode].
+To disable the token service, set `xpack.security.authc.token.enabled`
+to `false` in your `elasticsearch.yml`. See
+{ref}/security-settings.html#token-service-settings[Token Service Settings].
+
+Watcher::
+* The built-in HTTP client used in webhooks, the http input and the http email
+attachment has been replaced.
+This results in the need to always escape all parts of an URL.
+* The new built-in HTTP client also enforces a maximum request size, which defaults to 10mb.
+* The watch `_status` field has been renamed to `status`, as underscores in
+field names will not be allowed.
+
+See also:
+
+* <<breaking-changes-6.0>>

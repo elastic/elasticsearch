@@ -48,7 +48,9 @@ abstract class JdbcUtils {
             // 53 bits precision ~ 16(15.95) decimal digits (53log10(2))
             case FLOAT:
             case DOUBLE: return 16;
-            case VARBINARY: return Integer.MAX_VALUE;
+            case VARBINARY:
+            case VARCHAR:
+                return Integer.MAX_VALUE;
             case TIME_WITH_TIMEZONE: return displaySize(type);
             default:
                 return -1;

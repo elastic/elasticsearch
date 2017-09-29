@@ -64,8 +64,8 @@ public class DatabaseMetaDataIT extends JdbcIntegrationTestCase {
                 h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
             assertResultSets(expected.get(), es.getMetaData().getTables("%", "%", "%", null));
             assertResultSets(expected.get(), es.getMetaData().getTables("%", "%", "te%", null));
-            // NOCOMMIT with a wildcard type is broken:
-//            assertResultSets(expected.get(), es.getMetaData().getTables("%", "%", "test.d%", null));
+            // types are stripped from the query so specifying them won't matter; H2 also doesn't support them
+            assertResultSets(expected.get(), es.getMetaData().getTables("%", "%", "test.d%", null));
         }
     }
 

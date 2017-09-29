@@ -140,6 +140,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
                   String name = entry.getKey();
                   if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
                       DataType type = entry.getValue();
+                      // the column size it's actually its precision (based on the Javadocs) 
                       columns.add(new MetaColumnInfo(esIndex.name(), name, type.sqlType(), type.precision(), pos));
                   }
               }

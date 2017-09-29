@@ -20,7 +20,8 @@ public interface RowSet extends RowView {
 
     boolean advanceRow();
 
-    int size(); // NOCOMMIT why do we have this? It looks like the count of the rows in this chunk.
+    // number or rows in this set; while not really necessary (the return of advanceRow works)
+    int size();
 
     void reset();
 

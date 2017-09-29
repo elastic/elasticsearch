@@ -161,7 +161,15 @@ public abstract class StringUtils {
 
     //TODO: likely this needs to be changed to probably its own indexNameResolver
     public static String jdbcToEsPattern(String sqlPattern) {
-        return Strings.hasText(sqlPattern) ? sqlPattern.replace('%', '*').replace('_', '*') : EMPTY;
+        if (Strings.hasText(sqlPattern)) {
+            // the index might include a type - since we only support only support one type per index, remove the type
+            int dotIndex = sqlPattern.indexOf(".");
+            if (dotIndex >= 0) {
+                sqlPattern = sqlPattern.substring(0, dotIndex);
+            }
+            return sqlPattern.replace('%', '*').replace('_', '*');
+        }
+        return EMPTY;
     }
 
     public static String sqlToJavaPattern(CharSequence sqlPattern) {

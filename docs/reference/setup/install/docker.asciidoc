@@ -61,12 +61,12 @@ endif::[]
 [IMPORTANT]
 =========================
 
-The `vm_max_map_count` kernel setting needs to be set to at least `262144` for production use.
+The `vm.max_map_count` kernel setting needs to be set to at least `262144` for production use.
 Depending on your platform:
 
 * Linux
 +
-The `vm_max_map_count` setting should be set permanently in /etc/sysctl.conf:
+The `vm.max_map_count` setting should be set permanently in /etc/sysctl.conf:
 +
 [source,sh]
 --------------------------------------------
@@ -78,7 +78,7 @@ To apply the setting on a live system type: `sysctl -w vm.max_map_count=262144`
 +
 * OSX with https://docs.docker.com/engine/installation/mac/#/docker-for-mac[Docker for Mac]
 +
-The `vm_max_map_count` setting must be set within the xhyve virtual machine:
+The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 +
 ["source","sh"]
 --------------------------------------------
@@ -95,7 +95,7 @@ sysctl -w vm.max_map_count=262144
 +
 * OSX with https://docs.docker.com/engine/installation/mac/#docker-toolbox[Docker Toolbox]
 +
-The `vm_max_map_count` setting must be set via docker-machine:
+The `vm.max_map_count` setting must be set via docker-machine:
 +
 ["source","sh"]
 --------------------------------------------

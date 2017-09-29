@@ -544,10 +544,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                     if (distance.advanceExact(docId) == false) {
                         return Explanation.noMatch("No value for the distance");
                     }
+                    double value = distance.doubleValue();
                     return Explanation.match(
                             (float) score(docId, subQueryScore.getValue()),
                             "Function for field " + getFieldName() + ":",
-                            func.explainFunction(getDistanceString(ctx, docId), distance.doubleValue(), scale));
+                            func.explainFunction(getDistanceString(ctx, docId), value, scale));
                 }
             };
         }

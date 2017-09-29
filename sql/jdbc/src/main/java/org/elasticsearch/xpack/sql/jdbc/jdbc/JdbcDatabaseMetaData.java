@@ -832,7 +832,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             row[ 3] = col.name;
             row[ 4] = col.type.getVendorTypeNumber();
             row[ 5] = col.type.getName();
-            row[ 6] = col.position; // NOCOMMIT this doesn't seem right
+            row[ 6] = col.size;
             row[ 7] = null;
             row[ 8] = null;
             row[ 9] = 10;

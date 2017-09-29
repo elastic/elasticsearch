@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.jdbc.jdbc.PreparedQuery.ParamInfo;
+
 import java.sql.ParameterMetaData;
 import java.sql.SQLException;
-
-import org.elasticsearch.xpack.sql.jdbc.jdbc.PreparedQuery.ParamInfo;
 
 class JdbcParameterMetaData implements ParameterMetaData, JdbcWrapper {
 
@@ -59,7 +59,7 @@ class JdbcParameterMetaData implements ParameterMetaData, JdbcWrapper {
 
     @Override
     public String getParameterClassName(int param) throws SQLException {
-        return paramInfo(param).type.name();  // NOCOMMIT this is almost certainly wrong
+        return JdbcUtils.classOf(paramInfo(param).type.getVendorTypeNumber()).getName();
     }
 
     @Override

@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
 import org.elasticsearch.xpack.sql.jdbc.util.Version;
 
 import java.io.Closeable;
+import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
@@ -20,16 +21,36 @@ import java.util.logging.Logger;
 
 public class JdbcDriver implements java.sql.Driver, Closeable {
 
+    private static final JdbcDriver INSTANCE = new JdbcDriver();
+
     static {
-        try {
-            final JdbcDriver d = new JdbcDriver();
-            DriverManager.registerDriver(d, d::close);
-        } catch (Exception ex) {
-            // NOCOMMIT this seems bad!
-            // ignore
-        }
+        register();
     }
 
+    public static JdbcDriver register() {
+        try {
+            DriverManager.registerDriver(INSTANCE, INSTANCE::close);
+        } catch (SQLException ex) {
+            // the SQLException is bogus as there's no source for it
+            PrintWriter writer = DriverManager.getLogWriter();
+            if (writer != null) {
+                ex.printStackTrace(writer);
+            }
+        }
+        return INSTANCE;
+    }
+
+    public static void deregister() {
+        try {
+            DriverManager.deregisterDriver(INSTANCE);
+        } catch (SQLException ex) {
+            // the SQLException is bogus as there's no source for it
+            PrintWriter writer = DriverManager.getLogWriter();
+            if (writer != null) {
+                ex.printStackTrace(writer);
+            }
+        }
+    }
 
     public static int jdbcMajorVersion() {
         return 4;

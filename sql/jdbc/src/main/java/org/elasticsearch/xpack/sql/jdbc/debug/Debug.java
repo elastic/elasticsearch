@@ -85,7 +85,6 @@ public final class Debug {
             synchronized (Debug.class) {
                 log = OUTPUT_MANAGED.get(managedPrinter);
                 if (log == null) {
-
                     log = new DebugLog(managedPrinter);
                     OUTPUT_MANAGED.put(managedPrinter, log);
                 }
@@ -197,7 +196,7 @@ public final class Debug {
         OUTPUT_MANAGED.clear();
     }
 
-    // NOCOMMIT loggers instead, I think
+    // NOCOMMIT loggers instead, I think - CL: what if the user wants to output to system.err/out like in an embedded app?
     @SuppressForbidden(reason="temporary")
     private static PrintStream stdout() {
         return System.out;

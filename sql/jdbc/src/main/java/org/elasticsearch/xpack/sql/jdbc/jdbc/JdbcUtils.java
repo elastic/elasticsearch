@@ -14,20 +14,26 @@ import java.sql.Time;
 import java.sql.Timestamp;
 
 import static java.sql.Types.BIGINT;
+import static java.sql.Types.BINARY;
+import static java.sql.Types.BIT;
 import static java.sql.Types.BLOB;
 import static java.sql.Types.BOOLEAN;
+import static java.sql.Types.CHAR;
 import static java.sql.Types.CLOB;
 import static java.sql.Types.DATE;
 import static java.sql.Types.DECIMAL;
 import static java.sql.Types.DOUBLE;
 import static java.sql.Types.FLOAT;
 import static java.sql.Types.INTEGER;
+import static java.sql.Types.LONGVARBINARY;
+import static java.sql.Types.LONGVARCHAR;
 import static java.sql.Types.NULL;
 import static java.sql.Types.NUMERIC;
 import static java.sql.Types.REAL;
 import static java.sql.Types.SMALLINT;
 import static java.sql.Types.TIME;
 import static java.sql.Types.TIMESTAMP;
+import static java.sql.Types.TIMESTAMP_WITH_TIMEZONE;
 import static java.sql.Types.TINYINT;
 import static java.sql.Types.VARBINARY;
 import static java.sql.Types.VARCHAR;
@@ -122,6 +128,55 @@ public abstract class JdbcUtils {
         throw new JdbcException("Unrecognized class [" + clazz + "]");
     }
 
+    // see javax.sql.rowset.RowSetMetaDataImpl
+    // and https://db.apache.org/derby/docs/10.5/ref/rrefjdbc20377.html
+    public static Class<?> classOf(int jdbcType) {
+
+        switch (jdbcType) {
+            case NUMERIC:
+            case DECIMAL:
+                return BigDecimal.class;
+            case BOOLEAN:
+            case BIT:
+                return Boolean.class;
+            case TINYINT:
+                return Byte.class;
+            case SMALLINT:
+                return Short.class;
+            case INTEGER:
+                return Integer.class;
+            case BIGINT:
+                return Long.class;
+            case REAL:
+                return Float.class;
+            case FLOAT:
+            case DOUBLE:
+                return Double.class;
+            case BINARY:
+            case VARBINARY:
+            case LONGVARBINARY:
+                return byte[].class;
+            case CHAR:
+            case VARCHAR:
+            case LONGVARCHAR:
+                return String.class;
+            case DATE:
+                return Date.class;
+            case TIME:
+                return Time.class;
+            case TIMESTAMP:
+                return Timestamp.class;
+            case BLOB:
+                return Blob.class;
+            case CLOB:
+                return Clob.class;
+            case TIMESTAMP_WITH_TIMEZONE:
+                return Long.class;
+            default:
+                throw new JdbcException("Unsupported JDBC type " + jdbcType + ", " + type(jdbcType).getName() + "");
+        }
+    }
+
     static boolean isSigned(int type) {
         switch (type) {
             case BIGINT:
@@ -140,9 +195,5 @@ public abstract class JdbcUtils {
 
     static JDBCType type(int jdbcType) {
         return JDBCType.valueOf(jdbcType);
-    }
-
-    static String typeName(int jdbcType) {
-        return type(jdbcType).getName();
     }
 }

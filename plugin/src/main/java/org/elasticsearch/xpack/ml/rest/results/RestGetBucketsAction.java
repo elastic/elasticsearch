@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.rest.results;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -45,20 +46,23 @@ public class RestGetBucketsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
+        String timestamp = restRequest.param(GetBucketsAction.Request.TIMESTAMP.getPreferredName());
         final GetBucketsAction.Request request;
         if (restRequest.hasContentOrSourceParam()) {
             XContentParser parser = restRequest.contentOrSourceParamParser();
             request = GetBucketsAction.Request.parseRequest(jobId, parser);
+
+            // A timestamp in the URL overrides any timestamp that may also have been set in the body
+            if (!Strings.isNullOrEmpty(timestamp)) {
+                request.setTimestamp(timestamp);
+            }
         } else {
             request = new GetBucketsAction.Request(jobId);
 
             // Check if the REST param is set first so mutually exclusive
-            // options will only cause an error if set
-            if (restRequest.hasParam(GetBucketsAction.Request.TIMESTAMP.getPreferredName())) {
-                String timestamp = restRequest.param(GetBucketsAction.Request.TIMESTAMP.getPreferredName());
-                if (timestamp != null && !timestamp.isEmpty()) {
-                    request.setTimestamp(timestamp);
-                }
+            // options will cause an error if set
+            if (!Strings.isNullOrEmpty(timestamp)) {
+                request.setTimestamp(timestamp);
             }
             // multiple bucket options
             if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {

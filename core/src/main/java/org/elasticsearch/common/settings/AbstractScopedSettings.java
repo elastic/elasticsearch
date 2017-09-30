@@ -601,7 +601,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                          * settings. The setting can remain there but we want users to be aware that some of their setting are invalid and
                          * they can research why and what they need to do to replace them.
                          */
-                        builder.copy(ARCHIVED_SETTINGS_PREFIX + key, settings);
+                        builder.copy(ARCHIVED_SETTINGS_PREFIX + key, key, settings);
                     }
                 }
             } catch (IllegalArgumentException ex) {
@@ -612,7 +612,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                  * setting can remain there but we want users to be aware that some of their setting are invalid and they can research why
                  * and what they need to do to replace them.
                  */
-                builder.copy(ARCHIVED_SETTINGS_PREFIX + key, settings);
+                builder.copy(ARCHIVED_SETTINGS_PREFIX + key, key, settings);
             }
         }
         if (changed) {

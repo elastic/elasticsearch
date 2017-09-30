@@ -906,6 +906,9 @@ public final class Settings implements ToXContentFragment, Iterable<String> {
         }
 
         public Builder copy(String key, String sourceKey, Settings source) {
+            if (source.keySet().contains(sourceKey) == false) {
+                throw new IllegalArgumentException("source key not found in the source settings");
+            }
             return put(key, source.get(sourceKey));
         }
 

@@ -147,6 +147,19 @@ And now we are ready to start our node and single cluster:
 ./elasticsearch
 --------------------------------------------------
 
+=== Installation example with Homebrew
+
+--------------------------------------------------
+brew install elasticsearch
+--------------------------------------------------
+
+Homebrew will install elasticsearch in the Cellar directory. 
+
+--------------------------------------------------
+cd /usr/local/Cellar/elasticsearch/{version}/bin
+--------------------------------------------------
+
+
 [float]
 === Installation example with MSI Windows Installer
 

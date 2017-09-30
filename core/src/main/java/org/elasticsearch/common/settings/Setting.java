@@ -47,6 +47,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -746,13 +747,11 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
-            Map<String, String> leftGroup = get(source).getAsMap();
+            Set<String> leftGroup = get(source).keySet();
             Settings defaultGroup = get(defaultSettings);
-            for (Map.Entry<String, String> entry : defaultGroup.getAsMap().entrySet()) {
-                if (leftGroup.containsKey(entry.getKey()) == false) {
-                    builder.put(getKey() + entry.getKey(), entry.getValue());
-                }
-            }
+
+            builder.put(Settings.builder().put(defaultGroup.filter(k -> leftGroup.contains(k) == false), false)
+                    .normalizePrefix(getKey()).build(), false);
         }
 
         @Override
@@ -779,7 +778,7 @@ public class Setting<T> implements ToXContentObject {
                         validator.accept(currentSettings);
                     } catch (Exception | AssertionError e) {
                         throw new IllegalArgumentException("illegal value can't update [" + key + "] from ["
-                                + previousSettings.getAsMap() + "] to [" + currentSettings.getAsMap() + "]", e);
+                                + previousSettings + "] to [" + currentSettings+ "]", e);
                     }
                     return currentSettings;
                 }

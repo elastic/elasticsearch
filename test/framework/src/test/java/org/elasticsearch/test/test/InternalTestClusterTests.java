@@ -124,7 +124,7 @@ public class InternalTestClusterTests extends ESTestCase {
             if (clusterUniqueSettings.contains(key) && checkClusterUniqueSettings == false) {
                 continue;
             }
-            assertEquals(keys1, keys1.contains(key));
+            assertTrue("key [" + key + "] is missing in " + keys1, keys1.contains(key));
             assertEquals(right.get(key), left.get(key));
         }
     }

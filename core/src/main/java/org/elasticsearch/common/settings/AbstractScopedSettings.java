@@ -503,24 +503,25 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 (onlyDynamic && isDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
                 || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
                 || (onlyDynamic == false && get(key) != null))); // if it's not dynamic AND we have a key
-        for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
-            if (entry.getValue() == null && (canRemove.test(entry.getKey()) || entry.getKey().endsWith("*"))) {
+        for (String key : toApply.keySet()) {
+            boolean isNull = toApply.get(key) == null;
+            if (isNull && (canRemove.test(key) || key.endsWith("*"))) {
                 // this either accepts null values that suffice the canUpdate test OR wildcard expressions (key ends with *)
                 // we don't validate if there is any dynamic setting with that prefix yet we could do in the future
-                toRemove.add(entry.getKey());
+                toRemove.add(key);
                 // we don't set changed here it's set after we apply deletes below if something actually changed
-            } else if (get(entry.getKey()) == null) {
-                throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not recognized");
-            } else if (entry.getValue() != null && canUpdate.test(entry.getKey())) {
-                validate(entry.getKey(), toApply);
-                settingsBuilder.put(entry.getKey(), entry.getValue());
-                updates.put(entry.getKey(), entry.getValue());
+            } else if (get(key) == null) {
+                throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
+            } else if (isNull == false && canUpdate.test(key)) {
+                validate(key, toApply);
+                settingsBuilder.copy(key, toApply);
+                updates.copy(key, toApply);
                 changed = true;
             } else {
-                if (isFinalSetting(entry.getKey())) {
-                    throw new IllegalArgumentException("final " + type + " setting [" + entry.getKey() + "], not updateable");
+                if (isFinalSetting(key)) {
+                    throw new IllegalArgumentException("final " + type + " setting [" + key + "], not updateable");
                 } else {
-                    throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not dynamically updateable");
+                    throw new IllegalArgumentException(type + " setting [" + key + "], not dynamically updateable");
                 }
             }
         }

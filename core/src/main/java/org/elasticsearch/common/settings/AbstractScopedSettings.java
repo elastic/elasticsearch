@@ -584,41 +584,67 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         final BiConsumer<Map.Entry<String, String>, IllegalArgumentException> invalidConsumer) {
         Settings.Builder builder = Settings.builder();
         boolean changed = false;
-        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+        for (String key : settings.keySet()) {
             try {
-                Setting<?> setting = get(entry.getKey());
+                Setting<?> setting = get(key);
                 if (setting != null) {
                     setting.get(settings);
-                    builder.put(entry.getKey(), entry.getValue());
+                    builder.copy(key, settings);
                 } else {
-                    if (entry.getKey().startsWith(ARCHIVED_SETTINGS_PREFIX) || isPrivateSetting(entry.getKey())) {
-                        builder.put(entry.getKey(), entry.getValue());
+                    if (key.startsWith(ARCHIVED_SETTINGS_PREFIX) || isPrivateSetting(key)) {
+                        builder.copy(key, settings);
                     } else {
                         changed = true;
-                        unknownConsumer.accept(entry);
+                        unknownConsumer.accept(new Entry(key, settings));
                         /*
                          * We put them back in here such that tools can check from the outside if there are any indices with invalid
                          * settings. The setting can remain there but we want users to be aware that some of their setting are invalid and
                          * they can research why and what they need to do to replace them.
                          */
-                        builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
+                        builder.copy(ARCHIVED_SETTINGS_PREFIX + key, settings);
                     }
                 }
             } catch (IllegalArgumentException ex) {
                 changed = true;
-                invalidConsumer.accept(entry, ex);
+                invalidConsumer.accept(new Entry(key, settings), ex);
                 /*
                  * We put them back in here such that tools can check from the outside if there are any indices with invalid settings. The
                  * setting can remain there but we want users to be aware that some of their setting are invalid and they can research why
                  * and what they need to do to replace them.
                  */
-                builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
+                builder.copy(ARCHIVED_SETTINGS_PREFIX + key, settings);
             }
         }
         if (changed) {
             return builder.build();
         } else {
             return settings;
+        }
+    }
+
+    private static final class Entry implements Map.Entry<String, String> {
+
+        private final String key;
+        private final Settings settings;
+
+        private Entry(String key, Settings settings) {
+            this.key = key;
+            this.settings = settings;
+        }
+
+        @Override
+        public String getKey() {
+            return key;
+        }
+
+        @Override
+        public String getValue() {
+            return settings.get(key);
+        }
+
+        @Override
+        public String setValue(String value) {
+            throw new UnsupportedOperationException();
         }
     }
 

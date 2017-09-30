@@ -1440,7 +1440,6 @@ public final class Settings implements ToXContentFragment, Iterable<String> {
     @Override
     public String toString() {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.prettyPrint();
             builder.startObject();
             toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
             builder.endObject();

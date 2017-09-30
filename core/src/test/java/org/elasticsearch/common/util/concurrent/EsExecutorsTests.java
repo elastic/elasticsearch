@@ -381,4 +381,13 @@ public class EsExecutorsTests extends ESTestCase {
         }
 
     }
+
+    public void testExecutorName() {
+        String name = EsExecutors.executorName("executor", null);
+        assertEquals("executor", name);
+        name = EsExecutors.executorName("executor", "");
+        assertEquals("executor", name);
+        name = EsExecutors.executorName("executor", "node-test");
+        assertEquals("executor[node=node-test]", name);
+    }
 }

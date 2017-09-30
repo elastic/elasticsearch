@@ -19,23 +19,14 @@
 
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -120,8 +111,9 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
         int frameSize = settings.frameSize;
         TimeValue targetedResponseTime = settings.targetedResponseTime;
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
+        final String executorName = EsExecutors.executorName(name(), settings.nodeName);
         final ExecutorService executor =
-                EsExecutors.newAutoQueueFixed(name(), size, initialQueueSize, minQueueSize,
+                EsExecutors.newAutoQueueFixed(executorName, size, initialQueueSize, minQueueSize,
                         maxQueueSize, frameSize, targetedResponseTime, threadFactory, threadContext);
         // TODO: in a subsequent change we hope to extend ThreadPool.Info to be more specific for the thread pool type
         final ThreadPool.Info info =

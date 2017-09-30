@@ -65,6 +65,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.service.ClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.executorName;
 
 public class MasterService extends AbstractLifecycleComponent {
 
@@ -104,7 +105,8 @@ public class MasterService extends AbstractLifecycleComponent {
     protected synchronized void doStart() {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
         Objects.requireNonNull(clusterStateSupplier, "please set a cluster state supplier before starting");
-        threadPoolExecutor = EsExecutors.newSinglePrioritizing(MASTER_UPDATE_THREAD_NAME,
+        threadPoolExecutor = EsExecutors.newSinglePrioritizing(
+            executorName(MASTER_UPDATE_THREAD_NAME, nodeName()),
             daemonThreadFactory(settings, MASTER_UPDATE_THREAD_NAME), threadPool.getThreadContext(), threadPool.scheduler());
         taskBatcher = new Batcher(logger, threadPoolExecutor);
     }

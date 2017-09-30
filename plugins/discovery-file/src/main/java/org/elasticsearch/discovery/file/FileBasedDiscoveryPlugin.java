@@ -29,11 +29,11 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -78,7 +78,7 @@ public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin 
         final int concurrentConnects = UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[file_based_discovery_resolve]");
         fileBasedDiscoveryExecutorService = EsExecutors.newScaling(
-            "file_based_discovery_resolve",
+            EsExecutors.executorName("file_based_discovery_resolve", Node.NODE_NAME_SETTING.get(settings)),
             0,
             concurrentConnects,
             60,

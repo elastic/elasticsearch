@@ -168,6 +168,10 @@ public class EsExecutors {
         return "elasticsearch" + (nodeName.isEmpty() ? "" : "[") + nodeName + (nodeName.isEmpty() ? "" : "]") + "[" + namePrefix + "]";
     }
 
+    public static String executorName(final String name, final String nodeName) {
+        return name + (nodeName == null || nodeName.isEmpty() ? "" : "[node=" + nodeName + "]");
+    }
+
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
         return daemonThreadFactory(threadName(settings, namePrefix));
     }

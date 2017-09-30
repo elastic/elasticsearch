@@ -66,7 +66,7 @@ public class TaskExecutorTests extends ESTestCase {
 
     @Before
     public void setUpExecutor() {
-        threadExecutor = EsExecutors.newSinglePrioritizing("test_thread",
+        threadExecutor = EsExecutors.newSinglePrioritizing("test_thread[node=test_node]",
             daemonThreadFactory(Settings.EMPTY, "test_thread"), threadPool.getThreadContext(), threadPool.scheduler());
     }
 

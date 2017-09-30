@@ -145,7 +145,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 (boundAddress) ->
                     new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), boundAddress.publishAddress(),
-                        Node.NODE_ATTRIBUTES.get(settings).getAsMap(), DiscoveryNode.getRolesFromSettings(settings), version),
+                        Node.NODE_ATTRIBUTES.getAsMap(settings), DiscoveryNode.getRolesFromSettings(settings), version),
                 null);
         transportService.start();
         transportService.acceptIncomingRequests();

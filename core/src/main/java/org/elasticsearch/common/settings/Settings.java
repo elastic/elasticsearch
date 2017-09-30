@@ -321,6 +321,13 @@ public final class Settings implements ToXContentFragment {
     }
 
     /**
+     * Returns a set of all keys in this settings object
+     */
+    public Set<String> getKeys() {
+        return Collections.unmodifiableSet(settings.keySet());
+    }
+
+    /**
      * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
      * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
      * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
@@ -922,6 +929,10 @@ public final class Settings implements ToXContentFragment {
         public Builder put(String key, String value) {
             map.put(key, value);
             return this;
+        }
+
+        public Builder copy(String key, Settings source) {
+            return put(key, source.get(key));
         }
 
         /**

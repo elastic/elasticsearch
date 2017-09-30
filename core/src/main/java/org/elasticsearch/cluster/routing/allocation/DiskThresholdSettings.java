@@ -39,6 +39,11 @@ public class DiskThresholdSettings {
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING =
         Setting.boolSetting("cluster.routing.allocation.disk.threshold_enabled", true,
             Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_ALLOW_BYPASS_NONPRODUCTION_SETTING =
+        Setting.boolSetting("cluster.routing.allocation.disk.allow_bypass_nonproduction", true,
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING =
         new Setting<>("cluster.routing.allocation.disk.watermark.low", "85%",
             (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.low"),
@@ -69,6 +74,7 @@ public class DiskThresholdSettings {
     private volatile ByteSizeValue freeBytesThresholdHigh;
     private volatile boolean includeRelocations;
     private volatile boolean enabled;
+    private volatile boolean allowBypassNonProductionMode;
     private volatile TimeValue rerouteInterval;
     private volatile String floodStageRaw;
     private volatile Double freeDiskThresholdFloodStage;
@@ -84,12 +90,15 @@ public class DiskThresholdSettings {
         this.includeRelocations = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.get(settings);
         this.rerouteInterval = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(settings);
         this.enabled = CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
+        this.allowBypassNonProductionMode = CLUSTER_ROUTING_ALLOCATION_DISK_ALLOW_BYPASS_NONPRODUCTION_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStageRaw);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING, this::setIncludeRelocations);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_ALLOW_BYPASS_NONPRODUCTION_SETTING,
+            this::setAllowBypassNonProductionMode);
     }
 
     static final class LowDiskWatermarkValidator implements Setting.Validator<String> {
@@ -214,6 +223,10 @@ public class DiskThresholdSettings {
         this.enabled = enabled;
     }
 
+    private void setAllowBypassNonProductionMode(boolean allowBypassNonProductionMode){
+        this.allowBypassNonProductionMode = allowBypassNonProductionMode;
+    }
+
     private void setLowWatermark(String lowWatermark) {
         // Watermark is expressed in terms of used data, but we need "free" data watermark
         this.lowWatermarkRaw = lowWatermark;
@@ -290,6 +303,10 @@ public class DiskThresholdSettings {
 
     public TimeValue getRerouteInterval() {
         return rerouteInterval;
+    }
+
+    public boolean allowBypassNonProductionMode(){
+        return allowBypassNonProductionMode;
     }
 
     /**

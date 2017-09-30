@@ -44,6 +44,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(60L, diskThresholdSettings.getRerouteInterval().seconds());
         assertTrue(diskThresholdSettings.isEnabled());
         assertTrue(diskThresholdSettings.includeRelocations());
+        assertTrue(diskThresholdSettings.allowBypassNonProductionMode());
     }
 
     public void testUpdate() {
@@ -57,6 +58,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1000mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "250mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "30s")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_ALLOW_BYPASS_NONPRODUCTION_SETTING.getKey(), false)
             .build();
         nss.applySettings(newSettings);
 
@@ -69,6 +71,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(30L, diskThresholdSettings.getRerouteInterval().seconds());
         assertFalse(diskThresholdSettings.isEnabled());
         assertFalse(diskThresholdSettings.includeRelocations());
+        assertFalse(diskThresholdSettings.allowBypassNonProductionMode());
     }
 
     public void testInvalidConstruction() {

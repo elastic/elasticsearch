@@ -108,18 +108,21 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", "_na_", 100, 50));
         cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 0)); // nothing free on node3
 
-        // Retrieve the count of shards on each node
-        final Map<String, Integer> nodesToShardCount = new HashMap<>();
+        // Running in the non-production mode, shards still in node3 even it's out of space.
+        assertBusy(() -> {
+            Map<String, Integer> nodesToShardCount = countShards();
+            assertThat("node1 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(0)), greaterThanOrEqualTo(3));
+            assertThat("node2 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(1)), greaterThanOrEqualTo(3));
+            assertThat("node3 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(2)), greaterThanOrEqualTo(3));
+        });
+
+        // Disable bypass disk threshold, shards in node3 are relocated.
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_ALLOW_BYPASS_NONPRODUCTION_SETTING.getKey(), false))
+            .get();
 
         assertBusy(() -> {
-            ClusterStateResponse resp12 = client().admin().cluster().prepareState().get();
-            Iterator<RoutingNode> iter12 = resp12.getState().getRoutingNodes().iterator();
-            while (iter12.hasNext()) {
-                RoutingNode node = iter12.next();
-                logger.info("--> node {} has {} shards",
-                        node.nodeId(), resp12.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
-                nodesToShardCount.put(node.nodeId(), resp12.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
-            }
+            Map<String, Integer> nodesToShardCount = countShards();
             assertThat("node1 has 5 shards", nodesToShardCount.get(realNodeNames.get(0)), equalTo(5));
             assertThat("node2 has 5 shards", nodesToShardCount.get(realNodeNames.get(1)), equalTo(5));
             assertThat("node3 has 0 shards", nodesToShardCount.get(realNodeNames.get(2)), equalTo(0));
@@ -130,21 +133,22 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", "_na_", 100, 50));
         cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 50)); // node3 has free space now
 
-        // Retrieve the count of shards on each node
-        nodesToShardCount.clear();
-
         assertBusy(() -> {
-            ClusterStateResponse resp1 = client().admin().cluster().prepareState().get();
-            Iterator<RoutingNode> iter1 = resp1.getState().getRoutingNodes().iterator();
-            while (iter1.hasNext()) {
-                RoutingNode node = iter1.next();
-                logger.info("--> node {} has {} shards",
-                        node.nodeId(), resp1.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
-                nodesToShardCount.put(node.nodeId(), resp1.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
-            }
+            Map<String, Integer> nodesToShardCount = countShards();
             assertThat("node1 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(0)), greaterThanOrEqualTo(3));
             assertThat("node2 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(1)), greaterThanOrEqualTo(3));
             assertThat("node3 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(2)), greaterThanOrEqualTo(3));
         });
+    }
+
+    Map<String, Integer> countShards() {
+        final Map<String, Integer> nodesToShardCount = new HashMap<>();
+        ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+        for (RoutingNode node : resp.getState().getRoutingNodes()) {
+            logger.info("--> node {} has {} shards",
+                node.nodeId(), resp.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
+            nodesToShardCount.put(node.nodeId(), resp.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
+        }
+        return nodesToShardCount;
     }
 }

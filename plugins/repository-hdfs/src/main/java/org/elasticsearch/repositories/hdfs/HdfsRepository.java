@@ -120,8 +120,9 @@ public final class HdfsRepository extends BlobStoreRepository {
         hadoopConfiguration.setClassLoader(HdfsRepository.class.getClassLoader());
         hadoopConfiguration.reloadConfiguration();
 
-        for (String key : repositorySettings.getByPrefix("conf.").keySet()) {
-            hadoopConfiguration.set(key, repositorySettings.get(key));
+        final Settings confSettings = repositorySettings.getByPrefix("conf.");
+        for (String key : confSettings.keySet()) {
+            hadoopConfiguration.set(key, confSettings.get(key));
         }
 
         // Create a hadoop user

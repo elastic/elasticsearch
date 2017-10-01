@@ -112,7 +112,6 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         factory = new ScriptProcessor.Factory(mockedScriptService);
 
         Map<String, Object> configMap = new HashMap<>();
-        configMap.put("lang", "mockscript");
         configMap.put(randomType, "my_script");
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,

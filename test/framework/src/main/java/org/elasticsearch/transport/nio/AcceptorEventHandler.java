@@ -87,16 +87,4 @@ public class AcceptorEventHandler extends EventHandler {
         logger.debug(() -> new ParameterizedMessage("exception while accepting new channel from server channel: {}",
             nioServerChannel), exception);
     }
-
-    /**
-     * This method is called when handling an event from a channel fails due to an unexpected exception.
-     * An example would be if checking ready ops on a {@link java.nio.channels.SelectionKey} threw
-     * {@link java.nio.channels.CancelledKeyException}.
-     *
-     * @param channel that caused the exception
-     * @param exception that was thrown
-     */
-    void genericServerChannelException(NioServerSocketChannel channel, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("exception while handling event for server channel: {}", channel), exception);
-    }
 }

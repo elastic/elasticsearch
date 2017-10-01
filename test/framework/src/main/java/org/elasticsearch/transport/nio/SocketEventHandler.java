@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 import org.elasticsearch.transport.nio.channel.WriteContext;
@@ -82,7 +83,6 @@ public class SocketEventHandler extends EventHandler {
     void connectException(NioSocketChannel channel, Exception exception) {
         logger.debug(() -> new ParameterizedMessage("failed to connect to socket channel: {}", channel), exception);
         exceptionCaught(channel, exception);
-
     }
 
     /**
@@ -144,9 +144,9 @@ public class SocketEventHandler extends EventHandler {
      * @param channel that caused the exception
      * @param exception that was thrown
      */
-    void genericChannelException(NioSocketChannel channel, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("exception while handling event for socket channel: {}", channel), exception);
-        exceptionCaught(channel, exception);
+    void genericChannelException(NioChannel channel, Exception exception) {
+        super.genericChannelException(channel, exception);
+        exceptionCaught((NioSocketChannel) channel, exception);
     }
 
     private void exceptionCaught(NioSocketChannel channel, Exception e) {

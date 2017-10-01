@@ -23,29 +23,20 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 
 import java.util.Optional;
-import java.util.function.Function;
 
 /**
  * A plugin that provides alternative engine implementations.
  */
 public interface EnginePlugin {
 
-   /**
-    * An engine factory provider. When an index is created this method is invoked for each engine plugin. Engine plugins can inspect the
-    * index settings to determine whether or not to provide an engine factory for the given index. A plugin that is not overriding the
-    * default engine should return {@link Optional#empty()}. If multiple plugins return an engine factory for a given index the index will
-    * not be created and an {@link IllegalStateException} will be thrown during index creation.
-    */
-   @FunctionalInterface
-   interface EngineFactoryProvider extends Function<IndexSettings, Optional<EngineFactory>> {
-
-   }
-
-   /**
-    * The engine factory provider for this engine plugin.
-    *
-    * @return the engine factory provider
-    */
-   EngineFactoryProvider getEngineFactoryProvider();
+    /**
+     * When an index is created this method is invoked for each engine plugin. Engine plugins can inspect the index settings to determine
+     * whether or not to provide an engine factory for the given index. A plugin that is not overriding the default engine should return
+     * {@link Optional#empty()}. If multiple plugins return an engine factory for a given index the index will not be created and an
+     * {@link IllegalStateException} will be thrown during index creation.
+     *
+     * @return an optional engine factory
+     */
+    Optional<EngineFactory> getMaybeEngineFactory(final IndexSettings indexSettings);
 
 }

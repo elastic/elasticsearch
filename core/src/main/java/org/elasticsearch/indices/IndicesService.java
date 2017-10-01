@@ -177,7 +177,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndicesRequestCache indicesRequestCache;
     private final IndicesQueryCache indicesQueryCache;
     private final MetaStateService metaStateService;
-    private final Collection<Tuple<EnginePlugin, EnginePlugin.EngineFactoryProvider>> engineFactoryProviders;
+    private final Collection<EnginePlugin> enginePlugins;
 
     @Override
     protected void doStart() {
@@ -190,7 +190,7 @@ public class IndicesService extends AbstractLifecycleComponent
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry, ThreadPool threadPool,
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
                           ScriptService scriptService, Client client, MetaStateService metaStateService,
-                          Collection<Tuple<EnginePlugin, EnginePlugin.EngineFactoryProvider>> engineFactoryProviders) {
+                          Collection<EnginePlugin> enginePlugins) {
         super(settings);
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -221,7 +221,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache,  logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
-        this.engineFactoryProviders = engineFactoryProviders;
+        this.enginePlugins = enginePlugins;
     }
 
     @Override
@@ -474,9 +474,9 @@ public class IndicesService extends AbstractLifecycleComponent
 
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
         final List<Tuple<EnginePlugin, Optional<EngineFactory>>> engineFactories =
-                engineFactoryProviders
+                enginePlugins
                         .stream()
-                        .map(p -> Tuple.tuple(p.v1(), p.v2().apply(idxSettings)))
+                        .map(p -> Tuple.tuple(p, p.getMaybeEngineFactory(idxSettings)))
                         .filter(t -> Objects.requireNonNull(t.v2()).isPresent())
                         .collect(Collectors.toList());
         if (engineFactories.isEmpty()) {

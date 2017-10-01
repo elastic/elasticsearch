@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.engine.MockEngineFactory;
@@ -43,8 +44,8 @@ public class MockEngineFactoryPlugin extends Plugin implements EnginePlugin {
     }
 
     @Override
-    public EngineFactoryProvider getEngineFactoryProvider() {
-        return indexSettings -> Optional.of(new MockEngineFactory(getReaderWrapperClass()));
+    public Optional<EngineFactory> getMaybeEngineFactory(final IndexSettings indexSettings) {
+        return Optional.of(new MockEngineFactory(getReaderWrapperClass()));
     }
 
     protected Class<? extends FilterDirectoryReader> getReaderWrapperClass() {

@@ -126,14 +126,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public EngineFactoryProvider getEngineFactoryProvider() {
-            return indexSettings -> {
-                if (FOO_INDEX_SETTING.get(indexSettings.getSettings())) {
-                    return Optional.of(new FooEngineFactory());
-                } else {
-                    return Optional.empty();
-                }
-            };
+        public Optional<EngineFactory> getMaybeEngineFactory(final IndexSettings indexSettings) {
+            if (FOO_INDEX_SETTING.get(indexSettings.getSettings())) {
+                return Optional.of(new FooEngineFactory());
+            } else {
+                return Optional.empty();
+            }
         }
 
     }
@@ -158,14 +156,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public EngineFactoryProvider getEngineFactoryProvider() {
-            return indexSettings -> {
-                if (BAR_INDEX_SETTING.get(indexSettings.getSettings())) {
-                    return Optional.of(new BarEngineFactory());
-                } else {
-                    return Optional.empty();
-                }
-            };
+        public Optional<EngineFactory> getMaybeEngineFactory(final IndexSettings indexSettings) {
+            if (BAR_INDEX_SETTING.get(indexSettings.getSettings())) {
+                return Optional.of(new BarEngineFactory());
+            } else {
+                return Optional.empty();
+            }
         }
 
     }
@@ -508,7 +504,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat("unexpected shard stats", indexStats.get(index), equalTo(shardStats));
     }
 
-    public void testEngineFactoryProvider() throws IOException {
+    public void testGetEngineFactory() throws IOException {
         final IndicesService indicesService = getIndicesService();
 
         final Boolean[] values = new Boolean[] { true, false, null };
@@ -536,7 +532,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testConflictingEngineFactoryProviders() throws IOException {
+    public void testConflictingEngineFactories() throws IOException {
         final String indexName = "foobar";
         final Index index = new Index(indexName, UUIDs.randomBase64UUID());
         final Settings settings = Settings.builder()

@@ -56,7 +56,6 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Binder;
@@ -389,18 +388,13 @@ public class Node implements Closeable {
             final MetaStateService metaStateService = new MetaStateService(settings, nodeEnvironment, xContentRegistry);
 
             // collect engine factory providers per plugin
-            final Collection<Tuple<EnginePlugin, EnginePlugin.EngineFactoryProvider>> engineFactoryProviders =
-                    pluginsService
-                            .filterPlugins(EnginePlugin.class)
-                            .stream()
-                            .map(p -> Tuple.tuple(p, p.getEngineFactoryProvider()))
-                            .collect(Collectors.toList());
+            final Collection<EnginePlugin> enginePlugins = pluginsService.filterPlugins(EnginePlugin.class);
 
             final IndicesService indicesService =
                     new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry, analysisModule.getAnalysisRegistry(),
                             clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                             threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays,
-                            scriptModule.getScriptService(), client, metaStateService, engineFactoryProviders);
+                            scriptModule.getScriptService(), client, metaStateService, enginePlugins);
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,

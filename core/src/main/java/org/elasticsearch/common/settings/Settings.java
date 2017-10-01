@@ -118,15 +118,6 @@ public final class Settings implements ToXContentFragment {
         return secureSettings;
     }
 
-    /**
-     * The settings as a flat {@link java.util.Map}.
-     * @return an unmodifiable map of settings
-     */
-    public Map<String, String> getAsMap() {
-        // settings is always unmodifiable
-        return this.settings;
-    }
-
     private Map<String, Object> getAsStructuredMap() {
         Map<String, Object> map = new HashMap<>(2);
         for (Map.Entry<String, String> entry : settings.entrySet()) {

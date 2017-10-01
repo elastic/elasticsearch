@@ -19,8 +19,10 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -57,10 +59,15 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
 
     private SnapshotStats stats;
 
-    SnapshotStatus(final Snapshot snapshot, final State state, final List<SnapshotIndexShardStatus> shards) {
+    @Nullable
+    private Boolean includeGlobalState;
+
+    SnapshotStatus(final Snapshot snapshot, final State state, final List<SnapshotIndexShardStatus> shards,
+                   Boolean includeGlobalState) {
         this.snapshot = Objects.requireNonNull(snapshot);
         this.state = Objects.requireNonNull(state);
         this.shards = Objects.requireNonNull(shards);
+        this.includeGlobalState = includeGlobalState;
         shardsStats = new SnapshotShardsStats(shards);
         updateShardStats();
     }
@@ -80,6 +87,13 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
      */
     public State getState() {
         return state;
+    }
+
+    /**
+     * Returns whether include cluster state
+     */
+    public Boolean includeGlobalState() {
+        return includeGlobalState;
     }
 
     /**
@@ -132,6 +146,9 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
             builder.add(SnapshotIndexShardStatus.readShardSnapshotStatus(in));
         }
         shards = Collections.unmodifiableList(builder);
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            includeGlobalState = in.readOptionalBoolean();
+        }
         updateShardStats();
     }
 
@@ -142,6 +159,9 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
         out.writeVInt(shards.size());
         for (SnapshotIndexShardStatus shard : shards) {
             shard.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalBoolean(includeGlobalState);
         }
     }
 
@@ -174,6 +194,7 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
     private static final String UUID = "uuid";
     private static final String STATE = "state";
     private static final String INDICES = "indices";
+    private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -182,6 +203,9 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
         builder.field(REPOSITORY, snapshot.getRepository());
         builder.field(UUID, snapshot.getSnapshotId().getUUID());
         builder.field(STATE, state.name());
+        if (includeGlobalState != null) {
+            builder.field(INCLUDE_GLOBAL_STATE, includeGlobalState);
+        }
         shardsStats.toXContent(builder, params);
         stats.toXContent(builder, params);
         builder.startObject(INDICES);

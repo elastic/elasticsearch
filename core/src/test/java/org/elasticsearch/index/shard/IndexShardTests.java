@@ -2474,8 +2474,9 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         @Override
-        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
-                                             List<SnapshotShardFailure> shardFailures, long repositoryStateId) {
+        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure,
+                                             int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
+                                             boolean includeGlobalState) {
             return null;
         }
 

@@ -11,6 +11,6 @@ type:
 |===========================================================
 |Setting |Description
 |`min` |The minimum number. Defaults to `0`.
-|`max` |The maximum number. Defaults to `Integer.MAX_VALUE`.
+|`max` |The maximum number. Defaults to `Integer.MAX_VALUE`, which is `2^32-1` or 4294967295.
 |===========================================================
 

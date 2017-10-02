@@ -107,7 +107,9 @@ public class NioTransport extends TcpTransport<NioChannel> {
                  * side otherwise the client (node) initiates the TCP closing sequence which doesn't cause these issues. Setting this
                  * by default from the beginning can have unexpected side-effects an should be avoided, our protocol is designed
                  * in a way that clients close connection which is how it should be*/
-                channel.getRawChannel().setOption(StandardSocketOptions.SO_LINGER, 0);
+                if (channel.isOpen()) {
+                    channel.getRawChannel().setOption(StandardSocketOptions.SO_LINGER, 0);
+                }
             }
         }
         ArrayList<CloseFuture> futures = new ArrayList<>(channels.size());

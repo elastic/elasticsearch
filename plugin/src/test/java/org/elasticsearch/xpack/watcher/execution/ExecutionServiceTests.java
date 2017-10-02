@@ -72,7 +72,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -152,7 +152,7 @@ public class ExecutionServiceTests extends ESTestCase {
         Condition.Result conditionResult = AlwaysCondition.RESULT_INSTANCE;
         Condition condition = mock(Condition.class);
         // introduce a very short sleep time which we can use to check if the duration in milliseconds is correctly created
-        long randomConditionDurationMs = randomIntBetween(1, 10);
+        long randomConditionDurationMs = randomIntBetween(5, 10);
         when(condition.execute(any(WatchExecutionContext.class))).then(invocationOnMock -> {
             Thread.sleep(randomConditionDurationMs);
             return conditionResult;
@@ -227,8 +227,9 @@ public class ExecutionServiceTests extends ESTestCase {
         verify(watchTransform, times(1)).execute(context, payload);
         verify(action, times(1)).execute("_action", context, payload);
 
-        // test execution duration
-        assertThat(watchRecord.result().executionDurationMs(), is(greaterThanOrEqualTo(randomConditionDurationMs)));
+        // test execution duration, make sure it is set at all
+        // no exact duration check here, as different platforms handle sleep differently, so this might not be exact
+        assertThat(watchRecord.result().executionDurationMs(), is(greaterThan(0L)));
         assertThat(watchRecord.result().executionTime(), is(notNullValue()));
 
         // test stats

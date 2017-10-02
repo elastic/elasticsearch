@@ -389,7 +389,7 @@ public class AmazonS3Wrapper implements AmazonS3 {
 
     @Override
     public String getObjectAsString(final String bucketName, final String key) throws AmazonServiceException, AmazonClientException {
-        return delegate.getObjectAsString(bucketName,key);
+        return delegate.getObjectAsString(bucketName, key);
     }
 
     @Override

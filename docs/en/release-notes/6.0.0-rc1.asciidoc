@@ -65,11 +65,10 @@ Security::
 * Added usability improvements for the password bootstrap tool. For more
 information, see <<setup-passwords>>.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2444[#2444] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2424[#2424])
-////
+
 Watcher::
-* Watcher: Only load active watches on load
+* Fixed {watcher} such that it loads only active watches.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2408[#2408]
-////
 
 See also:
 

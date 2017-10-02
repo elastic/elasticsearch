@@ -23,6 +23,7 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.HttpMethod;
+import com.amazonaws.SdkClientException;
 import com.amazonaws.regions.Region;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.S3ClientOptions;
@@ -48,24 +49,38 @@ import com.amazonaws.services.s3.model.CopyObjectResult;
 import com.amazonaws.services.s3.model.CopyPartRequest;
 import com.amazonaws.services.s3.model.CopyPartResult;
 import com.amazonaws.services.s3.model.CreateBucketRequest;
+import com.amazonaws.services.s3.model.DeleteBucketAnalyticsConfigurationRequest;
+import com.amazonaws.services.s3.model.DeleteBucketAnalyticsConfigurationResult;
 import com.amazonaws.services.s3.model.DeleteBucketCrossOriginConfigurationRequest;
+import com.amazonaws.services.s3.model.DeleteBucketInventoryConfigurationRequest;
+import com.amazonaws.services.s3.model.DeleteBucketInventoryConfigurationResult;
 import com.amazonaws.services.s3.model.DeleteBucketLifecycleConfigurationRequest;
+import com.amazonaws.services.s3.model.DeleteBucketMetricsConfigurationRequest;
+import com.amazonaws.services.s3.model.DeleteBucketMetricsConfigurationResult;
 import com.amazonaws.services.s3.model.DeleteBucketPolicyRequest;
 import com.amazonaws.services.s3.model.DeleteBucketReplicationConfigurationRequest;
 import com.amazonaws.services.s3.model.DeleteBucketRequest;
 import com.amazonaws.services.s3.model.DeleteBucketTaggingConfigurationRequest;
 import com.amazonaws.services.s3.model.DeleteBucketWebsiteConfigurationRequest;
 import com.amazonaws.services.s3.model.DeleteObjectRequest;
+import com.amazonaws.services.s3.model.DeleteObjectTaggingRequest;
+import com.amazonaws.services.s3.model.DeleteObjectTaggingResult;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsResult;
 import com.amazonaws.services.s3.model.DeleteVersionRequest;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.GetBucketAccelerateConfigurationRequest;
 import com.amazonaws.services.s3.model.GetBucketAclRequest;
+import com.amazonaws.services.s3.model.GetBucketAnalyticsConfigurationRequest;
+import com.amazonaws.services.s3.model.GetBucketAnalyticsConfigurationResult;
 import com.amazonaws.services.s3.model.GetBucketCrossOriginConfigurationRequest;
+import com.amazonaws.services.s3.model.GetBucketInventoryConfigurationRequest;
+import com.amazonaws.services.s3.model.GetBucketInventoryConfigurationResult;
 import com.amazonaws.services.s3.model.GetBucketLifecycleConfigurationRequest;
 import com.amazonaws.services.s3.model.GetBucketLocationRequest;
 import com.amazonaws.services.s3.model.GetBucketLoggingConfigurationRequest;
+import com.amazonaws.services.s3.model.GetBucketMetricsConfigurationRequest;
+import com.amazonaws.services.s3.model.GetBucketMetricsConfigurationResult;
 import com.amazonaws.services.s3.model.GetBucketNotificationConfigurationRequest;
 import com.amazonaws.services.s3.model.GetBucketPolicyRequest;
 import com.amazonaws.services.s3.model.GetBucketReplicationConfigurationRequest;
@@ -75,11 +90,19 @@ import com.amazonaws.services.s3.model.GetBucketWebsiteConfigurationRequest;
 import com.amazonaws.services.s3.model.GetObjectAclRequest;
 import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.GetObjectTaggingRequest;
+import com.amazonaws.services.s3.model.GetObjectTaggingResult;
 import com.amazonaws.services.s3.model.GetS3AccountOwnerRequest;
 import com.amazonaws.services.s3.model.HeadBucketRequest;
 import com.amazonaws.services.s3.model.HeadBucketResult;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadResult;
+import com.amazonaws.services.s3.model.ListBucketAnalyticsConfigurationsRequest;
+import com.amazonaws.services.s3.model.ListBucketAnalyticsConfigurationsResult;
+import com.amazonaws.services.s3.model.ListBucketInventoryConfigurationsRequest;
+import com.amazonaws.services.s3.model.ListBucketInventoryConfigurationsResult;
+import com.amazonaws.services.s3.model.ListBucketMetricsConfigurationsRequest;
+import com.amazonaws.services.s3.model.ListBucketMetricsConfigurationsResult;
 import com.amazonaws.services.s3.model.ListBucketsRequest;
 import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
 import com.amazonaws.services.s3.model.ListNextBatchOfObjectsRequest;
@@ -100,9 +123,15 @@ import com.amazonaws.services.s3.model.RestoreObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.SetBucketAccelerateConfigurationRequest;
 import com.amazonaws.services.s3.model.SetBucketAclRequest;
+import com.amazonaws.services.s3.model.SetBucketAnalyticsConfigurationRequest;
+import com.amazonaws.services.s3.model.SetBucketAnalyticsConfigurationResult;
 import com.amazonaws.services.s3.model.SetBucketCrossOriginConfigurationRequest;
+import com.amazonaws.services.s3.model.SetBucketInventoryConfigurationRequest;
+import com.amazonaws.services.s3.model.SetBucketInventoryConfigurationResult;
 import com.amazonaws.services.s3.model.SetBucketLifecycleConfigurationRequest;
 import com.amazonaws.services.s3.model.SetBucketLoggingConfigurationRequest;
+import com.amazonaws.services.s3.model.SetBucketMetricsConfigurationRequest;
+import com.amazonaws.services.s3.model.SetBucketMetricsConfigurationResult;
 import com.amazonaws.services.s3.model.SetBucketNotificationConfigurationRequest;
 import com.amazonaws.services.s3.model.SetBucketPolicyRequest;
 import com.amazonaws.services.s3.model.SetBucketReplicationConfigurationRequest;
@@ -110,10 +139,16 @@ import com.amazonaws.services.s3.model.SetBucketTaggingConfigurationRequest;
 import com.amazonaws.services.s3.model.SetBucketVersioningConfigurationRequest;
 import com.amazonaws.services.s3.model.SetBucketWebsiteConfigurationRequest;
 import com.amazonaws.services.s3.model.SetObjectAclRequest;
+import com.amazonaws.services.s3.model.SetObjectTaggingRequest;
+import com.amazonaws.services.s3.model.SetObjectTaggingResult;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
 import com.amazonaws.services.s3.model.VersionListing;
+import com.amazonaws.services.s3.model.analytics.AnalyticsConfiguration;
+import com.amazonaws.services.s3.model.inventory.InventoryConfiguration;
+import com.amazonaws.services.s3.model.metrics.MetricsConfiguration;
+import com.amazonaws.services.s3.waiters.AmazonS3Waiters;
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.io.File;
@@ -354,7 +389,22 @@ public class AmazonS3Wrapper implements AmazonS3 {
 
     @Override
     public String getObjectAsString(final String bucketName, final String key) throws AmazonServiceException, AmazonClientException {
-        return null;
+        return delegate.getObjectAsString(bucketName,key);
+    }
+
+    @Override
+    public GetObjectTaggingResult getObjectTagging(final GetObjectTaggingRequest getObjectTaggingRequest) {
+        return delegate.getObjectTagging(getObjectTaggingRequest);
+    }
+
+    @Override
+    public SetObjectTaggingResult setObjectTagging(final SetObjectTaggingRequest setObjectTaggingRequest) {
+        return delegate.setObjectTagging(setObjectTaggingRequest);
+    }
+
+    @Override
+    public DeleteObjectTaggingResult deleteObjectTagging(final DeleteObjectTaggingRequest deleteObjectTaggingRequest) {
+        return delegate.deleteObjectTagging(deleteObjectTaggingRequest);
     }
 
     @Override
@@ -419,13 +469,133 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
+    public DeleteBucketMetricsConfigurationResult deleteBucketMetricsConfiguration(final String bucketName, final String id) throws AmazonServiceException, SdkClientException {
+        return delegate.deleteBucketMetricsConfiguration(bucketName, id);
+    }
+
+    @Override
+    public DeleteBucketMetricsConfigurationResult deleteBucketMetricsConfiguration(final DeleteBucketMetricsConfigurationRequest deleteBucketMetricsConfigurationRequest) throws AmazonServiceException, SdkClientException {
+        return delegate.deleteBucketMetricsConfiguration(deleteBucketMetricsConfigurationRequest);
+    }
+
+    @Override
+    public GetBucketMetricsConfigurationResult getBucketMetricsConfiguration(final String bucketName, final String id) throws AmazonServiceException, SdkClientException {
+        return delegate.getBucketMetricsConfiguration(bucketName, id);
+    }
+
+    @Override
+    public GetBucketMetricsConfigurationResult getBucketMetricsConfiguration(final GetBucketMetricsConfigurationRequest getBucketMetricsConfigurationRequest) throws AmazonServiceException, SdkClientException {
+        return delegate.getBucketMetricsConfiguration(getBucketMetricsConfigurationRequest);
+    }
+
+    @Override
+    public SetBucketMetricsConfigurationResult setBucketMetricsConfiguration(final String bucketName, final MetricsConfiguration metricsConfiguration) throws AmazonServiceException, SdkClientException {
+        return delegate.setBucketMetricsConfiguration(bucketName, metricsConfiguration);
+    }
+
+    @Override
+    public SetBucketMetricsConfigurationResult setBucketMetricsConfiguration(final SetBucketMetricsConfigurationRequest setBucketMetricsConfigurationRequest) throws AmazonServiceException, SdkClientException {
+        return delegate.setBucketMetricsConfiguration(setBucketMetricsConfigurationRequest);
+    }
+
+    @Override
+    public ListBucketMetricsConfigurationsResult listBucketMetricsConfigurations(final ListBucketMetricsConfigurationsRequest listBucketMetricsConfigurationsRequest) throws AmazonServiceException, SdkClientException {
+        return delegate.listBucketMetricsConfigurations(listBucketMetricsConfigurationsRequest);
+    }
+
+    @Override
+    public DeleteBucketAnalyticsConfigurationResult deleteBucketAnalyticsConfiguration(final String bucketName, final String id) throws AmazonServiceException, SdkClientException {
+        return delegate.deleteBucketAnalyticsConfiguration(bucketName, id);
+    }
+
+    @Override
+    public DeleteBucketAnalyticsConfigurationResult deleteBucketAnalyticsConfiguration(final DeleteBucketAnalyticsConfigurationRequest deleteBucketAnalyticsConfigurationRequest) throws AmazonServiceException, SdkClientException {
+        return delegate.deleteBucketAnalyticsConfiguration(deleteBucketAnalyticsConfigurationRequest);
+    }
+
+    @Override
+    public GetBucketAnalyticsConfigurationResult getBucketAnalyticsConfiguration(final String bucketName, final String id) throws AmazonServiceException, SdkClientException {
+        return delegate.getBucketAnalyticsConfiguration(bucketName, id);
+    }
+
+    @Override
+    public GetBucketAnalyticsConfigurationResult getBucketAnalyticsConfiguration(final GetBucketAnalyticsConfigurationRequest getBucketAnalyticsConfigurationRequest) throws AmazonServiceException, SdkClientException {
+        return delegate.getBucketAnalyticsConfiguration(getBucketAnalyticsConfigurationRequest);
+    }
+
+    @Override
+    public SetBucketAnalyticsConfigurationResult setBucketAnalyticsConfiguration(final String bucketName, final AnalyticsConfiguration analyticsConfiguration) throws AmazonServiceException, SdkClientException {
+        return delegate.setBucketAnalyticsConfiguration(bucketName, analyticsConfiguration);
+    }
+
+    @Override
+    public SetBucketAnalyticsConfigurationResult setBucketAnalyticsConfiguration(final SetBucketAnalyticsConfigurationRequest setBucketAnalyticsConfigurationRequest) throws AmazonServiceException, SdkClientException {
+        return delegate.setBucketAnalyticsConfiguration(setBucketAnalyticsConfigurationRequest);
+    }
+
+    @Override
+    public ListBucketAnalyticsConfigurationsResult listBucketAnalyticsConfigurations(final ListBucketAnalyticsConfigurationsRequest listBucketAnalyticsConfigurationsRequest) throws AmazonServiceException, SdkClientException {
+        return delegate.listBucketAnalyticsConfigurations(listBucketAnalyticsConfigurationsRequest);
+    }
+
+    @Override
+    public DeleteBucketInventoryConfigurationResult deleteBucketInventoryConfiguration(final String bucketName, final String id) throws AmazonServiceException, SdkClientException {
+        return delegate.deleteBucketInventoryConfiguration(bucketName, id);
+    }
+
+    @Override
+    public DeleteBucketInventoryConfigurationResult deleteBucketInventoryConfiguration(final DeleteBucketInventoryConfigurationRequest deleteBucketInventoryConfigurationRequest) throws AmazonServiceException, SdkClientException {
+        return delegate.deleteBucketInventoryConfiguration(deleteBucketInventoryConfigurationRequest);
+    }
+
+    @Override
+    public GetBucketInventoryConfigurationResult getBucketInventoryConfiguration(final String bucketName, final String id) throws AmazonServiceException, SdkClientException {
+        return delegate.getBucketInventoryConfiguration(bucketName, id);
+    }
+
+    @Override
+    public GetBucketInventoryConfigurationResult getBucketInventoryConfiguration(final GetBucketInventoryConfigurationRequest getBucketInventoryConfigurationRequest) throws AmazonServiceException, SdkClientException {
+        return delegate.getBucketInventoryConfiguration(getBucketInventoryConfigurationRequest);
+    }
+
+    @Override
+    public SetBucketInventoryConfigurationResult setBucketInventoryConfiguration(final String bucketName, final InventoryConfiguration inventoryConfiguration) throws AmazonServiceException, SdkClientException {
+        return delegate.setBucketInventoryConfiguration(bucketName, inventoryConfiguration);
+    }
+
+    @Override
+    public SetBucketInventoryConfigurationResult setBucketInventoryConfiguration(final SetBucketInventoryConfigurationRequest setBucketInventoryConfigurationRequest) throws AmazonServiceException, SdkClientException {
+        return delegate.setBucketInventoryConfiguration(setBucketInventoryConfigurationRequest);
+    }
+
+    @Override
+    public ListBucketInventoryConfigurationsResult listBucketInventoryConfigurations(final ListBucketInventoryConfigurationsRequest listBucketInventoryConfigurationsRequest) throws AmazonServiceException, SdkClientException {
+        return delegate.listBucketInventoryConfigurations(listBucketInventoryConfigurationsRequest);
+    }
+
+    @Override
+    public void shutdown() {
+        delegate.shutdown();
+    }
+
+    @Override
     public com.amazonaws.services.s3.model.Region getRegion() {
         return delegate.getRegion();
     }
 
     @Override
+    public String getRegionName() {
+        return delegate.getRegionName();
+    }
+
+    @Override
     public URL getUrl(final String bucketName, final String key) {
         return delegate.getUrl(bucketName,key);
+    }
+
+    @Override
+    public AmazonS3Waiters waiters() {
+        return delegate.waiters();
     }
 
     @Override

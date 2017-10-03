@@ -27,23 +27,24 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.ESBlobStoreTestCase;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 
-import static org.elasticsearch.cloud.azure.AzureTestUtils.readSettingsFromFile;
+import static org.elasticsearch.cloud.azure.AzureTestUtils.generateMockSecureSettings;
 
 /**
- * You must specify {@code -Dtests.thirdparty=true -Dtests.config=/path/to/elasticsearch.yml}
- * in order to run these tests.
+ * Those integration tests need an Azure access and must be run with
+ * {@code -Dtests.thirdparty=true -Dtests.azure.account=AzureStorageAccount -Dtests.azure.key=AzureStorageKey}
+ * options
  */
-@ESIntegTestCase.ThirdParty
+@ThirdParty
 public class AzureBlobStoreTests extends ESBlobStoreTestCase {
     @Override
     protected BlobStore newBlobStore() throws IOException {
         try {
-            Settings settings = readSettingsFromFile();
+            Settings settings = generateMockSecureSettings();
             RepositoryMetaData metadata = new RepositoryMetaData("ittest", "azure", Settings.EMPTY);
             AzureStorageService storageService = new AzureStorageServiceImpl(settings);
             AzureBlobStore blobStore = new AzureBlobStore(metadata, settings, storageService);

@@ -42,13 +42,11 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     protected final AzureBlobStore blobStore;
 
     protected final String keyPath;
-    protected final String repositoryName;
 
-    public AzureBlobContainer(String repositoryName, BlobPath path, AzureBlobStore blobStore) {
+    public AzureBlobContainer(BlobPath path, AzureBlobStore blobStore) {
         super(path);
         this.blobStore = blobStore;
         this.keyPath = path.buildAsString();
-        this.repositoryName = repositoryName;
     }
 
     @Override

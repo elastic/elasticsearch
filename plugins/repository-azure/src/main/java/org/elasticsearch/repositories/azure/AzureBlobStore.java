@@ -77,7 +77,7 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        return new AzureBlobContainer(repositoryName, path, this);
+        return new AzureBlobContainer(path, this);
     }
 
     @Override
@@ -114,7 +114,7 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         return this.client.getInputStream(this.clientName, this.locMode, container, blob);
     }
 
-    public Map<String,BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix)
+    public Map<String,BlobMetaData> listBlobsByPrefix(String keyPath, String prefix)
         throws URISyntaxException, StorageException {
         return this.client.listBlobsByPrefix(this.clientName, this.locMode, container, keyPath, prefix);
     }

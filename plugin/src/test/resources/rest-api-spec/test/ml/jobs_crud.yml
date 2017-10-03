@@ -941,3 +941,76 @@
             }
           }
 
+---
+"Test max model memory limit":
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.put_settings:
+        body:
+          transient:
+            xpack.ml.max_model_memory_limit: "9g"
+        flat_settings: true
+  - match: {transient: {xpack.ml.max_model_memory_limit: "9g"}}
+
+  - do:
+      xpack.ml.put_job:
+        job_id: job-model-memory-limit-below-global-max
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+            },
+            "analysis_limits": {
+                "model_memory_limit": "8g"
+            }
+          }
+  - match: { job_id: "job-model-memory-limit-below-global-max" }
+  - match: { analysis_limits.model_memory_limit: "8192mb" }
+
+  - do:
+      catch: /model_memory_limit \[10gb\] must be less than the value of the xpack.ml.max_model_memory_limit setting \[9gb\]/
+      xpack.ml.put_job:
+        job_id: job-model-memory-limit-above-global-max
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+            },
+            "analysis_limits": {
+                "model_memory_limit": "10g"
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.put_settings:
+        body:
+          transient:
+            xpack.ml.max_model_memory_limit: null
+        flat_settings: true
+  - match: {transient: {}}
+
+  - do:
+      xpack.ml.put_job:
+        job_id: job-model-memory-limit-above-removed-global-max
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+            },
+            "analysis_limits": {
+                "model_memory_limit": "10g"
+            }
+          }
+  - match: { job_id: "job-model-memory-limit-above-removed-global-max" }
+  - match: { analysis_limits.model_memory_limit: "10240mb" }
+

@@ -45,14 +45,12 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     private final String clientName;
     private final LocationMode locMode;
     private final String container;
-    private final String repositoryName;
 
     public AzureBlobStore(RepositoryMetaData metadata, Settings settings,
                           AzureStorageService client) throws URISyntaxException, StorageException {
         super(settings);
         this.client = client;
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
-        this.repositoryName = metadata.name();
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
 
         String modeStr = Repository.LOCATION_MODE_SETTING.get(metadata.settings());

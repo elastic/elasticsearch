@@ -38,10 +38,10 @@ import java.util.Map;
 
 public class AzureBlobContainer extends AbstractBlobContainer {
 
-    protected final Logger logger = Loggers.getLogger(AzureBlobContainer.class);
-    protected final AzureBlobStore blobStore;
+    private final Logger logger = Loggers.getLogger(AzureBlobContainer.class);
+    private final AzureBlobStore blobStore;
 
-    protected final String keyPath;
+    private final String keyPath;
 
     public AzureBlobContainer(BlobPath path, AzureBlobStore blobStore) {
         super(path);

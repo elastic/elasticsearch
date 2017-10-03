@@ -233,8 +233,8 @@ public class OsProbeTests extends ESTestCase {
             assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
             assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
             assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645489L));
-            assertThat(cgroup.getMemoryLimitInBytes(), equalTo(Long.MAX_VALUE));
-            assertThat(cgroup.getMemoryUsageInBytes(), equalTo(4796416L));
+            assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
+            assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
         } else {
             assertNull(cgroup);
         }

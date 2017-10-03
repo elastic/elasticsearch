@@ -188,6 +188,11 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                                + "\"number_of_times_throttled\":45,"
                                + "\"time_throttled_nanos\":46"
                              + "}"
+                           + "},"
+                           + "\"memory\":{"
+                             + "\"control_group\":\"_memory_ctrl_group\","
+                             + "\"limit_in_bytes\":\"2000000000\","
+                             + "\"usage_in_bytes\":\"1000000000\""
                            + "}"
                         + "}"
                        + "},"
@@ -327,7 +332,8 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         // Os
         final OsStats.Cpu osCpu = new OsStats.Cpu((short) no, new double[]{++iota, ++iota, ++iota});
         final OsStats.Cgroup.CpuStat osCpuStat = new OsStats.Cgroup.CpuStat(++iota, ++iota, ++iota);
-        final OsStats.Cgroup osCgroup = new OsStats.Cgroup("_cpu_acct_ctrl_group", ++iota, "_cpu_ctrl_group", ++iota, ++iota, osCpuStat);
+        final OsStats.Cgroup osCgroup = new OsStats.Cgroup("_cpu_acct_ctrl_group", ++iota, "_cpu_ctrl_group", ++iota, ++iota, osCpuStat,
+                "_memory_ctrl_group", "2000000000", "1000000000");
 
         final OsStats.Mem osMem = new OsStats.Mem(no, no);
         final OsStats.Swap osSwap = new OsStats.Swap(no, no);

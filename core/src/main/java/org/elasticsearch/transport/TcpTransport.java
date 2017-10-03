@@ -215,6 +215,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     private final AtomicLong requestIdGenerator = new AtomicLong();
     private final CounterMetric numHandshakes = new CounterMetric();
     private static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
+    private volatile boolean closingTransport = false;
 
     private final MeanMetric readBytesMetric = new MeanMetric();
     private final MeanMetric transmittedBytesMetric = new MeanMetric();
@@ -441,7 +442,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         public void close() throws IOException {
             if (closed.compareAndSet(false, true)) {
                 try {
-                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()), false, true);
+                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()), false, closingTransport);
                 } finally {
                     transportService.onConnectionClosed(this);
                 }
@@ -894,6 +895,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     @Override
     protected final void doStop() {
         final CountDownLatch latch = new CountDownLatch(1);
+        closingTransport = true;
         // make sure we run it on another thread than a possible IO handler thread
         threadPool.generic().execute(() -> {
             closeLock.writeLock().lock();

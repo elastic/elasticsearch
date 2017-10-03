@@ -141,7 +141,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
         super.readFrom(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             waitForActiveShards = ActiveShardCount.readFrom(in);
         }
     }
@@ -151,7 +151,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             waitForActiveShards.writeTo(out);
         }
     }

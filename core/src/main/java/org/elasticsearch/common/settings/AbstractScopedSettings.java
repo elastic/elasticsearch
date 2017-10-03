@@ -207,6 +207,20 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         addSettingsUpdater(setting.newAffixUpdater(consumer, logger, validator));
     }
 
+    /**
+     * Adds a settings consumer for affix settings. Affix settings have a namespace associated to it that needs to be available to the
+     * consumer in order to be processed correctly. This consumer will get a namespace to value map instead of each individual namespace
+     * and value as in {@link #addAffixUpdateConsumer(Setting.AffixSetting, BiConsumer, BiConsumer)}
+     */
+    public synchronized <T> void addAffixMapUpdateConsumer(Setting.AffixSetting<T> setting,  Consumer<Map<String, T>> consumer,
+                                                        BiConsumer<String, T> validator, boolean omitDefaults) {
+        final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
+        if (setting != registeredSetting) {
+            throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
+        }
+        addSettingsUpdater(setting.newAffixMapUpdater(consumer, logger, validator, omitDefaults));
+    }
+
     synchronized void addSettingsUpdater(SettingUpdater<?> updater) {
         this.settingUpdaters.add(updater);
     }
@@ -495,6 +509,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 // we don't validate if there is any dynamic setting with that prefix yet we could do in the future
                 toRemove.add(entry.getKey());
                 // we don't set changed here it's set after we apply deletes below if something actually changed
+            } else if (get(entry.getKey()) == null) {
+                throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not recognized");
             } else if (entry.getValue() != null && canUpdate.test(entry.getKey())) {
                 validate(entry.getKey(), toApply);
                 settingsBuilder.put(entry.getKey(), entry.getValue());

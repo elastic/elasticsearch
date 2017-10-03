@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.azure;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.SpecialPermission;
 
+import java.io.IOException;
 import java.net.SocketPermission;
 import java.net.URISyntaxException;
 import java.security.AccessController;
@@ -66,7 +67,7 @@ public final class SocketAccess {
 
     @FunctionalInterface
     public interface StorageRunnable {
-        void executeCouldThrow() throws StorageException, URISyntaxException;
+        void executeCouldThrow() throws StorageException, URISyntaxException, IOException;
     }
 
 }

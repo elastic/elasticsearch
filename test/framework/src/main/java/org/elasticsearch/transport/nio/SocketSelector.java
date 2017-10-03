@@ -24,13 +24,10 @@ import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 import org.elasticsearch.transport.nio.channel.WriteContext;
 
 import java.io.IOException;
-import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.util.Iterator;
-import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -54,15 +51,28 @@ public class SocketSelector extends ESSelector {
     }
 
     @Override
-    void doSelect(int timeout) throws IOException, ClosedSelectorException {
+    void processKey(SelectionKey selectionKey) {
+        NioSocketChannel nioSocketChannel = (NioSocketChannel) selectionKey.attachment();
+        int ops = selectionKey.readyOps();
+        if ((ops & SelectionKey.OP_CONNECT) != 0) {
+            attemptConnect(nioSocketChannel, true);
+        }
+
+        if (nioSocketChannel.isConnectComplete()) {
+            if ((ops & SelectionKey.OP_WRITE) != 0) {
+                handleWrite(nioSocketChannel);
+            }
+
+            if ((ops & SelectionKey.OP_READ) != 0) {
+                handleRead(nioSocketChannel);
+            }
+        }
+    }
+
+    @Override
+    void preSelect() {
         setUpNewChannels();
         handleQueuedWrites();
-
-        int ready = selector.select(timeout);
-        if (ready > 0) {
-            Set<SelectionKey> selectionKeys = selector.selectedKeys();
-            processKeys(selectionKeys);
-        }
     }
 
     @Override
@@ -121,38 +131,6 @@ public class SocketSelector extends ESSelector {
             writeOperation.getListener().onFailure(e);
         }
     }
-
-    private void processKeys(Set<SelectionKey> selectionKeys) {
-        Iterator<SelectionKey> keyIterator = selectionKeys.iterator();
-        while (keyIterator.hasNext()) {
-            SelectionKey sk = keyIterator.next();
-            keyIterator.remove();
-            NioSocketChannel nioSocketChannel = (NioSocketChannel) sk.attachment();
-            if (sk.isValid()) {
-                try {
-                    int ops = sk.readyOps();
-                    if ((ops & SelectionKey.OP_CONNECT) != 0) {
-                        attemptConnect(nioSocketChannel, true);
-                    }
-
-                    if (nioSocketChannel.isConnectComplete()) {
-                        if ((ops & SelectionKey.OP_WRITE) != 0) {
-                            handleWrite(nioSocketChannel);
-                        }
-
-                        if ((ops & SelectionKey.OP_READ) != 0) {
-                            handleRead(nioSocketChannel);
-                        }
-                    }
-                } catch (CancelledKeyException e) {
-                    eventHandler.genericChannelException(nioSocketChannel, e);
-                }
-            } else {
-                eventHandler.genericChannelException(nioSocketChannel, new CancelledKeyException());
-            }
-        }
-    }
-
 
     private void handleWrite(NioSocketChannel nioSocketChannel) {
         try {

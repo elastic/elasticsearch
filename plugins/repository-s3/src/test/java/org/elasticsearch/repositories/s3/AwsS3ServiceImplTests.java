@@ -95,7 +95,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     }
 
     public void testAWSDefaultConfiguration() {
-        launchAWSConfigurationTest(Settings.EMPTY, Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, 3, false,
+        launchAWSConfigurationTest(Settings.EMPTY, Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, 3, true,
             ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
     }
 
@@ -111,7 +111,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put("s3.client.default.read_timeout", "10s")
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username",
-            "aws_proxy_password", 3, false, 10000);
+            "aws_proxy_password", 3, true, 10000);
     }
 
     public void testRepositoryMaxRetries() {
@@ -119,7 +119,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put("s3.client.default.max_retries", 5)
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null,
-            null, 5, false, 50000);
+            null, 5, true, 50000);
     }
 
     public void testRepositoryThrottleRetries() {

@@ -14,9 +14,11 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
@@ -40,6 +42,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class JobManagerTests extends ESTestCase {
 
@@ -161,6 +164,8 @@ public class JobManagerTests extends ESTestCase {
 
     private JobManager createJobManager() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, Collections.singleton(MachineLearning.MAX_MODEL_MEMORY_LIMIT));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         UpdateJobProcessNotifier notifier = mock(UpdateJobProcessNotifier.class);
         return new JobManager(settings, jobProvider, clusterService, auditor, client, notifier);
     }

@@ -163,8 +163,8 @@ public class MachineLearning implements ActionPlugin {
     public static final String MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
-    public static final Setting<ByteSizeValue> MAX_MODEL_MEMORY =
-            Setting.memorySizeSetting("xpack.ml.max_model_memory_limit", new ByteSizeValue(0), Property.NodeScope);
+    public static final Setting<ByteSizeValue> MAX_MODEL_MEMORY_LIMIT =
+            Setting.memorySizeSetting("xpack.ml.max_model_memory_limit", new ByteSizeValue(0), Property.Dynamic, Property.NodeScope);
 
     public static final TimeValue STATE_PERSIST_RESTORE_TIMEOUT = TimeValue.timeValueMinutes(30);
 
@@ -191,7 +191,7 @@ public class MachineLearning implements ActionPlugin {
                 Arrays.asList(AUTODETECT_PROCESS,
                         ML_ENABLED,
                         CONCURRENT_JOB_ALLOCATIONS,
-                        MAX_MODEL_MEMORY,
+                        MAX_MODEL_MEMORY_LIMIT,
                         ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING,
                         ProcessCtrl.MAX_ANOMALY_RECORDS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,

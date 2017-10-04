@@ -103,7 +103,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         roleMappings = realmConfig.selectRoleMappings(ESTestCase::randomBoolean);
         useGlobalSSL = randomBoolean();
         ESLoggerFactory.getLogger("test").info("running test with realm configuration [{}], with direct group to role mapping [{}]. " +
-                "Settings [{}]", realmConfig, realmConfig.mapGroupsAsRoles, realmConfig.settings.getAsMap());
+                "Settings [{}]", realmConfig, realmConfig.mapGroupsAsRoles, realmConfig.settings);
     }
 
     @AfterClass
@@ -119,11 +119,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         if (useGlobalSSL) {
             // don't use filter since it returns a prefixed secure setting instead of mock!
             Settings settingsToAdd = super.nodeSettings(nodeOrdinal);
-            for (Map.Entry<String, String> settingsEntry : settingsToAdd.getAsMap().entrySet()) {
-                if (settingsEntry.getKey().startsWith("xpack.ssl.") == false) {
-                    builder.put(settingsEntry.getKey(), settingsEntry.getValue());
-                }
-            }
+            builder.put(settingsToAdd.filter(k -> k.startsWith("xpack.ssl.") == false), false);
             MockSecureSettings mockSecureSettings = (MockSecureSettings) Settings.builder().put(settingsToAdd).getSecureSettings();
             if (mockSecureSettings != null) {
                 MockSecureSettings filteredSecureSettings = new MockSecureSettings();

@@ -144,16 +144,10 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
     private TransportClient createTransportClient(Settings additionalSettings) {
         Settings clientSettings = transportClientSettings();
         if (additionalSettings.getByPrefix("xpack.ssl.").isEmpty() == false) {
-            Settings.Builder builder = Settings.builder();
-            for (Entry<String, String> entry : clientSettings.getAsMap().entrySet()) {
-                if (entry.getKey().startsWith("xpack.ssl.") == false) {
-                    builder.put(entry.getKey(), entry.getValue());
-                }
-            }
-            clientSettings = builder.build();
+            clientSettings = clientSettings.filter(k -> k.startsWith("xpack.ssl.") == false);
         }
 
-        Settings.Builder builder = Settings.builder().put(clientSettings)
+        Settings.Builder builder = Settings.builder().put(clientSettings, false)
                 .put(additionalSettings)
                 .put("cluster.name", internalCluster().getClusterName());
         builder.remove(Security.USER_SETTING.getKey());

@@ -238,10 +238,10 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
             }
             return true;
         });
-        for (Map.Entry<String, String> entry : tribeSettings.getAsMap().entrySet()) {
-            tribe1Defaults.put("tribe.t1." + entry.getKey(), entry.getValue());
-            tribe2Defaults.put("tribe.t2." + entry.getKey(), entry.getValue());
-        }
+        tribe1Defaults.put(tribeSettings, false);
+        tribe1Defaults.normalizePrefix("tribe.t1.");
+        tribe2Defaults.put(tribeSettings, false);
+        tribe2Defaults.normalizePrefix("tribe.t2.");
         // TODO: rethink how these settings are generated for tribes once we support more than just string settings...
         MockSecureSettings secureSettingsTemplate =
             (MockSecureSettings) Settings.builder().put(settingsTemplate).getSecureSettings();

@@ -69,9 +69,7 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
                 .build(), globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings));
         Settings.Builder builder = Settings.builder()
                 .put(globalSettings);
-        for (Map.Entry<String, String> entry : config.settings().getAsMap().entrySet()) {
-            builder.put("xpack.security.authc.realms.ldap." + entry.getKey(), entry.getValue());
-        }
+        builder.put(Settings.builder().put(config.settings()).normalizePrefix("xpack.security.authc.realms.ldap.").build());
         Settings settings = builder.build();
         SSLService sslService = new SSLService(settings, new Environment(settings));
 

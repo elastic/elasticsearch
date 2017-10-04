@@ -212,7 +212,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
 
     static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
         Setting.listSetting(setting("audit.outputs"),
-            s -> s.getAsMap().containsKey(setting("audit.outputs")) ?
+            s -> s.keySet().contains(setting("audit.outputs")) ?
                 Collections.emptyList() : Collections.singletonList(LoggingAuditTrail.NAME),
             Function.identity(), Property.NodeScope);
 
@@ -682,7 +682,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
             return;
         }
 
-        final Map<String, String> settingsMap = settings.getAsMap();
         for (Map.Entry<String, Settings> tribeSettings : tribesSettings.entrySet()) {
             String tribePrefix = "tribe." + tribeSettings.getKey() + ".";
 
@@ -703,12 +702,11 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
             }
 
             // we passed all the checks now we need to copy in all of the x-pack security settings
-            for (Map.Entry<String, String> entry : settingsMap.entrySet()) {
-                String key = entry.getKey();
-                if (key.startsWith("xpack.security.")) {
-                    settingsBuilder.put(tribePrefix + key, entry.getValue());
+            settings.keySet().forEach(k -> {
+                if (k.startsWith("xpack.security.")) {
+                    settingsBuilder.copy(tribePrefix + k, k, settings);
                 }
-            }
+            });
         }
 
         Map<String, Settings> realmsSettings = settings.getGroups(setting("authc.realms"), true);

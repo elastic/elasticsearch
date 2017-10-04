@@ -138,8 +138,8 @@ public class SlackAccountsTests extends ESTestCase {
     private void addAccountSettings(String name, Settings.Builder builder) {
         builder.put("xpack.notification.slack.account." + name + ".url", "https://hooks.slack.com/services/" + randomAlphaOfLength(50));
         Settings defaults = SlackMessageDefaultsTests.randomSettings();
-        for (Map.Entry<String, String> setting : defaults.getAsMap().entrySet()) {
-            builder.put("xpack.notification.slack.message_defaults." + setting.getKey(), setting.getValue());
+        for (String setting : defaults.keySet()) {
+            builder.copy("xpack.notification.slack.message_defaults." + setting, setting, defaults);
         }
     }
 }

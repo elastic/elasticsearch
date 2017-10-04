@@ -240,12 +240,6 @@ public final class ShardPath {
         return new ShardPath(indexSettings.hasCustomDataPath(), dataPath, statePath, shardId);
     }
 
-    static boolean pathHasEnoughSpace(NodeEnvironment.NodePath path, BigInteger estimatedShardBytes) throws IOException {
-        FileStore fileStore = path.fileStore;
-        BigInteger usableBytes = BigInteger.valueOf(fileStore.getUsableSpace());
-        return usableBytes.subtract(estimatedShardBytes).compareTo(BigInteger.ZERO) > 0;
-    }
-
     static NodeEnvironment.NodePath getPathWithMostFreeSpace(NodeEnvironment env) throws IOException {
         final NodeEnvironment.NodePath[] paths = env.nodePaths();
         NodeEnvironment.NodePath bestPath = null;

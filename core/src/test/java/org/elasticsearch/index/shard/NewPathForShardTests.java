@@ -281,30 +281,6 @@ public class NewPathForShardTests extends ESTestCase {
         nodeEnv.close();
     }
 
-    public void testPathHasEnoughSpace() throws Exception {
-        Path path = PathUtils.get(createTempDir().toString());
-
-        // Use 2 data paths:
-        String[] paths = new String[] {path.resolve("a").toString(),
-                                       path.resolve("b").toString()};
-
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putArray(Environment.PATH_DATA_SETTING.getKey(), paths).build();
-        NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
-
-        aFileStore.usableSpace = 100000;
-        bFileStore.usableSpace = 1000;
-
-        assertTrue(ShardPath.pathHasEnoughSpace(nodeEnv.nodePaths()[0], BigInteger.valueOf(999)));
-        assertTrue(ShardPath.pathHasEnoughSpace(nodeEnv.nodePaths()[1], BigInteger.valueOf(999)));
-        assertTrue(ShardPath.pathHasEnoughSpace(nodeEnv.nodePaths()[0], BigInteger.valueOf(2000)));
-        assertFalse(ShardPath.pathHasEnoughSpace(nodeEnv.nodePaths()[1], BigInteger.valueOf(2000)));
-        assertFalse(ShardPath.pathHasEnoughSpace(nodeEnv.nodePaths()[0], BigInteger.valueOf(1000000)));
-        assertFalse(ShardPath.pathHasEnoughSpace(nodeEnv.nodePaths()[1], BigInteger.valueOf(1000000)));
-        nodeEnv.close();
-    }
-
     public void testGettingPathWithMostFreeSpace() throws Exception {
         Path path = PathUtils.get(createTempDir().toString());
 

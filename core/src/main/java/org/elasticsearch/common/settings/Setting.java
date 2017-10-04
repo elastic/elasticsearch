@@ -1063,7 +1063,12 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<TimeValue> timeSetting(String key, Function<Settings, TimeValue> defaultValue,
-                                                 TimeValue minValue,
+                                                 TimeValue minValue, Property... properties) {
+        return timeSetting(key, defaultValue, minValue, null, properties);
+    }
+
+    public static Setting<TimeValue> timeSetting(String key, Function<Settings, TimeValue> defaultValue,
+                                                 TimeValue minValue, TimeValue futureMinValue,
                                                  Property... properties) {
         return new Setting<>(key, (s) -> defaultValue.apply(s).getStringRep(), (s) -> {
             TimeValue timeValue = TimeValue.parseTimeValue(s, null, key);

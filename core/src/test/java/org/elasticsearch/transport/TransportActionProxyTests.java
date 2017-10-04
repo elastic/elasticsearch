@@ -94,7 +94,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 response.targetNode = "TS_A";
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceA, "/test", SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceA, "/test", (request) -> new SimpleTestResponse());
         serviceA.connectToNode(nodeB);
 
         serviceB.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
@@ -104,7 +104,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 response.targetNode = "TS_B";
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceB, "/test", SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceB, "/test", (request) -> new SimpleTestResponse());
         serviceB.connectToNode(nodeC);
         serviceC.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
             (request, channel) -> {
@@ -113,7 +113,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 response.targetNode = "TS_C";
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceC, "/test", SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceC, "/test", (request) -> new SimpleTestResponse());
 
         CountDownLatch latch = new CountDownLatch(1);
         serviceA.sendRequest(nodeB, TransportActionProxy.getProxyAction("/test"), TransportActionProxy.wrapRequest(nodeC,
@@ -157,7 +157,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 response.targetNode = "TS_A";
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceA, "/test", SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceA, "/test", (request) -> new SimpleTestResponse());
         serviceA.connectToNode(nodeB);
 
         serviceB.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
@@ -167,13 +167,13 @@ public class TransportActionProxyTests extends ESTestCase {
                 response.targetNode = "TS_B";
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceB, "/test", SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceB, "/test", (request) -> new SimpleTestResponse());
         serviceB.connectToNode(nodeC);
         serviceC.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
             (request, channel) -> {
                 throw new ElasticsearchException("greetings from TS_C");
             });
-        TransportActionProxy.registerProxyAction(serviceC, "/test", SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceC, "/test", (request) -> new SimpleTestResponse());
 
         CountDownLatch latch = new CountDownLatch(1);
         serviceA.sendRequest(nodeB, TransportActionProxy.getProxyAction("/test"), TransportActionProxy.wrapRequest(nodeC,

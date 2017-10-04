@@ -105,7 +105,7 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
 
         for (String node : internalCluster().nodesInclude("test")) {
             SearchResponse searchResponse = client().prepareSearch("test")
-                .setPreference("_only_nodes:" + node)
+                .setPreference("_prefer_nodes:" + node)
                 .setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
             assertHitCount(searchResponse, 1);
         }

@@ -322,7 +322,7 @@ public class SearchTransportService extends AbstractComponent {
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME,
-                (request) -> new SearchFreeContextResponse());
+                (Supplier<TransportResponse>) SearchFreeContextResponse::new);
         transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, ThreadPool.Names.SAME, SearchFreeContextRequest::new,
             new TaskAwareTransportRequestHandler<SearchFreeContextRequest>() {
                 @Override
@@ -331,7 +331,8 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(new SearchFreeContextResponse(freed));
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, (request) -> new SearchFreeContextResponse());
+        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME,
+                (Supplier<TransportResponse>) SearchFreeContextResponse::new);
         transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, () -> TransportRequest.Empty.INSTANCE,
             ThreadPool.Names.SAME, new TaskAwareTransportRequestHandler<TransportRequest.Empty>() {
                 @Override
@@ -341,7 +342,7 @@ public class SearchTransportService extends AbstractComponent {
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
-            (request) -> TransportResponse.Empty.INSTANCE);
+                () -> TransportResponse.Empty.INSTANCE);
 
         transportService.registerRequestHandler(DFS_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
@@ -369,7 +370,7 @@ public class SearchTransportService extends AbstractComponent {
 
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, (request) -> new DfsSearchResult());
+        TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, DfsSearchResult::new);
 
         transportService.registerRequestHandler(QUERY_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
@@ -397,7 +398,7 @@ public class SearchTransportService extends AbstractComponent {
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_ACTION_NAME,
-                (request) -> ((ShardSearchRequest)request).numberOfShards() == 1 ? new QueryFetchSearchResult() : new QuerySearchResult());
+                (request) -> ((ShardSearchRequest)request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, ThreadPool.Names.SEARCH, QuerySearchRequest::new,
             new TaskAwareTransportRequestHandler<QuerySearchRequest>() {
@@ -407,7 +408,7 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(result);
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, (request) -> new QuerySearchResult());
+        TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, QuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, ThreadPool.Names.SEARCH, InternalScrollSearchRequest::new,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {
@@ -417,7 +418,7 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(result);
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, (request) -> new ScrollQuerySearchResult());
+        TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, ThreadPool.Names.SEARCH, InternalScrollSearchRequest::new,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {
@@ -427,8 +428,7 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(result);
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME,
-                (request) -> new ScrollQueryFetchSearchResult());
+        TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, ScrollQueryFetchSearchResult::new);
 
         transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ThreadPool.Names.SEARCH, ShardFetchRequest::new,
             new TaskAwareTransportRequestHandler<ShardFetchRequest>() {
@@ -438,7 +438,7 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(result);
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, (request) -> new FetchSearchResult());
+        TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, FetchSearchResult::new);
 
         transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ThreadPool.Names.SEARCH, ShardFetchSearchRequest::new,
             new TaskAwareTransportRequestHandler<ShardFetchSearchRequest>() {
@@ -448,7 +448,7 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(result);
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, (request) -> new FetchSearchResult());
+        TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
 
         // this is cheap, it does not fetch during the rewrite phase, so we can let it quickly execute on a networking thread
         transportService.registerRequestHandler(QUERY_CAN_MATCH_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
@@ -459,7 +459,8 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(new CanMatchResponse(canMatch));
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, (request) -> new CanMatchResponse());
+        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME,
+                (Supplier<TransportResponse>) CanMatchResponse::new);
     }
 
     public static final class CanMatchResponse extends SearchPhaseResult {

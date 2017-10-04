@@ -165,7 +165,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
         indexScopedSettings.validate(normalizedSettings);
         // never allow to change the number of shards
-        for (String key : normalizedSettings.getKeys()) {
+        for (String key : normalizedSettings.keySet()) {
             Setting setting = indexScopedSettings.get(key);
             assert setting != null; // we already validated the normalized settings
             settingsForClosedIndices.copy(key, normalizedSettings);
@@ -211,8 +211,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
                 if (!skippedSettings.isEmpty() && !openIndices.isEmpty()) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
-                            "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices
-                    ));
+                            "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices));
                 }
 
                 int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);

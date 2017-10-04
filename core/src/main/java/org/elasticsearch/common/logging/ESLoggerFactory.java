@@ -37,7 +37,7 @@ public final class ESLoggerFactory {
 
     public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING =
         new Setting<>("logger.level", Level.INFO.name(), Level::valueOf, Property.NodeScope);
-    public static final Setting<Level> LOG_LEVEL_SETTING =
+    public static final Setting.AffixSetting<Level> LOG_LEVEL_SETTING =
         Setting.prefixKeySetting("logger.", (key) -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Property.Dynamic,
             Property.NodeScope));
 

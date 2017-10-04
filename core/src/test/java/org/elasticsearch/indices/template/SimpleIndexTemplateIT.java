@@ -376,7 +376,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         createIndex("test");
 
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
-        assertNull(getSettingsResponse.getIndexToSettings().get("test").getAsMap().get("index.does_not_exist"));
+        assertNull(getSettingsResponse.getIndexToSettings().get("test").get("index.does_not_exist"));
     }
 
     public void testIndexTemplateWithAliases() throws Exception {
@@ -852,6 +852,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             .get();
 
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test_good").get();
-        assertEquals("6", getSettingsResponse.getIndexToSettings().get("test_good").getAsMap().get("index.routing_partition_size"));
+        assertEquals("6", getSettingsResponse.getIndexToSettings().get("test_good").get("index.routing_partition_size"));
     }
 }

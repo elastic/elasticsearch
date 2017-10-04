@@ -320,18 +320,29 @@ public class Netty4Transport extends TcpTransport<Channel> {
             if (f.isSuccess()) {
                 listener.onResponse(channel);
             } else {
-                Throwable cause = f.cause();
-                // If the Throwable is an Error something has gone very wrong and Netty4MessageChannelHandler is
-                // going to cause that to bubble up and kill the process.
-                if (cause instanceof Exception) {
-                    listener.onFailure((Exception) cause);
-                }
+                final Throwable cause = f.cause();
+                Netty4Utils.maybeDie(cause);
+                logger.error("write and flush on the network layer failed", cause);
+                assert cause instanceof Exception;
+                listener.onFailure((Exception) cause);
             }
         });
     }
 
     @Override
-    protected void closeChannels(final List<Channel> channels, boolean blocking) throws IOException {
+    protected void closeChannels(final List<Channel> channels, boolean blocking, boolean closingTransport) throws IOException {
+        if (closingTransport) {
+            for (Channel channel : channels) {
+                /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't have a gazillion connections sitting
+                 * in TIME_WAIT to free up resources quickly. This is really the only part where we close the connection from the server
+                 * side otherwise the client (node) initiates the TCP closing sequence which doesn't cause these issues. Setting this
+                 * by default from the beginning can have unexpected side-effects an should be avoided, our protocol is designed
+                 * in a way that clients close connection which is how it should be*/
+                if (channel.isOpen()) {
+                    channel.config().setOption(ChannelOption.SO_LINGER, 0);
+                }
+            }
+        }
         if (blocking) {
             Netty4Utils.closeChannels(channels);
         } else {

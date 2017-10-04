@@ -55,7 +55,7 @@ public class AzureStorageSettingsFilterTests extends ESTestCase {
 
         // Test using direct filtering
         Settings filteredSettings = settingsFilter.filter(settings);
-        assertThat(filteredSettings.getAsMap().keySet(), contains("cloud.azure.storage.azure1.default"));
+        assertThat(filteredSettings.keySet(), contains("cloud.azure.storage.azure1.default"));
 
         // Test using toXContent filtering
         RestRequest request = new FakeRestRequest();
@@ -66,7 +66,7 @@ public class AzureStorageSettingsFilterTests extends ESTestCase {
         xContentBuilder.endObject();
         String filteredSettingsString = xContentBuilder.string();
         filteredSettings = Settings.builder().loadFromSource(filteredSettingsString, xContentBuilder.contentType()).build();
-        assertThat(filteredSettings.getAsMap().keySet(), contains("cloud.azure.storage.azure1.default"));
+        assertThat(filteredSettings.keySet(), contains("cloud.azure.storage.azure1.default"));
     }
 
 }

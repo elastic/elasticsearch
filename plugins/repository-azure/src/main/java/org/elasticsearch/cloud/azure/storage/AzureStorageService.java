@@ -31,10 +31,7 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.Proxy;
 import java.net.URISyntaxException;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -77,12 +74,12 @@ public interface AzureStorageService {
     InputStream getInputStream(String account, LocationMode mode, String container, String blob)
         throws URISyntaxException, StorageException, IOException;
 
-    OutputStream getOutputStream(String account, LocationMode mode, String container, String blob)
-        throws URISyntaxException, StorageException;
-
     Map<String,BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix)
         throws URISyntaxException, StorageException;
 
     void moveBlob(String account, LocationMode mode, String container, String sourceBlob, String targetBlob)
         throws URISyntaxException, StorageException;
+
+    void writeBlob(String account, LocationMode mode, String container, String blobName, InputStream inputStream, long blobSize) throws
+        URISyntaxException, StorageException;
 }

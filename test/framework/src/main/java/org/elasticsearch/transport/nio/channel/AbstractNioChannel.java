@@ -162,5 +162,4 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     void closeRawChannel() throws IOException {
         socketChannel.close();
     }
-
 }

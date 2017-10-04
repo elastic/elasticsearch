@@ -43,6 +43,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -115,7 +116,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         IndexScopedSettings settings = new IndexScopedSettings(currentSettings,
             new HashSet<>(Arrays.asList(dynamicSetting, IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING)));
-        Settings s = IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.get(currentSettings);
+        Map<String, String> s = IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(currentSettings);
         assertEquals(1, s.size());
         assertEquals("192.168.0.1,127.0.0.1", s.get("_ip"));
         Settings.Builder builder = Settings.builder();
@@ -125,7 +126,7 @@ public class ScopedSettingsTests extends ESTestCase {
         settings.updateDynamicSettings(updates,
             Settings.builder().put(currentSettings), builder, "node");
         currentSettings = builder.build();
-        s = IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.get(currentSettings);
+        s = IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(currentSettings);
         assertEquals(0, s.size());
         assertEquals(1, dynamicSetting.get(currentSettings).intValue());
         assertEquals(1, currentSettings.size());
@@ -203,6 +204,66 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(Arrays.asList(1), listResults.get("test_list_1")); // reset to default
         assertEquals(1, listResults.size());
         assertEquals(1, intResults.size());
+    }
+
+    public void testAddConsumerAffixMap() {
+        Setting.AffixSetting<Integer> intSetting = Setting.affixKeySetting("foo.", "bar",
+            (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope));
+        Setting.AffixSetting<List<Integer>> listSetting = Setting.affixKeySetting("foo.", "list",
+            (k) -> Setting.listSetting(k, Arrays.asList("1"), Integer::parseInt, Property.Dynamic, Property.NodeScope));
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(intSetting, listSetting)));
+        Map<String, List<Integer>> listResults = new HashMap<>();
+        Map<String, Integer> intResults = new HashMap<>();
+
+        Consumer<Map<String,Integer>> intConsumer = (map) -> {
+            intResults.clear();
+            intResults.putAll(map);
+        };
+        Consumer<Map<String, List<Integer>>> listConsumer = (map) -> {
+            listResults.clear();
+            listResults.putAll(map);
+        };
+        boolean omitDefaults = randomBoolean();
+        service.addAffixMapUpdateConsumer(listSetting, listConsumer, (s, k) -> {}, omitDefaults);
+        service.addAffixMapUpdateConsumer(intSetting, intConsumer, (s, k) -> {}, omitDefaults);
+        assertEquals(0, listResults.size());
+        assertEquals(0, intResults.size());
+        service.applySettings(Settings.builder()
+            .put("foo.test.bar", 2)
+            .put("foo.test_1.bar", 7)
+            .putArray("foo.test_list.list", "16", "17")
+            .putArray("foo.test_list_1.list", "18", "19", "20")
+            .build());
+        assertEquals(2, intResults.get("test").intValue());
+        assertEquals(7, intResults.get("test_1").intValue());
+        assertEquals(Arrays.asList(16, 17), listResults.get("test_list"));
+        assertEquals(Arrays.asList(18, 19, 20), listResults.get("test_list_1"));
+        assertEquals(2, listResults.size());
+        assertEquals(2, intResults.size());
+
+        listResults.clear();
+        intResults.clear();
+
+        service.applySettings(Settings.builder()
+            .put("foo.test.bar", 2)
+            .put("foo.test_1.bar", 8)
+            .putArray("foo.test_list.list", "16", "17")
+            .putNull("foo.test_list_1.list")
+            .build());
+        assertNull("test wasn't changed", intResults.get("test"));
+        assertEquals(8, intResults.get("test_1").intValue());
+        assertNull("test_list wasn't changed", listResults.get("test_list"));
+        if (omitDefaults) {
+            assertNull(listResults.get("test_list_1"));
+            assertFalse(listResults.containsKey("test_list_1"));
+            assertEquals(0, listResults.size());
+            assertEquals(1, intResults.size());
+        } else {
+            assertEquals(Arrays.asList(1), listResults.get("test_list_1")); // reset to default
+            assertEquals(1, listResults.size());
+            assertEquals(1, intResults.size());
+        }
+
     }
 
     public void testApply() {
@@ -347,10 +408,10 @@ public class ScopedSettingsTests extends ESTestCase {
 
     public void testGet() {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-
-        // group setting - complex matcher
+        // affix setting - complex matcher
         Setting setting = settings.get("cluster.routing.allocation.require.value");
-        assertEquals(setting, FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING);
+        assertEquals(setting,
+            FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSetting("cluster.routing.allocation.require.value"));
 
         setting = settings.get("cluster.routing.allocation.total_shards_per_node");
         assertEquals(setting, ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING);

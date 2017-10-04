@@ -85,7 +85,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
         this.groups = new HashSet<>();
         this.groups.addAll(AwsEc2Service.GROUPS_SETTING.get(settings));
 
-        this.tags = AwsEc2Service.TAG_SETTING.get(settings).getAsMap();
+        this.tags = AwsEc2Service.TAG_SETTING.getAsMap(settings);
 
         this.availabilityZones = new HashSet<>();
         availabilityZones.addAll(AwsEc2Service.AVAILABILITY_ZONES_SETTING.get(settings));

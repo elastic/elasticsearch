@@ -375,34 +375,27 @@ public class SettingsTests extends ESTestCase {
         builder.put("a.b.c.d", "ab3");
 
 
-        Map<String, String> fiteredMap = builder.build().filter((k) -> k.startsWith("a.b")).getAsMap();
-        assertEquals(3, fiteredMap.size());
+        Settings filteredSettings = builder.build().filter((k) -> k.startsWith("a.b"));
+        assertEquals(3, filteredSettings.size());
         int numKeys = 0;
-        for (String k : fiteredMap.keySet()) {
+        for (String k : filteredSettings.keySet()) {
             numKeys++;
             assertTrue(k.startsWith("a.b"));
         }
 
         assertEquals(3, numKeys);
-        int numValues = 0;
-
-        for (String v : fiteredMap.values()) {
-            numValues++;
-            assertTrue(v.startsWith("ab"));
-        }
-        assertEquals(3, numValues);
-        assertFalse(fiteredMap.containsKey("a.c"));
-        assertFalse(fiteredMap.containsKey("a"));
-        assertTrue(fiteredMap.containsKey("a.b"));
-        assertTrue(fiteredMap.containsKey("a.b.c"));
-        assertTrue(fiteredMap.containsKey("a.b.c.d"));
+        assertFalse(filteredSettings.keySet().contains("a.c"));
+        assertFalse(filteredSettings.keySet().contains("a"));
+        assertTrue(filteredSettings.keySet().contains("a.b"));
+        assertTrue(filteredSettings.keySet().contains("a.b.c"));
+        assertTrue(filteredSettings.keySet().contains("a.b.c.d"));
         expectThrows(UnsupportedOperationException.class, () ->
-            fiteredMap.remove("a.b"));
-        assertEquals("ab1", fiteredMap.get("a.b"));
-        assertEquals("ab2", fiteredMap.get("a.b.c"));
-        assertEquals("ab3", fiteredMap.get("a.b.c.d"));
+            filteredSettings.keySet().remove("a.b"));
+        assertEquals("ab1", filteredSettings.get("a.b"));
+        assertEquals("ab2", filteredSettings.get("a.b.c"));
+        assertEquals("ab3", filteredSettings.get("a.b.c.d"));
 
-        Iterator<String> iterator = fiteredMap.keySet().iterator();
+        Iterator<String> iterator = filteredSettings.keySet().iterator();
         for (int i = 0; i < 10; i++) {
             assertTrue(iterator.hasNext());
         }
@@ -428,7 +421,7 @@ public class SettingsTests extends ESTestCase {
         builder.put("a.c", "ac1");
         builder.put("a.b.c.d", "ab3");
 
-        Map<String, String> prefixMap = builder.build().getByPrefix("a.").getAsMap();
+        Settings prefixMap = builder.build().getByPrefix("a.");
         assertEquals(4, prefixMap.size());
         int numKeys = 0;
         for (String k : prefixMap.keySet()) {
@@ -437,20 +430,14 @@ public class SettingsTests extends ESTestCase {
         }
 
         assertEquals(4, numKeys);
-        int numValues = 0;
 
-        for (String v : prefixMap.values()) {
-            numValues++;
-            assertTrue(v, v.startsWith("ab") || v.startsWith("ac"));
-        }
-        assertEquals(4, numValues);
-        assertFalse(prefixMap.containsKey("a"));
-        assertTrue(prefixMap.containsKey("c"));
-        assertTrue(prefixMap.containsKey("b"));
-        assertTrue(prefixMap.containsKey("b.c"));
-        assertTrue(prefixMap.containsKey("b.c.d"));
+        assertFalse(prefixMap.keySet().contains("a"));
+        assertTrue(prefixMap.keySet().contains("c"));
+        assertTrue(prefixMap.keySet().contains("b"));
+        assertTrue(prefixMap.keySet().contains("b.c"));
+        assertTrue(prefixMap.keySet().contains("b.c.d"));
         expectThrows(UnsupportedOperationException.class, () ->
-            prefixMap.remove("a.b"));
+            prefixMap.keySet().remove("a.b"));
         assertEquals("ab1", prefixMap.get("b"));
         assertEquals("ab2", prefixMap.get("b.c"));
         assertEquals("ab3", prefixMap.get("b.c.d"));
@@ -516,27 +503,24 @@ public class SettingsTests extends ESTestCase {
         builder.put("a.c", "ac1");
         builder.put("a.b.c.d", "ab3");
 
-        Map<String, String> fiteredMap = builder.build().filter((k) -> false).getAsMap();
-        assertEquals(0, fiteredMap.size());
-        for (String k : fiteredMap.keySet()) {
+        Settings filteredSettings = builder.build().filter((k) -> false);
+        assertEquals(0, filteredSettings.size());
+        for (String k : filteredSettings.keySet()) {
             fail("no element");
 
         }
-        for (String v : fiteredMap.values()) {
-            fail("no element");
-        }
-        assertFalse(fiteredMap.containsKey("a.c"));
-        assertFalse(fiteredMap.containsKey("a"));
-        assertFalse(fiteredMap.containsKey("a.b"));
-        assertFalse(fiteredMap.containsKey("a.b.c"));
-        assertFalse(fiteredMap.containsKey("a.b.c.d"));
+        assertFalse(filteredSettings.keySet().contains("a.c"));
+        assertFalse(filteredSettings.keySet().contains("a"));
+        assertFalse(filteredSettings.keySet().contains("a.b"));
+        assertFalse(filteredSettings.keySet().contains("a.b.c"));
+        assertFalse(filteredSettings.keySet().contains("a.b.c.d"));
         expectThrows(UnsupportedOperationException.class, () ->
-            fiteredMap.remove("a.b"));
-        assertNull(fiteredMap.get("a.b"));
-        assertNull(fiteredMap.get("a.b.c"));
-        assertNull(fiteredMap.get("a.b.c.d"));
+            filteredSettings.keySet().remove("a.b"));
+        assertNull(filteredSettings.get("a.b"));
+        assertNull(filteredSettings.get("a.b.c"));
+        assertNull(filteredSettings.get("a.b.c.d"));
 
-        Iterator<String> iterator = fiteredMap.keySet().iterator();
+        Iterator<String> iterator = filteredSettings.keySet().iterator();
         for (int i = 0; i < 10; i++) {
             assertFalse(iterator.hasNext());
         }

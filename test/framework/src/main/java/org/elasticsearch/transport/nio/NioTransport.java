@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
+import java.net.StandardSocketOptions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -99,7 +99,19 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    protected void closeChannels(List<NioChannel> channels, boolean blocking) throws IOException {
+    protected void closeChannels(List<NioChannel> channels, boolean blocking, boolean closingTransport) throws IOException {
+        if (closingTransport) {
+            for (NioChannel channel : channels) {
+                /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't have a gazillion connections sitting
+                 * in TIME_WAIT to free up resources quickly. This is really the only part where we close the connection from the server
+                 * side otherwise the client (node) initiates the TCP closing sequence which doesn't cause these issues. Setting this
+                 * by default from the beginning can have unexpected side-effects an should be avoided, our protocol is designed
+                 * in a way that clients close connection which is how it should be*/
+                if (channel.isOpen()) {
+                    channel.getRawChannel().setOption(StandardSocketOptions.SO_LINGER, 0);
+                }
+            }
+        }
         ArrayList<CloseFuture> futures = new ArrayList<>(channels.size());
         for (final NioChannel channel : channels) {
             if (channel != null && channel.isOpen()) {

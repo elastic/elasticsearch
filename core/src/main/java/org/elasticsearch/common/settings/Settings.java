@@ -1197,7 +1197,7 @@ public final class Settings implements ToXContentFragment {
             Iterator<Map.Entry<String, Object>> entryItr = map.entrySet().iterator();
             while (entryItr.hasNext()) {
                 Map.Entry<String, Object> entry = entryItr.next();
-                if (entry.getValue() == null) {
+                if (entry.getValue() == null || entry.getValue() instanceof List) {
                     // a null value obviously can't be replaced
                     continue;
                 }

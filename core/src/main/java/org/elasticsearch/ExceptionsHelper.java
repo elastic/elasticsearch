@@ -209,6 +209,19 @@ public final class ExceptionsHelper {
         return uniqueFailures.toArray(new ShardOperationFailedException[0]);
     }
 
+    /**
+     * Returns the message for the root cause (the innermost exception).
+     */
+    public static String rootCauseMessage(Exception failure) {
+        if (failure == null) {
+            return "no exception";
+        }
+        if (!(failure instanceof ElasticsearchException)) {
+            return failure.getMessage();
+        }
+        return ((ElasticsearchException) failure).getRootCause().getMessage();
+    }
+
     static class GroupBy {
         final String reason;
         final String index;

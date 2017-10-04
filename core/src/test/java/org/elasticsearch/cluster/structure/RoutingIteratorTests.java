@@ -444,7 +444,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         // When replicas haven't initialized, it comes back with the primary first, then initializing replicas
         GroupShardsIterator<ShardIterator> shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_replica_first");
-        assertWarnings("[_replica_first] has been deprecated in 6.0+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]");
+        assertWarnings("[_replica_first] has been deprecated in 6.1+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]");
         assertThat(shardIterators.size(), equalTo(2)); // two potential shards
         ShardIterator iter = shardIterators.iterator().next();
         assertThat(iter.size(), equalTo(3)); // three potential candidates for the shard
@@ -465,7 +465,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
         shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_replica");
-        assertWarnings("[_replica] has been deprecated in 6.0+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]");
+        assertWarnings("[_replica] has been deprecated in 6.1+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]");
         assertThat(shardIterators.size(), equalTo(2)); // two potential shards
         iter = shardIterators.iterator().next();
         assertThat(iter.size(), equalTo(2)); // two potential replicas for the shard
@@ -478,7 +478,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         assertFalse(routing.primary());
 
         shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_replica_first");
-        assertWarnings("[_replica_first] has been deprecated in 6.0+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]");
+        assertWarnings("[_replica_first] has been deprecated in 6.1+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]");
         assertThat(shardIterators.size(), equalTo(2)); // two potential shards
         iter = shardIterators.iterator().next();
         assertThat(iter.size(), equalTo(3)); // three potential candidates for the shard
@@ -525,15 +525,15 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
         operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_primary");
-        assertWarnings("[_primary] has been deprecated in 6.0+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]");
+        assertWarnings("[_primary] has been deprecated in 6.1+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]");
 
         operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_primary_first");
-        assertWarnings("[_primary_first] has been deprecated in 6.0+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]");
+        assertWarnings("[_primary_first] has been deprecated in 6.1+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]");
 
         operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_replica");
-        assertWarnings("[_replica] has been deprecated in 6.0+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]");
+        assertWarnings("[_replica] has been deprecated in 6.1+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]");
 
         operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_replica_first");
-        assertWarnings("[_replica_first] has been deprecated in 6.0+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]");
+        assertWarnings("[_replica_first] has been deprecated in 6.1+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]");
     }
 }

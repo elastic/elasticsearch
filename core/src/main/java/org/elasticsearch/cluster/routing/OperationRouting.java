@@ -199,19 +199,19 @@ public class OperationRouting extends AbstractComponent {
                 case LOCAL:
                     return indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
                 case PRIMARY:
-                    deprecationLogger.deprecated("[_primary] has been deprecated in 6.0+, and will be removed in 7.0; " +
+                    deprecationLogger.deprecated("[_primary] has been deprecated in 6.1+, and will be removed in 7.0; " +
                         "use [_only_nodes] or [_prefer_nodes]");
                     return indexShard.primaryActiveInitializingShardIt();
                 case REPLICA:
-                    deprecationLogger.deprecated("[_replica] has been deprecated in 6.0+, and will be removed in 7.0; " +
+                    deprecationLogger.deprecated("[_replica] has been deprecated in 6.1+, and will be removed in 7.0; " +
                         "use [_only_nodes] or [_prefer_nodes]");
                     return indexShard.replicaActiveInitializingShardIt();
                 case PRIMARY_FIRST:
-                    deprecationLogger.deprecated("[_primary_first] has been deprecated in 6.0+, and will be removed in 7.0; " +
+                    deprecationLogger.deprecated("[_primary_first] has been deprecated in 6.1+, and will be removed in 7.0; " +
                         "use [_only_nodes] or [_prefer_nodes]");
                     return indexShard.primaryFirstActiveInitializingShardsIt();
                 case REPLICA_FIRST:
-                    deprecationLogger.deprecated("[_replica_first] has been deprecated in 6.0+, and will be removed in 7.0; " +
+                    deprecationLogger.deprecated("[_replica_first] has been deprecated in 6.1+, and will be removed in 7.0; " +
                         "use [_only_nodes] or [_prefer_nodes]");
                     return indexShard.replicaFirstActiveInitializingShardsIt();
                 case ONLY_LOCAL:

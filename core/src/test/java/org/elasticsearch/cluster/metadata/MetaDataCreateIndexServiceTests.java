@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -43,6 +44,7 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 
@@ -75,6 +77,12 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         return target * x == source;
     }
 
+    public static boolean isSplitable(int source, int target) {
+        int x = target / source;
+        assert source < target : source  + " >= " + target;
+        return source * x == target;
+    }
+
     public void testValidateShrinkIndex() {
         int numShards = randomIntBetween(2, 42);
         ClusterState state = createClusterState("source", numShards, randomIntBetween(0, 10),
@@ -103,7 +111,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             ).getMessage());
 
 
-        assertEquals("index source must be read-only to shrink index. use \"index.blocks.write=true\"",
+        assertEquals("index source must be read-only to resize index. use \"index.blocks.write=true\"",
             expectThrows(IllegalStateException.class, () ->
                     MetaDataCreateIndexService.validateShrinkIndex(
                         createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY)
@@ -122,7 +130,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                         Settings.builder().put("index.number_of_shards", 3).build())
             ).getMessage());
 
-        assertEquals("mappings are not allowed when shrinking indices, all mappings are copied from the source index",
+        assertEquals("mappings are not allowed when resizing indices, all mappings are copied from the source index",
             expectThrows(IllegalArgumentException.class, () -> {
                 MetaDataCreateIndexService.validateShrinkIndex(state, "source", Collections.singleton("foo"),
                     "target", Settings.EMPTY);
@@ -151,11 +159,77 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             Settings.builder().put("index.number_of_shards", targetShards).build());
     }
 
-    public void testShrinkIndexSettings() {
+    public void testValidateSplitIndex() {
+        int numShards = randomIntBetween(1, 42);
+        ClusterState state = createClusterState("source", numShards, randomIntBetween(0, 10),
+            Settings.builder().put("index.blocks.write", true).build());
+
+        assertEquals("index [source] already exists",
+            expectThrows(ResourceAlreadyExistsException.class, () ->
+                MetaDataCreateIndexService.validateSplitIndex(state, "target", Collections.emptySet(), "source", Settings.EMPTY)
+            ).getMessage());
+
+        assertEquals("no such index",
+            expectThrows(IndexNotFoundException.class, () ->
+                MetaDataCreateIndexService.validateSplitIndex(state, "no such index", Collections.emptySet(), "target", Settings.EMPTY)
+            ).getMessage());
+
+        assertEquals("the number of source shards must be less that the number of target shards",
+            expectThrows(IllegalArgumentException.class, () -> MetaDataCreateIndexService.validateSplitIndex(createClusterState("source",
+                10, 0, Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(),
+                "target", Settings.builder().put("index.number_of_shards", 5).build())
+            ).getMessage());
+
+
+        assertEquals("index source must be read-only to resize index. use \"index.blocks.write=true\"",
+            expectThrows(IllegalStateException.class, () ->
+                MetaDataCreateIndexService.validateSplitIndex(
+                    createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY)
+                    , "source", Collections.emptySet(), "target", Settings.EMPTY)
+            ).getMessage());
+
+
+        assertEquals("the number of source shards [4] must be a must be a multiple of [3]",
+            expectThrows(IllegalArgumentException.class, () ->
+                MetaDataCreateIndexService.validateSplitIndex(createClusterState("source", 3, randomIntBetween(0, 10),
+                    Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(), "target",
+                    Settings.builder().put("index.number_of_shards", 4).build())
+            ).getMessage());
+
+        assertEquals("mappings are not allowed when resizing indices, all mappings are copied from the source index",
+            expectThrows(IllegalArgumentException.class, () -> {
+                    MetaDataCreateIndexService.validateSplitIndex(state, "source", Collections.singleton("foo"),
+                        "target", Settings.EMPTY);
+                }
+            ).getMessage());
+
+
+        ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
+            Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
+            .build();
+        AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
+            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+
+        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        // now we start the shard
+        routingTable = service.applyStartedShards(clusterState,
+            routingTable.index("source").shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        int targetShards;
+        do {
+            targetShards = randomIntBetween(numShards, 100);
+        } while (isSplitable(numShards, targetShards) == false);
+        MetaDataCreateIndexService.validateSplitIndex(clusterState, "source", Collections.emptySet(), "target",
+            Settings.builder().put("index.number_of_shards", targetShards).build());
+    }
+
+    public void testResizeIndexSettings() {
         String indexName = randomAlphaOfLength(10);
         List<Version> versions = Arrays.asList(VersionUtils.randomVersion(random()), VersionUtils.randomVersion(random()),
             VersionUtils.randomVersion(random()));
-        versions.sort((l, r) -> Long.compare(l.id, r.id));
+        versions.sort(Comparator.comparingLong(l -> l.id));
         Version version = versions.get(0);
         Version minCompat = versions.get(1);
         Version upgraded = versions.get(2);
@@ -182,8 +256,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         Settings.Builder builder = Settings.builder();
-        MetaDataCreateIndexService.prepareShrinkIndexSettings(
-            clusterState, Collections.emptySet(), builder, clusterState.metaData().index(indexName).getIndex(), "target");
+        MetaDataCreateIndexService.prepareResizeIndexSettings(clusterState, Collections.emptySet(), builder,
+            clusterState.metaData().index(indexName).getIndex(), "target", ResizeType.SHRINK);
         assertEquals("similarity settings must be copied", "BM25", builder.build().get("index.similarity.default.type"));
         assertEquals("analysis settings must be copied",
             "keyword", builder.build().get("index.analysis.analyzer.my_analyzer.tokenizer"));

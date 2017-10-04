@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
@@ -84,21 +85,12 @@ public class IndexMetaDataTests extends ESTestCase {
     }
 
     public void testGetRoutingFactor() {
-        int numberOfReplicas = randomIntBetween(0, 10);
-        IndexMetaData metaData = IndexMetaData.builder("foo")
-            .settings(Settings.builder()
-                .put("index.version.created", 1)
-                .put("index.number_of_shards", 32)
-                .put("index.number_of_replicas", numberOfReplicas)
-                .build())
-            .creationDate(randomLong())
-            .build();
         Integer numShard = randomFrom(1, 2, 4, 8, 16);
-        int routingFactor = IndexMetaData.getRoutingFactor(metaData, numShard);
-        assertEquals(routingFactor * numShard, metaData.getNumberOfShards());
+        int routingFactor = IndexMetaData.getRoutingFactor(32, numShard);
+        assertEquals(routingFactor * numShard, 32);
 
-        Integer brokenNumShards = randomFrom(3, 5, 9, 12, 29, 42, 64);
-        expectThrows(IllegalArgumentException.class, () -> IndexMetaData.getRoutingFactor(metaData, brokenNumShards));
+        Integer brokenNumShards = randomFrom(3, 5, 9, 12, 29, 42);
+        expectThrows(IllegalArgumentException.class, () -> IndexMetaData.getRoutingFactor(32, brokenNumShards));
     }
 
     public void testSelectShrinkShards() {
@@ -123,6 +115,60 @@ public class IndexMetaDataTests extends ESTestCase {
 
         assertEquals("the number of target shards (8) must be greater than the shard id: 8",
             expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectShrinkShards(8, metaData, 8)).getMessage());
+    }
+
+    public void testSelectResizeShards() {
+        IndexMetaData split = IndexMetaData.builder("foo")
+            .settings(Settings.builder()
+                .put("index.version.created", 1)
+                .put("index.number_of_shards", 2)
+                .put("index.number_of_replicas", 0)
+                .build())
+            .creationDate(randomLong())
+            .build();
+
+        IndexMetaData shrink = IndexMetaData.builder("foo")
+            .settings(Settings.builder()
+                .put("index.version.created", 1)
+                .put("index.number_of_shards", 32)
+                .put("index.number_of_replicas", 0)
+                .build())
+            .creationDate(randomLong())
+            .build();
+        int numTargetShards = randomFrom(4, 6, 8, 12);
+        int shard = randomIntBetween(0, numTargetShards-1);
+        assertEquals(Collections.singleton(IndexMetaData.selectSplitShard(shard, split, numTargetShards)),
+            IndexMetaData.selectRecoverFromShards(shard, split, numTargetShards));
+
+        numTargetShards = randomFrom(1, 2, 4, 8, 16);
+        shard = randomIntBetween(0, numTargetShards-1);
+        assertEquals(IndexMetaData.selectShrinkShards(shard, shrink, numTargetShards),
+            IndexMetaData.selectRecoverFromShards(shard, shrink, numTargetShards));
+
+        assertEquals("can't select recover from shards if both indices have the same number of shards",
+            expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectRecoverFromShards(0, shrink, 32)).getMessage());
+    }
+
+    public void testSelectSplitShard() {
+        IndexMetaData metaData = IndexMetaData.builder("foo")
+            .settings(Settings.builder()
+                .put("index.version.created", 1)
+                .put("index.number_of_shards", 2)
+                .put("index.number_of_replicas", 0)
+                .build())
+            .creationDate(randomLong())
+            .build();
+        ShardId shardId = IndexMetaData.selectSplitShard(0, metaData, 4);
+        assertEquals(0, shardId.getId());
+        shardId = IndexMetaData.selectSplitShard(1, metaData, 4);
+        assertEquals(0, shardId.getId());
+        shardId = IndexMetaData.selectSplitShard(2, metaData, 4);
+        assertEquals(1, shardId.getId());
+        shardId = IndexMetaData.selectSplitShard(3, metaData, 4);
+        assertEquals(1, shardId.getId());
+
+        assertEquals("the number of target shards (0) must be greater than the shard id: 0",
+            expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectSplitShard(0, metaData, 0)).getMessage());
     }
 
     public void testIndexFormat() {

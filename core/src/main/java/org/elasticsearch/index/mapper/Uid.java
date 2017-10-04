@@ -22,8 +22,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 
+import java.io.ByteArrayInputStream;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
@@ -244,16 +246,16 @@ public final class Uid {
         }
     }
 
-    private static String decodeNumericId(byte[] idBytes) {
-        assert Byte.toUnsignedInt(idBytes[0]) == NUMERIC;
-        int length = (idBytes.length - 1) * 2;
+    private static String decodeNumericId(byte[] idBytes, int offset, int len) {
+        assert Byte.toUnsignedInt(idBytes[offset]) == NUMERIC;
+        int length = (len - 1) * 2;
         char[] chars = new char[length];
-        for (int i = 1; i < idBytes.length; ++i) {
-            final int b = Byte.toUnsignedInt(idBytes[i]);
+        for (int i = 1; i < len; ++i) {
+            final int b = Byte.toUnsignedInt(idBytes[offset + i]);
             final int b1 = (b >>> 4);
             final int b2 = b & 0x0f;
             chars[(i - 1) * 2] = (char) (b1 + '0');
-            if (i == idBytes.length - 1 && b2 == 0x0f) {
+            if (i == len - 1 && b2 == 0x0f) {
                 length--;
                 break;
             }
@@ -262,15 +264,17 @@ public final class Uid {
         return new String(chars, 0, length);
     }
 
-    private static String decodeUtf8Id(byte[] idBytes) {
-        assert Byte.toUnsignedInt(idBytes[0]) == UTF8;
-        return new BytesRef(idBytes, 1, idBytes.length - 1).utf8ToString();
+    private static String decodeUtf8Id(byte[] idBytes, int offset, int length) {
+        assert Byte.toUnsignedInt(idBytes[offset]) == UTF8;
+        return new BytesRef(idBytes, offset + 1, length - 1).utf8ToString();
     }
 
-    private static String decodeBase64Id(byte[] idBytes) {
-        assert Byte.toUnsignedInt(idBytes[0]) <= BASE64_ESCAPE;
-        if (Byte.toUnsignedInt(idBytes[0]) == BASE64_ESCAPE) {
-            idBytes = Arrays.copyOfRange(idBytes, 1, idBytes.length);
+    private static String decodeBase64Id(byte[] idBytes, int offset, int length) {
+        assert Byte.toUnsignedInt(idBytes[offset]) <= BASE64_ESCAPE;
+        if (Byte.toUnsignedInt(idBytes[offset]) == BASE64_ESCAPE) {
+            idBytes = Arrays.copyOfRange(idBytes, offset + 1, length);
+        } else if (idBytes.length != length || offset != 0) {
+            idBytes = Arrays.copyOfRange(idBytes, offset, length);
         }
         return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
     }
@@ -278,17 +282,23 @@ public final class Uid {
     /** Decode an indexed id back to its original form.
      *  @see #encodeId */
     public static String decodeId(byte[] idBytes) {
-        if (idBytes.length == 0) {
+       return decodeId(idBytes, 0, idBytes.length);
+    }
+
+    /** Decode an indexed id back to its original form.
+     *  @see #encodeId */
+    public static String decodeId(byte[] idBytes, int offset, int length) {
+        if (length == 0) {
             throw new IllegalArgumentException("Ids can't be empty");
         }
-        final int magicChar = Byte.toUnsignedInt(idBytes[0]);
+        final int magicChar = Byte.toUnsignedInt(idBytes[offset]);
         switch (magicChar) {
-        case NUMERIC:
-            return decodeNumericId(idBytes);
-        case UTF8:
-            return decodeUtf8Id(idBytes);
-        default:
-            return decodeBase64Id(idBytes);
+            case NUMERIC:
+                return decodeNumericId(idBytes, offset, length);
+            case UTF8:
+                return decodeUtf8Id(idBytes, offset, length);
+            default:
+                return decodeBase64Id(idBytes, offset, length);
         }
     }
 }

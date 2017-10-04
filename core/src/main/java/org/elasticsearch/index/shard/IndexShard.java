@@ -2026,13 +2026,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 break;
             case LOCAL_SHARDS:
                 final IndexMetaData indexMetaData = indexSettings().getIndexMetaData();
-                final Index mergeSourceIndex = indexMetaData.getMergeSourceIndex();
+                final Index mergeSourceIndex = indexMetaData.getResizeSourceIndex();
                 final List<IndexShard> startedShards = new ArrayList<>();
                 final IndexService sourceIndexService = indicesService.indexService(mergeSourceIndex);
-                final int numShards = sourceIndexService != null ? sourceIndexService.getIndexSettings().getNumberOfShards() : -1;
+                final Set<ShardId> requiredShards = IndexMetaData.selectRecoverFromShards(shardId().id(),
+                    sourceIndexService.getMetaData(), indexMetaData.getNumberOfShards());
+                final int numShards = sourceIndexService != null ? requiredShards.size() : -1;
                 if (sourceIndexService != null) {
                     for (IndexShard shard : sourceIndexService) {
-                        if (shard.state() == IndexShardState.STARTED) {
+                        if (shard.state() == IndexShardState.STARTED && requiredShards.contains(shard.shardId())) {
                             startedShards.add(shard);
                         }
                     }
@@ -2041,10 +2043,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     markAsRecovering("from local shards", recoveryState); // mark the shard as recovering on the cluster state thread
                     threadPool.generic().execute(() -> {
                         try {
-                            final Set<ShardId> shards = IndexMetaData.selectShrinkShards(shardId().id(), sourceIndexService.getMetaData(),
-                                +indexMetaData.getNumberOfShards());
                             if (recoverFromLocalShards(mappingUpdateConsumer, startedShards.stream()
-                                .filter((s) -> shards.contains(s.shardId())).collect(Collectors.toList()))) {
+                                .filter((s) -> requiredShards.contains(s.shardId())).collect(Collectors.toList()))) {
                                 recoveryListener.onRecoveryDone(recoveryState);
                             }
                         } catch (Exception e) {

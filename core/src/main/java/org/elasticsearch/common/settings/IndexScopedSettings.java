@@ -70,6 +70,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING,
         IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING,
         IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING,
+        IndexMetaData.INDEX_ROUTING_SHARDS_FACTOR_SETTING,
         IndexMetaData.INDEX_READ_ONLY_SETTING,
         IndexMetaData.INDEX_BLOCKS_READ_SETTING,
         IndexMetaData.INDEX_BLOCKS_WRITE_SETTING,
@@ -199,6 +200,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case MergePolicyConfig.INDEX_MERGE_ENABLED:
             case IndexMetaData.INDEX_SHRINK_SOURCE_UUID_KEY:
             case IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY:
+            case IndexMetaData.INDEX_RESIZE_SOURCE_UUID_KEY:
+            case IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY:
             case IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY:
                 // this was settable in 5.x but not anymore in 6.x so we have to preserve the value ie. make it read-only
                 // this can be removed in later versions

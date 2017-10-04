@@ -267,7 +267,7 @@ public class OperationRouting extends AbstractComponent {
         return new ShardId(indexMetaData.getIndex(), generateShardId(indexMetaData, id, routing));
     }
 
-    static int generateShardId(IndexMetaData indexMetaData, @Nullable String id, @Nullable String routing) {
+    public static int generateShardId(IndexMetaData indexMetaData, @Nullable String id, @Nullable String routing) {
         final String effectiveRouting;
         final int partitionOffset;
 
@@ -293,7 +293,7 @@ public class OperationRouting extends AbstractComponent {
 
         // we don't use IMD#getNumberOfShards since the index might have been shrunk such that we need to use the size
         // of original index to hash documents
-        return Math.floorMod(hash, indexMetaData.getRoutingNumShards()) / indexMetaData.getRoutingFactor();
+        return  Math.floorMod(hash, indexMetaData.getRoutingNumShards()) / indexMetaData.getRoutingFactor();
     }
 
 }

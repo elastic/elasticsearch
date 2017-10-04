@@ -30,8 +30,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -48,8 +46,6 @@ import java.util.Objects;
  * Holds additional information as to why the shard is in unassigned state.
  */
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(UnassignedInfo.class));
 
     public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
 
@@ -370,9 +366,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      */
     public long getRemainingDelay(final long nanoTimeNow, final Settings indexSettings) {
         long delayTimeoutNanos = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexSettings).nanos();
-        if (delayTimeoutNanos < 0) {
-            DEPRECATION_LOGGER.deprecated("Negative values for index.unassigned.node_left.delayed_timeout are no longer allowed.");
-        }
         assert nanoTimeNow >= unassignedTimeNanos;
         return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
     }

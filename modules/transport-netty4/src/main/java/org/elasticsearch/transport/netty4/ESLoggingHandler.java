@@ -93,7 +93,7 @@ final class ESLoggingHandler extends LoggingHandler {
                         // the stream might be compressed
                         try (StreamInput in = in(status, slice, remaining)) {
                             // the first bytes in the message is the context headers
-                            try (final ThreadContext context = new ThreadContext(Settings.EMPTY)) {
+                            try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
                                 context.readHeaders(in);
                             }
                             // now we can decode the action name

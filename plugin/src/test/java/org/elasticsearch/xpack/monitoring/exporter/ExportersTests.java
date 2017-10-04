@@ -193,10 +193,10 @@ public class ExportersTests extends ESTestCase {
         exporters.start();
 
         assertThat(settingsHolder.get(), notNullValue());
-        Map<String, String> settings = settingsHolder.get().getAsMap();
+        Settings settings = settingsHolder.get();
         assertThat(settings.size(), is(2));
-        assertThat(settings, hasEntry("_name0.type", "_type"));
-        assertThat(settings, hasEntry("_name1.type", "_type"));
+        assertEquals(settings.get("_name0.type"), "_type");
+        assertEquals(settings.get("_name1.type"), "_type");
 
         Settings update = Settings.builder()
                 .put("xpack.monitoring.exporters._name0.foo", "bar")
@@ -204,12 +204,12 @@ public class ExportersTests extends ESTestCase {
                 .build();
         clusterSettings.applySettings(update);
         assertThat(settingsHolder.get(), notNullValue());
-        settings = settingsHolder.get().getAsMap();
+        settings = settingsHolder.get();
         assertThat(settings.size(), is(4));
-        assertThat(settings, hasEntry("_name0.type", "_type"));
-        assertThat(settings, hasEntry("_name0.foo", "bar"));
-        assertThat(settings, hasEntry("_name1.type", "_type"));
-        assertThat(settings, hasEntry("_name1.foo", "bar"));
+        assertEquals(settings.get("_name0.type"), "_type");
+        assertEquals(settings.get("_name0.foo"), "bar");
+        assertEquals(settings.get("_name1.type"), "_type");
+        assertEquals(settings.get("_name1.foo"), "bar");
     }
 
     public void testExporterBlocksOnClusterState() {

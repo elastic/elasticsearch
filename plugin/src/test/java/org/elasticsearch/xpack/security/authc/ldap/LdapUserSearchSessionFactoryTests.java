@@ -397,9 +397,10 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .build();
         Settings.Builder builder = Settings.builder()
                 .put(globalSettings);
-        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-            builder.put("xpack.security.authc.realms.ldap." + entry.getKey(), entry.getValue());
-        }
+        settings.keySet().forEach(k -> {
+            builder.copy("xpack.security.authc.realms.ldap." + k, k, settings);
+
+        });
         Settings fullSettings = builder.build();
         sslService = new SSLService(fullSettings, new Environment(fullSettings));
         RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings));

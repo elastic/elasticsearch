@@ -69,15 +69,7 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
     @Override
     protected Settings transportClientSettings() {
         Settings clientSettings = super.transportClientSettings();
-        Settings.Builder builder = Settings.builder();
-        for (Entry<String, String> entry : clientSettings.getAsMap().entrySet()) {
-            if (entry.getKey().startsWith("xpack.ssl.") == false) {
-                builder.put(entry.getKey(), entry.getValue());
-            }
-        }
-        clientSettings = builder.build();
-
-        return Settings.builder().put(clientSettings)
+        return Settings.builder().put(clientSettings.filter(k -> k.startsWith("xpack.ssl.") == false))
                 .put("xpack.ssl.verification_mode", "certificate")
                 .put("xpack.ssl.keystore.path", keystore.toAbsolutePath())
                 .put("xpack.ssl.keystore.password", "testnode-ip-only")

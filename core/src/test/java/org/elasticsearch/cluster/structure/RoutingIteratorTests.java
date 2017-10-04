@@ -416,10 +416,6 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
     }
 
     public void testReplicaShardPreferenceIters() throws Exception {
-        AllocationService strategy = createAllocationService(Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .build());
-
         OperationRouting operationRouting = new OperationRouting(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
 
@@ -431,26 +427,21 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
+        final ClusterState clusterState = ClusterState
+            .builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metaData(metaData)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder()
+                .add(newNode("node1"))
+                .add(newNode("node2"))
+                .add(newNode("node3"))
+                .localNodeId("node1"))
+            .build();
 
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                        .add(newNode("node1"))
-                        .add(newNode("node2"))
-                        .add(newNode("node3"))
-                        .localNodeId("node1")
-        ).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
-
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-
-        String[] removedPreferences = {"_primary", "_primary_first", "_replica", "_replica_first"};
+        String[] removedPreferences = { "_primary", "_primary_first", "_replica", "_replica_first" };
         for (String pref : removedPreferences) {
-            try{
-                operationRouting.searchShards(clusterState, new String[]{"test"}, null, pref);
-                fail("Should have failed because the shard preference [" + pref + "] is removed.");
-            }catch (IllegalArgumentException ex){
-                assertThat(ex.getMessage(), containsString(pref));
-            }
+            expectThrows(IllegalArgumentException.class,
+                () -> operationRouting.searchShards(clusterState, new String[]{"test"}, null, pref));
         }
     }
 

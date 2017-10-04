@@ -59,6 +59,9 @@ public abstract class EnvironmentAwareCommand extends Command {
             settings.put(kvp.key, kvp.value);
         }
 
+        putSystemPropertyIfSettingIsMissing(settings, "default.path.conf", "es.default.path.conf");
+        putSystemPropertyIfSettingIsMissing(settings, "default.path.data", "es.default.path.data");
+        putSystemPropertyIfSettingIsMissing(settings, "default.path.logs", "es.default.path.logs");
         putSystemPropertyIfSettingIsMissing(settings, "path.conf", "es.path.conf");
         putSystemPropertyIfSettingIsMissing(settings, "path.data", "es.path.data");
         putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");

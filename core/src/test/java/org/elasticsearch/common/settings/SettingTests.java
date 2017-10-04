@@ -337,7 +337,7 @@ public class SettingTests extends ESTestCase {
                     Settings.EMPTY);
             fail("not accepted");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "illegal value can't update [foo.bar.] from [{}] to [{1.value=1, 2.value=2}]");
+            assertEquals(ex.getMessage(), "illegal value can't update [foo.bar.] from [{}] to [{\"1.value\":\"1\",\"2.value\":\"2\"}]");
         }
     }
 

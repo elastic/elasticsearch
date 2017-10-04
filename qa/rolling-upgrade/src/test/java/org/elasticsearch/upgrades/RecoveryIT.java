@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -103,16 +104,15 @@ public class RecoveryIT extends ESRestTestCase {
     public void testHistoryUUIDIsGenerated() throws Exception {
         final String index = "index_history_uuid";
         if (clusterType == CLUSTER_TYPE.OLD) {
-            assertOK(client().performRequest("PUT", "_cluster/settings", Collections.emptyMap(),
-                new StringEntity("{ \"persistent\": " +
-                    "{ \"logger._root\": \"DEBUG\", \"logger.org.elasticsearch.cluster.service\": \"TRACE\" } " +
-                    "}", ContentType.APPLICATION_JSON)));
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                // if the node with the replica is the first to be restarted, while a replica is still recovering
+                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                // before timing out
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
             createIndex(index, settings.build());
-            ensureGreen();
-
         } else if (clusterType == CLUSTER_TYPE.UPGRADED) {
             ensureGreen();
             Response response = client().performRequest("GET", index + "/_stats", Collections.singletonMap("level", "shards"));
@@ -131,11 +131,6 @@ public class RecoveryIT extends ESRestTestCase {
                     assertThat("different history uuid found for shard on " + nodeID, historyUUID, equalTo(expectHistoryUUID));
                 }
             }
-        } else {
-            // we are now in mixed cluster mode. we want to make sure the shard is fully allocated on the new node that was just
-            // started in order not to run into delayed unassigned shards when we bring down the old node (there must be a fully valid
-            // copy)
-            ensureGreen();
         }
     }
 

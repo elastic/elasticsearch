@@ -43,6 +43,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -144,7 +146,10 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
     }
 
     protected static void assertHeaders(ThreadPool pool) {
-        assertHeaders(pool.getThreadContext().getHeaders(), HEADER_SETTINGS.getAsSettings(ThreadContext.PREFIX).getAsMap());
+        Map<String, String> headers = new HashMap<>();
+        Settings asSettings = HEADER_SETTINGS.getAsSettings(ThreadContext.PREFIX);
+        assertHeaders(pool.getThreadContext().getHeaders(),
+            asSettings.keySet().stream().collect(Collectors.toMap(Function.identity(), k -> asSettings.get(k))));
     }
 
     public static class InternalException extends Exception {
@@ -161,9 +166,11 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         private final String action;
         private final Map<String, String> expectedHeaders;
         private final ThreadPool pool;
+        private static final Settings THREAD_HEADER_SETTINGS = HEADER_SETTINGS.getAsSettings(ThreadContext.PREFIX);
 
         public AssertingActionListener(String action, ThreadPool pool) {
-            this(action, HEADER_SETTINGS.getAsSettings(ThreadContext.PREFIX).getAsMap(), pool);
+            this(action, THREAD_HEADER_SETTINGS.keySet().stream()
+                .collect(Collectors.toMap(Function.identity(), k -> THREAD_HEADER_SETTINGS.get(k))), pool);
         }
 
        public AssertingActionListener(String action, Map<String, String> expectedHeaders, ThreadPool pool) {

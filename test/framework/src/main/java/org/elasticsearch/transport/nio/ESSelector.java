@@ -24,9 +24,12 @@ import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedSelectorException;
+import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -40,8 +43,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * {@link #close()} is called. This instance handles closing of channels. Users should call
  * {@link #queueChannelClose(NioChannel)} to schedule a channel for close by this selector.
  * <p>
- * Children of this class should implement the specific {@link #doSelect(int)} and {@link #cleanup()}
- * functionality.
+ * Children of this class should implement the specific {@link #processKey(SelectionKey)},
+ * {@link #preSelect()}, and {@link #cleanup()} functionality.
  */
 public abstract class ESSelector implements Closeable {
 
@@ -98,7 +101,26 @@ public abstract class ESSelector implements Closeable {
     void singleLoop() {
         try {
             closePendingChannels();
-            doSelect(300);
+            preSelect();
+
+            int ready = selector.select(300);
+            if (ready > 0) {
+                Set<SelectionKey> selectionKeys = selector.selectedKeys();
+                Iterator<SelectionKey> keyIterator = selectionKeys.iterator();
+                while (keyIterator.hasNext()) {
+                    SelectionKey sk = keyIterator.next();
+                    keyIterator.remove();
+                    if (sk.isValid()) {
+                        try {
+                            processKey(sk);
+                        } catch (CancelledKeyException cke) {
+                            eventHandler.genericChannelException((NioChannel) sk.attachment(),  cke);
+                        }
+                    } else {
+                        eventHandler.genericChannelException((NioChannel) sk.attachment(),  new CancelledKeyException());
+                    }
+                }
+            }
         } catch (ClosedSelectorException e) {
             if (isOpen()) {
                 throw e;
@@ -117,13 +139,19 @@ public abstract class ESSelector implements Closeable {
     }
 
     /**
-     * Should implement the specific select logic. This will be called once per {@link #singleLoop()}
+     * Called by the base {@link ESSelector} class when there is a {@link SelectionKey} to be handled.
      *
-     * @param timeout to pass to the raw select operation
-     * @throws IOException             thrown by the raw select operation
-     * @throws ClosedSelectorException thrown if the raw selector is closed
+     * @param selectionKey the key to be handled
+     * @throws CancelledKeyException thrown when the key has already been cancelled
      */
-    abstract void doSelect(int timeout) throws IOException, ClosedSelectorException;
+    abstract void processKey(SelectionKey selectionKey) throws CancelledKeyException;
+
+    /**
+     * Called immediately prior to a raw {@link Selector#select()} call. Should be used to implement
+     * channel registration, handling queued writes, and other work that is not specifically processing
+     * a selection key.
+     */
+    abstract void preSelect();
 
     /**
      * Called once as the selector is being closed.

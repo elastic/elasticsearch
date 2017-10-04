@@ -1949,7 +1949,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 initialSettingsBuilder.put(blockSetting, true);
             }
             Settings initialSettings = initialSettingsBuilder.build();
-            logger.info("--> using initial block settings {}", initialSettings.getAsMap());
+            logger.info("--> using initial block settings {}", initialSettings);
 
             if (!initialSettings.isEmpty()) {
                 logger.info("--> apply initial blocks to index");
@@ -1978,7 +1978,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 changedSettingsBuilder.put(blockSetting, randomBoolean());
             }
             Settings changedSettings = changedSettingsBuilder.build();
-            logger.info("--> applying changed block settings {}", changedSettings.getAsMap());
+            logger.info("--> applying changed block settings {}", changedSettings);
 
             RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()
                     .prepareRestoreSnapshot("test-repo", "test-snap")
@@ -1992,7 +1992,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                     .put(initialSettings)
                     .put(changedSettings)
                     .build();
-            logger.info("--> merged block settings {}", mergedSettings.getAsMap());
+            logger.info("--> merged block settings {}", mergedSettings);
 
             logger.info("--> checking consistency between settings and blocks");
             assertThat(mergedSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_METADATA, false),

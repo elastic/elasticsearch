@@ -320,12 +320,11 @@ public class Netty4Transport extends TcpTransport<Channel> {
             if (f.isSuccess()) {
                 listener.onResponse(channel);
             } else {
-                Throwable cause = f.cause();
-                // If the Throwable is an Error something has gone very wrong and Netty4MessageChannelHandler is
-                // going to cause that to bubble up and kill the process.
-                if (cause instanceof Exception) {
-                    listener.onFailure((Exception) cause);
-                }
+                final Throwable cause = f.cause();
+                Netty4Utils.maybeDie(cause);
+                logger.error("write and flush on the network layer failed", cause);
+                assert cause instanceof Exception;
+                listener.onFailure((Exception) cause);
             }
         });
     }
@@ -339,7 +338,9 @@ public class Netty4Transport extends TcpTransport<Channel> {
                  * side otherwise the client (node) initiates the TCP closing sequence which doesn't cause these issues. Setting this
                  * by default from the beginning can have unexpected side-effects an should be avoided, our protocol is designed
                  * in a way that clients close connection which is how it should be*/
-                channel.config().setOption(ChannelOption.SO_LINGER, 0);
+                if (channel.isOpen()) {
+                    channel.config().setOption(ChannelOption.SO_LINGER, 0);
+                }
             }
         }
         if (blocking) {

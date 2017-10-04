@@ -24,8 +24,12 @@ import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedSelectorException;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
 
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,12 +38,14 @@ public class ESSelectorTests extends ESTestCase {
 
     private ESSelector selector;
     private EventHandler handler;
+    private Selector rawSelector;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         handler = mock(EventHandler.class);
-        selector = new TestSelector(handler);
+        rawSelector = mock(Selector.class);
+        selector = new TestSelector(handler, rawSelector);
     }
 
     public void testQueueChannelForClosed() throws IOException {
@@ -61,9 +67,8 @@ public class ESSelectorTests extends ESTestCase {
     }
 
     public void testSelectorClosedExceptionIsNotCaughtWhileRunning() throws IOException {
-        ((TestSelector) this.selector).setClosedSelectorException(new ClosedSelectorException());
-
         boolean closedSelectorExceptionCaught = false;
+        when(rawSelector.select(anyInt())).thenThrow(new ClosedSelectorException());
         try {
             this.selector.singleLoop();
         } catch (ClosedSelectorException e) {
@@ -75,7 +80,8 @@ public class ESSelectorTests extends ESTestCase {
 
     public void testIOExceptionWhileSelect() throws IOException {
         IOException ioException = new IOException();
-        ((TestSelector) this.selector).setIOException(ioException);
+
+        when(rawSelector.select(anyInt())).thenThrow(ioException);
 
         this.selector.singleLoop();
 
@@ -84,34 +90,23 @@ public class ESSelectorTests extends ESTestCase {
 
     private static class TestSelector extends ESSelector {
 
-        private ClosedSelectorException closedSelectorException;
-        private IOException ioException;
-
-        protected TestSelector(EventHandler eventHandler) throws IOException {
-            super(eventHandler);
+        TestSelector(EventHandler eventHandler, Selector selector) throws IOException {
+            super(eventHandler, selector);
         }
 
         @Override
-        void doSelect(int timeout) throws IOException, ClosedSelectorException {
-            if (closedSelectorException != null) {
-                throw closedSelectorException;
-            }
-            if (ioException != null) {
-                throw ioException;
-            }
+        void processKey(SelectionKey selectionKey) throws CancelledKeyException {
+
+        }
+
+        @Override
+        void preSelect() {
+
         }
 
         @Override
         void cleanup() {
 
-        }
-
-        public void setClosedSelectorException(ClosedSelectorException exception) {
-            this.closedSelectorException = exception;
-        }
-
-        public void setIOException(IOException ioException) {
-            this.ioException = ioException;
         }
     }
 

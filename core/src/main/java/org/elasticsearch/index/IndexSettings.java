@@ -506,7 +506,8 @@ public final class IndexSettings {
         }
         this.indexMetaData = indexMetaData;
         final Settings existingSettings = this.settings;
-        if (existingSettings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE).getAsMap().equals(newSettings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE).getAsMap())) {
+        if (existingSettings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE)
+            .equals(newSettings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE))) {
             // nothing to update, same settings
             return false;
         }

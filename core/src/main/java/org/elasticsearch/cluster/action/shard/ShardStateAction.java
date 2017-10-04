@@ -497,13 +497,23 @@ public class ShardStateAction extends AbstractComponent {
             out.writeException(failure);
         }
 
-        @Override
-        public String toString() {
-            List<String> components = new ArrayList<>(4);
+        private void addSummaryComponents(List<String> components) {
             components.add("shard id [" + shardId + "]");
             components.add("allocation id [" + allocationId + "]");
             components.add("primary term [" + primaryTerm + "]");
             components.add("message [" + message + "]");
+        }
+
+        public String shortSummary() {
+            List<String>components = new ArrayList<>(4);
+            addSummaryComponents(components);
+            return String.join(", ", components);
+        }
+
+        @Override
+        public String toString() {
+            List<String> components = new ArrayList<>(5);
+            addSummaryComponents(components);
             if (failure != null) {
                 components.add("failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
             }

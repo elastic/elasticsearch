@@ -191,7 +191,7 @@ public class IndexModuleTests extends ESTestCase {
         module.addIndexEventListener(eventListener);
         IndexService indexService = newIndexService(module);
         IndexSettings x = indexService.getIndexSettings();
-        assertEquals(x.getSettings().getAsMap(), indexSettings.getSettings().getAsMap());
+        assertEquals(x.getSettings(), indexSettings.getSettings());
         assertEquals(x.getIndex(), index);
         indexService.getIndexEventListener().beforeIndexRemoved(null, null);
         assertTrue(atomicBoolean.get());

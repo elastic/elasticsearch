@@ -39,6 +39,7 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,6 +48,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
@@ -114,15 +116,6 @@ public final class Settings implements ToXContentFragment {
     SecureSettings getSecureSettings() {
         // pkg private so it can only be accessed by local subclasses of SecureSetting
         return secureSettings;
-    }
-
-    /**
-     * The settings as a flat {@link java.util.Map}.
-     * @return an unmodifiable map of settings
-     */
-    public Map<String, String> getAsMap() {
-        // settings is always unmodifiable
-        return this.settings;
     }
 
     private Map<String, Object> getAsStructuredMap() {
@@ -318,13 +311,6 @@ public final class Settings implements ToXContentFragment {
         } catch (NumberFormatException e) {
             throw new SettingsException("Failed to parse long setting [" + setting + "] with value [" + sValue + "]", e);
         }
-    }
-
-    /**
-     * Returns a set of all keys in this settings object
-     */
-    public Set<String> getKeys() {
-        return Collections.unmodifiableSet(settings.keySet());
     }
 
     /**
@@ -626,8 +612,8 @@ public final class Settings implements ToXContentFragment {
     }
 
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
-        // pull getAsMap() to exclude secure settings in size()
-        Set<Map.Entry<String, String>> entries = settings.getAsMap().entrySet();
+        // pull settings to exclude secure settings in size()
+        Set<Map.Entry<String, String>> entries = settings.settings.entrySet();
         out.writeVInt(entries.size());
         for (Map.Entry<String, String> entry : entries) {
             out.writeString(entry.getKey());
@@ -650,7 +636,7 @@ public final class Settings implements ToXContentFragment {
                 builder.field(entry.getKey(), entry.getValue());
             }
         } else {
-            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+            for (Map.Entry<String, String> entry : settings.settings.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
         }
@@ -932,7 +918,14 @@ public final class Settings implements ToXContentFragment {
         }
 
         public Builder copy(String key, Settings source) {
-            return put(key, source.get(key));
+            return copy(key, key, source);
+        }
+
+        public Builder copy(String key, String sourceKey, Settings source) {
+            if (source.keySet().contains(sourceKey) == false) {
+                throw new IllegalArgumentException("source key not found in the source settings");
+            }
+            return put(key, source.get(sourceKey));
         }
 
         /**
@@ -1106,8 +1099,8 @@ public final class Settings implements ToXContentFragment {
          * @param copySecureSettings if <code>true</code> all settings including secure settings are copied.
          */
         public Builder put(Settings settings, boolean copySecureSettings) {
-            removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings.getAsMap());
-            map.putAll(settings.getAsMap());
+            removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings.settings);
+            map.putAll(settings.settings);
             if (copySecureSettings && settings.getSecureSettings() != null) {
                 setSecureSettings(settings.getSecureSettings());
             }
@@ -1460,6 +1453,18 @@ public final class Settings implements ToXContentFragment {
         @Override
         public void close() throws IOException {
             delegate.close();
+        }
+    }
+
+    @Override
+    public String toString() {
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.startObject();
+            toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
+            builder.endObject();
+            return builder.string();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

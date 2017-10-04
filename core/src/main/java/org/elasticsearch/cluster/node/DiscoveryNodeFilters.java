@@ -30,7 +30,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 public class DiscoveryNodeFilters {
 
@@ -55,10 +54,6 @@ public class DiscoveryNodeFilters {
             }
         }
     };
-
-    public static DiscoveryNodeFilters buildFromSettings(OpType opType, String prefix, Settings settings) {
-        return buildFromKeyValue(opType, settings.getByPrefix(prefix).getAsMap());
-    }
 
     public static DiscoveryNodeFilters buildFromKeyValue(OpType opType, Map<String, String> filters) {
         Map<String, String[]> bFilters = new HashMap<>();

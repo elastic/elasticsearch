@@ -186,7 +186,7 @@ public class PluginsService extends AbstractComponent {
         final Settings.Builder builder = Settings.builder();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             Settings settings = plugin.v2().additionalSettings();
-            for (String setting : settings.getAsMap().keySet()) {
+            for (String setting : settings.keySet()) {
                 String oldPlugin = foundSettings.put(setting, plugin.v1().getName());
                 if (oldPlugin != null) {
                     throw new IllegalArgumentException("Cannot have additional setting [" + setting + "] " +

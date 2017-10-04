@@ -103,7 +103,7 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
             internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
         }
 
-        for(String node : internalCluster().nodesInclude("test")){
+        for (String node : internalCluster().nodesInclude("test")) {
             SearchResponse searchResponse = client().prepareSearch("test")
                 .setPreference("_only_nodes:" + node)
                 .setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();

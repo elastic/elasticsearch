@@ -247,7 +247,7 @@ public class IndexingIT extends ESRestTestCase {
             ensureGreen();
             assertOK(client().performRequest("POST", index + "/_refresh"));
 
-            for(Shard shard : buildShards(index, nodes, newNodeClient)){
+            for (Shard shard : buildShards(index, nodes, newNodeClient)) {
                 assertCount(index, "_only_nodes:" + shard.node.nodeName, numDocs);
             }
             assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);

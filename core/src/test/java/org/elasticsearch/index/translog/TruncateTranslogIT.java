@@ -211,7 +211,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         logger.info("--> starting the replica node to test recovery");
         internalCluster().startNode();
         ensureGreen("test");
-        for(String node : internalCluster().nodesInclude("test")){
+        for (String node : internalCluster().nodesInclude("test")) {
             SearchRequestBuilder q = client().prepareSearch("test").setPreference("_only_nodes:" + node).setQuery(matchAllQuery());
             assertHitCount(q.get(), numDocsToKeep);
         }
@@ -312,8 +312,8 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         logger.info("--> starting the replica node to test recovery");
         internalCluster().startNode();
         ensureGreen("test");
-        for(String node : internalCluster().nodesInclude("test")){
-            assertHitCount(client().prepareSearch("test").setPreference("_only_nodes:"+node).setQuery(matchAllQuery()).get(), totalDocs);
+        for (String node : internalCluster().nodesInclude("test")) {
+            assertHitCount(client().prepareSearch("test").setPreference("_only_nodes:" + node).setQuery(matchAllQuery()).get(), totalDocs);
         }
 
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").setActiveOnly(false).get();

@@ -232,9 +232,9 @@ public class FullClusterRestartIT extends ESRestTestCase {
             logger.debug("--> recovery status:\n{}", recoverRsp);
 
             Set<Integer> counts = new HashSet<>();
-            for(String node : dataNodes(index, client())){
+            for (String node : dataNodes(index, client())) {
                 Map<String, Object> responseBody = toMap(client().performRequest("GET", "/" + index + "/_search",
-                    Collections.singletonMap("preference", "_only_nodes:"+node)));
+                    Collections.singletonMap("preference", "_only_nodes:" + node)));
                 assertNoFailures(responseBody);
                 int hits = (int) XContentMapValues.extractValue("hits.total", responseBody);
                 counts.add(hits);

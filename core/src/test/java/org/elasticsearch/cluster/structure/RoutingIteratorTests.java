@@ -438,7 +438,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
                 .localNodeId("node1"))
             .build();
 
-        String[] removedPreferences = { "_primary", "_primary_first", "_replica", "_replica_first" };
+        String[] removedPreferences = {"_primary", "_primary_first", "_replica", "_replica_first"};
         for (String pref : removedPreferences) {
             expectThrows(IllegalArgumentException.class,
                 () -> operationRouting.searchShards(clusterState, new String[]{"test"}, null, pref));

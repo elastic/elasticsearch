@@ -215,7 +215,7 @@ public final class ShardPath {
                     pathsToSpace.put(nodePath, usableBytes);
                 }
 
-                final List<NodeEnvironment.NodePath> possiblePaths = Arrays.stream(paths)
+                bestPath = Arrays.stream(paths)
                         // Filter out paths that have enough space
                         .filter((path) -> pathsToSpace.get(path).subtract(estShardSizeInBytes).compareTo(BigInteger.ZERO) > 0)
                         // Sort by the number of shards for this index
@@ -227,11 +227,10 @@ public final class ShardPath {
                                 }
                                 return cmp;
                             })
-                        .collect(Collectors.toList());
-
-                if (possiblePaths.size() > 0) {
-                    bestPath = possiblePaths.get(0);
-                }
+                        // Return the first result
+                        .findFirst()
+                        // Or the existing best path if there aren't any that fit the criteria
+                        .orElse(bestPath);
             }
 
             statePath = bestPath.resolve(shardId);

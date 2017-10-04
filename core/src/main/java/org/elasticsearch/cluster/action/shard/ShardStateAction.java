@@ -207,9 +207,11 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public void messageReceived(ShardEntry request, TransportChannel channel) throws Exception {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} received shard failed for {}", request.shardId, request), request.failure);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} received shard failed for {}",
+                                                                     request.shardId, request.shortSummary()),
+                        request.failure);
             clusterService.submitStateUpdateTask(
-                "shard-failed",
+                "shard-failed " + request.shortSummary(),
                 request,
                 ClusterStateTaskConfig.build(Priority.HIGH),
                 shardFailedClusterStateTaskExecutor,
@@ -497,17 +499,20 @@ public class ShardStateAction extends AbstractComponent {
             out.writeException(failure);
         }
 
+        public String shortSummary() {
+            return  "shard id [" + shardId
+                + "] allocation id [" + allocationId
+                + "] primary term [" + primaryTerm
+                + "] message [" + message + "]";
+        }
+
         @Override
         public String toString() {
-            List<String> components = new ArrayList<>(4);
-            components.add("shard id [" + shardId + "]");
-            components.add("allocation id [" + allocationId + "]");
-            components.add("primary term [" + primaryTerm + "]");
-            components.add("message [" + message + "]");
-            if (failure != null) {
-                components.add("failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
-            }
-            return String.join(", ", components);
+            return  "shard id [" + shardId
+                + "] allocation id [" + allocationId
+                + "] primary term [" + primaryTerm
+                + "] message [" + message
+                + "] failure [" + ExceptionsHelper.detailedMessage(failure) + "]";
         }
     }
 

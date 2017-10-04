@@ -252,7 +252,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 notifyListener(e, sendShardFailure);
             } finally {
                 try {
-                    cancellableThreads.cancel("failed recovery [" + ExceptionsHelper.stackTrace(e) + "]");
+                    cancellableThreads.cancel("failed recovery [" + ExceptionsHelper.rootCauseMessage(e) + "]");
                 } finally {
                     // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
                     decRef();

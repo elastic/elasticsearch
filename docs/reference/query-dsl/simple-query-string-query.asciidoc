@@ -77,7 +77,7 @@ is `0`.
 |`fuzzy_max_expansions` |Controls the number of terms fuzzy queries will
 expand to. Defaults to `50`
 
-|`fuzzy_transpositions` |Set to `true` to enable fuzzy transpositions (`ab` -> `ba`).
+|`fuzzy_transpositions` |Set to `false` to disable fuzzy transpositions (`ab` -> `ba`).
 Default is `true`.
 |=======================================================================
 

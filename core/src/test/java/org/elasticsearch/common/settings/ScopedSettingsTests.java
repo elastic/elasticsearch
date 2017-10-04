@@ -468,21 +468,21 @@ public class ScopedSettingsTests extends ESTestCase {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fooBar, fooBarBaz, foorBarQuux,
             someGroup, someAffix)));
         Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.EMPTY);
-        assertEquals(2, diff.size()); // 4 since foo.bar.quux has 3 values essentially
+        assertEquals(2, diff.size());
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
 
         diff = settings.diff(
                 Settings.builder().put("foo.bar", 5).build(),
                 Settings.builder().put("foo.bar.baz", 17).putArray("foo.bar.quux", "d", "e", "f").build());
-        assertEquals(2, diff.size()); // 4 since foo.bar.quux has 3 values essentially
+        assertEquals(2, diff.size());
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(17));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"d", "e", "f"});
 
         diff = settings.diff(
             Settings.builder().put("some.group.foo", 5).build(),
             Settings.builder().put("some.group.foobar", 17).put("some.group.foo", 25).build());
-        assertEquals(4, diff.size()); // 6 since foo.bar.quux has 3 values essentially
+        assertEquals(4, diff.size());
         assertThat(diff.getAsInt("some.group.foobar", null), equalTo(17));
         assertNull(diff.get("some.group.foo"));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
@@ -492,7 +492,7 @@ public class ScopedSettingsTests extends ESTestCase {
         diff = settings.diff(
             Settings.builder().put("some.prefix.foo.somekey", 5).build(),
             Settings.builder().put("some.prefix.foobar.somekey", 17).put("some.prefix.foo.somekey", 18).build());
-        assertEquals(4, diff.size()); // 6 since foo.bar.quux has 3 values essentially
+        assertEquals(4, diff.size());
         assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
         assertNull(diff.get("some.prefix.foo.somekey"));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});

@@ -49,7 +49,7 @@ import java.util.Objects;
  */
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(Setting.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(UnassignedInfo.class));
 
     public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
 

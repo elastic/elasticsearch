@@ -22,7 +22,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
-import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 
@@ -249,21 +247,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(ALL_MONITORING_INDICES));
     }
 
-    protected void awaitMonitoringDocsCountOnPrimary(Matcher<Long> matcher, String... types) throws Exception {
-        assertBusy(() -> assertMonitoringDocsCountOnPrimary(matcher, types), 30, TimeUnit.SECONDS);
-    }
-
     protected void ensureMonitoringIndicesYellow() {
         ensureYellow(".monitoring-es-*");
-    }
-
-    protected void assertMonitoringDocsCountOnPrimary(Matcher<Long> matcher, String... types) {
-        flushAndRefresh(ALL_MONITORING_INDICES);
-        long count = client().prepareSearch(ALL_MONITORING_INDICES).setSize(0)
-                .setQuery(QueryBuilders.termsQuery("type", types))
-                .setPreference("_primary").get().getHits().getTotalHits();
-        logger.trace("--> searched for [{}] documents on primary, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
-        assertThat(count, matcher);
     }
 
     protected List<Tuple<String, String>> monitoringTemplates() {

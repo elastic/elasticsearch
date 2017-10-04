@@ -47,6 +47,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -328,7 +329,7 @@ public class Setting<T> implements ToXContentObject {
      * Returns <code>true</code> iff this setting is present in the given settings object. Otherwise <code>false</code>
      */
     public boolean exists(Settings settings) {
-        return settings.getAsMap().containsKey(getKey());
+        return settings.keySet().contains(getKey());
     }
 
     /**
@@ -529,7 +530,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         private Stream<String> matchStream(Settings settings) {
-            return settings.getAsMap().keySet().stream().filter((key) -> match(key)).map(settingKey -> key.getConcreteString(settingKey));
+            return settings.keySet().stream().filter((key) -> match(key)).map(settingKey -> key.getConcreteString(settingKey));
         }
 
         AbstractScopedSettings.SettingUpdater<Map<AbstractScopedSettings.SettingUpdater<T>, T>> newAffixUpdater(
@@ -547,8 +548,9 @@ public class Setting<T> implements ToXContentObject {
                     final Map<AbstractScopedSettings.SettingUpdater<T>, T> result = new IdentityHashMap<>();
                     Stream.concat(matchStream(current), matchStream(previous)).distinct().forEach(aKey -> {
                         String namespace = key.getNamespace(aKey);
+                        Setting<T> concreteSetting = getConcreteSetting(aKey);
                         AbstractScopedSettings.SettingUpdater<T> updater =
-                            getConcreteSetting(aKey).newUpdater((v) -> consumer.accept(namespace, v), logger,
+                            concreteSetting.newUpdater((v) -> consumer.accept(namespace, v), logger,
                                 (v) -> validator.accept(namespace, v));
                         if (updater.hasChanged(current, previous)) {
                             // only the ones that have changed otherwise we might get too many updates
@@ -565,6 +567,43 @@ public class Setting<T> implements ToXContentObject {
                     for (Map.Entry<AbstractScopedSettings.SettingUpdater<T>, T> entry : value.entrySet()) {
                         entry.getKey().apply(entry.getValue(), current, previous);
                     }
+                }
+            };
+        }
+
+        AbstractScopedSettings.SettingUpdater<Map<String, T>> newAffixMapUpdater(Consumer<Map<String, T>> consumer, Logger logger,
+                                                                                 BiConsumer<String, T> validator, boolean omitDefaults) {
+            return new AbstractScopedSettings.SettingUpdater<Map<String, T>>() {
+
+                @Override
+                public boolean hasChanged(Settings current, Settings previous) {
+                    return  Stream.concat(matchStream(current), matchStream(previous)).findAny().isPresent();
+                }
+
+                @Override
+                public Map<String, T> getValue(Settings current, Settings previous) {
+                    // we collect all concrete keys and then delegate to the actual setting for validation and settings extraction
+                    final Map<String, T> result = new IdentityHashMap<>();
+                    Stream.concat(matchStream(current), matchStream(previous)).distinct().forEach(aKey -> {
+                        String namespace = key.getNamespace(aKey);
+                        Setting<T> concreteSetting = getConcreteSetting(aKey);
+                        AbstractScopedSettings.SettingUpdater<T> updater =
+                            concreteSetting.newUpdater((v) -> {}, logger, (v) -> validator.accept(namespace, v));
+                        if (updater.hasChanged(current, previous)) {
+                            // only the ones that have changed otherwise we might get too many updates
+                            // the hasChanged above checks only if there are any changes
+                                T value = updater.getValue(current, previous);
+                            if ((omitDefaults && value.equals(concreteSetting.getDefault(current))) == false) {
+                                result.put(namespace, value);
+                            }
+                        }
+                    });
+                    return result;
+                }
+
+                @Override
+                public void apply(Map<String, T> value, Settings current, Settings previous) {
+                    consumer.accept(value);
                 }
             };
         }
@@ -617,6 +656,18 @@ public class Setting<T> implements ToXContentObject {
          */
         public Stream<Setting<T>> getAllConcreteSettings(Settings settings) {
             return matchStream(settings).distinct().map(this::getConcreteSetting);
+        }
+
+        /**
+         * Returns a map of all namespaces to it's values give the provided settings
+         */
+        public Map<String, T> getAsMap(Settings settings) {
+            Map<String, T> map = new HashMap<>();
+            matchStream(settings).distinct().forEach(key -> {
+                Setting<T> concreteSetting = getConcreteSetting(key);
+                map.put(getNamespace(concreteSetting), concreteSetting.get(settings));
+            });
+            return Collections.unmodifiableMap(map);
         }
     }
 
@@ -686,8 +737,8 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public boolean exists(Settings settings) {
-            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                if (entry.getKey().startsWith(key)) {
+            for (String settingsKey : settings.keySet()) {
+                if (settingsKey.startsWith(key)) {
                     return true;
                 }
             }
@@ -696,13 +747,11 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
-            Map<String, String> leftGroup = get(source).getAsMap();
+            Set<String> leftGroup = get(source).keySet();
             Settings defaultGroup = get(defaultSettings);
-            for (Map.Entry<String, String> entry : defaultGroup.getAsMap().entrySet()) {
-                if (leftGroup.containsKey(entry.getKey()) == false) {
-                    builder.put(getKey() + entry.getKey(), entry.getValue());
-                }
-            }
+
+            builder.put(Settings.builder().put(defaultGroup.filter(k -> leftGroup.contains(k) == false), false)
+                    .normalizePrefix(getKey()).build(), false);
         }
 
         @Override
@@ -729,7 +778,7 @@ public class Setting<T> implements ToXContentObject {
                         validator.accept(currentSettings);
                     } catch (Exception | AssertionError e) {
                         throw new IllegalArgumentException("illegal value can't update [" + key + "] from ["
-                                + previousSettings.getAsMap() + "] to [" + currentSettings.getAsMap() + "]", e);
+                                + previousSettings + "] to [" + currentSettings+ "]", e);
                     }
                     return currentSettings;
                 }
@@ -870,6 +919,10 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<String> simpleString(String key, Property... properties) {
         return new Setting<>(key, s -> "", Function.identity(), properties);
+    }
+
+    public static Setting<String> simpleString(String key, Validator<String> validator, Property... properties) {
+        return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
     }
 
     public static int parseInt(String s, int minValue, String key) {

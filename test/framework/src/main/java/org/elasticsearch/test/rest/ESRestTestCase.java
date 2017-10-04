@@ -41,6 +41,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -55,8 +56,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import javax.net.ssl.SSLContext;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.sort;
@@ -287,7 +287,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             } catch (IOException e) {
                 fail("cannot get cluster's pending tasks: " + e.getMessage());
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     /**

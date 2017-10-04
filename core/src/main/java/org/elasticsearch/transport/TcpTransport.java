@@ -110,7 +110,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.settings.Setting.affixKeySetting;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
-import static org.elasticsearch.common.settings.Setting.groupSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
@@ -442,7 +441,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         public void close() throws IOException {
             if (closed.compareAndSet(false, true)) {
                 try {
-                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()), false);
+                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()), false,
+                        lifecycle.stopped());
                 } finally {
                     transportService.onConnectionClosed(this);
                 }
@@ -640,7 +640,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected final void closeChannelWhileHandlingExceptions(final Channel channel) {
         if (isOpen(channel)) {
             try {
-                closeChannels(Collections.singletonList(channel), false);
+                closeChannels(Collections.singletonList(channel), false, false);
             } catch (IOException e) {
                 logger.warn("failed to close channel", e);
             }
@@ -902,7 +902,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 // first stop to accept any incoming connections so nobody can connect to this transport
                 for (Map.Entry<String, List<Channel>> entry : serverChannels.entrySet()) {
                     try {
-                        closeChannels(entry.getValue(), true);
+                        closeChannels(entry.getValue(), true, true);
                     } catch (Exception e) {
                         logger.debug(
                             (Supplier<?>) () -> new ParameterizedMessage(
@@ -975,7 +975,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     @Override
                     protected void innerInnerOnResponse(Channel channel) {
                         try {
-                            closeChannels(Collections.singletonList(channel), false);
+                            closeChannels(Collections.singletonList(channel), false, false);
                         } catch (IOException e1) {
                             logger.debug("failed to close httpOnTransport channel", e1);
                         }
@@ -984,7 +984,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     @Override
                     protected void innerOnFailure(Exception e) {
                         try {
-                            closeChannels(Collections.singletonList(channel), false);
+                            closeChannels(Collections.singletonList(channel), false, false);
                         } catch (IOException e1) {
                             e.addSuppressed(e1);
                             logger.debug("failed to close httpOnTransport channel", e1);
@@ -1021,8 +1021,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      *
      * @param channels the channels to close
      * @param blocking whether the channels should be closed synchronously
+     * @param closingTransport whether we abort the connection on RST instead of FIN
      */
-    protected abstract void closeChannels(List<Channel> channels, boolean blocking) throws IOException;
+    protected abstract void closeChannels(List<Channel> channels, boolean blocking, boolean closingTransport) throws IOException;
 
     /**
      * Sends message to channel. The listener's onResponse method will be called when the send is complete unless an exception

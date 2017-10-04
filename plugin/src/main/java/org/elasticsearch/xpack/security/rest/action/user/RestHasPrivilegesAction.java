@@ -54,7 +54,7 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String username = getUsername(request);
         HasPrivilegesRequestBuilder requestBuilder = new SecurityClient(client)
-                .prepareHasPrivileges(username, request.content(), request.getXContentType());
+                .prepareHasPrivileges(username, request.requiredContent(), request.getXContentType());
         return channel -> requestBuilder.execute(new HasPrivilegesRestResponseBuilder(username, channel));
     }
 

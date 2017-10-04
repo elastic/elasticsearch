@@ -44,7 +44,7 @@ public class RestPutRoleAction extends SecurityBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         PutRoleRequestBuilder requestBuilder = new SecurityClient(client)
-                .preparePutRole(request.param("name"), request.content(), request.getXContentType())
+                .preparePutRole(request.param("name"), request.requiredContent(), request.getXContentType())
                 .setRefreshPolicy(request.param("refresh"));
         return channel -> requestBuilder.execute(new RestBuilderListener<PutRoleResponse>(channel) {
             @Override

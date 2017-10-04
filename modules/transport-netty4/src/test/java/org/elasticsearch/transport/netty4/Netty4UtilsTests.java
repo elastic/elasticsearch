@@ -91,32 +91,31 @@ public class Netty4UtilsTests extends ESTestCase {
         assertError(e, outOfMemoryError);
 
         final int depth = randomIntBetween(1, 16);
-        Exception nested = new Exception();
+        Throwable cause = new Exception();
         boolean fatal = false;
         Error error = null;
         for (int i = 0; i < depth; i++) {
             final int length = randomIntBetween(1, 4);
             for (int j = 0; j < length; j++) {
                 if (!fatal && rarely()) {
-                    error = outOfMemoryError;
-                    nested.addSuppressed(error);
+                    error = new Error();
+                    cause.addSuppressed(error);
                     fatal = true;
                 } else {
-                    nested.addSuppressed(new Exception());
+                    cause.addSuppressed(new Exception());
                 }
             }
             if (!fatal && rarely()) {
-                error = new Error(nested);
-                nested = new Exception(error);
+                cause = error = new Error(cause);
                 fatal = true;
             } else {
-                nested = new Exception(nested);
+                cause = new Exception(cause);
             }
         }
         if (fatal) {
-            assertError(nested, error);
+            assertError(cause, error);
         } else {
-            assertFalse(Netty4Utils.maybeError(nested).isPresent());
+            assertFalse(Netty4Utils.maybeError(cause).isPresent());
         }
 
         assertFalse(Netty4Utils.maybeError(new Exception(new DecoderException())).isPresent());

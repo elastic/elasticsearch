@@ -171,8 +171,8 @@ public class Netty4Utils {
      * @param cause the throwable to test
      */
     public static void maybeDie(final Throwable cause) {
-        final Optional<Error> maybeFatal = maybeError(cause);
-        if (maybeFatal.isPresent()) {
+        final Optional<Error> maybeError = maybeError(cause);
+        if (maybeError.isPresent()) {
             /*
              * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, Netty wraps too many
              * invocations of user-code in try/catch blocks that swallow all throwables. This means that a rethrow here will not bubble up
@@ -187,7 +187,7 @@ public class Netty4Utils {
             } finally {
                 new Thread(
                         () -> {
-                            throw maybeFatal.get();
+                            throw maybeError.get();
                         })
                         .start();
             }

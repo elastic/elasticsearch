@@ -441,7 +441,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         public void close() throws IOException {
             if (closed.compareAndSet(false, true)) {
                 try {
-                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()), false, true);
+                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()), false,
+                        lifecycle.stopped());
                 } finally {
                     transportService.onConnectionClosed(this);
                 }

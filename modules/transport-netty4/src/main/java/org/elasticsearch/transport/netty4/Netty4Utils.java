@@ -37,8 +37,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -167,7 +171,8 @@ public class Netty4Utils {
      * @param cause the throwable to test
      */
     public static void maybeDie(final Throwable cause) {
-        if (cause instanceof Error) {
+        final Optional<Error> maybeFatal = maybeError(cause);
+        if (maybeFatal.isPresent()) {
             /*
              * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, Netty wraps too many
              * invocations of user-code in try/catch blocks that swallow all throwables. This means that a rethrow here will not bubble up
@@ -182,11 +187,34 @@ public class Netty4Utils {
             } finally {
                 new Thread(
                         () -> {
-                            throw (Error) cause;
+                            throw maybeFatal.get();
                         })
                         .start();
             }
         }
+    }
+
+    /**
+     * Unwrap the specified throwable looking for any suppressed errors or errors as a root cause of the specified throwable.
+     *
+     * @param cause the root throwable
+     *
+     * @return an optional error if one is found suppressed or a root cause in the tree rooted at the specified throwable
+     */
+    static Optional<Error> maybeError(final Throwable cause) {
+        final Queue<Throwable> queue = new LinkedList<>();
+        queue.add(cause);
+        while (!queue.isEmpty()) {
+            final Throwable current = queue.remove();
+            if (current instanceof Error) {
+                return Optional.of((Error) current);
+            }
+            Collections.addAll(queue, current.getSuppressed());
+            if (current.getCause() != null) {
+                queue.add(current.getCause());
+            }
+        }
+        return Optional.empty();
     }
 
 }

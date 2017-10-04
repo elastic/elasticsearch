@@ -22,6 +22,7 @@ package org.elasticsearch.transport.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.DecoderException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -32,6 +33,9 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Optional;
+
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class Netty4UtilsTests extends ESTestCase {
 
@@ -73,6 +77,55 @@ public class Netty4UtilsTests extends ESTestCase {
             assertTrue(buffer instanceof CompositeByteBuf);
         }
         assertArrayEquals(BytesReference.toBytes(ref), BytesReference.toBytes(bytesReference));
+    }
+
+    public void testMaybeError() {
+        final Error outOfMemoryError = new OutOfMemoryError();
+        assertError(outOfMemoryError, outOfMemoryError);
+
+        final DecoderException decoderException = new DecoderException(outOfMemoryError);
+        assertError(decoderException, outOfMemoryError);
+
+        final Exception e = new Exception();
+        e.addSuppressed(decoderException);
+        assertError(e, outOfMemoryError);
+
+        final int depth = randomIntBetween(1, 16);
+        Exception nested = new Exception();
+        boolean fatal = false;
+        Error error = null;
+        for (int i = 0; i < depth; i++) {
+            final int length = randomIntBetween(1, 4);
+            for (int j = 0; j < length; j++) {
+                if (!fatal && rarely()) {
+                    error = outOfMemoryError;
+                    nested.addSuppressed(error);
+                    fatal = true;
+                } else {
+                    nested.addSuppressed(new Exception());
+                }
+            }
+            if (!fatal && rarely()) {
+                error = new Error(nested);
+                nested = new Exception(error);
+                fatal = true;
+            } else {
+                nested = new Exception(nested);
+            }
+        }
+        if (fatal) {
+            assertError(nested, error);
+        } else {
+            assertFalse(Netty4Utils.maybeError(nested).isPresent());
+        }
+
+        assertFalse(Netty4Utils.maybeError(new Exception(new DecoderException())).isPresent());
+    }
+
+    private void assertError(final Throwable cause, final Error error) {
+        final Optional<Error> maybeError = Netty4Utils.maybeError(cause);
+        assertTrue(maybeError.isPresent());
+        assertThat(maybeError.get(), equalTo(error));
     }
 
     private BytesReference getRandomizedBytesReference(int length) throws IOException {

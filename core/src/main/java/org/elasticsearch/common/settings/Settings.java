@@ -366,60 +366,57 @@ public final class Settings implements ToXContentFragment {
     }
 
     /**
-     * The values associated with a setting prefix as an array. The settings array is in the format of:
-     * <tt>settingPrefix.[index]</tt>.
+     * The values associated with a setting key as an array.
      * <p>
      * It will also automatically load a comma separated list under the settingPrefix and merge with
      * the numbered format.
      *
-     * @param settingPrefix The setting prefix to load the array by
+     * @param key The setting prefix to load the array by
      * @return The setting array values
      */
-    public String[] getAsArray(String settingPrefix) throws SettingsException {
-        return getAsArray(settingPrefix, Strings.EMPTY_ARRAY, true);
+    public String[] getAsArray(String key) throws SettingsException {
+        return getAsArray(key, Strings.EMPTY_ARRAY, true);
     }
 
     /**
-     * The values associated with a setting prefix as an array. The settings array is in the format of:
-     * <tt>settingPrefix.[index]</tt>.
+     * The values associated with a setting key as an array.
      * <p>
      * If commaDelimited is true, it will automatically load a comma separated list under the settingPrefix and merge with
      * the numbered format.
      *
-     * @param settingPrefix The setting prefix to load the array by
+     * @param key The setting key to load the array by
      * @return The setting array values
      */
-    public String[] getAsArray(String settingPrefix, String[] defaultArray) throws SettingsException {
-        return getAsArray(settingPrefix, defaultArray, true);
+    public String[] getAsArray(String key, String[] defaultArray) throws SettingsException {
+        return getAsArray(key, defaultArray, true);
     }
 
     /**
-     * The values associated with a setting prefix as an array. The settings array is in the format of:
-     * <tt>settingPrefix.[index]</tt>.
+     * The values associated with a setting key as an array.
      * <p>
      * It will also automatically load a comma separated list under the settingPrefix and merge with
      * the numbered format.
      *
-     * @param settingPrefix  The setting prefix to load the array by
+     * @param key  The setting key to load the array by
      * @param defaultArray   The default array to use if no value is specified
      * @param commaDelimited Whether to try to parse a string as a comma-delimited value
      * @return The setting array values
      */
-    public String[] getAsArray(String settingPrefix, String[] defaultArray, Boolean commaDelimited) throws SettingsException {
+    public String[] getAsArray(String key, String[] defaultArray, Boolean commaDelimited) throws SettingsException {
         List<String> result = new ArrayList<>();
-        final Object valueFromPrefix = settings.get(settingPrefix);
+        final Object valueFromPrefix = settings.get(key);
         if (valueFromPrefix != null) {
             if (valueFromPrefix instanceof List) {
                 result =  ((List<String>) valueFromPrefix);
             } else if (commaDelimited) {
-                String[] strings = Strings.splitStringByCommaToArray(get(settingPrefix));
+                String[] strings = Strings.splitStringByCommaToArray(get(key));
                 if (strings.length > 0) {
                     for (String string : strings) {
                         result.add(string.trim());
                     }
                 }
             } else {
-                result.add(get(settingPrefix).trim());
+                result.add(get(key).trim());
             }
         }
 

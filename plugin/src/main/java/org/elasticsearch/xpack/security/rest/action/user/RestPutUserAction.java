@@ -58,7 +58,7 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         PutUserRequestBuilder requestBuilder = new SecurityClient(client)
-                .preparePutUser(request.param("username"), request.content(), request.getXContentType())
+                .preparePutUser(request.param("username"), request.requiredContent(), request.getXContentType())
                 .setRefreshPolicy(request.param("refresh"));
 
         return channel -> requestBuilder.execute(new RestBuilderListener<PutUserResponse>(channel) {

@@ -53,7 +53,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         new Setting<>("index.unassigned.node_left.delayed_timeout", (s) -> TimeValue.timeValueMinutes(1).getStringRep(), (s) -> {
             TimeValue parsedValue = TimeValue.parseTimeValue(s, "index.unassigned.node_left.delayed_timeout");
             if (parsedValue.getNanos() < 0) {
-                Settings.DeprecationLoggerHolder.deprecationLogger.deprecated("Negative values for index.unassigned.node_left.delayed_timeout are deprecated and will not be allowed in future.");
+                Settings.DeprecationLoggerHolder.deprecationLogger.deprecated(
+                    "Negative values for index.unassigned.node_left.delayed_timeout are deprecated and will not be allowed in future.");
             }
             return parsedValue;
         }, Property.Dynamic, Property.IndexScope);

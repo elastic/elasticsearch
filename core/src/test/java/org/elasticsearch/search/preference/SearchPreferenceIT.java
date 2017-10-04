@@ -66,7 +66,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         refresh();
         internalCluster().stopRandomDataNode();
         client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).execute().actionGet();
-        String[] preferences = new String[] {"_local", "_prefer_nodes:somenode", "_prefer_nodes:server2", "_prefer_nodes:somenode,server2"};
+        String[] preferences = new String[]{"_local", "_prefer_nodes:somenode", "_prefer_nodes:server2", "_prefer_nodes:somenode,server2"};
         for (String pref : preferences) {
             logger.info("--> Testing out preference={}", pref);
             SearchResponse searchResponse = client().prepareSearch().setSize(0).setPreference(pref).execute().actionGet();

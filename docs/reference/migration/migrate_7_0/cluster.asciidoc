@@ -11,3 +11,6 @@ cluster names may no longer contain `:`.
 The default value for the `wait_for_active_shards` parameter of the open index API
 is changed from 0 to 1, which means that the command will now by default wait for all
 primary shards of the opened index to be allocated.
+
+==== shard preferences `_primary`, `_primary_first`, `_replica`, and `_replica_first` are removed
+These shard preferences are removed in favour of the `_prefer_nodes` and `_only_nodes` preferences.

@@ -893,10 +893,17 @@ public final class Settings implements ToXContentFragment {
         }
 
         public Builder copy(String key, String sourceKey, Settings source) {
-            if (source.keySet().contains(sourceKey) == false) {
+            if (source.settings.containsKey(sourceKey) == false) {
                 throw new IllegalArgumentException("source key not found in the source settings");
             }
-            return put(key, source.get(sourceKey));
+            final Object value = source.settings.get(sourceKey);
+            if (value instanceof List) {
+                return putArray(key, (List)value);
+            } else if (value == null) {
+                return putNull(key);
+            } else {
+                return put(key, Settings.toString(value));
+            }
         }
 
         /**

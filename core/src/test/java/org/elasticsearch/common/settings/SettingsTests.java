@@ -709,4 +709,14 @@ public class SettingsTests extends ESTestCase {
         assertArrayEquals(build.getAsArray("foo.bar"), new String[] {"0", "1", "2", "3"});
         assertEquals(build.get("foo.bar.baz"), "baz");
     }
+
+    public void testCopy() {
+        Settings settings = Settings.builder().putArray("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").putNull("test").build();
+        assertArrayEquals(new String[] {"0", "1", "2", "3"}, Settings.builder().copy("foo.bar", settings).build().getAsArray("foo.bar"));
+        assertEquals("baz", Settings.builder().copy("foo.bar.baz", settings).build().get("foo.bar.baz"));
+        assertNull(Settings.builder().copy("foo.bar.baz", settings).build().get("test"));
+        assertTrue(Settings.builder().copy("test", settings).build().keySet().contains("test"));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Settings.builder().copy("not_there", settings));
+        assertEquals("source key not found in the source settings", iae.getMessage());
+    }
 }

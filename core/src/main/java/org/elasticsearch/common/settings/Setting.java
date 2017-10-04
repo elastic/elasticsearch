@@ -25,8 +25,6 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
@@ -81,8 +79,6 @@ import java.util.stream.Stream;
  * </pre>
  */
 public class Setting<T> implements ToXContentObject {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(Setting.class));
 
     public enum Property {
         /**
@@ -1066,8 +1062,7 @@ public class Setting<T> implements ToXContentObject {
         return new GroupSetting(key, validator, properties);
     }
 
-    public static Setting<TimeValue> timeSetting(String key, Function<Settings, TimeValue> defaultValue,
-                                                 TimeValue minValue,
+    public static Setting<TimeValue> timeSetting(String key, Function<Settings, TimeValue> defaultValue, TimeValue minValue,
                                                  Property... properties) {
         return new Setting<>(key, (s) -> defaultValue.apply(s).getStringRep(), (s) -> {
             TimeValue timeValue = TimeValue.parseTimeValue(s, null, key);
@@ -1092,16 +1087,6 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {
         return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), properties);
-    }
-
-    public static Setting<TimeValue> timeSettingWithNegativeValuesDeprecated(String key, TimeValue defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> defaultValue.getStringRep(), (s) -> {
-            TimeValue parsedValue = TimeValue.parseTimeValue(s, key);
-            if (parsedValue.getNanos() < 0) {
-                DEPRECATION_LOGGER.deprecated("Negative values for {} are deprecated and will not be allowed in future.", key);
-            }
-            return parsedValue;
-        }, properties);
     }
 
     public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, Property... properties) {

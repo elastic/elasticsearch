@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -50,9 +49,14 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
 
     public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING =
-        Setting.timeSettingWithNegativeValuesDeprecated(
-            "index.unassigned.node_left.delayed_timeout",
-            TimeValue.timeValueMinutes(1), Property.Dynamic, Property.IndexScope);
+        new Setting<>("index.unassigned.node_left.delayed_timeout", (s) -> TimeValue.timeValueMinutes(1).getStringRep(), (s) -> {
+            TimeValue parsedValue = TimeValue.parseTimeValue(s, "index.unassigned.node_left.delayed_timeout");
+            if (parsedValue.getNanos() < 0) {
+                Settings.DeprecationLoggerHolder.deprecationLogger.deprecated("Negative values for index.unassigned.node_left.delayed_timeout are deprecated and will not be allowed in future.");
+            }
+            return parsedValue;
+        }, Property.Dynamic, Property.IndexScope);
+
     /**
      * Reason why the shard is in unassigned state.
      * <p>

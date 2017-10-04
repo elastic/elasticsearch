@@ -551,8 +551,7 @@ public final class Settings implements ToXContentFragment {
                 Object value = in.readGenericValue();
                 if (value == null) {
                     builder.putNull(key);
-                }
-                if (value instanceof List) {
+                } else if (value instanceof List) {
                     builder.putArray(key, (List<String>) value);
                 } else {
                     builder.put(key, value.toString());

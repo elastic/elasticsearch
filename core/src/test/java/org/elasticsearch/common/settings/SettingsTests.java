@@ -474,13 +474,18 @@ public class SettingsTests extends ESTestCase {
         secureSettings.setString("test.key2.bog", "somethingsecure");
         Settings.Builder builder = Settings.builder();
         builder.put("test.key1.baz", "blah1");
+        builder.putNull("test.key3.bar");
+        builder.putArray("test.key4.foo", "1", "2");
         builder.setSecureSettings(secureSettings);
-        assertEquals(5, builder.build().size());
+        assertEquals(7, builder.build().size());
         Settings.writeSettingsToStream(builder.build(), out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         Settings settings = Settings.readSettingsFromStream(in);
-        assertEquals(1, settings.size());
+        assertEquals(3, settings.size());
         assertEquals("blah1", settings.get("test.key1.baz"));
+        assertNull(settings.get("test.key3.bar"));
+        assertTrue(settings.keySet().contains("test.key3.bar"));
+        assertArrayEquals(new String[] {"1", "2"}, settings.getAsArray("test.key4.foo"));
     }
 
     public void testSecureSettingConflict() {
@@ -666,12 +671,13 @@ public class SettingsTests extends ESTestCase {
     public void testWriteLegacyOutput() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(VersionUtils.getPreviousVersion(Version.CURRENT));
-        Settings settings = Settings.builder().putArray("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
+        Settings settings = Settings.builder().putArray("foo.bar", "0", "1", "2", "3")
+            .put("foo.bar.baz", "baz").putNull("foo.null").build();
         Settings.writeSettingsToStream(settings, output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
-        assertEquals(5, in.readVInt());
+        assertEquals(6, in.readVInt());
         Map<String, String> keyValues = new HashMap<>();
-        for (int i = 0; i < 5; i++){
+        for (int i = 0; i < 6; i++){
             keyValues.put(in.readString(), in.readOptionalString());
         }
         assertEquals(keyValues.get("foo.bar.0"), "0");
@@ -679,6 +685,17 @@ public class SettingsTests extends ESTestCase {
         assertEquals(keyValues.get("foo.bar.2"), "2");
         assertEquals(keyValues.get("foo.bar.3"), "3");
         assertEquals(keyValues.get("foo.bar.baz"), "baz");
+        assertTrue(keyValues.containsKey("foo.null"));
+        assertNull(keyValues.get("foo.null"));
+
+        in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
+        in.setVersion(output.getVersion());
+        Settings readSettings = Settings.readSettingsFromStream(in);
+        assertEquals(3, readSettings.size());
+        assertArrayEquals(new String[] {"0", "1", "2", "3"}, readSettings.getAsArray("foo.bar"));
+        assertEquals(readSettings.get("foo.bar.baz"), "baz");
+        assertTrue(readSettings.keySet().contains("foo.null"));
+        assertNull(readSettings.get("foo.null"));
     }
 
     public void testReadWriteArray() throws IOException {

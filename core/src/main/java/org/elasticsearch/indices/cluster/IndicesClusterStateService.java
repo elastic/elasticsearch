@@ -657,7 +657,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     private synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
-        failAndRemoveShard(shardRouting, sendShardFailure, "failed recovery [" + ExceptionsHelper.rootCauseMessage(failure) + "]", failure, clusterService.state());
+        failAndRemoveShard(shardRouting, sendShardFailure,
+            "failed recovery [" + ExceptionsHelper.rootCauseMessage(failure) + "]",
+            failure, clusterService.state());
     }
 
     private void failAndRemoveShard(ShardRouting shardRouting, boolean sendShardFailure, String message, @Nullable Exception failure,

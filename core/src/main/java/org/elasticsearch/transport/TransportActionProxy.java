@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +25,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * TransportActionProxy allows an arbitrary action to be executed on a defined target node while the initial request is sent to a second
@@ -40,19 +41,21 @@ public final class TransportActionProxy {
 
         private final TransportService service;
         private final String action;
-        private final Supplier<TransportResponse> responseFactory;
+        private final Function<TransportRequest, Supplier<TransportResponse>> responseFunction;
 
-        ProxyRequestHandler(TransportService service, String action, Supplier<TransportResponse> responseFactory) {
+        ProxyRequestHandler(TransportService service, String action, Function<TransportRequest,
+                Supplier<TransportResponse>> responseFunction) {
             this.service = service;
             this.action = action;
-            this.responseFactory = responseFactory;
+            this.responseFunction = responseFunction;
         }
 
         @Override
         public void messageReceived(T request, TransportChannel channel) throws Exception {
             DiscoveryNode targetNode = request.targetNode;
             TransportRequest wrappedRequest = request.wrapped;
-            service.sendRequest(targetNode, action, wrappedRequest, new ProxyResponseHandler<>(channel, responseFactory));
+            service.sendRequest(targetNode, action, wrappedRequest,
+                    new ProxyResponseHandler<>(channel, responseFunction.apply(wrappedRequest)));
         }
     }
 
@@ -126,12 +129,24 @@ public final class TransportActionProxy {
     }
 
     /**
-     * Registers a proxy request handler that allows to forward requests for the given action to another node.
+     * Registers a proxy request handler that allows to forward requests for the given action to another node. To be used when the
+     * response type changes based on the upcoming request (quite rare)
+     */
+    public static void registerProxyAction(TransportService service, String action,
+                                           Function<TransportRequest, Supplier<TransportResponse>> responseFunction) {
+        RequestHandlerRegistry requestHandler = service.getRequestHandler(action);
+        service.registerRequestHandler(getProxyAction(action), () -> new ProxyRequest(requestHandler::newRequest), ThreadPool.Names.SAME,
+            true, false, new ProxyRequestHandler<>(service, action, responseFunction));
+    }
+
+    /**
+     * Registers a proxy request handler that allows to forward requests for the given action to another node. To be used when the
+     * response type is always the same (most of the cases).
      */
     public static void registerProxyAction(TransportService service, String action, Supplier<TransportResponse> responseSupplier) {
         RequestHandlerRegistry requestHandler = service.getRequestHandler(action);
         service.registerRequestHandler(getProxyAction(action), () -> new ProxyRequest(requestHandler::newRequest), ThreadPool.Names.SAME,
-            true, false, new ProxyRequestHandler<>(service, action, responseSupplier));
+                true, false, new ProxyRequestHandler<>(service, action, request -> responseSupplier));
     }
 
     private static final String PROXY_ACTION_PREFIX = "internal:transport/proxy/";

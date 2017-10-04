@@ -39,6 +39,7 @@ import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -297,8 +298,9 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(new SearchFreeContextResponse(freed));
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME, SearchFreeContextResponse::new);
-        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, SearchFreeContextRequest::new, ThreadPool.Names.SAME,
+        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME,
+                (Supplier<TransportResponse>) SearchFreeContextResponse::new);
+        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME,  SearchFreeContextRequest::new, ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<SearchFreeContextRequest>() {
                 @Override
                 public void messageReceived(SearchFreeContextRequest request, TransportChannel channel, Task task) throws Exception {
@@ -306,7 +308,8 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(new SearchFreeContextResponse(freed));
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, SearchFreeContextResponse::new);
+        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME,
+                (Supplier<TransportResponse>) SearchFreeContextResponse::new);
         transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, () -> TransportRequest.Empty.INSTANCE,
             ThreadPool.Names.SAME, new TaskAwareTransportRequestHandler<TransportRequest.Empty>() {
                 @Override
@@ -316,7 +319,7 @@ public class SearchTransportService extends AbstractComponent {
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
-            () -> TransportResponse.Empty.INSTANCE);
+                () -> TransportResponse.Empty.INSTANCE);
 
         transportService.registerRequestHandler(DFS_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
@@ -371,7 +374,8 @@ public class SearchTransportService extends AbstractComponent {
                     });
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_ACTION_NAME, QuerySearchResult::new);
+        TransportActionProxy.registerProxyAction(transportService, QUERY_ACTION_NAME,
+                (request) -> ((ShardSearchRequest)request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, QuerySearchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<QuerySearchRequest>() {
@@ -432,7 +436,8 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(new CanMatchResponse(canMatch));
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, CanMatchResponse::new);
+        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME,
+                (Supplier<TransportResponse>) CanMatchResponse::new);
     }
 
     public static final class CanMatchResponse extends SearchPhaseResult {

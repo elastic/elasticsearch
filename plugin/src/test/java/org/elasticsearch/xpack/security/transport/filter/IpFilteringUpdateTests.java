@@ -81,8 +81,8 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         assertThat(clusterState.metaData().settings().get("xpack.security.transport.filter.allow"), is("127.0.0.1"));
         assertThat(clusterState.metaData().settings().get("xpack.security.transport.filter.deny"), is("127.0.0.8"));
-        assertThat(clusterState.metaData().settings().get("xpack.security.http.filter.allow.0"), is("127.0.0.1"));
-        assertThat(clusterState.metaData().settings().get("xpack.security.http.filter.deny.0"), is("127.0.0.8"));
+        assertArrayEquals(new String[] {"127.0.0.1"},clusterState.metaData().settings().getAsArray("xpack.security.http.filter.allow"));
+        assertArrayEquals(new String[] {"127.0.0.8"},clusterState.metaData().settings().getAsArray("xpack.security.http.filter.deny"));
         assertThat(clusterState.metaData().settings().get("transport.profiles.client.xpack.security.filter.allow"), is("127.0.0.1"));
         assertThat(clusterState.metaData().settings().get("transport.profiles.client.xpack.security.filter.deny"), is("127.0.0.8"));
 
@@ -99,8 +99,8 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         clusterState = client().admin().cluster().prepareState().get().getState();
         assertThat(clusterState.metaData().settings().get("xpack.security.transport.filter.allow"), is("127.0.0.1"));
         assertThat(clusterState.metaData().settings().get("xpack.security.transport.filter.deny"), is("127.0.0.8"));
-        assertThat(clusterState.metaData().settings().get("xpack.security.http.filter.allow.0"), is("127.0.0.1"));
-        assertThat(clusterState.metaData().settings().get("xpack.security.http.filter.deny.0"), is("127.0.0.8"));
+        assertArrayEquals(new String[] {"127.0.0.1"},clusterState.metaData().settings().getAsArray("xpack.security.http.filter.allow"));
+        assertArrayEquals(new String[] {"127.0.0.8"},clusterState.metaData().settings().getAsArray("xpack.security.http.filter.deny"));
         assertThat(clusterState.metaData().settings().get("transport.profiles.client.xpack.security.filter.allow"), is("127.0.0.1"));
         assertThat(clusterState.metaData().settings().get("transport.profiles.client.xpack.security.filter.deny"), is("127.0.0.8"));
 

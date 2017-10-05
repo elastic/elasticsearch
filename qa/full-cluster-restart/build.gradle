@@ -136,6 +136,10 @@ subprojects {
       clusterName = 'full-cluster-restart'
       setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       waitCondition = waitWithAuth
+
+      // some tests rely on the translog not being flushed
+      setting 'indices.memory.shard_inactive_time', '20m'
+
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.ssl.keystore.password', 'testnode'
@@ -179,6 +183,10 @@ subprojects {
       cleanShared = false // We want to keep snapshots made by the old cluster!
       setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       waitCondition = waitWithAuth
+
+      // some tests rely on the translog not being flushed
+      setting 'indices.memory.shard_inactive_time', '20m'
+
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
       dependsOn copyTestNodeKeystore

@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TcpHeader;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportStatus;
 
 import java.io.IOException;
@@ -74,7 +75,14 @@ final class ESLoggingHandler extends LoggingHandler {
             final int offset = arg.readerIndex();
             // this might be an ES message, check the header
             if (arg.getByte(offset) == (byte) 'E' && arg.getByte(offset + 1) == (byte) 'S') {
-                if (readableBytes >= TcpHeader.HEADER_SIZE) {
+                if (readableBytes == TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE) {
+                    final int length = arg.getInt(offset + MESSAGE_LENGTH_OFFSET);
+                    if (length == TcpTransport.PING_DATA_SIZE) {
+                        sb.append(" [ping]").append(' ').append(eventName).append(": ").append(readableBytes).append('B');
+                        return sb.toString();
+                    }
+                }
+                else if (readableBytes >= TcpHeader.HEADER_SIZE) {
                     // we are going to try to decode this as an ES message
                     final int length = arg.getInt(offset + MESSAGE_LENGTH_OFFSET);
                     final long requestId = arg.getLong(offset + REQUEST_ID_OFFSET);

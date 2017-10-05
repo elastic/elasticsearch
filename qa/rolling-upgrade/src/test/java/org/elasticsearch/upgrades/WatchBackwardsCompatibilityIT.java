@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -43,9 +43,7 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -315,12 +313,6 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
             assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
             assertThat(responseBody, not(containsString("\"watcher_state\":\"stopped\"")));
         }));
-    }
-
-    private void assertOK(Response response) throws IOException {
-        assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
-        String responseBody = EntityUtils.toString(response.getEntity());
-        logger.info("assertOk: [{}]", responseBody);
     }
 
     private Nodes buildNodeAndVersions() throws IOException {

@@ -38,6 +38,8 @@ import org.hamcrest.CoreMatchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.StringBufferInputStream;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -687,6 +689,15 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.getAsArray("test1.test3").length, equalTo(2));
         assertThat(settings.getAsArray("test1.test3")[0], equalTo("test3-1"));
         assertThat(settings.getAsArray("test1.test3")[1], equalTo("test3-2"));
+    }
+
+    public void testYamlLegacyList() throws IOException {
+        Settings settings = Settings.builder()
+            .loadFromStream("foo.yml", new ByteArrayInputStream("foo.bar.baz.0: 1\nfoo.bar.baz.1: 2".getBytes(StandardCharsets.UTF_8)),
+                false).build();
+        assertThat(settings.getAsArray("foo.bar.baz").length, equalTo(2));
+        assertThat(settings.getAsArray("foo.bar.baz")[0], equalTo("1"));
+        assertThat(settings.getAsArray("foo.bar.baz")[1], equalTo("2"));
     }
 
     public void testIndentation() throws Exception {

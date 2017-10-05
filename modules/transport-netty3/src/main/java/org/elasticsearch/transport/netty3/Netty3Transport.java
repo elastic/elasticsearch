@@ -488,7 +488,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
             } else {
                 final Throwable cause = f.getCause();
                 Netty3Utils.maybeDie(cause);
-                logger.error("write and flush on the network layer failed", cause);
+                logger.warn("write and flush on the network layer failed", cause);
                 assert cause instanceof Exception;
                 listener.onFailure((Exception) cause);
             }

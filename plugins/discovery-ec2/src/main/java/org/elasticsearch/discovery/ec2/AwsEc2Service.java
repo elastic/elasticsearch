@@ -115,8 +115,8 @@ interface AwsEc2Service {
      * instances with a tag key set to stage, and a value of dev. Several tags set will require all of those tags to be set for the
      * instance to be included.
      */
-    Setting.AffixSetting<String> TAG_SETTING = Setting.prefixKeySetting("discovery.ec2.tag.",
-        key -> Setting.simpleString(key, Property.NodeScope));
+    Setting.AffixSetting<List<String>> TAG_SETTING = Setting.prefixKeySetting("discovery.ec2.tag.",
+        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope));
 
     AmazonEC2 client();
 }

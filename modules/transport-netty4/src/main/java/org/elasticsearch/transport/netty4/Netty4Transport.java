@@ -408,8 +408,8 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
-            ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             ch.pipeline().addLast("logging", new ESLoggingHandler());
+            ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             // using a dot as a prefix means this cannot come from any settings parsed
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, ".client"));
         }
@@ -432,9 +432,9 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("open_channels", Netty4Transport.this.serverOpenChannels);
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
-            ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, name));
         }
 

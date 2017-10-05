@@ -36,29 +36,46 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
     public void setUp() throws Exception {
         super.setUp();
         appender = new MockLogAppender();
-        appender.start();
         Loggers.addAppender(Loggers.getLogger(ESLoggingHandler.class), appender);
+        appender.start();
     }
 
     public void tearDown() throws Exception {
-        appender.stop();
         Loggers.removeAppender(Loggers.getLogger(ESLoggingHandler.class), appender);
+        appender.stop();
         super.tearDown();
     }
 
     public void testLoggingHandler() throws IllegalAccessException {
-        final String pattern =
+        final String writePattern =
                 ".*\\[length: \\d+" +
                         ", request id: \\d+" +
                         ", type: request" +
                         ", version: .*" +
                         ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]" +
                         " WRITE: \\d+B";
-        final MockLogAppender.LoggingExpectation expectation =
+        final MockLogAppender.LoggingExpectation writeExpectation =
                 new MockLogAppender.PatternSeenEventExcpectation(
-                        "hot threads request", ESLoggingHandler.class.getCanonicalName(), Level.TRACE, pattern);
+                        "hot threads request", ESLoggingHandler.class.getCanonicalName(), Level.TRACE, writePattern);
 
-        appender.addExpectation(expectation);
+        final MockLogAppender.LoggingExpectation flushExpectation =
+                new MockLogAppender.SeenEventExpectation("flush", ESLoggingHandler.class.getCanonicalName(), Level.TRACE, "*FLUSH*");
+
+        final String readPattern =
+                ".*\\[length: \\d+" +
+                        ", request id: \\d+" +
+                        ", type: request" +
+                        ", version: .*" +
+                        ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]" +
+                        " READ: \\d+B";
+
+        final MockLogAppender.LoggingExpectation readExpectation =
+                new MockLogAppender.PatternSeenEventExcpectation(
+                        "hot threads request", ESLoggingHandler.class.getCanonicalName(), Level.TRACE, readPattern);
+
+        appender.addExpectation(writeExpectation);
+        appender.addExpectation(flushExpectation);
+        appender.addExpectation(readExpectation);
         client().admin().cluster().nodesHotThreads(new NodesHotThreadsRequest()).actionGet();
         appender.assertAllExpectationsMatched();
     }

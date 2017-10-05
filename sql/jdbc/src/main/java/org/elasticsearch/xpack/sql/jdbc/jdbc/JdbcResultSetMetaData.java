@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
+
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Locale;
-
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 
 import static java.lang.String.format;
 
@@ -137,7 +137,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        return column(column).type.getName(); // NOCOMMIT this is almost certainly wrong.
+        return JdbcUtils.classOf(column(column).type.getVendorTypeNumber()).getName();
     }
 
     private void checkOpen() throws SQLException {

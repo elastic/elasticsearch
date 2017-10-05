@@ -49,7 +49,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
@@ -60,7 +59,6 @@ import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder.BucketsQuery;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
@@ -92,15 +90,6 @@ import java.util.function.Supplier;
 
 public class JobProvider {
     private static final Logger LOGGER = Loggers.getLogger(JobProvider.class);
-
-    private static final List<String> SECONDARY_SORT = Arrays.asList(
-            AnomalyRecord.RECORD_SCORE.getPreferredName(),
-            AnomalyRecord.OVER_FIELD_VALUE.getPreferredName(),
-            AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(),
-            AnomalyRecord.BY_FIELD_VALUE.getPreferredName(),
-            AnomalyRecord.FIELD_NAME.getPreferredName(),
-            AnomalyRecord.FUNCTION.getPreferredName()
-    );
 
     private static final int RECORDS_SIZE_PARAM = 10000;
     private static final int BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE = 20;
@@ -449,7 +438,7 @@ public class JobProvider {
      * Search for buckets with the parameters in the {@link BucketsQueryBuilder}
      * Uses the internal client, so runs as the _xpack user
      */
-    public void bucketsViaInternalClient(String jobId, BucketsQuery query, Consumer<QueryPage<Bucket>> handler,
+    public void bucketsViaInternalClient(String jobId, BucketsQueryBuilder query, Consumer<QueryPage<Bucket>> handler,
                                          Consumer<Exception> errorHandler) {
         buckets(jobId, query, handler, errorHandler, client);
     }
@@ -458,62 +447,28 @@ public class JobProvider {
      * Search for buckets with the parameters in the {@link BucketsQueryBuilder}
      * Uses a supplied client, so may run as the currently authenticated user
      */
-    public void buckets(String jobId, BucketsQuery query, Consumer<QueryPage<Bucket>> handler, Consumer<Exception> errorHandler,
+    public void buckets(String jobId, BucketsQueryBuilder query, Consumer<QueryPage<Bucket>> handler, Consumer<Exception> errorHandler,
                         Client client) throws ResourceNotFoundException {
 
-        ResultsFilterBuilder rfb = new ResultsFilterBuilder();
-        if (query.getTimestamp() != null) {
-            rfb.timeRange(Result.TIMESTAMP.getPreferredName(), query.getTimestamp());
-        } else {
-            rfb.timeRange(Result.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
-                    .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
-                    .interim(query.isIncludeInterim());
-        }
-
-        SortBuilder<?> sortBuilder = new FieldSortBuilder(query.getSortField())
-                .order(query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
-
-        QueryBuilder boolQuery = new BoolQueryBuilder()
-                .filter(rfb.build())
-                .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Bucket.RESULT_TYPE_VALUE));
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         SearchRequest searchRequest = new SearchRequest(indexName);
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.sort(sortBuilder);
-        searchSourceBuilder.query(boolQuery);
-        searchSourceBuilder.from(query.getFrom());
-        searchSourceBuilder.size(query.getSize());
-        // If not using the default sort field (timestamp) add it as a secondary sort
-        if (Result.TIMESTAMP.getPreferredName().equals(query.getSortField()) == false) {
-            searchSourceBuilder.sort(Result.TIMESTAMP.getPreferredName(), query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
-        }
-        searchRequest.source(searchSourceBuilder);
+        searchRequest.source(query.build());
         searchRequest.indicesOptions(addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
 
         client.search(searchRequest, ActionListener.wrap(searchResponse -> {
             SearchHits hits = searchResponse.getHits();
-            if (query.getTimestamp() != null) {
-                if (hits.getTotalHits() == 0) {
-                    throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
-                } else if (hits.getTotalHits() > 1) {
-                    LOGGER.error("Found more than one bucket with timestamp [{}] from index {}", query.getTimestamp(), indexName);
-                }
-            }
-
             List<Bucket> results = new ArrayList<>();
             for (SearchHit hit : hits.getHits()) {
                 BytesReference source = hit.getSourceRef();
                 try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
                     Bucket bucket = Bucket.PARSER.apply(parser, null);
-                    if (query.isIncludeInterim() || bucket.isInterim() == false) {
-                        results.add(bucket);
-                    }
+                    results.add(bucket);
                 } catch (IOException e) {
                     throw new ElasticsearchParseException("failed to parse bucket", e);
                 }
             }
 
-            if (query.getTimestamp() != null && results.isEmpty()) {
+            if (query.hasTimestamp() && results.isEmpty()) {
                 throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
             }
 
@@ -529,11 +484,11 @@ public class JobProvider {
         }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetBucketsAction.NAME))));
     }
 
-    private void expandBuckets(String jobId, BucketsQuery query, QueryPage<Bucket> buckets, Iterator<Bucket> bucketsToExpand,
+    private void expandBuckets(String jobId, BucketsQueryBuilder query, QueryPage<Bucket> buckets, Iterator<Bucket> bucketsToExpand,
                                Consumer<QueryPage<Bucket>> handler, Consumer<Exception> errorHandler, Client client) {
         if (bucketsToExpand.hasNext()) {
             Consumer<Integer> c = i -> expandBuckets(jobId, query, buckets, bucketsToExpand, handler, errorHandler, client);
-            expandBucket(jobId, query.isIncludeInterim(), bucketsToExpand.next(), query.getPartitionValue(), c, errorHandler, client);
+            expandBucket(jobId, query.isIncludeInterim(), bucketsToExpand.next(), c, errorHandler, client);
         } else {
             handler.accept(buckets);
         }
@@ -569,43 +524,33 @@ public class JobProvider {
     // This now gets the first 10K records for a bucket. The rate of records per bucket
     // is controlled by parameter in the c++ process and its default value is 500. Users may
     // change that. Issue elastic/machine-learning-cpp#73 is open to prevent this.
-    public void expandBucket(String jobId, boolean includeInterim, Bucket bucket, String partitionFieldValue,
-                             Consumer<Integer> consumer, Consumer<Exception> errorHandler, Client client) {
+    public void expandBucket(String jobId, boolean includeInterim, Bucket bucket, Consumer<Integer> consumer,
+                             Consumer<Exception> errorHandler, Client client) {
         Consumer<QueryPage<AnomalyRecord>> h = page -> {
             bucket.getRecords().addAll(page.results());
-            if (partitionFieldValue != null) {
-                bucket.setAnomalyScore(bucket.partitionAnomalyScore(partitionFieldValue));
-            }
             consumer.accept(bucket.getRecords().size());
         };
         bucketRecords(jobId, bucket, 0, RECORDS_SIZE_PARAM, includeInterim, AnomalyRecord.PROBABILITY.getPreferredName(),
-                false, partitionFieldValue, h, errorHandler, client);
+                false, h, errorHandler, client);
     }
 
     void bucketRecords(String jobId, Bucket bucket, int from, int size, boolean includeInterim, String sortField,
-                       boolean descending, String partitionFieldValue, Consumer<QueryPage<AnomalyRecord>> handler,
+                       boolean descending, Consumer<QueryPage<AnomalyRecord>> handler,
                        Consumer<Exception> errorHandler, Client client) {
         // Find the records using the time stamp rather than a parent-child
         // relationship.  The parent-child filter involves two queries behind
         // the scenes, and Elasticsearch documentation claims it's significantly
         // slower.  Here we rely on the record timestamps being identical to the
         // bucket timestamp.
-        QueryBuilder recordFilter = QueryBuilders.termQuery(Result.TIMESTAMP.getPreferredName(), bucket.getTimestamp().getTime());
+        RecordsQueryBuilder recordsQueryBuilder = new RecordsQueryBuilder()
+                .timestamp(bucket.getTimestamp())
+                .from(from)
+                .size(size)
+                .includeInterim(includeInterim)
+                .sortField(sortField)
+                .sortDescending(descending);
 
-        ResultsFilterBuilder builder = new ResultsFilterBuilder(recordFilter).interim(includeInterim);
-        if (partitionFieldValue != null) {
-            builder.term(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(), partitionFieldValue);
-        }
-        recordFilter = builder.build();
-
-        FieldSortBuilder sb = null;
-        if (sortField != null) {
-            sb = new FieldSortBuilder(sortField)
-                    .missing("_last")
-                    .order(descending ? SortOrder.DESC : SortOrder.ASC);
-        }
-
-        records(jobId, from, size, recordFilter, sb, SECONDARY_SORT, descending, handler, errorHandler, client);
+        records(jobId, recordsQueryBuilder, handler, errorHandler, client);
     }
 
     /**
@@ -659,55 +604,19 @@ public class JobProvider {
 
     /**
      * Search for anomaly records with the parameters in the
-     * {@link org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder.RecordsQuery}
+     * {@link org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder}
      * Uses a supplied client, so may run as the currently authenticated user
      */
-    public void records(String jobId, RecordsQueryBuilder.RecordsQuery query, Consumer<QueryPage<AnomalyRecord>> handler,
-                        Consumer<Exception> errorHandler, Client client) {
-        QueryBuilder fb = new ResultsFilterBuilder()
-                .timeRange(Result.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
-                .score(AnomalyRecord.RECORD_SCORE.getPreferredName(), query.getRecordScoreThreshold())
-                .interim(query.isIncludeInterim())
-                .term(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(), query.getPartitionFieldValue()).build();
-        FieldSortBuilder sb = null;
-        if (query.getSortField() != null) {
-            sb = new FieldSortBuilder(query.getSortField())
-                    .missing("_last")
-                    .order(query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
-        }
-        records(jobId, query.getFrom(), query.getSize(), fb, sb, SECONDARY_SORT, query.isSortDescending(), handler, errorHandler, client);
-    }
-
-    /**
-     * The returned records have their id set.
-     */
-    private void records(String jobId, int from, int size,
-                         QueryBuilder recordFilter, FieldSortBuilder sb, List<String> secondarySort,
-                         boolean descending, Consumer<QueryPage<AnomalyRecord>> handler,
+    public void records(String jobId, RecordsQueryBuilder recordsQueryBuilder, Consumer<QueryPage<AnomalyRecord>> handler,
                          Consumer<Exception> errorHandler, Client client) {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
 
-        recordFilter = new BoolQueryBuilder()
-                .filter(recordFilter)
-                .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), AnomalyRecord.RESULT_TYPE_VALUE));
-
+        SearchSourceBuilder searchSourceBuilder = recordsQueryBuilder.build();
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.indicesOptions(addIgnoreUnavailable(searchRequest.indicesOptions()));
-        searchRequest.source(new SearchSourceBuilder()
-                .from(from)
-                .size(size)
-                .query(recordFilter)
-                .sort(sb == null ? SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC) : sb)
-                .fetchSource(true)
-        );
+        searchRequest.source(recordsQueryBuilder.build());
 
-        for (String sortField : secondarySort) {
-            searchRequest.source().sort(sortField, descending ? SortOrder.DESC : SortOrder.ASC);
-        }
-
-        LOGGER.trace("ES API CALL: search all of records from index {}{}{} with filter after sort from {} size {}",
-                indexName, (sb != null) ? " with sort" : "",
-                secondarySort.isEmpty() ? "" : " with secondary sort", from, size);
+        LOGGER.trace("ES API CALL: search all of records from index {} with query {}", indexName, searchSourceBuilder);
         client.search(searchRequest, ActionListener.wrap(searchResponse -> {
             List<AnomalyRecord> results = new ArrayList<>();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -1015,11 +924,10 @@ public class JobProvider {
 
         // Step 1. Find the time span of the most recent N bucket results, where N is the number of buckets
         //         required to consider memory usage "established"
-        BucketsQueryBuilder.BucketsQuery bucketQuery = new BucketsQueryBuilder()
+        BucketsQueryBuilder bucketQuery = new BucketsQueryBuilder()
                 .sortField(Result.TIMESTAMP.getPreferredName())
                 .sortDescending(true).from(BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE - 1).size(1)
-                .includeInterim(false)
-                .build();
+                .includeInterim(false);
         bucketsViaInternalClient(jobId, bucketQuery, bucketHandler, e -> {
             if (e instanceof ResourceNotFoundException) {
                 handler.accept(null);

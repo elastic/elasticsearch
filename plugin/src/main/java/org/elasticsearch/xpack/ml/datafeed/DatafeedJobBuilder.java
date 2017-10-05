@@ -83,11 +83,10 @@ public class DatafeedJobBuilder {
         };
 
         // Step 1. Collect latest bucket
-        BucketsQueryBuilder.BucketsQuery latestBucketQuery = new BucketsQueryBuilder()
+        BucketsQueryBuilder latestBucketQuery = new BucketsQueryBuilder()
                 .sortField(Result.TIMESTAMP.getPreferredName())
                 .sortDescending(true).size(1)
-                .includeInterim(false)
-                .build();
+                .includeInterim(false);
         jobProvider.bucketsViaInternalClient(job.getId(), latestBucketQuery, bucketsHandler, e -> {
             if (e instanceof ResourceNotFoundException) {
                 QueryPage<Bucket> empty = new QueryPage<>(Collections.emptyList(), 0, Bucket.RESULT_TYPE_FIELD);

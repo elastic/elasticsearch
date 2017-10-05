@@ -410,7 +410,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
                 query.start(request.start);
                 query.end(request.end);
             }
-            jobProvider.buckets(request.jobId, query.build(), q -> listener.onResponse(new Response(q)), listener::onFailure, client);
+            jobProvider.buckets(request.jobId, query, q -> listener.onResponse(new Response(q)), listener::onFailure, client);
         }
     }
 

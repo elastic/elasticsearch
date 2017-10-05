@@ -72,7 +72,6 @@ import static org.mockito.Mockito.when;
 
 public class JobProviderTests extends ESTestCase {
     private static final String CLUSTER_NAME = "myCluster";
-    private static final String JOB_ID = "foo";
 
     @SuppressWarnings("unchecked")
     public void testCreateJobResultsIndex() {
@@ -253,7 +252,7 @@ public class JobProviderTests extends ESTestCase {
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<Bucket>[] holder = new QueryPage[1];
-        provider.buckets(jobId, bq.build(), r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
+        provider.buckets(jobId, bq, r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
         QueryPage<Bucket> buckets = holder[0];
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
@@ -288,7 +287,7 @@ public class JobProviderTests extends ESTestCase {
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<Bucket>[] holder = new QueryPage[1];
-        provider.buckets(jobId, bq.build(), r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
+        provider.buckets(jobId, bq, r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
         QueryPage<Bucket> buckets = holder[0];
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
@@ -325,7 +324,7 @@ public class JobProviderTests extends ESTestCase {
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<Bucket>[] holder = new QueryPage[1];
-        provider.buckets(jobId, bq.build(), r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
+        provider.buckets(jobId, bq, r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
         QueryPage<Bucket> buckets = holder[0];
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
@@ -334,7 +333,7 @@ public class JobProviderTests extends ESTestCase {
         assertFalse(queryString.matches("(?s).*is_interim.*"));
     }
 
-    public void testBucket_NoBucketNoExpandNoInterim()
+    public void testBucket_NoBucketNoExpand()
             throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentification";
         Long timestamp = 98765432123456789L;
@@ -348,11 +347,11 @@ public class JobProviderTests extends ESTestCase {
         BucketsQueryBuilder bq = new BucketsQueryBuilder();
         bq.timestamp(Long.toString(timestamp));
         Exception[] holder = new Exception[1];
-        provider.buckets(jobId, bq.build(), q -> {}, e -> holder[0] = e, client);
+        provider.buckets(jobId, bq, q -> {}, e -> holder[0] = e, client);
         assertEquals(ResourceNotFoundException.class, holder[0].getClass());
     }
 
-    public void testBucket_OneBucketNoExpandNoInterim()
+    public void testBucket_OneBucketNoExpand()
             throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentification";
         Date now = new Date();
@@ -373,35 +372,10 @@ public class JobProviderTests extends ESTestCase {
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<Bucket>[] bucketHolder = new QueryPage[1];
-        provider.buckets(jobId, bq.build(), q -> bucketHolder[0] = q, e -> {}, client);
+        provider.buckets(jobId, bq, q -> bucketHolder[0] = q, e -> {}, client);
         assertThat(bucketHolder[0].count(), equalTo(1L));
         Bucket b = bucketHolder[0].results().get(0);
         assertEquals(now, b.getTimestamp());
-    }
-
-    public void testBucket_OneBucketNoExpandInterim()
-            throws InterruptedException, ExecutionException, IOException {
-        String jobId = "TestJobIdentification";
-        Date now = new Date();
-        List<Map<String, Object>> source = new ArrayList<>();
-
-        Map<String, Object> map = new HashMap<>();
-        map.put("job_id", "foo");
-        map.put("timestamp", now.getTime());
-        map.put("bucket_span", 22);
-        map.put("is_interim", true);
-        source.add(map);
-
-        SearchResponse response = createSearchResponse(source);
-        Client client = getMockedClient(queryBuilder -> {}, response);
-        JobProvider provider = createProvider(client);
-
-        BucketsQueryBuilder bq = new BucketsQueryBuilder();
-        bq.timestamp(Long.toString(now.getTime()));
-
-        Exception[] holder = new Exception[1];
-        provider.buckets(jobId, bq.build(), q -> {}, e -> holder[0] = e, client);
-        assertEquals(ResourceNotFoundException.class, holder[0].getClass());
     }
 
     public void testRecords() throws InterruptedException, ExecutionException, IOException {
@@ -439,7 +413,7 @@ public class JobProviderTests extends ESTestCase {
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
-        provider.records(jobId, rqb.build(), page -> holder[0] = page, RuntimeException::new, client);
+        provider.records(jobId, rqb, page -> holder[0] = page, RuntimeException::new, client);
         QueryPage<AnomalyRecord> recordPage = holder[0];
         assertEquals(2L, recordPage.count());
         List<AnomalyRecord> records = recordPage.results();
@@ -493,7 +467,7 @@ public class JobProviderTests extends ESTestCase {
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
-        provider.records(jobId, rqb.build(), page -> holder[0] = page, RuntimeException::new, client);
+        provider.records(jobId, rqb, page -> holder[0] = page, RuntimeException::new, client);
         QueryPage<AnomalyRecord> recordPage = holder[0];
         assertEquals(2L, recordPage.count());
         List<AnomalyRecord> records = recordPage.results();
@@ -538,7 +512,7 @@ public class JobProviderTests extends ESTestCase {
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
-        provider.bucketRecords(jobId, bucket, from, size, true, sortfield, true, "", page -> holder[0] = page, RuntimeException::new,
+        provider.bucketRecords(jobId, bucket, from, size, true, sortfield, true, page -> holder[0] = page, RuntimeException::new,
                 client);
         QueryPage<AnomalyRecord> recordPage = holder[0];
         assertEquals(2L, recordPage.count());
@@ -574,8 +548,7 @@ public class JobProviderTests extends ESTestCase {
         JobProvider provider = createProvider(client);
 
         Integer[] holder = new Integer[1];
-        provider.expandBucket(jobId, false, bucket, null, records -> holder[0] = records, RuntimeException::new,
-                client);
+        provider.expandBucket(jobId, false, bucket, records -> holder[0] = records, RuntimeException::new, client);
         int records = holder[0];
         assertEquals(400L, records);
     }

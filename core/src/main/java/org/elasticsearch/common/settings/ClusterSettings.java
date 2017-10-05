@@ -127,7 +127,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             Settings.Builder builder = Settings.builder();
             builder.put(current.filter(loggerPredicate));
             for (String key : previous.keySet()) {
-                if (loggerPredicate.test(key) && builder.internalMap().containsKey(key) == false) {
+                if (loggerPredicate.test(key) && builder.keys().contains(key) == false) {
                     if (ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
                         builder.putNull(key);
                     } else {

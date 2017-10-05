@@ -648,7 +648,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testReadLegacyFromStream() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(VersionUtils.getPreviousVersion(Version.CURRENT));
+        output.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
         output.writeVInt(5);
         output.writeString("foo.bar.1");
         output.writeOptionalString("1");
@@ -661,7 +661,7 @@ public class SettingsTests extends ESTestCase {
         output.writeString("foo.bar.baz");
         output.writeOptionalString("baz");
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
-        in.setVersion(VersionUtils.getPreviousVersion(Version.CURRENT));
+        in.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
         Settings settings = Settings.readSettingsFromStream(in);
         assertEquals(2, settings.size());
         assertArrayEquals(new String[]{"0", "1", "2", "3"}, settings.getAsArray("foo.bar"));
@@ -670,7 +670,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testWriteLegacyOutput() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(VersionUtils.getPreviousVersion(Version.CURRENT));
+        output.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
         Settings settings = Settings.builder().putArray("foo.bar", "0", "1", "2", "3")
             .put("foo.bar.baz", "baz").putNull("foo.null").build();
         Settings.writeSettingsToStream(settings, output);
@@ -700,7 +700,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testReadWriteArray() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(Version.CURRENT);
+        output.setVersion(randomFrom(Version.CURRENT, Version.V_6_1_0));
         Settings settings = Settings.builder().putArray("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
         Settings.writeSettingsToStream(settings, output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));

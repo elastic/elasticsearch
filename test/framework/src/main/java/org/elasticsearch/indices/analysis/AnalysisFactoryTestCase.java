@@ -192,7 +192,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("worddelimitergraph",        MovedToAnalysisCommon.class)
         .put("flattengraph",              MovedToAnalysisCommon.class)
 
-        // TODO: these tokenfilters are not yet exposed: useful?
         // suggest stop
         .put("suggeststop",               Void.class)
         // capitalizes tokens

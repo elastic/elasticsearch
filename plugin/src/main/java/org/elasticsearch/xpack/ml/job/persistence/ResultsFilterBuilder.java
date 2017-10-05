@@ -20,19 +20,19 @@ import java.util.List;
  * This builder facilitates the creation of a {@link QueryBuilder} with common
  * characteristics to both buckets and records.
  */
-class ResultsFilterBuilder {
+public class ResultsFilterBuilder {
     private final List<QueryBuilder> queries;
 
-    ResultsFilterBuilder() {
+    public ResultsFilterBuilder() {
         queries = new ArrayList<>();
     }
 
-    ResultsFilterBuilder(QueryBuilder queryBuilder) {
+    public ResultsFilterBuilder(QueryBuilder queryBuilder) {
         this();
         queries.add(queryBuilder);
     }
 
-    ResultsFilterBuilder timeRange(String field, Object start, Object end) {
+    public ResultsFilterBuilder timeRange(String field, Object start, Object end) {
         if (start != null || end != null) {
             RangeQueryBuilder timeRange = QueryBuilders.rangeQuery(field);
             if (start != null) {
@@ -46,12 +46,12 @@ class ResultsFilterBuilder {
         return this;
     }
 
-    ResultsFilterBuilder timeRange(String field, String timestamp) {
+    public ResultsFilterBuilder timeRange(String field, String timestamp) {
         addQuery(QueryBuilders.matchQuery(field, timestamp));
         return this;
     }
 
-    ResultsFilterBuilder score(String fieldName, double threshold) {
+    public ResultsFilterBuilder score(String fieldName, double threshold) {
         if (threshold > 0.0) {
             RangeQueryBuilder scoreFilter = QueryBuilders.rangeQuery(fieldName);
             scoreFilter.gte(threshold);
@@ -78,7 +78,7 @@ class ResultsFilterBuilder {
         return this;
     }
 
-    ResultsFilterBuilder term(String fieldName, String fieldValue) {
+    public ResultsFilterBuilder term(String fieldName, String fieldValue) {
         if (Strings.isNullOrEmpty(fieldName) || Strings.isNullOrEmpty(fieldValue)) {
             return this;
         }
@@ -88,7 +88,7 @@ class ResultsFilterBuilder {
         return this;
     }
 
-    ResultsFilterBuilder resultType(String resultType) {
+    public ResultsFilterBuilder resultType(String resultType) {
         return term(Result.RESULT_TYPE.getPreferredName(), resultType);
     }
 

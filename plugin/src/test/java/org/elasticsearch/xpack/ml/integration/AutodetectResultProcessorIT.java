@@ -141,7 +141,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         resultProcessor.process(builder.buildTestProcess());
         resultProcessor.awaitCompletion();
 
-        BucketsQueryBuilder.BucketsQuery bucketsQuery = new BucketsQueryBuilder().includeInterim(true).build();
+        BucketsQueryBuilder bucketsQuery = new BucketsQueryBuilder().includeInterim(true);
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(bucketsQuery);
         assertEquals(1, persistedBucket.count());
         // Records are not persisted to Elasticsearch as an array within the bucket
@@ -149,7 +149,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         bucket.setRecords(Collections.emptyList());
         assertEquals(bucket, persistedBucket.results().get(0));
 
-        QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().build());
+        QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder());
         assertResultsAreSame(records, persistedRecords);
 
         QueryPage<Influencer> persistedInfluencers = getInfluencers();
@@ -190,7 +190,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         resultProcessor.process(resultBuilder.buildTestProcess());
         resultProcessor.awaitCompletion();
 
-        QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
+        QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true));
         assertEquals(1, persistedBucket.count());
         // Records are not persisted to Elasticsearch as an array within the bucket
         // documents, so remove them from the expected bucket before comparing
@@ -200,7 +200,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         QueryPage<Influencer> persistedInfluencers = getInfluencers();
         assertEquals(0, persistedInfluencers.count());
 
-        QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().includeInterim(true).build());
+        QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().includeInterim(true));
         assertEquals(0, persistedRecords.count());
     }
 
@@ -222,14 +222,14 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         resultProcessor.process(resultBuilder.buildTestProcess());
         resultProcessor.awaitCompletion();
 
-        QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
+        QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true));
         assertEquals(1, persistedBucket.count());
         // Records are not persisted to Elasticsearch as an array within the bucket
         // documents, so remove them from the expected bucket before comparing
         finalBucket.setRecords(Collections.emptyList());
         assertEquals(finalBucket, persistedBucket.results().get(0));
 
-        QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().includeInterim(true).build());
+        QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().includeInterim(true));
         assertResultsAreSame(finalAnomalyRecords, persistedRecords);
     }
 
@@ -246,10 +246,10 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         resultProcessor.process(resultBuilder.buildTestProcess());
         resultProcessor.awaitCompletion();
 
-        QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
+        QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true));
         assertEquals(1, persistedBucket.count());
 
-        QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().size(200).includeInterim(true).build());
+        QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().size(200).includeInterim(true));
         List<AnomalyRecord> allRecords = new ArrayList<>(firstSetOfRecords);
         allRecords.addAll(secondSetOfRecords);
         assertResultsAreSame(allRecords, persistedRecords);
@@ -419,7 +419,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         assertEquals(0, expectedSet.size());
     }
 
-    private QueryPage<Bucket> getBucketQueryPage(BucketsQueryBuilder.BucketsQuery bucketsQuery) throws Exception {
+    private QueryPage<Bucket> getBucketQueryPage(BucketsQueryBuilder bucketsQuery) throws Exception {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<QueryPage<Bucket>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -491,7 +491,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         return resultHolder.get();
     }
 
-    private QueryPage<AnomalyRecord> getRecords(RecordsQueryBuilder.RecordsQuery recordsQuery) throws Exception {
+    private QueryPage<AnomalyRecord> getRecords(RecordsQueryBuilder recordsQuery) throws Exception {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<QueryPage<AnomalyRecord>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);

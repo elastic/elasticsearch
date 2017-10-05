@@ -119,6 +119,12 @@ public class Netty4UtilsTests extends ESTestCase {
         }
 
         assertFalse(Netty4Utils.maybeError(new Exception(new DecoderException())).isPresent());
+
+        Throwable chain = outOfMemoryError;
+        for (int i = 0; i < Netty4Utils.MAX_ITERATIONS; i++) {
+            chain = new Exception(chain);
+        }
+        assertFalse(Netty4Utils.maybeError(chain).isPresent());
     }
 
     private void assertError(final Throwable cause, final Error error) {

@@ -27,6 +27,7 @@ import io.netty.channel.ChannelFuture;
 import io.netty.util.NettyRuntime;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Booleans;
@@ -183,7 +184,8 @@ public class Netty4Utils {
                 // try to log the current stack trace
                 final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
                 final String formatted = Arrays.stream(stackTrace).skip(1).map(e -> "\tat " + e).collect(Collectors.joining("\n"));
-                ESLoggerFactory.getLogger(Netty4Utils.class).error("fatal error on the network layer\n{}", formatted);
+                final Logger logger = ESLoggerFactory.getLogger(Netty4Utils.class);
+                logger.error("fatal error on the network layer\n{}", formatted);
             } finally {
                 new Thread(
                         () -> {
@@ -194,6 +196,8 @@ public class Netty4Utils {
         }
     }
 
+    static final int MAX_ITERATIONS = 1024;
+
     /**
      * Unwrap the specified throwable looking for any suppressed errors or errors as a root cause of the specified throwable.
      *
@@ -202,9 +206,20 @@ public class Netty4Utils {
      * @return an optional error if one is found suppressed or a root cause in the tree rooted at the specified throwable
      */
     static Optional<Error> maybeError(final Throwable cause) {
+        // early terminate if the cause is already an error
+        if (cause instanceof Error) {
+            return Optional.of((Error) cause);
+        }
+
         final Queue<Throwable> queue = new LinkedList<>();
         queue.add(cause);
+        int iterations = 0;
         while (!queue.isEmpty()) {
+            iterations++;
+            if (iterations > MAX_ITERATIONS) {
+                ESLoggerFactory.getLogger(Netty4Utils.class).warn("giving up looking for fatal errors on the network layer", cause);
+                break;
+            }
             final Throwable current = queue.remove();
             if (current instanceof Error) {
                 return Optional.of((Error) current);

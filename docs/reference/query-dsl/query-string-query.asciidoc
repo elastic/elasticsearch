@@ -83,6 +83,9 @@ to `AUTO`. See <<fuzziness>> for allowed settings.
 |`fuzzy_prefix_length` |Set the prefix length for fuzzy queries. Default
 is `0`.
 
+|`fuzzy_transpositions` |Set to `false` to disable fuzzy transpositions (`ab` -> `ba`).
+Default is `true`.
+
 |`phrase_slop` |Sets the default slop for phrases. If zero, then exact
 phrase matches are required. Default value is `0`.
 

@@ -63,13 +63,25 @@ the query string. This allows to use a field that has a different analysis chain
 for exact matching. Look <<mixing-exact-search-with-stemming,here>> for a
 comprehensive example.
 
-|`auto_generate_synonyms_phrase_query` |Whether phrase queries should be automatically generated for multi terms synonyms.
+|`auto_generate_synonyms_phrase_query` |Whether phrase queries should be automatically generated
+for multi terms synonyms.
 Defaults to `true`.
 
-|`all_fields` |  deprecated[6.0.0, set `fields` to `*` instead]
+|`all_fields` | deprecated[6.0.0, set `default_field` to `*` instead]
 Perform the query on all fields detected in the mapping that can
 be queried. Will be used by default when the `_all` field is disabled and no
-`default_field` is specified index settings, and no `fields` are specified.
+`default_field` is specified (either in the index settings or in the request
+body) and no `fields` are specified.
+
+|`fuzzy_prefix_length` |Set the prefix length for fuzzy queries. Default
+is `0`.
+
+|`fuzzy_max_expansions` |Controls the number of terms fuzzy queries will
+expand to. Defaults to `50`
+
+|`fuzzy_transpositions` |Set to `false` to disable fuzzy transpositions (`ab` -> `ba`).
+Default is `true`.
+
 |=======================================================================
 
 [float]

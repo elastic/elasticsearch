@@ -10,14 +10,12 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.utils.DomainSplitFunction;
 import org.joda.time.DateTime;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,7 +25,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PainlessDomainSplitIT extends ESRestTestCase {
@@ -179,21 +176,6 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         tests.add(new TestConfiguration(null, "xn--85x722f.xn--fiqs8s", "xn--85x722f.xn--fiqs8s"));
         tests.add(new TestConfiguration(null, "xn--85x722f.xn--fiqs8s", "www.xn--85x722f.xn--fiqs8s"));
         tests.add(new TestConfiguration(null, "shishi.xn--fiqs8s","shishi.xn--fiqs8s"));
-    }
-
-    private void assertOK(Response response) {
-        assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
-    }
-
-    private void createIndex(String name, Settings settings) throws IOException {
-        assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
-                new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }", ContentType.APPLICATION_JSON)));
-    }
-
-    private void createIndex(String name, Settings settings, String mapping) throws IOException {
-        assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
-                new StringEntity("{ \"settings\": " + Strings.toString(settings)
-                        + ", \"mappings\" : {" + mapping + "} }", ContentType.APPLICATION_JSON)));
     }
 
     public void testIsolated() throws Exception {

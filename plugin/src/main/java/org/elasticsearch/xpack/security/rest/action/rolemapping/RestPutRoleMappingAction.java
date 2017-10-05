@@ -47,7 +47,7 @@ public class RestPutRoleMappingAction extends SecurityBaseRestHandler {
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String name = request.param("name");
         PutRoleMappingRequestBuilder requestBuilder = new SecurityClient(client)
-                .preparePutRoleMapping(name, request.content(), request.getXContentType())
+                .preparePutRoleMapping(name, request.requiredContent(), request.getXContentType())
                 .setRefreshPolicy(request.param("refresh"));
         return channel -> requestBuilder.execute(
                 new RestBuilderListener<PutRoleMappingResponse>(channel) {

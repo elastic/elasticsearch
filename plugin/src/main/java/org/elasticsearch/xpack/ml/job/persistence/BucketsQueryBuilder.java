@@ -5,10 +5,15 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
-
-import java.util.Objects;
 
 /**
  * One time query builder for buckets.
@@ -34,52 +39,59 @@ import java.util.Objects;
 public final class BucketsQueryBuilder {
     public static final int DEFAULT_SIZE = 100;
 
-    private BucketsQuery bucketsQuery = new BucketsQuery();
+    private int from = 0;
+    private int size = DEFAULT_SIZE;
+    private boolean expand = false;
+    private boolean includeInterim = false;
+    private double anomalyScoreFilter = 0.0;
+    private String start;
+    private String end;
+    private String timestamp;
+    private String sortField = Result.TIMESTAMP.getPreferredName();
+    private boolean sortDescending = false;
 
     public BucketsQueryBuilder from(int from) {
-        bucketsQuery.from = from;
+        this.from = from;
         return this;
     }
 
     public BucketsQueryBuilder size(int size) {
-        bucketsQuery.size = size;
+        this.size = size;
         return this;
     }
 
     public BucketsQueryBuilder expand(boolean expand) {
-        bucketsQuery.expand = expand;
+        this.expand = expand;
         return this;
     }
 
+    public boolean isExpand() {
+        return expand;
+    }
+
     public BucketsQueryBuilder includeInterim(boolean include) {
-        bucketsQuery.includeInterim = include;
+        this.includeInterim = include;
         return this;
+    }
+
+    public boolean isIncludeInterim() {
+        return includeInterim;
     }
 
     public BucketsQueryBuilder anomalyScoreThreshold(Double anomalyScoreFilter) {
         if (anomalyScoreFilter != null) {
-            bucketsQuery.anomalyScoreFilter = anomalyScoreFilter;
-        }
-        return this;
-    }
-
-    /**
-     * @param partitionValue Not set if null or empty
-     */
-    public BucketsQueryBuilder partitionValue(String partitionValue) {
-        if (!Strings.isNullOrEmpty(partitionValue)) {
-            bucketsQuery.partitionValue = partitionValue;
+            this.anomalyScoreFilter = anomalyScoreFilter;
         }
         return this;
     }
 
     public BucketsQueryBuilder sortField(String sortField) {
-        bucketsQuery.sortField = sortField;
+        this.sortField = sortField;
         return this;
     }
 
     public BucketsQueryBuilder sortDescending(boolean sortDescending) {
-        bucketsQuery.sortDescending = sortDescending;
+        this.sortDescending = sortDescending;
         return this;
     }
 
@@ -87,7 +99,7 @@ public final class BucketsQueryBuilder {
      * If startTime &lt;= 0 the parameter is not set
      */
     public BucketsQueryBuilder start(String startTime) {
-        bucketsQuery.start = startTime;
+        this.start = startTime;
         return this;
     }
 
@@ -95,121 +107,52 @@ public final class BucketsQueryBuilder {
      * If endTime &lt;= 0 the parameter is not set
      */
     public BucketsQueryBuilder end(String endTime) {
-        bucketsQuery.end = endTime;
+        this.end = endTime;
         return this;
     }
 
     public BucketsQueryBuilder timestamp(String timestamp) {
-        bucketsQuery.timestamp = timestamp;
-        bucketsQuery.size = 1;
+        this.timestamp = timestamp;
+        this.size = 1;
         return this;
     }
 
-    public BucketsQueryBuilder.BucketsQuery build() {
-        if (bucketsQuery.timestamp != null && (bucketsQuery.start != null || bucketsQuery.end != null)) {
+    public boolean hasTimestamp() {
+        return timestamp != null;
+    }
+
+    public SearchSourceBuilder build() {
+        if (timestamp != null && (start != null || end != null)) {
             throw new IllegalStateException("Either specify timestamp or start/end");
         }
 
-        return bucketsQuery;
-    }
-
-    public void clear() {
-        bucketsQuery = new BucketsQueryBuilder.BucketsQuery();
-    }
-
-
-    public class BucketsQuery {
-        private int from = 0;
-        private int size = DEFAULT_SIZE;
-        private boolean expand = false;
-        private boolean includeInterim = false;
-        private double anomalyScoreFilter = 0.0;
-        private String start;
-        private String end;
-        private String timestamp;
-        private String partitionValue = null;
-        private String sortField = Result.TIMESTAMP.getPreferredName();
-        private boolean sortDescending = false;
-
-        public int getFrom() {
-            return from;
+        ResultsFilterBuilder rfb = new ResultsFilterBuilder();
+        if (hasTimestamp()) {
+            rfb.timeRange(Result.TIMESTAMP.getPreferredName(), timestamp);
+        } else {
+            rfb.timeRange(Result.TIMESTAMP.getPreferredName(), start, end)
+                    .score(Bucket.ANOMALY_SCORE.getPreferredName(), anomalyScoreFilter)
+                    .interim(includeInterim);
         }
 
-        public int getSize() {
-            return size;
+        SortBuilder<?> sortBuilder = new FieldSortBuilder(sortField)
+                .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
+
+        QueryBuilder boolQuery = new BoolQueryBuilder()
+                .filter(rfb.build())
+                .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Bucket.RESULT_TYPE_VALUE));
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.sort(sortBuilder);
+        searchSourceBuilder.query(boolQuery);
+        searchSourceBuilder.from(from);
+        searchSourceBuilder.size(size);
+
+        // If not using the default sort field (timestamp) add it as a secondary sort
+        if (Result.TIMESTAMP.getPreferredName().equals(sortField) == false) {
+            searchSourceBuilder.sort(Result.TIMESTAMP.getPreferredName(), sortDescending ? SortOrder.DESC : SortOrder.ASC);
         }
 
-        public boolean isExpand() {
-            return expand;
-        }
-
-        public boolean isIncludeInterim() {
-            return includeInterim;
-        }
-
-        public double getAnomalyScoreFilter() {
-            return anomalyScoreFilter;
-        }
-
-        public String getStart() {
-            return start;
-        }
-
-        public String getEnd() {
-            return end;
-        }
-
-        public String getTimestamp() {
-            return timestamp;
-        }
-
-        /**
-         * @return Null if not set
-         */
-        public String getPartitionValue() {
-            return partitionValue;
-        }
-
-        public String getSortField() {
-            return sortField;
-        }
-
-        public boolean isSortDescending() {
-            return sortDescending;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(from, size, expand, includeInterim, anomalyScoreFilter, start, end,
-                    timestamp, partitionValue, sortField, sortDescending);
-        }
-
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-
-            BucketsQuery other = (BucketsQuery) obj;
-            return Objects.equals(from, other.from) &&
-                    Objects.equals(size, other.size) &&
-                    Objects.equals(expand, other.expand) &&
-                    Objects.equals(includeInterim, other.includeInterim) &&
-                    Objects.equals(start, other.start) &&
-                    Objects.equals(end, other.end) &&
-                    Objects.equals(timestamp, other.timestamp) &&
-                    Objects.equals(anomalyScoreFilter, other.anomalyScoreFilter) &&
-                    Objects.equals(partitionValue, other.partitionValue) &&
-                    Objects.equals(sortField, other.sortField) &&
-                    this.sortDescending == other.sortDescending;
-        }
-
+        return searchSourceBuilder;
     }
 }

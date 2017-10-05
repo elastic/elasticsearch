@@ -32,6 +32,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -223,11 +225,11 @@ public class ExecutableJiraActionTests extends ESTestCase {
     }
 
     public void testExecutionFieldsStringArrays() throws Exception {
-        Map<String, String> defaults = Settings.builder()
+        Settings build = Settings.builder()
                 .putArray("k0", "a", "b", "c")
                 .put("k1", "v1")
-                .build()
-                .getAsMap();
+                .build();
+        Map<String, String> defaults = build.keySet().stream().collect(Collectors.toMap(Function.identity(), k -> build.get(k)));
 
         Map<String, Object> fields = new HashMap<>();
         fields.put("k2", "v2");
@@ -241,11 +243,10 @@ public class ExecutableJiraActionTests extends ESTestCase {
     }
 
     public void testExecutionFieldsStringArraysNotOverridden() throws Exception {
-        Map<String, String> defaults = Settings.builder()
+        Settings build = Settings.builder()
                 .putArray("k0", "a", "b", "c")
-                .build()
-                .getAsMap();
-
+                .build();
+        Map<String, String> defaults = build.keySet().stream().collect(Collectors.toMap(Function.identity(), k -> build.get(k)));
         Map<String, Object> fields = new HashMap<>();
         fields.put("k1", "v1");
         fields.put("k0", new String[]{"d", "e", "f"}); // should not be overridden byt the defaults

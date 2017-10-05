@@ -70,8 +70,10 @@ import org.elasticsearch.xpack.sql.plugin.sql.action.SqlTranslateAction;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -368,27 +370,45 @@ public class AuthorizationService extends AbstractComponent {
             assert request instanceof BulkShardRequest
                     : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
 
-            if (localIndices.size() != 1) {
-                throw new IllegalStateException("Action " + action + " should operate on exactly 1 local index but was "
-                        + localIndices.size());
-            }
-
-            String index = localIndices.iterator().next();
-            BulkShardRequest bulk = (BulkShardRequest) request;
-            for (BulkItemRequest item : bulk.items()) {
-                final String itemAction = getAction(item);
-                final IndicesAccessControl itemAccessControl = permission.authorize(itemAction, localIndices, metaData,
-                        fieldPermissionsCache);
-                if (itemAccessControl.isGranted() == false) {
-                    item.abort(index, denial(authentication, itemAction, request, null));
-                }
-            }
+            authorizeBulkItems(authentication, action, (BulkShardRequest) request, permission, metaData, localIndices);
         }
 
         grant(authentication, action, originalRequest, null);
     }
 
-    private String getAction(BulkItemRequest item) {
+    /**
+     * Performs authorization checks on the items within a {@link BulkShardRequest}.
+     * This inspects the {@link BulkItemRequest items} within the request, computes an <em>implied</em> action for each item's
+     * {@link DocWriteRequest#opType()}, and then checks whether that action is allowed on the targeted index.
+     * Items that fail this checks are {@link BulkItemRequest#abort(String, Exception) aborted}, with an
+     * {@link #denial(Authentication, String, TransportRequest, Set) access denied} exception.
+     * Because a shard level request is for exactly 1 index, and there are a small number of possible item
+     * {@link DocWriteRequest.OpType types}, the number of distinct authorization checks that need to be performed is very small, but the
+     * results must be cached, to avoid adding a high overhead to each bulk request.
+     */
+    private void authorizeBulkItems(Authentication authentication, String action, BulkShardRequest request, Role permission,
+                                    MetaData metaData, Set<String> indices) {
+        if (indices.size() != 1) {
+            final String message = "Action " + action + " should operate on exactly 1 local index but was " + indices.size();
+            assert false : message;
+            throw new IllegalStateException(message);
+        }
+
+        final String index = indices.iterator().next();
+        final Map<String, Boolean> actionAuthority = new HashMap<>();
+        for (BulkItemRequest item : request.items()) {
+                final String itemAction = getAction(item);
+            final boolean granted = actionAuthority.computeIfAbsent(itemAction, key -> {
+                final IndicesAccessControl itemAccessControl = permission.authorize(itemAction, indices, metaData, fieldPermissionsCache);
+                return itemAccessControl.isGranted();
+            });
+            if (granted == false) {
+                item.abort(index, denial(authentication, itemAction, request, null));
+            }
+        }
+    }
+
+    private static String getAction(BulkItemRequest item) {
         final DocWriteRequest docWriteRequest = item.request();
         switch (docWriteRequest.opType()) {
             case INDEX:

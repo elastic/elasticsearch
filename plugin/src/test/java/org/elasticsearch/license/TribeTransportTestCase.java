@@ -160,16 +160,17 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
         assertAcked(cluster2.client().admin().indices().prepareCreate("test2").get());
         ensureYellow(internalCluster());
         ensureYellow(cluster2);
-        Map<String,String> asMap = internalCluster().getDefaultSettings().getAsMap();
+//        Map<String,String> asMap = internalCluster().getDefaultSettings().getAsMap();
         Settings.Builder tribe1Defaults = Settings.builder();
         Settings.Builder tribe2Defaults = Settings.builder();
-        for (Map.Entry<String, String> entry : asMap.entrySet()) {
-            if (entry.getKey().startsWith("path.")) {
-                continue;
+        internalCluster().getDefaultSettings().keySet().forEach(k -> {
+            if (k.startsWith("path.") == false) {
+                tribe1Defaults.copy(k, internalCluster().getDefaultSettings());
+                tribe2Defaults.copy(k, internalCluster().getDefaultSettings());
             }
-            tribe1Defaults.put("tribe.t1." + entry.getKey(), entry.getValue());
-            tribe2Defaults.put("tribe.t2." + entry.getKey(), entry.getValue());
-        }
+        });
+        tribe1Defaults.normalizePrefix("tribe.t1.");
+        tribe2Defaults.normalizePrefix("tribe.t2.");
         // give each tribe it's unicast hosts to connect to
         tribe1Defaults.putArray("tribe.t1." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
                 getUnicastHosts(internalCluster().client()));

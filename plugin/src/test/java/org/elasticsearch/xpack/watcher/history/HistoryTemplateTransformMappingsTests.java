@@ -6,101 +6,69 @@
 package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
-import org.elasticsearch.xpack.watcher.execution.ExecutionState;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
-import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.scriptTransform;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
+import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.searchTransform;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.is;
 
-/**
- * This test makes sure that the http host and path fields in the watch_record action result are
- * not analyzed so they can be used in aggregations
- */
-@TestLogging("org.elasticsearch.xpack.watcher:DEBUG,org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
 public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegrationTestCase {
 
-    @Override
-    protected List<Class<? extends Plugin>> pluginTypes() {
-        List<Class<? extends Plugin>> types = super.pluginTypes();
-        types.add(CustomScriptPlugin.class);
-        return types;
-    }
-
-    public static class CustomScriptPlugin extends MockScriptPlugin {
-
-        @Override
-        @SuppressWarnings("unchecked")
-        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-
-            scripts.put("return [ 'key' : 'value1' ];", vars -> singletonMap("key", "value1"));
-            scripts.put("return [ 'key' : 'value2' ];", vars -> singletonMap("key", "value2"));
-            scripts.put("return [ 'key' : [ 'key1' : 'value1' ] ];", vars -> singletonMap("key", singletonMap("key1", "value1")));
-            scripts.put("return [ 'key' : [ 'key1' : 'value2' ] ];", vars -> singletonMap("key", singletonMap("key1", "value2")));
-
-            return scripts;
-        }
-
-        @Override
-        public String pluginScriptLang() {
-            return WATCHER_LANG;
-        }
-    }
-
-    @Override
-    protected boolean timeWarped() {
-        return true; // just to have better control over the triggers
-    }
-
     public void testTransformFields() throws Exception {
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id1").setSource(watchBuilder()
+        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("doc",
+                jsonBuilder().startObject()
+                        .startObject("properties")
+                        .startObject("foo")
+                        .field("type", "object")
+                        .field("enabled", false)
+                        .endObject()
+                        .endObject()
+                        .endObject()));
+
+        client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(client().prepareIndex("idx", "doc", "1")
+                        .setSource(jsonBuilder().startObject().field("name", "first").field("foo", "bar").endObject()))
+                .add(client().prepareIndex("idx", "doc", "2")
+                        .setSource(jsonBuilder().startObject().field("name", "second")
+                                .startObject("foo").field("what", "ever").endObject().endObject()))
+                .get();
+
+        watcherClient().preparePutWatch("_first").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(simpleInput())
-                .condition(AlwaysCondition.INSTANCE)
-                .transform(scriptTransform("return [ 'key' : 'value1' ];"))
-                .addAction("logger", scriptTransform("return [ 'key' : 'value2' ];"), loggingAction("indexed")))
+                .transform(searchTransform(templateRequest(searchSource().query(QueryBuilders.termQuery("name", "first")), "idx")))
+                .addAction("logger",
+                        searchTransform(templateRequest(searchSource().query(QueryBuilders.termQuery("name", "first")), "idx")),
+                        loggingAction("indexed")))
                 .get();
-        assertThat(putWatchResponse.isCreated(), is(true));
-        timeWarp().trigger("_id1");
 
-        // adding another watch which with a transform that should conflict with the preview watch. Since the
-        // mapping for the transform construct is disabled, there should be nor problems.
-        putWatchResponse = watcherClient().preparePutWatch("_id2").setSource(watchBuilder()
+        // execute another watch which with a transform that should conflict with the previous watch. Since the
+        // mapping for the transform construct is disabled, there should be no problems.
+        watcherClient().preparePutWatch("_second").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(simpleInput())
-                .condition(AlwaysCondition.INSTANCE)
-                .transform(scriptTransform("return [ 'key' : [ 'key1' : 'value1' ] ];"))
-                .addAction("logger", scriptTransform("return [ 'key' : [ 'key1' : 'value2' ] ];"), loggingAction("indexed")))
+                .transform(searchTransform(templateRequest(searchSource().query(QueryBuilders.termQuery("name", "second")), "idx")))
+                .addAction("logger",
+                        searchTransform(templateRequest(searchSource().query(QueryBuilders.termQuery("name", "second")), "idx")),
+                        loggingAction("indexed")))
                 .get();
-        assertThat(putWatchResponse.isCreated(), is(true));
-        timeWarp().trigger("_id2");
 
-        flush();
-        refresh();
-
-        assertWatchWithMinimumActionsCount("_id1", ExecutionState.EXECUTED, 1);
-        assertWatchWithMinimumActionsCount("_id2", ExecutionState.EXECUTED, 1);
-
-        refresh();
+        watcherClient().prepareExecuteWatch("_first").setRecordExecution(true).get();
+        watcherClient().prepareExecuteWatch("_second").setRecordExecution(true).get();
 
         assertBusy(() -> {
             GetFieldMappingsResponse response = client().admin().indices()

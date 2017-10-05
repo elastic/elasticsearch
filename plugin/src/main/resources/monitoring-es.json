@@ -639,6 +639,19 @@
                           }
                         }
                       }
+                    },
+                    "memory": {
+                      "properties": {
+                        "control_group": {
+                          "type": "keyword"
+                        },
+                        "limit_in_bytes": {
+                          "type": "keyword"
+                        },
+                        "usage_in_bytes": {
+                          "type": "keyword"
+                        }
+                      }
                     }
                   }
                 },

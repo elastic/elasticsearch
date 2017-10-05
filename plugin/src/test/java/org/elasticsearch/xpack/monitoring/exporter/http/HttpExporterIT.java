@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -72,6 +73,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST,
                               numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2671")
 public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private final boolean templatesExistsAlready = randomBoolean();

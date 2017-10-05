@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.notification.email;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
@@ -237,8 +238,8 @@ public class Account {
                 replace(builder, "use_rset", "userset");
                 settings = builder.build();
                 Properties props = new Properties();
-                for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                    props.setProperty(SMTP_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
+                for (String key : settings.keySet()) {
+                    props.setProperty(SMTP_SETTINGS_PREFIX + key, settings.get(key));
                 }
                 return props;
             }

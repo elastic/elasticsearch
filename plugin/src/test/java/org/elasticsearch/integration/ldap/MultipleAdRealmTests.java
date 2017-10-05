@@ -36,7 +36,7 @@ public class MultipleAdRealmTests extends AbstractAdLdapRealmTestCase {
         secondaryRealmConfig = randomFrom(configs);
         ESLoggerFactory.getLogger("test")
                 .info("running test with secondary realm configuration [{}], with direct group to role mapping [{}]. Settings [{}]",
-                        secondaryRealmConfig, secondaryRealmConfig.mapGroupsAsRoles, secondaryRealmConfig.settings.getAsMap());
+                        secondaryRealmConfig, secondaryRealmConfig.mapGroupsAsRoles, secondaryRealmConfig.settings);
 
         // It's easier to test 2 realms when using file based role mapping, and for the purposes of
         // this test, there's no need to test native mappings.
@@ -51,9 +51,9 @@ public class MultipleAdRealmTests extends AbstractAdLdapRealmTestCase {
         Path store = getDataPath(TESTNODE_KEYSTORE);
         final List<RoleMappingEntry> secondaryRoleMappings = secondaryRealmConfig.selectRoleMappings(() -> true);
         final Settings secondarySettings = super.buildRealmSettings(secondaryRealmConfig, secondaryRoleMappings, store);
-        secondarySettings.getAsMap().forEach((name, value) -> {
-            name = name.replace(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL, XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + "2");
-            builder.put(name, value);
+        secondarySettings.keySet().forEach(name -> {
+            String newName = name.replace(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL, XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + "2");
+            builder.copy(newName, name, secondarySettings);
         });
 
         return builder.build();

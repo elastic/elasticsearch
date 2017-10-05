@@ -61,7 +61,7 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
         final String refresh = request.param("refresh");
         return channel ->
                 new SecurityClient(client)
-                        .prepareChangePassword(username, request.content(), request.getXContentType())
+                        .prepareChangePassword(username, request.requiredContent(), request.getXContentType())
                         .setRefreshPolicy(refresh)
                         .execute(new RestBuilderListener<ChangePasswordResponse>(channel) {
                             @Override

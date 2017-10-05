@@ -5,6 +5,21 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
+import org.elasticsearch.xpack.ml.job.results.Result;
+
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+
 /**
  * One time query builder for records. Sets default values for the following
  * parameters:
@@ -31,109 +46,105 @@ public final class RecordsQueryBuilder {
 
     public static final int DEFAULT_SIZE = 100;
 
-    private RecordsQuery recordsQuery = new RecordsQuery();
+    private static final List<String> SECONDARY_SORT = Arrays.asList(
+            AnomalyRecord.RECORD_SCORE.getPreferredName(),
+            AnomalyRecord.OVER_FIELD_VALUE.getPreferredName(),
+            AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(),
+            AnomalyRecord.BY_FIELD_VALUE.getPreferredName(),
+            AnomalyRecord.FIELD_NAME.getPreferredName(),
+            AnomalyRecord.FUNCTION.getPreferredName()
+    );
+
+    private int from = 0;
+    private int size = DEFAULT_SIZE;
+    private boolean includeInterim = false;
+    private String sortField;
+    private boolean sortDescending = true;
+    private double recordScore = 0.0;
+    private String start;
+    private String end;
+    private Date timestamp;
 
     public RecordsQueryBuilder from(int from) {
-        recordsQuery.from = from;
+        this.from = from;
         return this;
     }
 
     public RecordsQueryBuilder size(int size) {
-        recordsQuery.size = size;
+        this.size = size;
         return this;
     }
 
     public RecordsQueryBuilder epochStart(String startTime) {
-        recordsQuery.start = startTime;
+        this.start = startTime;
         return this;
     }
 
     public RecordsQueryBuilder epochEnd(String endTime) {
-        recordsQuery.end = endTime;
+        this.end = endTime;
         return this;
     }
 
     public RecordsQueryBuilder includeInterim(boolean include) {
-        recordsQuery.includeInterim = include;
+        this.includeInterim = include;
         return this;
     }
 
     public RecordsQueryBuilder sortField(String fieldname) {
-        recordsQuery.sortField = fieldname;
+        this.sortField = fieldname;
         return this;
     }
 
     public RecordsQueryBuilder sortDescending(boolean sortDescending) {
-        recordsQuery.sortDescending = sortDescending;
+        this.sortDescending = sortDescending;
         return this;
     }
 
     public RecordsQueryBuilder recordScore(double recordScore) {
-        recordsQuery.recordScore = recordScore;
+        this.recordScore = recordScore;
         return this;
     }
 
-    public RecordsQueryBuilder partitionFieldValue(String partitionFieldValue) {
-        recordsQuery.partitionFieldValue = partitionFieldValue;
+    public RecordsQueryBuilder timestamp(Date timestamp) {
+        this.timestamp = timestamp;
         return this;
     }
 
-    public RecordsQuery build() {
-        return recordsQuery;
-    }
+    public SearchSourceBuilder build() {
+        QueryBuilder query = new ResultsFilterBuilder()
+                .timeRange(Result.TIMESTAMP.getPreferredName(), start, end)
+                .score(AnomalyRecord.RECORD_SCORE.getPreferredName(), recordScore)
+                .interim(includeInterim)
+                .build();
 
-    public void clear() {
-        recordsQuery = new RecordsQuery();
-    }
-
-    public class RecordsQuery {
-
-        private int from = 0;
-        private int size = DEFAULT_SIZE;
-        private boolean includeInterim = false;
-        private String sortField;
-        private boolean sortDescending = true;
-        private double recordScore = 0.0;
-        private String partitionFieldValue;
-        private String start;
-        private String end;
-
-
-        public int getSize() {
-            return size;
+        FieldSortBuilder sb;
+        if (sortField != null) {
+            sb = new FieldSortBuilder(sortField)
+                    .missing("_last")
+                    .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
+        } else {
+            sb = SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC);
         }
 
-        public boolean isIncludeInterim() {
-            return includeInterim;
+        BoolQueryBuilder recordFilter = new BoolQueryBuilder()
+                .filter(query)
+                .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), AnomalyRecord.RESULT_TYPE_VALUE));
+        if (timestamp != null) {
+            recordFilter.filter(QueryBuilders.termQuery(Result.TIMESTAMP.getPreferredName(), timestamp.getTime()));
         }
 
-        public String getSortField() {
-            return sortField;
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
+                .from(from)
+                .size(size)
+                .query(recordFilter)
+                .sort(sb)
+                .fetchSource(true);
+
+        for (String sortField : SECONDARY_SORT) {
+            searchSourceBuilder.sort(sortField, sortDescending ? SortOrder.DESC : SortOrder.ASC);
         }
 
-        public boolean isSortDescending() {
-            return sortDescending;
-        }
-
-        public double getRecordScoreThreshold() {
-            return recordScore;
-        }
-
-        public String getPartitionFieldValue() {
-            return partitionFieldValue;
-        }
-
-        public int getFrom() {
-            return from;
-        }
-
-        public String getStart() {
-            return start;
-        }
-
-        public String getEnd() {
-            return end;
-        }
+        return searchSourceBuilder;
     }
 }
 

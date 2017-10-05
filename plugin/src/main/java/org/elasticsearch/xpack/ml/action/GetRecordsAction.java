@@ -323,7 +323,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
 
             jobManager.getJobOrThrowIfUnknown(request.getJobId());
 
-            RecordsQueryBuilder.RecordsQuery query = new RecordsQueryBuilder()
+            RecordsQueryBuilder query = new RecordsQueryBuilder()
                     .includeInterim(request.excludeInterim == false)
                     .epochStart(request.start)
                     .epochEnd(request.end)
@@ -331,8 +331,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
                     .size(request.pageParams.getSize())
                     .recordScore(request.recordScoreFilter)
                     .sortField(request.sort)
-                    .sortDescending(request.descending)
-                    .build();
+                    .sortDescending(request.descending);
             jobProvider.records(request.jobId, query, page -> listener.onResponse(new Response(page)), listener::onFailure, client);
         }
     }

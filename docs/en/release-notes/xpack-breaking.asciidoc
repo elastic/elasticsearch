@@ -1,0 +1,31 @@
+[role="xpack"]
+[[breaking-changes-xes]]
+= {xpack} Breaking Changes
+
+[partintro]
+--
+This section summarizes the changes that you need to be aware of when migrating
+your application from one version of {xpack} to another.
+
+* <<breaking-7.0.0-xes>>
+
+See also:
+
+* <<breaking-changes,{es} Breaking Changes>>
+* {kibana-ref}/breaking-changes-xpackkb.html[{kib} {xpack} Breaking Changes]
+* {logstash-ref}/breaking-changes-xls.html[Logstash {xpack} Breaking Changes]
+
+--
+
+[role="xpack"]
+[[breaking-7.0.0-xes]]
+== {xpack} Breaking changes in 7.0.0
+
+
+Machine Learning::
+* The `max_running_jobs` node property is removed in this release. Use the
+`xpack.ml.max_open_jobs` setting instead. For more information, <<ml-settings>>.
+
+See also:
+
+* <<breaking-changes-7.0,{es} Breaking Changes>>

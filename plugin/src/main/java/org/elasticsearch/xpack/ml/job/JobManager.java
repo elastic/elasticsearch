@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
@@ -63,6 +64,8 @@ public class JobManager extends AbstractComponent {
     private final Client client;
     private final UpdateJobProcessNotifier updateJobProcessNotifier;
 
+    private volatile ByteSizeValue maxModelMemoryLimit;
+
     /**
      * Create a JobManager
      */
@@ -74,6 +77,14 @@ public class JobManager extends AbstractComponent {
         this.auditor = Objects.requireNonNull(auditor);
         this.client = Objects.requireNonNull(client);
         this.updateJobProcessNotifier = updateJobProcessNotifier;
+
+        maxModelMemoryLimit = MachineLearning.MAX_MODEL_MEMORY_LIMIT.get(settings);
+        clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(MachineLearning.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
+    }
+
+    private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
+        this.maxModelMemoryLimit = maxModelMemoryLimit;
     }
 
     /**
@@ -140,7 +151,7 @@ public class JobManager extends AbstractComponent {
         // 4GB to 1GB.  However, changing the meaning of a null model memory limit for existing jobs would be a
         // breaking change, so instead we add an explicit limit to newly created jobs that didn't have one when
         // submitted
-        request.getJobBuilder().validateModelMemoryLimit(MachineLearning.MAX_MODEL_MEMORY.get(settings));
+        request.getJobBuilder().validateModelMemoryLimit(maxModelMemoryLimit);
 
 
         Job job = request.getJobBuilder().build(new Date());
@@ -243,7 +254,7 @@ public class JobManager extends AbstractComponent {
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         Job job = getJobOrThrowIfUnknown(jobId, currentState);
-                        updatedJob = jobUpdate.mergeWithJob(job, MachineLearning.MAX_MODEL_MEMORY.get(settings));
+                        updatedJob = jobUpdate.mergeWithJob(job, maxModelMemoryLimit);
                         return updateClusterState(updatedJob, true, currentState);
                     }
 

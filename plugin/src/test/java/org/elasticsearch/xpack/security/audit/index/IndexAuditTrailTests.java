@@ -291,7 +291,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         }
 
         Settings settings = builder.put(settings(rollover, includes, excludes)).build();
-        logger.info("--> settings: [{}]", settings.getAsMap().toString());
+        logger.info("--> settings: [{}]", settings);
         DiscoveryNode localNode = mock(DiscoveryNode.class);
         when(localNode.getHostAddress()).thenReturn(remoteAddress.getAddress());
         when(localNode.getHostName()).thenReturn(remoteAddress.getAddress());

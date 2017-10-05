@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -168,7 +167,7 @@ public class NewPathForShardTests extends ESTestCase {
 
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putArray(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
 
         // Make sure all our mocking above actually worked:

@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -65,8 +66,8 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         MATCHERS = unmodifiableMap(matchers);
     }
 
-    static CharMatcher parseTokenChars(String[] characterClasses) {
-        if (characterClasses == null || characterClasses.length == 0) {
+    static CharMatcher parseTokenChars(List<String> characterClasses) {
+        if (characterClasses == null || characterClasses.isEmpty()) {
             return null;
         }
         CharMatcher.Builder builder = new CharMatcher.Builder();
@@ -85,7 +86,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         super(indexSettings, name, settings);
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
-        this.matcher = parseTokenChars(settings.getAsArray("token_chars"));
+        this.matcher = parseTokenChars(settings.getAsList("token_chars"));
     }
 
     @Override

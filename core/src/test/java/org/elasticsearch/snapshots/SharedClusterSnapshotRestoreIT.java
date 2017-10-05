@@ -1827,7 +1827,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s")
                 .put("index.analysis.analyzer.my_analyzer.type", "custom")
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonym")
+                .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonym")
                 .put("index.analysis.filter.my_synonym.type", "synonym")
                 .put("index.analysis.filter.my_synonym.synonyms", "foo => bar");
 

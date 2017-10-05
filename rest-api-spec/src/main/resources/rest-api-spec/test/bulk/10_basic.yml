@@ -65,7 +65,8 @@
   - skip:
       version: " - 5.4.99"
       reason: confusing exception messaged caused by empty object fixed in 5.5.0
-      
+      features: ["headers"]
+
   - do:
       catch: /Malformed action\/metadata line \[3\], expected FIELD_NAME but found \[END_OBJECT\]/
       headers:

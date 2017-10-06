@@ -247,7 +247,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testPercolatorGeoQueries() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("type", "field1", "type=geo_point", "field2", "type=geo_shape", "query", "type=percolator")
+            .addMapping("type", "field1", "type=geo_point", "query", "type=percolator")
             );
 
         client().prepareIndex("test", "type", "1")

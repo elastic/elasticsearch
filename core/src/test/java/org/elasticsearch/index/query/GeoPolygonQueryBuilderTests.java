@@ -19,22 +19,17 @@
 
 package org.elasticsearch.index.query;
 
-import com.vividsolutions.jts.geom.Coordinate;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
+import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -75,20 +70,10 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     private static List<GeoPoint> randomPolygon() {
-        ShapeBuilder shapeBuilder = null;
-        // This is a temporary fix because sometimes the RandomShapeGenerator
-        // returns null. This is if there is an error generating the polygon. So
-        // in this case keep trying until we successfully generate one
-        while (shapeBuilder == null) {
-            shapeBuilder = RandomShapeGenerator.createShapeWithin(random(), null, ShapeType.POLYGON);
-        }
-        JtsGeometry shape = (JtsGeometry) shapeBuilder.build();
-        Coordinate[] coordinates = shape.getGeom().getCoordinates();
-        ArrayList<GeoPoint> polygonPoints = new ArrayList<>();
-        for (Coordinate coord : coordinates) {
-            polygonPoints.add(new GeoPoint(coord.y, coord.x));
-        }
-        return polygonPoints;
+        GeoPoint p1 = RandomGeoGenerator.randomPoint(random());
+        GeoPoint p2 = RandomGeoGenerator.randomPoint(random());
+        GeoPoint p3 = RandomGeoGenerator.randomPoint(random());
+        return Arrays.asList(p1, p2, p3, p1);
     }
 
     public void testNullFieldName() {

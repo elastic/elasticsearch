@@ -20,8 +20,6 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.Rectangle;
-import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
-import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -37,6 +35,11 @@ import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import java.io.IOException;
 
 public class GeoUtils {
+
+    // Taken from QuadPrefixTree.MAX_LEVELS_POSSIBLE
+    public static final int MAX_QUAD_PREFIX_TREE_LEVELS_POSSIBLE = 50;
+    // Taken from GeohashUtils.MAX_PRECISION
+    public static final int MAX_GEOHASH_PRECISION = 24;
 
     /** Maximum valid latitude in degrees. */
     public static final double MAX_LAT = 90.0;
@@ -163,7 +166,7 @@ public class GeoUtils {
     public static int quadTreeLevelsForPrecision(double meters) {
         assert meters >= 0;
         if(meters == 0) {
-            return QuadPrefixTree.MAX_LEVELS_POSSIBLE;
+            return MAX_QUAD_PREFIX_TREE_LEVELS_POSSIBLE;
         } else {
             final double ratio = 1+(EARTH_POLAR_DISTANCE / EARTH_EQUATOR); // cell ratio
             final double width = Math.sqrt((meters*meters)/(ratio*ratio)); // convert to cell width
@@ -193,7 +196,7 @@ public class GeoUtils {
         assert meters >= 0;
 
         if(meters == 0) {
-            return GeohashPrefixTree.getMaxLevelsPossible();
+            return MAX_GEOHASH_PRECISION;
         } else {
             final double ratio = 1+(EARTH_POLAR_DISTANCE / EARTH_EQUATOR); // cell ratio
             final double width = Math.sqrt((meters*meters)/(ratio*ratio)); // convert to cell width

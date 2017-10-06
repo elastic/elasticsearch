@@ -42,6 +42,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
+import org.elasticsearch.index.query.GeoShapeQueryBuilders;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -177,7 +178,7 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
             .get();
         transportClient().admin().indices().prepareRefresh(lookupIndex, queryIndex).get();
 
-        GeoShapeQueryBuilder queryBuilder = QueryBuilders.geoShapeQuery("location", "1", "type")
+        GeoShapeQueryBuilder queryBuilder = GeoShapeQueryBuilders.geoShapeQuery("location", "1", "type")
             .indexedShapeIndex(lookupIndex)
             .indexedShapePath("location");
 

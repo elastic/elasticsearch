@@ -777,7 +777,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             if (randomBoolean()) {
                 enqueueResponse(webServer, 404, "watch [" + watchId + "] does not exist");
             } else if (randomBoolean()) {
-                final int version = LAST_UPDATED_VERSION - randomIntBetween(1, 1000000);
+                final int version = ClusterAlertsUtil.LAST_UPDATED_VERSION - randomIntBetween(1, 1000000);
 
                 // it DOES exist, but it's an older version
                 enqueueResponse(webServer, 200, "{\"metadata\":{\"xpack\":{\"version_created\":" + version + "}}}");

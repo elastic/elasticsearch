@@ -139,7 +139,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     public void testExportWithHeaders() throws Exception {
         final String headerValue = randomAlphaOfLengthBetween(3, 9);
-        final String[] array = generateRandomStringArray(2, 4, false);
+        final String[] array = generateRandomStringArray(2, 4, false, false);
 
         final Map<String, String[]> headers = new HashMap<>();
 
@@ -176,7 +176,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         final boolean useHeaders = randomBoolean();
 
         final String headerValue = randomAlphaOfLengthBetween(3, 9);
-        final String[] array = generateRandomStringArray(2, 4, false);
+        final String[] array = generateRandomStringArray(2, 4, false, false);
 
         final Map<String, String[]> headers = new HashMap<>();
 

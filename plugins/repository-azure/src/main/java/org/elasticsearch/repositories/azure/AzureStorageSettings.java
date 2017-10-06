@@ -52,6 +52,11 @@ public final class AzureStorageSettings {
     private static final Setting<Integer> MAX_RETRIES_SETTING =
         Setting.affixKeySetting(PREFIX, "max_retries",
             (key) -> Setting.intSetting(key, RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT, Setting.Property.NodeScope));
+    /**
+     * Azure endpoint suffix. Default to core.windows.net (CloudStorageAccount.DEFAULT_DNS).
+     */
+    public static final Setting<String> ENDPOINT_SUFFIX_SETTING = Setting.affixKeySetting(PREFIX, "endpoint_suffix",
+        key -> Setting.simpleString(key, Property.NodeScope));
 
     /** Azure key */
     public static final AffixSetting<SecureString> KEY_SETTING = Setting.affixKeySetting(PREFIX, "key",
@@ -74,15 +79,17 @@ public final class AzureStorageSettings {
 
     private final String account;
     private final String key;
+    private final String endpointSuffix;
     private final TimeValue timeout;
     private final int maxRetries;
     private final Proxy proxy;
 
 
-    public AzureStorageSettings(String account, String key, TimeValue timeout, int maxRetries, Proxy.Type proxyType, String proxyHost,
-                                Integer proxyPort) {
+    public AzureStorageSettings(String account, String key, String endpointSuffix, TimeValue timeout, int maxRetries,
+                                Proxy.Type proxyType, String proxyHost, Integer proxyPort) {
         this.account = account;
         this.key = key;
+        this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
 
@@ -114,6 +121,10 @@ public final class AzureStorageSettings {
         return account;
     }
 
+    public String getEndpointSuffix() {
+        return endpointSuffix;
+    }
+
     public TimeValue getTimeout() {
         return timeout;
     }
@@ -132,6 +143,7 @@ public final class AzureStorageSettings {
         sb.append(", account='").append(account).append('\'');
         sb.append(", key='").append(key).append('\'');
         sb.append(", timeout=").append(timeout);
+        sb.append(", endpointSuffix='").append(endpointSuffix).append('\'');
         sb.append(", maxRetries=").append(maxRetries);
         sb.append(", proxy=").append(proxy);
         sb.append('}');
@@ -166,6 +178,7 @@ public final class AzureStorageSettings {
         try (SecureString account = getConfigValue(settings, clientName, ACCOUNT_SETTING);
              SecureString key = getConfigValue(settings, clientName, KEY_SETTING)) {
             return new AzureStorageSettings(account.toString(), key.toString(),
+                getValue(settings, clientName, ENDPOINT_SUFFIX_SETTING),
                 getValue(settings, clientName, TIMEOUT_SETTING),
                 getValue(settings, clientName, MAX_RETRIES_SETTING),
                 getValue(settings, clientName, PROXY_TYPE_SETTING),

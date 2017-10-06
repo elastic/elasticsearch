@@ -179,7 +179,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
                                           ThreadPool threadPool, Logger logger, Map<String, MockNode> nodes) throws Exception {
         final Settings settings = Settings.builder()
                 .put("name", name)
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "",
+                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "").put(
                      TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .put(basSettings)
                 .build();

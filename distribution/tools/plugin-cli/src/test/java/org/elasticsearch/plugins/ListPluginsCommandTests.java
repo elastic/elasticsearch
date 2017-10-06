@@ -69,7 +69,9 @@ public class ListPluginsCommandTests extends ESTestCase {
         int status = new ListPluginsCommand() {
             @Override
             protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
-                final Settings realSettings = Settings.builder().put("path.home", home).put(settings).build();
+                Settings.Builder builder = Settings.builder().put("path.home", home);
+                settings.forEach((k,v) -> builder.put(k, v));
+                final Settings realSettings = builder.build();
                 return new Environment(realSettings, home.resolve("config"));
             }
 

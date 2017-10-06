@@ -150,6 +150,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -408,6 +409,52 @@ public class IndexShardTests extends IndexShardTestCase {
 
         closeShards(indexShard);
     }
+
+    /**
+     * This test makes sure that people can use the shard routing entry to check whether a shard was already promoted to
+     * a primary. Concretely this means, that when we publish the routing entry via {@link IndexShard#routingEntry()} the following
+     * should have happened
+     * 1) Internal state (ala GlobalCheckpointTracker) have been updated
+     * 2) Primary term is set to the new term
+     */
+    public void testPublishingOrderOnPromotion() throws IOException, BrokenBarrierException, InterruptedException {
+        final IndexShard indexShard = newStartedShard(false);
+        final long promotedTerm = indexShard.getPrimaryTerm() + 1;
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final AtomicBoolean stop = new AtomicBoolean();
+        final Thread thread = new Thread(() -> {
+            try {
+                barrier.await();
+            } catch (final BrokenBarrierException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            while(stop.get() == false) {
+                if (indexShard.routingEntry().primary()) {
+                    assertThat(indexShard.getPrimaryTerm(), equalTo(promotedTerm));
+                    assertThat(indexShard.getEngine().seqNoService().getReplicationGroup(), notNullValue());
+                }
+            }
+        });
+        thread.start();
+
+        final ShardRouting replicaRouting = indexShard.routingEntry();
+        final ShardRouting primaryRouting = newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null, true,
+            ShardRoutingState.STARTED, replicaRouting.allocationId());
+
+
+        final Set<String> inSyncAllocationIds = Collections.singleton(primaryRouting.allocationId().getId());
+        final IndexShardRoutingTable routingTable =
+            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build();
+        barrier.await();
+        // promote the replica
+        indexShard.updateShardState(primaryRouting, promotedTerm, (shard, listener) -> {}, 0L, inSyncAllocationIds, routingTable,
+            Collections.emptySet());
+
+        stop.set(true);
+        thread.join();
+        closeShards(indexShard);
+    }
+
 
     public void testPrimaryFillsSeqNoGapsOnPromotion() throws Exception {
         final IndexShard indexShard = newStartedShard(false);
@@ -709,6 +756,65 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         closeShards(indexShard);
+    }
+
+    public void testGlobalCheckpointSync() throws IOException {
+        // create the primary shard with a callback that sets a boolean when the global checkpoint sync is invoked
+        final ShardId shardId = new ShardId("index", "_na_", 0);
+        final ShardRouting shardRouting =
+                TestShardRouting.newShardRouting(
+                        shardId,
+                        randomAlphaOfLength(8),
+                        true,
+                        ShardRoutingState.INITIALIZING,
+                        RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE);
+        final Settings settings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .build();
+        final IndexMetaData.Builder indexMetadata = IndexMetaData.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
+        final AtomicBoolean synced = new AtomicBoolean();
+        final IndexShard primaryShard = newShard(shardRouting, indexMetadata.build(), null, null, () -> { synced.set(true); });
+        // add a replica
+        recoverShardFromStore(primaryShard);
+        final IndexShard replicaShard = newShard(shardId, false);
+        recoverReplica(replicaShard, primaryShard);
+        final int maxSeqNo = randomIntBetween(0, 128);
+        for (int i = 0; i <= maxSeqNo; i++) {
+            primaryShard.getEngine().seqNoService().generateSeqNo();
+        }
+        final long checkpoint = rarely() ? maxSeqNo - scaledRandomIntBetween(0, maxSeqNo) : maxSeqNo;
+
+        // set up local checkpoints on the shard copies
+        primaryShard.updateLocalCheckpointForShard(shardRouting.allocationId().getId(), checkpoint);
+        final int replicaLocalCheckpoint = randomIntBetween(0, Math.toIntExact(checkpoint));
+        final String replicaAllocationId = replicaShard.routingEntry().allocationId().getId();
+        primaryShard.updateLocalCheckpointForShard(replicaAllocationId, replicaLocalCheckpoint);
+
+        // initialize the local knowledge on the primary of the global checkpoint on the replica shard
+        final int replicaGlobalCheckpoint =
+                randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Math.toIntExact(primaryShard.getGlobalCheckpoint()));
+        primaryShard.updateGlobalCheckpointForShard(replicaAllocationId, replicaGlobalCheckpoint);
+
+        // simulate a background maybe sync; it should only run if the knowledge on the replica of the global checkpoint lags the primary
+        primaryShard.maybeSyncGlobalCheckpoint("test");
+        assertThat(
+                synced.get(),
+                equalTo(maxSeqNo == primaryShard.getGlobalCheckpoint() && (replicaGlobalCheckpoint < checkpoint)));
+
+        // simulate that the background sync advanced the global checkpoint on the replica
+        primaryShard.updateGlobalCheckpointForShard(replicaAllocationId, primaryShard.getGlobalCheckpoint());
+
+        // reset our boolean so that we can assert after another simulated maybe sync
+        synced.set(false);
+
+        primaryShard.maybeSyncGlobalCheckpoint("test");
+
+        // this time there should not be a sync since all the replica copies are caught up with the primary
+        assertFalse(synced.get());
+
+        closeShards(replicaShard, primaryShard);
     }
 
     public void testRestoreLocalCheckpointTrackerFromTranslogOnPromotion() throws IOException, InterruptedException {
@@ -1678,7 +1784,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
         IndexShard newShard = newShard(
             ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null);
+            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null, () -> {});
 
         recoverShardFromStore(newShard);
 
@@ -1824,7 +1930,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
         IndexShard newShard = newShard(
             ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null);
+            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null, () -> {});
 
         recoverShardFromStore(newShard);
 

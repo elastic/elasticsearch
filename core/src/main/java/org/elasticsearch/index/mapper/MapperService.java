@@ -413,7 +413,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
 
             if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
-                validateCopyTo(fieldMappers, fullPathObjectMappers);
+                validateCopyTo(fieldMappers, fullPathObjectMappers, fieldTypes);
             }
 
             if (reason == MergeReason.MAPPING_UPDATE) {
@@ -642,14 +642,26 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private static void validateCopyTo(List<FieldMapper> fieldMappers, Map<String, ObjectMapper> fullPathObjectMappers) {
+    private static void validateCopyTo(List<FieldMapper> fieldMappers, Map<String, ObjectMapper> fullPathObjectMappers,
+            FieldTypeLookup fieldTypes) {
         for (FieldMapper mapper : fieldMappers) {
             if (mapper.copyTo() != null && mapper.copyTo().copyToFields().isEmpty() == false) {
+                String sourceParent = parentObject(mapper.name());
+                if (sourceParent != null && fieldTypes.get(sourceParent) != null) {
+                    throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + mapper.name() + "]");
+                }
+
                 final String sourceScope = getNestedScope(mapper.name(), fullPathObjectMappers);
                 for (String copyTo : mapper.copyTo().copyToFields()) {
+                    String copyToParent = parentObject(copyTo);
+                    if (copyToParent != null && fieldTypes.get(copyToParent) != null) {
+                        throw new IllegalArgumentException("[copy_to] may not be used to copy to a multi-field: [" + copyTo + "]");
+                    }
+
                     if (fullPathObjectMappers.containsKey(copyTo)) {
                         throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
                     }
+
                     final String targetScope = getNestedScope(copyTo, fullPathObjectMappers);
                     checkNestedScopeCompatibility(sourceScope, targetScope);
                 }
@@ -672,7 +684,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (source == null || target == null) {
             targetIsParentOfSource = target == null;
         } else {
-            targetIsParentOfSource = source.startsWith(target + ".");
+            targetIsParentOfSource = source.equals(target) || source.startsWith(target + ".");
         }
         if (targetIsParentOfSource == false) {
             throw new IllegalArgumentException(

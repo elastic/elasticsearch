@@ -42,7 +42,7 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
     /**
      * Return settings that could be used to start a node that has the given zipped home directory.
      */
-    protected Settings prepareBackwardsDataDir(Path backwardsIndex, Object... settings) throws IOException {
+    protected Settings prepareBackwardsDataDir(Path backwardsIndex) throws IOException {
         Path indexDir = createTempDir();
         Path dataDir = indexDir.resolve("data");
         try (InputStream stream = Files.newInputStream(backwardsIndex)) {
@@ -76,7 +76,6 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
         assertFalse(Files.exists(src));
         assertTrue(Files.exists(dest));
         Settings.Builder builder = Settings.builder()
-            .put(settings)
             .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
 
         return builder.build();
@@ -91,7 +90,7 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
             internalCluster().startNode(nodeSettings);
             fail();
         } catch (Exception ex) {
-            assertThat(ex.getMessage(), containsString(" was created before v2.0.0.beta1 and wasn't upgraded"));
+            assertThat(ex.getCause().getCause().getMessage(), containsString(" was created before v2.0.0.beta1 and wasn't upgraded"));
         }
     }
 }

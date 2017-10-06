@@ -28,7 +28,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -242,7 +241,7 @@ public class QueryProfilerTests extends ESTestCase {
                     return new ScorerSupplier() {
 
                         @Override
-                        public Scorer get(boolean randomAccess) throws IOException {
+                        public Scorer get(long loadCost) throws IOException {
                             throw new UnsupportedOperationException();
                         }
 

@@ -31,9 +31,9 @@ import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.util.List;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -41,7 +41,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected void setTypeList() {
-        TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long", "float", "double"));
+        TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long", "float", "double", "half_float"));
         WHOLE_TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long"));
     }
 
@@ -258,7 +258,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     public void testRejectNorms() throws IOException {
         // not supported as of 5.0
-        for (String type : Arrays.asList("byte", "short", "integer", "long", "float", "double")) {
+        for (String type : TYPES) {
             DocumentMapperParser parser = createIndex("index-" + type).mapperService().documentMapperParser();
             String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -270,6 +270,25 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> parser.parse("type", new CompressedXContent(mapping)));
             assertThat(e.getMessage(), containsString("Mapping definition for [foo] has unsupported parameters:  [norms"));
+        }
+    }
+
+    /**
+     * `index_options` was deprecated and is rejected as of 7.0
+     */
+    public void testRejectIndexOptions() throws IOException {
+        for (String type : TYPES) {
+            DocumentMapperParser parser = createIndex("index-" + type).mapperService().documentMapperParser();
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("foo")
+                        .field("type", type)
+                    .field("index_options", randomFrom(new String[] { "docs", "freqs", "positions", "offsets" }))
+                    .endObject()
+                .endObject().endObject().endObject().string();
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> parser.parse("type", new CompressedXContent(mapping)));
+            assertThat(e.getMessage(), containsString("index_options not allowed in field [foo] of type [" + type +"]"));
         }
     }
 
@@ -296,7 +315,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
         Object missing;
-        if (Arrays.asList("float", "double").contains(type)) {
+        if (Arrays.asList("float", "double", "half_float").contains(type)) {
             missing = 123d;
         } else {
             missing = 123L;

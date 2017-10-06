@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -276,9 +277,10 @@ public final class Script implements ToXContentObject, Writeable {
      * Parse the script configured in the given settings.
      */
     public static Script parse(Settings settings) {
-        try {
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            builder.map(settings.getAsStructuredMap());
+        try (XContentBuilder builder = JsonXContent.contentBuilder()){
+            builder.startObject();
+            settings.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
             return parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, builder.bytes()));
         } catch (IOException e) {
             // it should not happen since we are not actually reading from a stream but an in-memory byte[]

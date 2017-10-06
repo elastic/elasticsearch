@@ -1,10 +1,26 @@
 
-include::how-to.asciidoc[]
+include::api-conventions.asciidoc[]
 
-include::testing.asciidoc[]
+include::docs.asciidoc[]
 
-include::glossary.asciidoc[]
+include::search.asciidoc[]
 
-include::release-notes.asciidoc[]
+include::aggregations.asciidoc[]
 
-include::redirects.asciidoc[]
+include::indices.asciidoc[]
+
+include::cat.asciidoc[]
+
+include::cluster.asciidoc[]
+
+include::query-dsl.asciidoc[]
+
+include::mapping.asciidoc[]
+
+include::analysis.asciidoc[]
+
+include::modules.asciidoc[]
+
+include::index-modules.asciidoc[]
+
+include::ingest.asciidoc[]

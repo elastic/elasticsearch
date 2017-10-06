@@ -44,7 +44,7 @@ public class MockEngineFactoryPlugin extends Plugin implements EnginePlugin {
     }
 
     @Override
-    public Optional<EngineFactory> getMaybeEngineFactory(final IndexSettings indexSettings) {
+    public Optional<EngineFactory> getEngineFactory(final IndexSettings indexSettings) {
         return Optional.of(new MockEngineFactory(getReaderWrapperClass()));
     }
 

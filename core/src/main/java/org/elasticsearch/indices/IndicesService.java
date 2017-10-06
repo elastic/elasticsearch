@@ -476,7 +476,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final List<Tuple<EnginePlugin, Optional<EngineFactory>>> engineFactories =
                 enginePlugins
                         .stream()
-                        .map(p -> Tuple.tuple(p, p.getMaybeEngineFactory(idxSettings)))
+                        .map(p -> Tuple.tuple(p, p.getEngineFactory(idxSettings)))
                         .filter(t -> Objects.requireNonNull(t.v2()).isPresent())
                         .collect(Collectors.toList());
         if (engineFactories.isEmpty()) {

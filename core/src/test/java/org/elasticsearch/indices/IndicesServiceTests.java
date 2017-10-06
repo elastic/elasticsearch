@@ -126,7 +126,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Optional<EngineFactory> getMaybeEngineFactory(final IndexSettings indexSettings) {
+        public Optional<EngineFactory> getEngineFactory(final IndexSettings indexSettings) {
             if (FOO_INDEX_SETTING.get(indexSettings.getSettings())) {
                 return Optional.of(new FooEngineFactory());
             } else {
@@ -156,7 +156,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Optional<EngineFactory> getMaybeEngineFactory(final IndexSettings indexSettings) {
+        public Optional<EngineFactory> getEngineFactory(final IndexSettings indexSettings) {
             if (BAR_INDEX_SETTING.get(indexSettings.getSettings())) {
                 return Optional.of(new BarEngineFactory());
             } else {

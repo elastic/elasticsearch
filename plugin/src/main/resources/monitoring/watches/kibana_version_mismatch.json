@@ -7,7 +7,7 @@
       "link": "kibana/instances",
       "severity": 1000,
       "type": "monitoring",
-      "version_created": 6000026,
+      "version_created": 7000001,
       "watch": "${monitoring.watch.id}"
     }
   },

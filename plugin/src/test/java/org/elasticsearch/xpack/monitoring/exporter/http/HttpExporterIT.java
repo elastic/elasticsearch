@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -73,7 +72,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST,
                               numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2671")
 public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private final boolean templatesExistsAlready = randomBoolean();
@@ -139,7 +137,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     public void testExportWithHeaders() throws Exception {
         final String headerValue = randomAlphaOfLengthBetween(3, 9);
-        final String[] array = generateRandomStringArray(2, 4, false);
+        final String[] array = generateRandomStringArray(2, 4, false, false);
 
         final Map<String, String[]> headers = new HashMap<>();
 
@@ -176,7 +174,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         final boolean useHeaders = randomBoolean();
 
         final String headerValue = randomAlphaOfLengthBetween(3, 9);
-        final String[] array = generateRandomStringArray(2, 4, false);
+        final String[] array = generateRandomStringArray(2, 4, false, false);
 
         final Map<String, String[]> headers = new HashMap<>();
 
@@ -779,7 +777,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             if (randomBoolean()) {
                 enqueueResponse(webServer, 404, "watch [" + watchId + "] does not exist");
             } else if (randomBoolean()) {
-                final int version = LAST_UPDATED_VERSION - randomIntBetween(1, 1000000);
+                final int version = ClusterAlertsUtil.LAST_UPDATED_VERSION - randomIntBetween(1, 1000000);
 
                 // it DOES exist, but it's an older version
                 enqueueResponse(webServer, 200, "{\"metadata\":{\"xpack\":{\"version_created\":" + version + "}}}");

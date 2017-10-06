@@ -38,6 +38,11 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
     private static final ObjectParser<Builder, String> PARSER = new ObjectParser<>("role-mapping", Builder::new);
 
+    /**
+     * The Upgrade API added a 'type' field when converting from 5 to 6.
+     * We don't use it, but we need to skip it if it exists.
+     */
+    private static final String UPGRADE_API_TYPE_FIELD = "type";
 
     static {
         PARSER.declareStringArray(Builder::roles, Fields.ROLES);
@@ -46,8 +51,9 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         PARSER.declareBoolean(Builder::enabled, Fields.ENABLED);
         BiConsumer<Builder, String> ignored = (b, v) -> {
         };
-        // skip the doc_type field in case we're parsing directly from the index
+        // skip the doc_type and type fields in case we're parsing directly from the index
         PARSER.declareString(ignored, new ParseField(NativeRoleMappingStore.DOC_TYPE_FIELD));
+        PARSER.declareString(ignored, new ParseField(UPGRADE_API_TYPE_FIELD));
         }
 
     private final String name;

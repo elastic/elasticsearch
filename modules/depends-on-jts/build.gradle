@@ -19,6 +19,8 @@
 
 import org.apache.tools.ant.types.Path
 
+apply plugin: 'nebula.optional-base'
+
 esplugin {
   description 'Features that we would happily have in core but that transitively depend on JTS which is LGPL'
   classname 'org.elasticsearch.dependsonjts.DependsOnJtsPlugin'
@@ -27,8 +29,8 @@ esplugin {
 
 dependencies {
   compile "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
-  compile "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}"
-  compile "com.vividsolutions:jts:${versions.jts}"
+  compile "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
+  compile "com.vividsolutions:jts:${versions.jts}", optional
 }
 
 dependencyLicenses {

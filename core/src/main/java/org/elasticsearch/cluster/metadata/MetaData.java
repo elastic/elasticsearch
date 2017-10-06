@@ -1000,17 +1000,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             if (!metaData.persistentSettings().isEmpty()) {
                 builder.startObject("settings");
-                for (Map.Entry<String, String> entry : metaData.persistentSettings().getAsMap().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
+                metaData.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
                 builder.endObject();
             }
 
             if (context == XContentContext.API && !metaData.transientSettings().isEmpty()) {
                 builder.startObject("transient_settings");
-                for (Map.Entry<String, String> entry : metaData.transientSettings().getAsMap().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
+                metaData.transientSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
                 builder.endObject();
             }
 

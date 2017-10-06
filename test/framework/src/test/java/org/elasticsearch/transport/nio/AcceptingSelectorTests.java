@@ -46,7 +46,6 @@ public class AcceptingSelectorTests extends ESTestCase {
     private NioServerSocketChannel serverChannel;
     private AcceptorEventHandler eventHandler;
     private TestSelectionKey selectionKey;
-    private HashSet<SelectionKey> keySet = new HashSet<>();
 
     @Before
     public void setUp() throws Exception {
@@ -64,14 +63,12 @@ public class AcceptingSelectorTests extends ESTestCase {
         when(serverChannel.getSelectionKey()).thenReturn(selectionKey);
         when(serverChannel.getSelector()).thenReturn(selector);
         when(serverChannel.isOpen()).thenReturn(true);
-        when(rawSelector.selectedKeys()).thenReturn(keySet);
-        when(rawSelector.select(0)).thenReturn(1);
     }
 
     public void testRegisteredChannel() throws IOException, PrivilegedActionException {
         selector.scheduleForRegistration(serverChannel);
 
-        selector.doSelect(0);
+        selector.preSelect();
 
         verify(eventHandler).serverChannelRegistered(serverChannel);
         Set<NioChannel> registeredChannels = selector.getRegisteredChannels();
@@ -83,7 +80,7 @@ public class AcceptingSelectorTests extends ESTestCase {
         when(serverChannel.isOpen()).thenReturn(false);
         selector.scheduleForRegistration(serverChannel);
 
-        selector.doSelect(0);
+        selector.preSelect();
 
         verify(eventHandler).registrationException(same(serverChannel), any(ClosedChannelException.class));
 
@@ -98,7 +95,7 @@ public class AcceptingSelectorTests extends ESTestCase {
         ClosedChannelException closedChannelException = new ClosedChannelException();
         doThrow(closedChannelException).when(serverChannel).register();
 
-        selector.doSelect(0);
+        selector.preSelect();
 
         verify(eventHandler).registrationException(serverChannel, closedChannelException);
 
@@ -109,21 +106,19 @@ public class AcceptingSelectorTests extends ESTestCase {
 
     public void testAcceptEvent() throws IOException {
         selectionKey.setReadyOps(SelectionKey.OP_ACCEPT);
-        keySet.add(selectionKey);
 
-        selector.doSelect(0);
+        selector.processKey(selectionKey);
 
         verify(eventHandler).acceptChannel(serverChannel);
     }
 
     public void testAcceptException() throws IOException {
         selectionKey.setReadyOps(SelectionKey.OP_ACCEPT);
-        keySet.add(selectionKey);
         IOException ioException = new IOException();
 
         doThrow(ioException).when(eventHandler).acceptChannel(serverChannel);
 
-        selector.doSelect(0);
+        selector.processKey(selectionKey);
 
         verify(eventHandler).acceptException(serverChannel, ioException);
     }
@@ -131,7 +126,7 @@ public class AcceptingSelectorTests extends ESTestCase {
     public void testCleanup() throws IOException {
         selector.scheduleForRegistration(serverChannel);
 
-        selector.doSelect(0);
+        selector.preSelect();
 
         assertEquals(1, selector.getRegisteredChannels().size());
 

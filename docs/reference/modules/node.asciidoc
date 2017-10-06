@@ -104,10 +104,12 @@ To create a dedicated master-eligible node, set:
 node.master: true <1>
 node.data: false <2>
 node.ingest: false <3>
+search.remote.connect: false <4>
 -------------------
 <1> The `node.master` role is enabled by default.
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
+<4> Disable cross-cluster search (enabled by default).
 
 ifdef::include-xpack[]
 NOTE: These settings apply only when {xpack} is not installed. To create a
@@ -194,10 +196,12 @@ To create a dedicated data node, set:
 node.master: false <1>
 node.data: true <2>
 node.ingest: false <3>
+search.remote.connect: false <4>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.data` role is enabled by default.
 <3> Disable the `node.ingest` role (enabled by default).
+<4> Disable cross-cluster search (enabled by default).
 
 ifdef::include-xpack[]
 NOTE: These settings apply only when {xpack} is not installed. To create a

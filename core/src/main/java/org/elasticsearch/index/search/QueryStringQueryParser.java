@@ -93,6 +93,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
     private MappedFieldType currentFieldType;
     private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
+    private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
 
     /**
      * @param context The query shard context.
@@ -234,6 +235,14 @@ public class QueryStringQueryParser extends XQueryParser {
     @Override
     public void setAutoGenerateMultiTermSynonymsPhraseQuery(boolean enable) {
         queryBuilder.setAutoGenerateSynonymsPhraseQuery(enable);
+    }
+
+    /**
+     * @param fuzzyTranspositions Sets whether transpositions are supported in fuzzy queries.
+     * Defaults to {@link FuzzyQuery#defaultTranspositions}.
+     */
+    public void setFuzzyTranspositions(boolean fuzzyTranspositions) {
+        this.fuzzyTranspositions = fuzzyTranspositions;
     }
 
     private Query applyBoost(Query q, Float boost) {
@@ -442,7 +451,7 @@ public class QueryStringQueryParser extends XQueryParser {
             Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
             BytesRef term = termStr == null ? null : normalizer.normalize(field, termStr);
             return currentFieldType.fuzzyQuery(term, Fuzziness.fromEdits((int) minSimilarity),
-                getFuzzyPrefixLength(), fuzzyMaxExpansions, FuzzyQuery.defaultTranspositions);
+                getFuzzyPrefixLength(), fuzzyMaxExpansions, fuzzyTranspositions);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
@@ -455,7 +464,7 @@ public class QueryStringQueryParser extends XQueryParser {
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
         int numEdits = Fuzziness.build(minimumSimilarity).asDistance(term.text());
         FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength,
-            fuzzyMaxExpansions, FuzzyQuery.defaultTranspositions);
+            fuzzyMaxExpansions, fuzzyTranspositions);
         QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);
         return query;
     }

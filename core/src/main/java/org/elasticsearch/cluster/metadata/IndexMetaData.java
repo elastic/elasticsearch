@@ -1078,9 +1078,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             boolean binary = params.paramAsBoolean("binary", false);
 
             builder.startObject(KEY_SETTINGS);
-            for (Map.Entry<String, String> entry : indexMetaData.getSettings().getAsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            indexMetaData.getSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
             builder.endObject();
 
             builder.startArray(KEY_MAPPINGS);

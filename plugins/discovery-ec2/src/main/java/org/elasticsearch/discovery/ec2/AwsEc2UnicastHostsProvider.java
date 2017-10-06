@@ -65,7 +65,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
 
     private final Set<String> groups;
 
-    private final Map<String, String> tags;
+    private final Map<String, List<String>> tags;
 
     private final Set<String> availabilityZones;
 
@@ -206,7 +206,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
                 new Filter("instance-state-name").withValues("running", "pending")
             );
 
-        for (Map.Entry<String, String> tagFilter : tags.entrySet()) {
+        for (Map.Entry<String, List<String>> tagFilter : tags.entrySet()) {
             // for a given tag key, OR relationship for multiple different values
             describeInstancesRequest.withFilters(
                 new Filter("tag:" + tagFilter.getKey()).withValues(tagFilter.getValue())

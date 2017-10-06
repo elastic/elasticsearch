@@ -438,7 +438,7 @@ public class RestSqlSecurityIT extends ESRestTestCase {
      */
     @SafeVarargs
     private final void assertAuditEvents(CheckedFunction<Map<?, ?>, Boolean, Exception>... eventCheckers) throws Exception {
-        assumeFalse("Previous test had an audit-related failure. All subsequent audit related assertions are bogus because we can't "
+        assertFalse("Previous test had an audit-related failure. All subsequent audit related assertions are bogus because we can't "
                 + "guarantee that we fully cleaned up after the last test.", auditFailure);
         try {
             assertBusy(() -> {

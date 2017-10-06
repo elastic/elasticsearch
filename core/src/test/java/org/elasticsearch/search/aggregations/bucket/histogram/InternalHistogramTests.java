@@ -21,12 +21,14 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -57,6 +59,27 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         }
         InternalOrder order = (InternalOrder) randomFrom(InternalHistogram.Order.KEY_ASC, InternalHistogram.Order.KEY_DESC);
         return new InternalHistogram(name, buckets, order, 1, null, format, keyed, pipelineAggregators, metaData);
+    }
+
+    // issue 26787
+    public void testHandlesNaN() {
+        InternalHistogram histogram = createTestInstance();
+        InternalHistogram histogram2 = createTestInstance();
+        List<InternalHistogram.Bucket> buckets = histogram.getBuckets();
+        if (buckets == null || buckets.isEmpty()) {
+            return;
+        }
+
+        // Set the key of one bucket to NaN. Must be the last bucket because NaN is greater than everything else.
+        List<InternalHistogram.Bucket> newBuckets = new ArrayList<>(buckets.size());
+        if (buckets.size() > 1) {
+            newBuckets.addAll(buckets.subList(0, buckets.size() - 1));
+        }
+        InternalHistogram.Bucket b = buckets.get(buckets.size() - 1);
+        newBuckets.add(new InternalHistogram.Bucket(Double.NaN, b.docCount, keyed, b.format, b.aggregations));
+        
+        InternalHistogram newHistogram = histogram.create(newBuckets);
+        newHistogram.doReduce(Arrays.asList(newHistogram, histogram2), new InternalAggregation.ReduceContext(null, null, false));
     }
 
     @Override

@@ -364,11 +364,12 @@ DATA_SETTINGS
     masterSettings=$(sudo curl -u "elastic:changeme" \
 	-H "Content-Type: application/json" \
 	--cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
-	-XGET "https://127.0.0.1:9200/_nodes/node-master?filter_path=nodes.*.settings.xpack")
+	-XGET "https://127.0.0.1:9200/_nodes/node-master?filter_path=nodes.*.settings.xpack,nodes.*.settings.http.type,nodes.*.settings.transport.type")
 
     echo "$masterSettings" | grep '"http":{"ssl":{"enabled":"true"}'
+    echo "$masterSettings" | grep '"http":{"type":"security4"}'
     echo "$masterSettings" | grep '"transport":{"ssl":{"enabled":"true"}'
-    echo "$masterSettings" | grep "\"certificate_authorities\":\[\"$ESCONFIG/x-pack/certs/ca/ca.crt\"\]"
+    echo "$masterSettings" | grep '"transport":{"type":"security4"}'
     
     load $DATA_UTILS
     export ESHOME="$DATA_HOME"
@@ -377,11 +378,12 @@ DATA_SETTINGS
     dataSettings=$(curl -u "elastic:changeme" \
 	-H "Content-Type: application/json" \
 	--cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
-	-XGET "https://127.0.0.1:9200/_nodes/node-data?filter_path=nodes.*.settings.xpack")
-    
+	-XGET "https://127.0.0.1:9200/_nodes/node-data?filter_path=nodes.*.settings.xpack,nodes.*.settings.http.type,nodes.*.settings.transport.type")
+
     echo "$dataSettings" | grep '"http":{"ssl":{"enabled":"true"}'
+    echo "$dataSettings" | grep '"http":{"type":"security4"}'
     echo "$dataSettings" | grep '"transport":{"ssl":{"enabled":"true"}'
-    echo "$dataSettings" | grep "\"certificate_authorities\":\[\"$ESCONFIG/x-pack/certs/ca/ca.crt\"\]"
+    echo "$dataSettings" | grep '"transport":{"type":"security4"}'
     
     testSearch=$(curl -u "elastic:changeme" \
 	-H "Content-Type: application/json" \

@@ -133,21 +133,25 @@ public class SearchAfterBuilder implements ToXContent, Writeable {
         return new FieldDoc(Integer.MAX_VALUE, 0, fieldValues);
     }
 
-    private static SortField.Type extractSortType(SortField sortField) {
-        if (sortField instanceof SortedSetSortField) {
+    /**
+     * Returns the inner {@link SortField.Type} expected for this sort field.
+     */
+    static SortField.Type extractSortType(SortField sortField) {
+        if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource) {
+            return ((IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource()).reducedType();
+        } else if (sortField instanceof SortedSetSortField) {
             return SortField.Type.STRING;
         } else if (sortField instanceof SortedNumericSortField) {
             return ((SortedNumericSortField) sortField).getNumericType();
+        } else if ("LatLonPointSortField".equals(sortField.getClass().getSimpleName())) {
+            // for geo distance sorting
+            return SortField.Type.DOUBLE;
         } else {
             return sortField.getType();
         }
     }
 
-    private static Object convertValueFromSortField(Object value, SortField sortField, DocValueFormat format) {
-        if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource) {
-            IndexFieldData.XFieldComparatorSource cmpSource = (IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource();
-            return convertValueFromSortType(sortField.getField(), cmpSource.reducedType(), value, format);
-        }
+    static Object convertValueFromSortField(Object value, SortField sortField, DocValueFormat format) {
         SortField.Type sortType = extractSortType(sortField);
         return convertValueFromSortType(sortField.getField(), sortType, value, format);
     }

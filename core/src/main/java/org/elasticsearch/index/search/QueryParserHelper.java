@@ -56,6 +56,7 @@ public final class QueryParserHelper {
         }
         ALLOWED_QUERY_MAPPER_TYPES.add("scaled_float");
         ALLOWED_QUERY_MAPPER_TYPES.add(TextFieldMapper.CONTENT_TYPE);
+        ALLOWED_QUERY_MAPPER_TYPES.add("custom_float");
     }
 
     private QueryParserHelper() {}

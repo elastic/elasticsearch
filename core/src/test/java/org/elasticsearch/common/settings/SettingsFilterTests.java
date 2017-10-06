@@ -108,7 +108,7 @@ public class SettingsFilterTests extends ESTestCase {
 
         // Test using direct filtering
         Settings filteredSettings = settingsFilter.filter(source);
-        assertThat(filteredSettings.getAsMap().entrySet(), equalTo(filtered.getAsMap().entrySet()));
+        assertThat(filteredSettings, equalTo(filtered));
 
         // Test using toXContent filtering
         RestRequest request = new FakeRestRequest();
@@ -119,6 +119,6 @@ public class SettingsFilterTests extends ESTestCase {
         xContentBuilder.endObject();
         String filteredSettingsString = xContentBuilder.string();
         filteredSettings = Settings.builder().loadFromSource(filteredSettingsString, xContentBuilder.contentType()).build();
-        assertThat(filteredSettings.getAsMap().entrySet(), equalTo(filtered.getAsMap().entrySet()));
+        assertThat(filteredSettings, equalTo(filtered));
     }
 }

@@ -52,7 +52,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -182,15 +181,12 @@ public class LogConfigurator {
             final Level level = ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings);
             Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
         }
-
-        final Map<String, String> levels = settings.filter(ESLoggerFactory.LOG_LEVEL_SETTING::match).getAsMap();
-        for (final String key : levels.keySet()) {
+        ESLoggerFactory.LOG_LEVEL_SETTING.getAllConcreteSettings(settings)
             // do not set a log level for a logger named level (from the default log setting)
-            if (!key.equals(ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.getKey())) {
-                final Level level = ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings);
-                Loggers.setLevel(ESLoggerFactory.getLogger(key.substring("logger.".length())), level);
-            }
-        }
+            .filter(s -> s.getKey().equals(ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.getKey()) == false).forEach(s -> {
+            final Level level = s.get(settings);
+            Loggers.setLevel(ESLoggerFactory.getLogger(s.getKey().substring("logger.".length())), level);
+        });
     }
 
     /**

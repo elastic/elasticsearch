@@ -47,6 +47,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
@@ -55,23 +56,18 @@ import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -85,10 +81,9 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 public final class Settings implements ToXContentFragment {
 
     public static final Settings EMPTY = new Builder().build();
-    private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
     /** The raw settings from the full key to raw string value. */
-    private final Map<String, String> settings;
+    private final Map<String, Object> settings;
 
     /** The secure settings storage associated with these settings. */
     private final SecureSettings secureSettings;
@@ -102,7 +97,7 @@ public final class Settings implements ToXContentFragment {
      */
     private final SetOnce<Set<String>> keys = new SetOnce<>();
 
-    Settings(Map<String, String> settings, SecureSettings secureSettings) {
+    Settings(Map<String, Object> settings, SecureSettings secureSettings) {
         // we use a sorted map for consistent serialization when using getAsMap()
         this.settings = Collections.unmodifiableSortedMap(new TreeMap<>(settings));
         this.secureSettings = secureSettings;
@@ -116,18 +111,9 @@ public final class Settings implements ToXContentFragment {
         return secureSettings;
     }
 
-    /**
-     * The settings as a flat {@link java.util.Map}.
-     * @return an unmodifiable map of settings
-     */
-    public Map<String, String> getAsMap() {
-        // settings is always unmodifiable
-        return this.settings;
-    }
-
     private Map<String, Object> getAsStructuredMap() {
         Map<String, Object> map = new HashMap<>(2);
-        for (Map.Entry<String, String> entry : settings.entrySet()) {
+        for (Map.Entry<String, Object> entry : settings.entrySet()) {
             processSetting(map, "", entry.getKey(), entry.getValue());
         }
         for (Map.Entry<String, Object> entry : map.entrySet()) {
@@ -140,7 +126,7 @@ public final class Settings implements ToXContentFragment {
         return map;
     }
 
-    private void processSetting(Map<String, Object> map, String prefix, String setting, String value) {
+    private void processSetting(Map<String, Object> map, String prefix, String setting, Object value) {
         int prefixLength = setting.indexOf('.');
         if (prefixLength == -1) {
             @SuppressWarnings("unchecked") Map<String, Object> innerMap = (Map<String, Object>) map.get(prefix + setting);
@@ -244,7 +230,7 @@ public final class Settings implements ToXContentFragment {
      * @return The setting value, <tt>null</tt> if it does not exists.
      */
     public String get(String setting) {
-        return settings.get(setting);
+        return toString(settings.get(setting));
     }
 
     /**
@@ -380,83 +366,60 @@ public final class Settings implements ToXContentFragment {
     }
 
     /**
-     * The values associated with a setting prefix as an array. The settings array is in the format of:
-     * <tt>settingPrefix.[index]</tt>.
+     * The values associated with a setting key as an array.
      * <p>
      * It will also automatically load a comma separated list under the settingPrefix and merge with
      * the numbered format.
      *
-     * @param settingPrefix The setting prefix to load the array by
+     * @param key The setting prefix to load the array by
      * @return The setting array values
      */
-    public String[] getAsArray(String settingPrefix) throws SettingsException {
-        return getAsArray(settingPrefix, Strings.EMPTY_ARRAY, true);
+    public String[] getAsArray(String key) throws SettingsException {
+        return getAsArray(key, Strings.EMPTY_ARRAY, true);
     }
 
     /**
-     * The values associated with a setting prefix as an array. The settings array is in the format of:
-     * <tt>settingPrefix.[index]</tt>.
+     * The values associated with a setting key as an array.
      * <p>
      * If commaDelimited is true, it will automatically load a comma separated list under the settingPrefix and merge with
      * the numbered format.
      *
-     * @param settingPrefix The setting prefix to load the array by
+     * @param key The setting key to load the array by
      * @return The setting array values
      */
-    public String[] getAsArray(String settingPrefix, String[] defaultArray) throws SettingsException {
-        return getAsArray(settingPrefix, defaultArray, true);
+    public String[] getAsArray(String key, String[] defaultArray) throws SettingsException {
+        return getAsArray(key, defaultArray, true);
     }
 
     /**
-     * The values associated with a setting prefix as an array. The settings array is in the format of:
-     * <tt>settingPrefix.[index]</tt>.
+     * The values associated with a setting key as an array.
      * <p>
      * It will also automatically load a comma separated list under the settingPrefix and merge with
      * the numbered format.
      *
-     * @param settingPrefix  The setting prefix to load the array by
+     * @param key  The setting key to load the array by
      * @param defaultArray   The default array to use if no value is specified
      * @param commaDelimited Whether to try to parse a string as a comma-delimited value
      * @return The setting array values
      */
-    public String[] getAsArray(String settingPrefix, String[] defaultArray, Boolean commaDelimited) throws SettingsException {
+    public String[] getAsArray(String key, String[] defaultArray, Boolean commaDelimited) throws SettingsException {
         List<String> result = new ArrayList<>();
-
-        final String valueFromPrefix = get(settingPrefix);
-        final String valueFromPreifx0 = get(settingPrefix + ".0");
-
-        if (valueFromPrefix != null && valueFromPreifx0 != null) {
-            final String message = String.format(
-                    Locale.ROOT,
-                    "settings object contains values for [%s=%s] and [%s=%s]",
-                    settingPrefix,
-                    valueFromPrefix,
-                    settingPrefix + ".0",
-                    valueFromPreifx0);
-            throw new IllegalStateException(message);
-        }
-
-        if (get(settingPrefix) != null) {
-            if (commaDelimited) {
-                String[] strings = Strings.splitStringByCommaToArray(get(settingPrefix));
+        final Object valueFromPrefix = settings.get(key);
+        if (valueFromPrefix != null) {
+            if (valueFromPrefix instanceof List) {
+                result =  ((List<String>) valueFromPrefix);
+            } else if (commaDelimited) {
+                String[] strings = Strings.splitStringByCommaToArray(get(key));
                 if (strings.length > 0) {
                     for (String string : strings) {
                         result.add(string.trim());
                     }
                 }
             } else {
-                result.add(get(settingPrefix).trim());
+                result.add(get(key).trim());
             }
         }
 
-        int counter = 0;
-        while (true) {
-            String value = get(settingPrefix + '.' + (counter++));
-            if (value == null) {
-                break;
-            }
-            result.add(value.trim());
-        }
         if (result.isEmpty()) {
             return defaultArray;
         }
@@ -557,7 +520,7 @@ public final class Settings implements ToXContentFragment {
      */
     public String toDelimitedString(char delimiter) {
         StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, String> entry : settings.entrySet()) {
+        for (Map.Entry<String, Object> entry : settings.entrySet()) {
             sb.append(entry.getKey()).append("=").append(entry.getValue()).append(delimiter);
         }
         return sb.toString();
@@ -582,19 +545,52 @@ public final class Settings implements ToXContentFragment {
     public static Settings readSettingsFromStream(StreamInput in) throws IOException {
         Builder builder = new Builder();
         int numberOfSettings = in.readVInt();
-        for (int i = 0; i < numberOfSettings; i++) {
-            builder.put(in.readString(), in.readOptionalString());
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            for (int i = 0; i < numberOfSettings; i++) {
+                String key = in.readString();
+                Object value = in.readGenericValue();
+                if (value == null) {
+                    builder.putNull(key);
+                } else if (value instanceof List) {
+                    builder.putArray(key, (List<String>) value);
+                } else {
+                    builder.put(key, value.toString());
+                }
+            }
+        } else {
+            for (int i = 0; i < numberOfSettings; i++) {
+                String key = in.readString();
+                String value = in.readOptionalString();
+                builder.put(key, value);
+            }
         }
         return builder.build();
     }
 
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
-        // pull getAsMap() to exclude secure settings in size()
-        Set<Map.Entry<String, String>> entries = settings.getAsMap().entrySet();
-        out.writeVInt(entries.size());
-        for (Map.Entry<String, String> entry : entries) {
-            out.writeString(entry.getKey());
-            out.writeOptionalString(entry.getValue());
+        // pull settings to exclude secure settings in size()
+        Set<Map.Entry<String, Object>> entries = settings.settings.entrySet();
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeVInt(entries.size());
+            for (Map.Entry<String, Object> entry : entries) {
+                out.writeString(entry.getKey());
+                out.writeGenericValue(entry.getValue());
+            }
+        } else {
+            int size = entries.stream().mapToInt(e -> e.getValue() instanceof List ? ((List)e.getValue()).size() : 1).sum();
+            out.writeVInt(size);
+            for (Map.Entry<String, Object> entry : entries) {
+                if (entry.getValue() instanceof List) {
+                    int idx = 0;
+                    for (String value : (List<String>)entry.getValue()) {
+                        out.writeString(entry.getKey() + "." + idx++);
+                        out.writeOptionalString(value);
+                    }
+                } else {
+                    out.writeString(entry.getKey());
+                    out.writeOptionalString(toString(entry.getValue()));
+                }
+            }
         }
     }
 
@@ -613,7 +609,7 @@ public final class Settings implements ToXContentFragment {
                 builder.field(entry.getKey(), entry.getValue());
             }
         } else {
-            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+            for (Map.Entry<String, Object> entry : settings.settings.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
         }
@@ -629,9 +625,7 @@ public final class Settings implements ToXContentFragment {
         return fromXContent(parser, true, false);
     }
 
-    private static Settings fromXContent(XContentParser parser, boolean allowNullValues,
-                                                 boolean validateEndOfStream)
-        throws IOException {
+    private static Settings fromXContent(XContentParser parser, boolean allowNullValues, boolean validateEndOfStream) throws IOException {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
@@ -773,7 +767,7 @@ public final class Settings implements ToXContentFragment {
         public static final Settings EMPTY_SETTINGS = new Builder().build();
 
         // we use a sorted map for consistent serialization when using getAsMap()
-        private final Map<String, String> map = new TreeMap<>();
+        private final Map<String, Object> map = new TreeMap<>();
 
         private SetOnce<SecureSettings> secureSettings = new SetOnce<>();
 
@@ -781,22 +775,22 @@ public final class Settings implements ToXContentFragment {
 
         }
 
-        public Map<String, String> internalMap() {
-            return this.map;
+        public Set<String> keys() {
+            return this.map.keySet();
         }
 
         /**
          * Removes the provided setting from the internal map holding the current list of settings.
          */
         public String remove(String key) {
-            return map.remove(key);
+            return Settings.toString(map.remove(key));
         }
 
         /**
          * Returns a setting value based on the setting key.
          */
         public String get(String key) {
-            return map.get(key);
+            return Settings.toString(map.get(key));
         }
 
         /** Return the current secure settings, or {@code null} if none have been set. */
@@ -892,6 +886,24 @@ public final class Settings implements ToXContentFragment {
         public Builder put(String key, String value) {
             map.put(key, value);
             return this;
+        }
+
+        public Builder copy(String key, Settings source) {
+            return copy(key, key, source);
+        }
+
+        public Builder copy(String key, String sourceKey, Settings source) {
+            if (source.settings.containsKey(sourceKey) == false) {
+                throw new IllegalArgumentException("source key not found in the source settings");
+            }
+            final Object value = source.settings.get(sourceKey);
+            if (value instanceof List) {
+                return putArray(key, (List)value);
+            } else if (value == null) {
+                return putNull(key);
+            } else {
+                return put(key, Settings.toString(value));
+            }
         }
 
         /**
@@ -1023,16 +1035,7 @@ public final class Settings implements ToXContentFragment {
          */
         public Builder putArray(String setting, List<String> values) {
             remove(setting);
-            int counter = 0;
-            while (true) {
-                String value = map.remove(setting + '.' + (counter++));
-                if (value == null) {
-                    break;
-                }
-            }
-            for (int i = 0; i < values.size(); i++) {
-                put(setting + "." + i, values.get(i));
-            }
+            map.put(setting, Collections.unmodifiableList(new ArrayList<>(values)));
             return this;
         }
 
@@ -1065,53 +1068,39 @@ public final class Settings implements ToXContentFragment {
          * @param copySecureSettings if <code>true</code> all settings including secure settings are copied.
          */
         public Builder put(Settings settings, boolean copySecureSettings) {
-            removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings.getAsMap());
-            map.putAll(settings.getAsMap());
+            Map<String, Object> settingsMap = new HashMap<>(settings.settings);
+            processLegacyLists(settingsMap);
+            map.putAll(settingsMap);
             if (copySecureSettings && settings.getSecureSettings() != null) {
                 setSecureSettings(settings.getSecureSettings());
             }
             return this;
         }
 
-        /**
-         * Removes non array values from the existing map, if settings contains an array value instead
-         *
-         * Example:
-         *   Existing map contains: {key:value}
-         *   New map contains: {key:[value1,value2]} (which has been flattened to {}key.0:value1,key.1:value2})
-         *
-         *   This ensure that that the 'key' field gets removed from the map in order to override all the
-         *   data instead of merging
-         */
-        private void removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(Map<String, String> settings) {
-            List<String> prefixesToRemove = new ArrayList<>();
-            for (final Map.Entry<String, String> entry : settings.entrySet()) {
-                final Matcher matcher = ARRAY_PATTERN.matcher(entry.getKey());
-                if (matcher.matches()) {
-                    prefixesToRemove.add(matcher.group(1));
-                } else if (map.keySet().stream().anyMatch(key -> key.startsWith(entry.getKey() + "."))) {
-                    prefixesToRemove.add(entry.getKey());
-                }
-            }
-            for (String prefix : prefixesToRemove) {
-                Iterator<Map.Entry<String, String>> iterator = map.entrySet().iterator();
-                while (iterator.hasNext()) {
-                    Map.Entry<String, String> entry = iterator.next();
-                    if (entry.getKey().startsWith(prefix + ".") || entry.getKey().equals(prefix)) {
-                        iterator.remove();
+        private void processLegacyLists(Map<String, Object> map) {
+            String[] array = map.keySet().toArray(new String[map.size()]);
+            for (String key : array) {
+                if (key.endsWith(".0")) { // let's only look at the head of the list and convert in order starting there.
+                    int counter = 0;
+                    String prefix = key.substring(0, key.lastIndexOf('.'));
+                    if (map.containsKey(prefix)) {
+                        throw new IllegalStateException("settings builder can't contain values for [" + prefix + "=" + map.get(prefix)
+                            + "] and [" + key + "=" + map.get(key) + "]");
+                    }
+                    List<String> values = new ArrayList<>();
+                    while (true) {
+                        String listKey = prefix + '.' + (counter++);
+                        String value = get(listKey);
+                        if (value == null) {
+                            map.put(prefix, values);
+                            break;
+                        } else {
+                            values.add(value);
+                            map.remove(listKey);
+                        }
                     }
                 }
             }
-        }
-
-        /**
-         * Sets all the provided settings.
-         */
-        public Builder put(Dictionary<Object,Object> properties) {
-            for (Object key : Collections.list(properties.keys())) {
-                map.put(Objects.toString(key), Objects.toString(properties.get(key)));
-            }
-            return this;
         }
 
         /**
@@ -1191,7 +1180,7 @@ public final class Settings implements ToXContentFragment {
                     if (value != null) {
                         return value;
                     }
-                    return map.get(placeholderName);
+                    return Settings.toString(map.get(placeholderName));
                 }
 
                 @Override
@@ -1211,14 +1200,14 @@ public final class Settings implements ToXContentFragment {
                 }
             };
 
-            Iterator<Map.Entry<String, String>> entryItr = map.entrySet().iterator();
+            Iterator<Map.Entry<String, Object>> entryItr = map.entrySet().iterator();
             while (entryItr.hasNext()) {
-                Map.Entry<String, String> entry = entryItr.next();
-                if (entry.getValue() == null) {
+                Map.Entry<String, Object> entry = entryItr.next();
+                if (entry.getValue() == null || entry.getValue() instanceof List) {
                     // a null value obviously can't be replaced
                     continue;
                 }
-                String value = propertyPlaceholder.replacePlaceholders(entry.getValue(), placeholderResolver);
+                String value = propertyPlaceholder.replacePlaceholders(Settings.toString(entry.getValue()), placeholderResolver);
                 // if the values exists and has length, we should maintain it  in the map
                 // otherwise, the replace process resolved into removing it
                 if (Strings.hasLength(value)) {
@@ -1236,10 +1225,10 @@ public final class Settings implements ToXContentFragment {
          * If a setting doesn't start with the prefix, the builder appends the prefix to such setting.
          */
         public Builder normalizePrefix(String prefix) {
-            Map<String, String> replacements = new HashMap<>();
-            Iterator<Map.Entry<String, String>> iterator = map.entrySet().iterator();
+            Map<String, Object> replacements = new HashMap<>();
+            Iterator<Map.Entry<String, Object>> iterator = map.entrySet().iterator();
             while(iterator.hasNext()) {
-                Map.Entry<String, String> entry = iterator.next();
+                Map.Entry<String, Object> entry = iterator.next();
                 if (entry.getKey().startsWith(prefix) == false) {
                     replacements.put(prefix + entry.getKey(), entry.getValue());
                     iterator.remove();
@@ -1254,30 +1243,31 @@ public final class Settings implements ToXContentFragment {
          * set on this builder.
          */
         public Settings build() {
+            processLegacyLists(map);
             return new Settings(map, secureSettings.get());
         }
     }
 
     // TODO We could use an FST internally to make things even faster and more compact
-    private static final class FilteredMap extends AbstractMap<String, String> {
-        private final Map<String, String> delegate;
+    private static final class FilteredMap extends AbstractMap<String, Object> {
+        private final Map<String, Object> delegate;
         private final Predicate<String> filter;
         private final String prefix;
         // we cache that size since we have to iterate the entire set
         // this is safe to do since this map is only used with unmodifiable maps
         private int size = -1;
         @Override
-        public Set<Entry<String, String>> entrySet() {
-            Set<Entry<String, String>> delegateSet = delegate.entrySet();
-            AbstractSet<Entry<String, String>> filterSet = new AbstractSet<Entry<String, String>>() {
+        public Set<Entry<String, Object>> entrySet() {
+            Set<Entry<String, Object>> delegateSet = delegate.entrySet();
+            AbstractSet<Entry<String, Object>> filterSet = new AbstractSet<Entry<String, Object>>() {
 
                 @Override
-                public Iterator<Entry<String, String>> iterator() {
-                    Iterator<Entry<String, String>> iter = delegateSet.iterator();
+                public Iterator<Entry<String, Object>> iterator() {
+                    Iterator<Entry<String, Object>> iter = delegateSet.iterator();
 
-                    return new Iterator<Entry<String, String>>() {
+                    return new Iterator<Entry<String, Object>>() {
                         private int numIterated;
-                        private Entry<String, String> currentElement;
+                        private Entry<String, Object> currentElement;
                         @Override
                         public boolean hasNext() {
                             if (currentElement != null) {
@@ -1300,29 +1290,29 @@ public final class Settings implements ToXContentFragment {
                         }
 
                         @Override
-                        public Entry<String, String> next() {
+                        public Entry<String, Object> next() {
                             if (currentElement == null && hasNext() == false) { // protect against no #hasNext call or not respecting it
 
                                 throw new NoSuchElementException("make sure to call hasNext first");
                             }
-                            final Entry<String, String> current = this.currentElement;
+                            final Entry<String, Object> current = this.currentElement;
                             this.currentElement = null;
                             if (prefix == null) {
                                 return current;
                             }
-                            return new Entry<String, String>() {
+                            return new Entry<String, Object>() {
                                 @Override
                                 public String getKey() {
                                     return current.getKey().substring(prefix.length());
                                 }
 
                                 @Override
-                                public String getValue() {
+                                public Object getValue() {
                                     return current.getValue();
                                 }
 
                                 @Override
-                                public String setValue(String value) {
+                                public Object setValue(Object value) {
                                     throw new UnsupportedOperationException();
                                 }
                             };
@@ -1338,14 +1328,14 @@ public final class Settings implements ToXContentFragment {
             return filterSet;
         }
 
-        private FilteredMap(Map<String, String> delegate, Predicate<String> filter, String prefix) {
+        private FilteredMap(Map<String, Object> delegate, Predicate<String> filter, String prefix) {
             this.delegate = delegate;
             this.filter = filter;
             this.prefix = prefix;
         }
 
         @Override
-        public String get(Object key) {
+        public Object get(Object key) {
             if (key instanceof String) {
                 final String theKey = prefix == null ? (String)key : prefix + key;
                 if (filter.test(theKey)) {
@@ -1421,4 +1411,21 @@ public final class Settings implements ToXContentFragment {
             delegate.close();
         }
     }
+
+    @Override
+    public String toString() {
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.startObject();
+            toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
+            builder.endObject();
+            return builder.string();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static String toString(Object o) {
+        return o == null ? null : o.toString();
+    }
+
 }

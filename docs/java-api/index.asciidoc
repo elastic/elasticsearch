@@ -188,51 +188,6 @@ it to the `transformers`:
 </transformer>
 --------------------------------------------------
 
-
-== Deploying in JBoss EAP6 module
-
-Elasticsearch and Lucene classes need to be in the same JBoss module.
-
-You should define a `module.xml` file like this:
-
-[source,xml]
---------------------------------------------------
-<?xml version="1.0" encoding="UTF-8"?>
-<module xmlns="urn:jboss:module:1.1" name="org.elasticsearch">
-  <resources>
-    <!-- Elasticsearch -->
-    <resource-root path="elasticsearch-2.0.0.jar"/>
-    <!-- Lucene -->
-    <resource-root path="lucene-core-5.1.0.jar"/>
-    <resource-root path="lucene-analyzers-common-5.1.0.jar"/>
-    <resource-root path="lucene-queries-5.1.0.jar"/>
-    <resource-root path="lucene-memory-5.1.0.jar"/>
-    <resource-root path="lucene-highlighter-5.1.0.jar"/>
-    <resource-root path="lucene-queryparser-5.1.0.jar"/>
-    <resource-root path="lucene-sandbox-5.1.0.jar"/>
-    <resource-root path="lucene-suggest-5.1.0.jar"/>
-    <resource-root path="lucene-misc-5.1.0.jar"/>
-    <resource-root path="lucene-join-5.1.0.jar"/>
-    <resource-root path="lucene-grouping-5.1.0.jar"/>
-    <resource-root path="lucene-spatial-5.1.0.jar"/>
-    <resource-root path="lucene-expressions-5.1.0.jar"/>
-    <!-- Insert other resources here -->
-  </resources>
-
-  <dependencies>
-    <module name="sun.jdk" export="true" >
-        <imports>
-            <include path="sun/misc/Unsafe" />
-        </imports>
-    </module>
-    <module name="org.apache.log4j"/>
-    <module name="org.apache.commons.logging"/>
-    <module name="javax.api"/>
-  </dependencies>
-</module>
---------------------------------------------------
-
-
 include::client.asciidoc[]
 
 include::docs.asciidoc[]

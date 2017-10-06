@@ -110,7 +110,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.settings.Setting.affixKeySetting;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
-import static org.elasticsearch.common.settings.Setting.groupSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
@@ -184,7 +183,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
 
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
-    private static final int PING_DATA_SIZE = -1;
+    public static final int PING_DATA_SIZE = -1;
     private final CircuitBreakerService circuitBreakerService;
     // package visibility for tests
     protected final ScheduledPing scheduledPing;
@@ -442,7 +441,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         public void close() throws IOException {
             if (closed.compareAndSet(false, true)) {
                 try {
-                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()), false, true);
+                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()), false,
+                        lifecycle.stopped());
                 } finally {
                     transportService.onConnectionClosed(this);
                 }

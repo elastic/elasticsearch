@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.security.user.AnonymousUser;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
 
 /**
  * Indicates whether the features of Security are currently in use
@@ -141,7 +142,10 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     }
 
     static Map<String, Object> sslUsage(Settings settings) {
-        return singletonMap("http", singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
+        Map<String, Object> map = new HashMap<>(2);
+        map.put("http", singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
+        map.put("transport", singletonMap("enabled", TRANSPORT_SSL_ENABLED.get(settings)));
+        return map;
     }
 
     static Map<String, Object> auditUsage(Settings settings) {

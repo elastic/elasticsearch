@@ -41,7 +41,6 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.MultiValueMode.UnsortedNumericDoubleValues;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -92,7 +91,7 @@ public class MultiValueModeTests extends ESTestCase {
                 docsWithValue.set(i);
             }
         }
-        
+
         final Supplier<SortedNumericDocValues> multiValues = () -> DocValues.singleton(new AbstractNumericDocValues() {
             int docId = -1;
             @Override
@@ -707,126 +706,6 @@ public class MultiValueModeTests extends ESTestCase {
                 assertEquals(mode.toString() + " docId=" + root, expected, actual);
 
                 prevRoot = root;
-            }
-        }
-    }
-
-    public void testUnsortedSingleValuedDoubles() throws Exception  {
-        final int numDocs = scaledRandomIntBetween(1, 100);
-        final double[] array = new double[numDocs];
-        final FixedBitSet docsWithValue = randomBoolean() ? null : new FixedBitSet(numDocs);
-        for (int i = 0; i < array.length; ++i) {
-            if (randomBoolean()) {
-                array[i] = randomDouble();
-                if (docsWithValue != null) {
-                    docsWithValue.set(i);
-                }
-            } else if (docsWithValue != null && randomBoolean()) {
-                docsWithValue.set(i);
-            }
-        }
-        final NumericDoubleValues singleValues = new NumericDoubleValues() {
-            private int docID;
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                docID = doc;
-                return docsWithValue == null || docsWithValue.get(docID);
-            }
-            @Override
-            public double doubleValue() {
-                return array[docID];
-            }
-        };
-        final SortedNumericDoubleValues singletonValues = FieldData.singleton(singleValues);
-        final MultiValueMode.UnsortedNumericDoubleValues multiValues = new MultiValueMode.UnsortedNumericDoubleValues() {
-
-            @Override
-            public int docValueCount() {
-                return singletonValues.docValueCount();
-            }
-
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                return singletonValues.advanceExact(doc);
-            }
-
-            @Override
-            public double nextValue() throws IOException {
-                return Math.cos(singletonValues.nextValue());
-            }
-        };
-        verifyUnsortedNumeric(() -> multiValues, numDocs);
-    }
-
-    public void testUnsortedMultiValuedDoubles() throws Exception  {
-        final int numDocs = scaledRandomIntBetween(1, 100);
-        final double[][] array = new double[numDocs][];
-        for (int i = 0; i < numDocs; ++i) {
-            final double[] values = new double[randomInt(4)];
-            for (int j = 0; j < values.length; ++j) {
-                values[j] = randomDouble();
-            }
-            Arrays.sort(values);
-            array[i] = values;
-        }
-        final MultiValueMode.UnsortedNumericDoubleValues multiValues = new MultiValueMode.UnsortedNumericDoubleValues() {
-            int doc;
-            int i;
-
-            @Override
-            public int docValueCount() {
-                return array[doc].length;
-            }
-
-            @Override
-            public boolean advanceExact(int doc) {
-                this.doc = doc;
-                i = 0;
-                return array[doc].length > 0;
-            }
-
-            @Override
-            public double nextValue() {
-                return Math.sin(array[doc][i++]);
-            }
-        };
-        verifyUnsortedNumeric(() -> multiValues, numDocs);
-    }
-
-    private void verifyUnsortedNumeric(Supplier<MultiValueMode.UnsortedNumericDoubleValues> supplier, int maxDoc) throws IOException {
-        for (double missingValue : new double[] { 0, randomDouble() }) {
-            for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG}) {
-                UnsortedNumericDoubleValues values = supplier.get();
-                final NumericDoubleValues selected = mode.select(values, missingValue);
-                for (int i = 0; i < maxDoc; ++i) {
-                    assertTrue(selected.advanceExact(i));
-                    final double actual = selected.doubleValue();
-                    double expected = 0.0;
-                    if (values.advanceExact(i) == false) {
-                        expected = missingValue;
-                    } else {
-                        int numValues = values.docValueCount();
-                        if (mode == MultiValueMode.MAX) {
-                            expected = Long.MIN_VALUE;
-                        } else if (mode == MultiValueMode.MIN) {
-                            expected = Long.MAX_VALUE;
-                        }
-                        for (int j = 0; j < numValues; ++j) {
-                            if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
-                                expected += values.nextValue();
-                            } else if (mode == MultiValueMode.MIN) {
-                                expected = Math.min(expected, values.nextValue());
-                            } else if (mode == MultiValueMode.MAX) {
-                                expected = Math.max(expected, values.nextValue());
-                            }
-                        }
-                        if (mode == MultiValueMode.AVG) {
-                            expected = expected/numValues;
-                        }
-                    }
-
-                    assertEquals(mode.toString() + " docId=" + i, expected, actual, 0.1);
-                }
             }
         }
     }

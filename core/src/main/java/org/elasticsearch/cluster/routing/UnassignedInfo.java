@@ -50,7 +50,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
 
     public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING =
-        Setting.timeSetting("index.unassigned.node_left.delayed_timeout", TimeValue.timeValueMinutes(1), Property.Dynamic,
+        Setting.positiveTimeSetting("index.unassigned.node_left.delayed_timeout", TimeValue.timeValueMinutes(1), Property.Dynamic,
             Property.IndexScope);
     /**
      * Reason why the shard is in unassigned state.

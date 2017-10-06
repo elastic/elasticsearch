@@ -26,9 +26,11 @@ import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test appender that can be used to verify that certain events were logged correctly
@@ -120,6 +122,37 @@ public class MockLogAppender extends AbstractAppender {
         public void assertMatched() {
             assertThat(name, saw, equalTo(true));
         }
+    }
+
+    public static class PatternSeenEventExcpectation implements LoggingExpectation {
+
+        protected final String name;
+        protected final String logger;
+        protected final Level level;
+        protected final String pattern;
+        volatile boolean saw;
+
+        public PatternSeenEventExcpectation(String name, String logger, Level level, String pattern) {
+            this.name = name;
+            this.logger = logger;
+            this.level = level;
+            this.pattern = pattern;
+        }
+
+        @Override
+        public void match(LogEvent event) {
+            if (event.getLevel().equals(level) && event.getLoggerName().equals(logger)) {
+                if (Pattern.matches(pattern, event.getMessage().getFormattedMessage())) {
+                    saw = true;
+                }
+            }
+        }
+
+        @Override
+        public void assertMatched() {
+            assertThat(name, saw, equalTo(true));
+        }
+
     }
 
     private static String getLoggerName(String name) {

@@ -34,7 +34,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -446,9 +445,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
                         Settings.Builder templateSettingsBuilder = Settings.builder();
-                        templateSettingsBuilder.put(
-                            SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered()))
-                                                 .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+                        templateSettingsBuilder.put(Settings.fromXContent(parser));
+                        templateSettingsBuilder.normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
                         builder.settings(templateSettingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

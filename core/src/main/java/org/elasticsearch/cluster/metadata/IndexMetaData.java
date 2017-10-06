@@ -44,7 +44,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -241,14 +240,18 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public static final String INDEX_ROUTING_REQUIRE_GROUP_PREFIX = "index.routing.allocation.require";
     public static final String INDEX_ROUTING_INCLUDE_GROUP_PREFIX = "index.routing.allocation.include";
     public static final String INDEX_ROUTING_EXCLUDE_GROUP_PREFIX = "index.routing.allocation.exclude";
-    public static final Setting<Settings> INDEX_ROUTING_REQUIRE_GROUP_SETTING =
-        Setting.groupSetting(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.IndexScope);
-    public static final Setting<Settings> INDEX_ROUTING_INCLUDE_GROUP_SETTING =
-        Setting.groupSetting(INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.IndexScope);
-    public static final Setting<Settings> INDEX_ROUTING_EXCLUDE_GROUP_SETTING =
-        Setting.groupSetting(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.IndexScope);
-    public static final Setting<Settings> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
-        Setting.groupSetting("index.routing.allocation.initial_recovery."); // this is only setable internally not a registered setting!!
+    public static final Setting.AffixSetting<String> INDEX_ROUTING_REQUIRE_GROUP_SETTING =
+        Setting.prefixKeySetting(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
+    public static final Setting.AffixSetting<String> INDEX_ROUTING_INCLUDE_GROUP_SETTING =
+        Setting.prefixKeySetting(INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
+    public static final Setting.AffixSetting<String> INDEX_ROUTING_EXCLUDE_GROUP_SETTING =
+        Setting.prefixKeySetting(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
+    public static final Setting.AffixSetting<String> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
+        Setting.prefixKeySetting("index.routing.allocation.initial_recovery.", key -> Setting.simpleString(key));
+        // this is only setable internally not a registered setting!!
 
     /**
      * The number of active shard copies to check for before proceeding with a write operation.
@@ -1013,28 +1016,28 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                     filledInSyncAllocationIds.put(i, Collections.emptySet());
                 }
             }
-            final Map<String, String> requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.get(settings).getAsMap();
+            final Map<String, String> requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters requireFilters;
             if (requireMap.isEmpty()) {
                 requireFilters = null;
             } else {
                 requireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, requireMap);
             }
-            Map<String, String> includeMap = INDEX_ROUTING_INCLUDE_GROUP_SETTING.get(settings).getAsMap();
+            Map<String, String> includeMap = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters includeFilters;
             if (includeMap.isEmpty()) {
                 includeFilters = null;
             } else {
                 includeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, includeMap);
             }
-            Map<String, String> excludeMap = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.get(settings).getAsMap();
+            Map<String, String> excludeMap = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters excludeFilters;
             if (excludeMap.isEmpty()) {
                 excludeFilters = null;
             } else {
                 excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
             }
-            Map<String, String> initialRecoveryMap = INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.get(settings).getAsMap();
+            Map<String, String> initialRecoveryMap = INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters initialRecoveryFilters;
             if (initialRecoveryMap.isEmpty()) {
                 initialRecoveryFilters = null;
@@ -1075,9 +1078,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             boolean binary = params.paramAsBoolean("binary", false);
 
             builder.startObject(KEY_SETTINGS);
-            for (Map.Entry<String, String> entry : indexMetaData.getSettings().getAsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            indexMetaData.getSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
             builder.endObject();
 
             builder.startArray(KEY_MAPPINGS);
@@ -1143,7 +1144,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (KEY_SETTINGS.equals(currentFieldName)) {
-                        builder.settings(Settings.builder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())));
+                        builder.settings(Settings.fromXContent(parser));
                     } else if (KEY_MAPPINGS.equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {

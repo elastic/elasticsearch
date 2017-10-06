@@ -226,7 +226,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                                           PeerRecoveryTargetService recoveryTargetService,
                                           PeerRecoveryTargetService.RecoveryListener recoveryListener,
                                           RepositoriesService repositoriesService,
-                                          Consumer<IndexShard.ShardFailure> onShardFailure) throws IOException {
+                                          Consumer<IndexShard.ShardFailure> onShardFailure,
+                                          Consumer<ShardId> globalCheckpointSyncer) throws IOException {
             failRandomly();
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);

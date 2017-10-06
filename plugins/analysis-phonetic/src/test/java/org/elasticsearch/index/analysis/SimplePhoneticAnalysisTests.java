@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SimplePhoneticAnalysisTests extends ESTestCase {
     public void testPhoneticTokenFilterFactory() throws IOException {
         String yaml = "/org/elasticsearch/index/analysis/phonetic-1.yml";
-        Settings settings = Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml))
+        Settings settings = Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisPhoneticPlugin());

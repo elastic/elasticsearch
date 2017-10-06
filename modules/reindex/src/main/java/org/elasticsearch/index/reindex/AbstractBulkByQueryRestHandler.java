@@ -49,14 +49,12 @@ public abstract class AbstractBulkByQueryRestHandler<
         assert restRequest != null : "RestRequest should not be null";
 
         SearchRequest searchRequest = internal.getSearchRequest();
-        int scrollSize = searchRequest.source().size();
 
         try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser);
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, internal::setSize);
         }
 
-        internal.setSize(searchRequest.source().size());
-        searchRequest.source().size(restRequest.paramAsInt("scroll_size", scrollSize));
+        searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));
 
         String conflicts = restRequest.param("conflicts");
         if (conflicts != null) {

@@ -635,7 +635,7 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testInnerHitsWithIgnoreUnmapped() throws Exception {
         assertAcked(prepareCreate("index1")
-            .setSettings("index.version.created", Version.V_5_6_0.id)
+            .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
             .addMapping("parent_type", "nested_type", "type=nested")
             .addMapping("child_type", "_parent", "type=parent_type")
         );

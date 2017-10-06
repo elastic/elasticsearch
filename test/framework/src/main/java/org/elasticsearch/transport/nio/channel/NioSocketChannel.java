@@ -155,6 +155,15 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return connectFuture;
     }
 
+    @Override
+    public String toString() {
+        return "NioSocketChannel{" +
+            "profile=" + getProfile() +
+            ", localAddress=" + getLocalAddress() +
+            ", remoteAddress=" + remoteAddress +
+            '}';
+    }
+
     private boolean internalFinish() throws IOException {
         try {
             return socketChannel.finishConnect();

@@ -20,22 +20,16 @@
 package org.elasticsearch.recovery;
 
 import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.procedures.IntProcedure;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -47,13 +41,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.plugins.Plugin;
@@ -63,6 +54,7 @@ import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -81,7 +73,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
@@ -104,48 +95,13 @@ public class RelocationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class, MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
     }
 
     @Override
     protected void beforeIndexDeletion() throws Exception {
         super.beforeIndexDeletion();
-        assertBusy(() -> {
-            IndicesStatsResponse stats = client().admin().indices().prepareStats().clear().get();
-            for (IndexStats indexStats : stats.getIndices().values()) {
-                for (IndexShardStats indexShardStats : indexStats.getIndexShards().values()) {
-                    Optional<ShardStats> maybePrimary = Stream.of(indexShardStats.getShards())
-                        .filter(s -> s.getShardRouting().active() && s.getShardRouting().primary())
-                        .findFirst();
-                    if (maybePrimary.isPresent() == false) {
-                        continue;
-                    }
-                    ShardStats primary = maybePrimary.get();
-                    final SeqNoStats primarySeqNoStats = primary.getSeqNoStats();
-                    final ShardRouting primaryShardRouting = primary.getShardRouting();
-                    assertThat(primaryShardRouting + " should have set the global checkpoint",
-                        primarySeqNoStats.getGlobalCheckpoint(), not(equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO)));
-                    final DiscoveryNode node = clusterService().state().nodes().get(primaryShardRouting.currentNodeId());
-                    final IndicesService indicesService =
-                            internalCluster().getInstance(IndicesService.class, node.getName());
-                    final IndexShard indexShard = indicesService.getShardOrNull(primaryShardRouting.shardId());
-                    final ObjectLongMap<String> globalCheckpoints = indexShard.getGlobalCheckpoints();
-                    for (ShardStats shardStats : indexShardStats) {
-                        final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
-                        assertThat(shardStats.getShardRouting() + " local checkpoint mismatch",
-                            seqNoStats.getLocalCheckpoint(), equalTo(primarySeqNoStats.getLocalCheckpoint()));
-                        assertThat(shardStats.getShardRouting() + " global checkpoint mismatch",
-                            seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
-                        assertThat(shardStats.getShardRouting() + " max seq no mismatch",
-                            seqNoStats.getMaxSeqNo(), equalTo(primarySeqNoStats.getMaxSeqNo()));
-                        // the local knowledge on the primary of the global checkpoint equals the global checkpoint on the shard
-                        assertThat(
-                                seqNoStats.getGlobalCheckpoint(),
-                                equalTo(globalCheckpoints.get(shardStats.getShardRouting().allocationId().getId())));
-                    }
-                }
-            }
-        });
+        assertSeqNos();
     }
 
     public void testSimpleRelocationNoIndexing() {
@@ -301,11 +257,14 @@ public class RelocationIT extends ESIntegTestCase {
         nodes[0] = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
-        prepareCreate("test", Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", numberOfReplicas)
-            .put("index.refresh_interval", -1) // we want to control refreshes c
-        ).get();
+        prepareCreate(
+                "test",
+                Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", numberOfReplicas)
+                        .put("index.refresh_interval", -1) // we want to control refreshes
+                        .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms"))
+                .get();
 
         for (int i = 1; i < numberOfNodes; i++) {
             logger.info("--> starting [node_{}] ...", i);
@@ -383,9 +342,6 @@ public class RelocationIT extends ESIntegTestCase {
 
         }
 
-        // refresh is a replication action so this forces a global checkpoint sync which is needed as these are asserted on in tear down
-        client().admin().indices().prepareRefresh("test").get();
-
     }
 
     public void testCancellationCleansTempFiles() throws Exception {
@@ -394,7 +350,7 @@ public class RelocationIT extends ESIntegTestCase {
         final String p_node = internalCluster().startNode();
 
         prepareCreate(indexName, Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
         ).get();
 
         internalCluster().startNode();
@@ -481,11 +437,12 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("red nodes: {}", (Object)redNodes);
         ensureStableCluster(halfNodes * 2);
 
-        assertAcked(prepareCreate("test", Settings.builder()
-            .put("index.routing.allocation.exclude.color", "blue")
-            .put(indexSettings())
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1))
-        ));
+        final Settings.Builder settings = Settings.builder()
+                .put("index.routing.allocation.exclude.color", "blue")
+                .put(indexSettings())
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1))
+                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms");
+        assertAcked(prepareCreate("test", settings));
         assertAllShardsOnNodes("test", redNodes);
         int numDocs = randomIntBetween(100, 150);
         ArrayList<String> ids = new ArrayList<>();
@@ -526,8 +483,6 @@ public class RelocationIT extends ESIntegTestCase {
             assertSearchHits(afterRelocation, ids.toArray(new String[ids.size()]));
         }
 
-        // refresh is a replication action so this forces a global checkpoint sync which is needed as these are asserted on in tear down
-        client().admin().indices().prepareRefresh("test").get();
     }
 
     class RecoveryCorruption extends MockTransportService.DelegateTransport {

@@ -20,7 +20,9 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -55,6 +57,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -108,12 +111,26 @@ public abstract class TransportReplicationAction<
     protected final String transportReplicaAction;
     protected final String transportPrimaryAction;
 
+    private final boolean syncGlobalCheckpointAfterOperation;
+
     protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
                                          ClusterService clusterService, IndicesService indicesService,
                                          ThreadPool threadPool, ShardStateAction shardStateAction,
                                          ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
                                          Supplier<ReplicaRequest> replicaRequest, String executor) {
+        this(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
+                indexNameExpressionResolver, request, replicaRequest, executor, false);
+    }
+
+
+    protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
+                                         ClusterService clusterService, IndicesService indicesService,
+                                         ThreadPool threadPool, ShardStateAction shardStateAction,
+                                         ActionFilters actionFilters,
+                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                         Supplier<ReplicaRequest> replicaRequest, String executor,
+                                         boolean syncGlobalCheckpointAfterOperation) {
         super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -126,6 +143,8 @@ public abstract class TransportReplicationAction<
         registerRequestHandlers(actionName, transportService, request, replicaRequest, executor);
 
         this.transportOptions = transportOptions();
+
+        this.syncGlobalCheckpointAfterOperation = syncGlobalCheckpointAfterOperation;
     }
 
     protected void registerRequestHandlers(String actionName, TransportService transportService, Supplier<Request> request,
@@ -150,7 +169,7 @@ public abstract class TransportReplicationAction<
         new ReroutePhase((ReplicationTask) task, request, listener).run();
     }
 
-    protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
+    protected ReplicationOperation.Replicas<ReplicaRequest> newReplicasProxy(long primaryTerm) {
         return new ReplicasProxy(primaryTerm);
     }
 
@@ -359,6 +378,22 @@ public abstract class TransportReplicationAction<
             return new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {
+                    if (syncGlobalCheckpointAfterOperation) {
+                        final IndexShard shard = primaryShardReference.indexShard;
+                        try {
+                            shard.maybeSyncGlobalCheckpoint("post-operation");
+                        } catch (final Exception e) {
+                            // only log non-closed exceptions
+                            if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
+                                logger.info(
+                                        new ParameterizedMessage(
+                                                "{} failed to execute post-operation global checkpoint sync",
+                                                shard.shardId()),
+                                        e);
+                                // intentionally swallow, a missed global checkpoint sync should not fail this operation
+                            }
+                        }
+                    }
                     primaryShardReference.close(); // release shard operation lock before responding to caller
                     setPhase(replicationTask, "finished");
                     try {

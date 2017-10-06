@@ -678,7 +678,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testThatSensitiveRepositorySettingsAreNotExposed() throws Exception {
-        Settings nodeSettings = Settings.builder().put().build();
+        Settings nodeSettings = Settings.EMPTY;
         logger.info("--> start two nodes");
         internalCluster().startNodes(2, nodeSettings);
         // Register mock repositories

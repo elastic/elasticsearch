@@ -25,7 +25,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConjunctionDISI;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
@@ -126,15 +125,15 @@ public final class InnerHitsContext {
         if (scorerSupplier == null) {
             return;
         }
-        // use random access since this scorer will be consumed on a minority of documents
-        Scorer scorer = scorerSupplier.get(true);
+        // use low leadCost since this scorer will be consumed on a minority of documents
+        Scorer scorer = scorerSupplier.get(0);
 
         ScorerSupplier innerHitQueryScorerSupplier = innerHitQueryWeight.scorerSupplier(ctx);
         if (innerHitQueryScorerSupplier == null) {
             return;
         }
-        // use random access since this scorer will be consumed on a minority of documents
-        Scorer innerHitQueryScorer = innerHitQueryScorerSupplier.get(true);
+        // use low loadCost since this scorer will be consumed on a minority of documents
+        Scorer innerHitQueryScorer = innerHitQueryScorerSupplier.get(0);
 
         final LeafCollector leafCollector;
         try {

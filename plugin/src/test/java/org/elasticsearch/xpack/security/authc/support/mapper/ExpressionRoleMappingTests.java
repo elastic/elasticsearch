@@ -40,6 +40,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -116,6 +117,20 @@ public class ExpressionRoleMappingTests extends ESTestCase {
                 + "}";
         ParsingException ex = expectThrows(ParsingException.class, () -> parse(json, "bad_json"));
         assertThat(ex.getMessage(), containsString("disabled"));
+    }
+
+    public void testParsingIgnoresTypeFields() throws Exception {
+        String json = "{"
+                + "\"enabled\": true, "
+                + "\"roles\": [  \"kibana_user\", \"sales\" ], "
+                + "\"rules\": "
+                + "    { \"field\": { \"dn\" : \"*,ou=sales,dc=example,dc=com\" } }, "
+                + "\"doc_type\": \"role-mapping\", "
+                + "\"type\": \"doc\""
+                + "}";
+        final ExpressionRoleMapping mapping = parse(json, "from_index");
+        assertThat(mapping.isEnabled(), equalTo(true));
+        assertThat(mapping.getRoles(), containsInAnyOrder("kibana_user", "sales"));
     }
 
     private ExpressionRoleMapping parse(String json, String name) throws IOException {

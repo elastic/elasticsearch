@@ -25,6 +25,7 @@ import java.util.IllformedLocaleException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 import org.elasticsearch.ExceptionsHelper;
@@ -61,7 +62,8 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument ingestDocument) throws Exception {
-        String date = ingestDocument.getFieldValue(field, String.class);
+        // Date can be specified as a string or long:
+        String date = Objects.toString(ingestDocument.getFieldValue(field, Object.class));
 
         DateTime dateTime = null;
         Exception lastException = null;

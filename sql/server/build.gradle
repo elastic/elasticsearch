@@ -86,7 +86,7 @@ task regen {
       fileset(dir: outputPath, includes: 'SqlBase*.java')
     }
     // fix line endings
-    ant.fixcrlf(srcdir: outputPath) {
+    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
       patternset(includes: 'SqlBase*.java')
     }
   }

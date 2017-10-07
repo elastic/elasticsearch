@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
+import org.apache.lucene.analysis.bn.BengaliAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
 import org.apache.lucene.analysis.ca.CatalanAnalyzer;
 import org.apache.lucene.analysis.ckb.SoraniAnalyzer;
@@ -106,13 +107,8 @@ public class Analysis {
 
     public static CharArraySet parseStemExclusion(Settings settings, CharArraySet defaultStemExclusion) {
         String value = settings.get("stem_exclusion");
-        if (value != null) {
-            if ("_none_".equals(value)) {
-                return CharArraySet.EMPTY_SET;
-            } else {
-                // LUCENE 4 UPGRADE: Should be settings.getAsBoolean("stem_exclusion_case", false)?
-                return new CharArraySet(Strings.commaDelimitedListToSet(value), false);
-            }
+        if ("_none_".equals(value)) {
+            return CharArraySet.EMPTY_SET;
         }
         String[] stemExclusion = settings.getAsArray("stem_exclusion", null);
         if (stemExclusion != null) {
@@ -129,6 +125,7 @@ public class Analysis {
         namedStopWords.put("_arabic_", ArabicAnalyzer.getDefaultStopSet());
         namedStopWords.put("_armenian_", ArmenianAnalyzer.getDefaultStopSet());
         namedStopWords.put("_basque_", BasqueAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_bengali_", BengaliAnalyzer.getDefaultStopSet());
         namedStopWords.put("_brazilian_", BrazilianAnalyzer.getDefaultStopSet());
         namedStopWords.put("_bulgarian_", BulgarianAnalyzer.getDefaultStopSet());
         namedStopWords.put("_catalan_", CatalanAnalyzer.getDefaultStopSet());
@@ -169,7 +166,7 @@ public class Analysis {
             if ("_none_".equals(value)) {
                 return CharArraySet.EMPTY_SET;
             } else {
-                return resolveNamedWords(Strings.commaDelimitedListToSet(value), namedWords, ignoreCase);
+                return resolveNamedWords(Arrays.asList(settings.getAsArray(name)), namedWords, ignoreCase);
             }
         }
         List<String> pathLoadedWords = getWordList(env, settings, name);

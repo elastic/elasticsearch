@@ -821,12 +821,6 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public boolean exists(Settings settings) {
-            boolean exists = super.exists(settings);
-            return exists || settings.get(getKey() + ".0") != null;
-        }
-
-        @Override
         public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
             if (exists(source) == false) {
                 String[] asArray = defaultSettings.getAsArray(getKey(), null);

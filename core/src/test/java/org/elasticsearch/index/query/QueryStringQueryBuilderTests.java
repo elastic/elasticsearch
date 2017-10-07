@@ -163,6 +163,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         if (randomBoolean()) {
             queryStringQueryBuilder.autoGenerateSynonymsPhraseQuery(randomBoolean());
         }
+        if (randomBoolean()) {
+            queryStringQueryBuilder.fuzzyTranspositions(randomBoolean());
+        }
         queryStringQueryBuilder.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
         return queryStringQueryBuilder;
     }
@@ -870,6 +873,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"phrase_slop\" : 0,\n" +
                 "    \"escape\" : false,\n" +
                 "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
+                "    \"fuzzy_transpositions\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -879,6 +883,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
         assertEquals(json, "this AND that OR thus", parsed.queryString());
         assertEquals(json, "content", parsed.defaultField());
+        assertEquals(json, false, parsed.fuzzyTranspositions());
     }
 
     public void testExpandedTerms() throws Exception {
@@ -1033,6 +1038,19 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                                 .build(), Occur.SHOULD))
                     .build();
         assertEquals(expectedQuery, query);
+    }
+
+    public void testToFuzzyQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+
+        Query query = new QueryStringQueryBuilder("text~2")
+            .field(STRING_FIELD_NAME)
+            .fuzzyPrefixLength(2)
+            .fuzzyMaxExpansions(5)
+            .fuzzyTranspositions(false)
+            .toQuery(createShardContext());
+        FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "text"), 2, 2, 5, false);
+        assertEquals(expected, query);
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

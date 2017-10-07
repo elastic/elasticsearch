@@ -17,6 +17,11 @@ POST _analyze
 ---------------------------
 // CONSOLE
 
+[NOTE]
+=============================================
+The maximum token length is 255. If a token is seen that exceeds this length, then it is split at 255 characters.
+=============================================
+
 /////////////////////
 
 [source,js]

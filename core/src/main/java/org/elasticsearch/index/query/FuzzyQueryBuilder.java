@@ -74,7 +74,6 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
 
     private int maxExpansions = DEFAULT_MAX_EXPANSIONS;
 
-    //LUCENE 4 UPGRADE  we need a testcase for this + documentation
     private boolean transpositions = DEFAULT_TRANSPOSITIONS;
 
     private String rewrite;

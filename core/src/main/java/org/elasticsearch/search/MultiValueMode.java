@@ -104,16 +104,6 @@ public enum MultiValueMode implements Writeable {
             }
             return totalCount > 0 ? totalValue : missingValue;
         }
-
-        @Override
-        protected double pick(UnsortedNumericDoubleValues values) throws IOException {
-            final int count = values.docValueCount();
-            double total = 0;
-            for (int index = 0; index < count; ++index) {
-                total += values.nextValue();
-            }
-            return total;
-        }
     },
 
     /**
@@ -176,16 +166,6 @@ public enum MultiValueMode implements Writeable {
                 return missingValue;
             }
             return totalValue/totalCount;
-        }
-
-        @Override
-        protected double pick(UnsortedNumericDoubleValues values) throws IOException {
-            final int count = values.docValueCount();
-            double total = 0;
-            for (int index = 0; index < count; ++index) {
-                total += values.nextValue();
-            }
-            return total/count;
         }
     },
 
@@ -303,16 +283,6 @@ public enum MultiValueMode implements Writeable {
             }
             return hasValue ? ord : -1;
         }
-
-        @Override
-        protected double pick(UnsortedNumericDoubleValues values) throws IOException {
-            int count = values.docValueCount();
-            double min = Double.POSITIVE_INFINITY;
-            for (int index = 0; index < count; ++index) {
-                min = Math.min(values.nextValue(), min);
-            }
-            return min;
-        }
     },
 
     /**
@@ -418,16 +388,6 @@ public enum MultiValueMode implements Writeable {
                 }
             }
             return ord;
-        }
-
-        @Override
-        protected double pick(UnsortedNumericDoubleValues values) throws IOException {
-            int count = values.docValueCount();
-            double max = Double.NEGATIVE_INFINITY;
-            for (int index = 0; index < count; ++index) {
-                max = Math.max(values.nextValue(), max);
-            }
-            return max;
         }
     };
 
@@ -903,43 +863,6 @@ public enum MultiValueMode implements Writeable {
 
     protected int pick(SortedDocValues values, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
-    }
-
-    /**
-     * Return a {@link NumericDoubleValues} instance that can be used to sort documents
-     * with this mode and the provided values. When a document has no value,
-     * <code>missingValue</code> is returned.
-     *
-     * Allowed Modes: SUM, AVG, MIN, MAX
-     */
-    public NumericDoubleValues select(final UnsortedNumericDoubleValues values, final double missingValue) {
-        return new NumericDoubleValues() {
-            private boolean hasValue;
-
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                hasValue = values.advanceExact(doc);
-                return true;
-            }
-            @Override
-            public double doubleValue() throws IOException {
-                return hasValue ? pick(values) : missingValue;
-            }
-        };
-    }
-
-    protected double pick(UnsortedNumericDoubleValues values) throws IOException {
-        throw new IllegalArgumentException("Unsupported sort mode: " + this);
-    }
-
-    /**
-     * Interface allowing custom value generators to be used in MultiValueMode.
-     */
-    // TODO: why do we need it???
-    public interface UnsortedNumericDoubleValues {
-        boolean advanceExact(int doc) throws IOException;
-        int docValueCount() throws IOException;
-        double nextValue() throws IOException;
     }
 
     @Override

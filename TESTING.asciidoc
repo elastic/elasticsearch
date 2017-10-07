@@ -493,11 +493,9 @@ Say you need to make a change to `master` and have a BWC layer in `5.x`. You
 will need to:
 . Create a branch called `index_req_change` off your remote `${remote}`. This
 will contain your change.
-. Create a branch called `index_req_bwc_5.x` off `5.x`. This will contain your
-bwc layer.
+. Create a branch called `index_req_bwc_5.x` off `5.x`. This will contain your bwc layer.
 . Push both branches to your remote repository.
-. Run the tests with `gradle check -Dtests.bwc.remote=${remote}
--Dtests.bwc.refspec=index_req_bwc_5.x`.
+. Run the tests with `gradle check -Dtests.bwc.remote=${remote} -Dtests.bwc.refspec=index_req_bwc_5.x`.
 
 == Coverage analysis
 

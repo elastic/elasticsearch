@@ -416,11 +416,11 @@ public enum MultiValueMode implements Writeable {
         if (singleton != null) {
             return new AbstractNumericDocValues() {
 
-                private boolean hasValue;
+                private long value;
 
                 @Override
                 public boolean advanceExact(int target) throws IOException {
-                    hasValue = singleton.advanceExact(target);
+                    this.value = singleton.advanceExact(target) ? singleton.longValue() : missingValue;
                     return true;
                 }
 
@@ -431,17 +431,17 @@ public enum MultiValueMode implements Writeable {
 
                 @Override
                 public long longValue() throws IOException {
-                    return hasValue ? singleton.longValue() : missingValue;
+                    return this.value;
                 }
             };
         } else {
             return new AbstractNumericDocValues() {
 
-                private boolean hasValue;
+                private long value;
 
                 @Override
                 public boolean advanceExact(int target) throws IOException {
-                    hasValue = values.advanceExact(target);
+                    this.value = values.advanceExact(target) ? pick(values) : missingValue;
                     return true;
                 }
 
@@ -452,7 +452,7 @@ public enum MultiValueMode implements Writeable {
 
                 @Override
                 public long longValue() throws IOException {
-                    return hasValue ? pick(values) : missingValue;
+                    return value;
                 }
             };
         }
@@ -533,35 +533,33 @@ public enum MultiValueMode implements Writeable {
         final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
         if (singleton != null) {
             return new NumericDoubleValues() {
-
-                private boolean hasValue;
+                private double value;
 
                 @Override
                 public boolean advanceExact(int doc) throws IOException {
-                    hasValue = singleton.advanceExact(doc);
+                    this.value = singleton.advanceExact(doc) ? singleton.doubleValue() : missingValue;
                     return true;
                 }
 
                 @Override
                 public double doubleValue() throws IOException {
-                    return hasValue ? singleton.doubleValue() : missingValue;
+                    return this.value;
                 }
-
             };
         } else {
             return new NumericDoubleValues() {
 
-                private boolean hasValue;
+                private double value;
 
                 @Override
                 public boolean advanceExact(int target) throws IOException {
-                    hasValue = values.advanceExact(target);
+                    value = values.advanceExact(target) ? pick(values) : missingValue;
                     return true;
                 }
 
                 @Override
                 public double doubleValue() throws IOException {
-                    return hasValue ? pick(values) : missingValue;
+                    return this.value;
                 }
             };
         }
@@ -638,17 +636,17 @@ public enum MultiValueMode implements Writeable {
             }
             return new AbstractBinaryDocValues() {
 
-                private boolean hasValue;
+                private BytesRef value;
 
                 @Override
                 public boolean advanceExact(int target) throws IOException {
-                    hasValue = singleton.advanceExact(target);
+                    this.value = singleton.advanceExact(target) ? singleton.binaryValue() : missingValue;
                     return true;
                 }
 
                 @Override
                 public BytesRef binaryValue() throws IOException {
-                    return hasValue ? singleton.binaryValue() : missingValue;
+                    return this.value;
                 }
             };
         } else {

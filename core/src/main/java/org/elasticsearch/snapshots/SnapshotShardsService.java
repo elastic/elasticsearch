@@ -385,11 +385,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         TimeValue.timeValueMillis(snapshotStatus.time()), sb);
                 }
             }
-        } catch (SnapshotFailedEngineException e) {
+        } catch(SnapshotFailedEngineException | IndexShardSnapshotFailedException e) {
             throw e;
-        } catch (IndexShardSnapshotFailedException e) {
-            throw e;
-        } catch (Exception e) {
+        } catch(Exception e) {
             throw new IndexShardSnapshotFailedException(shardId, "Failed to snapshot", e);
         }
     }

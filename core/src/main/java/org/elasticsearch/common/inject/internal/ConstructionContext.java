@@ -109,12 +109,10 @@ public class ConstructionContext<T> {
             try {
                 // This appears to be not test-covered
                 return method.invoke(delegate, args);
-            } catch (IllegalAccessException e) {
-                throw new RuntimeException(e);
-            } catch (IllegalArgumentException e) {
-                throw new RuntimeException(e);
-            } catch (InvocationTargetException e) {
+            } catch(InvocationTargetException e) {
                 throw e.getTargetException();
+            } catch(IllegalAccessException | IllegalArgumentException e) {
+                throw new RuntimeException(e);
             }
         }
 

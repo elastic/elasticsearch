@@ -148,9 +148,7 @@ public class TestAmazonS3 extends AmazonS3Wrapper {
             int i = 0;
             return ((bytes[i++] & 0xFF) << 24) | ((bytes[i++] & 0xFF) << 16)
                     | ((bytes[i++] & 0xFF) << 8) | (bytes[i++] & 0xFF);
-        } catch (UnsupportedEncodingException ex) {
-            throw new ElasticsearchException("cannot calculate hashcode", ex);
-        } catch (NoSuchAlgorithmException ex) {
+        } catch(UnsupportedEncodingException | NoSuchAlgorithmException ex) {
             throw new ElasticsearchException("cannot calculate hashcode", ex);
         }
     }

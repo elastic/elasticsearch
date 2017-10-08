@@ -110,7 +110,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
         try {
             createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
             fail("Expected MapperParsingException");
-        } catch(MapperParsingException e) {
+        } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("expected map for property [fields]"));
             assertThat(e.getMessage(), containsString("but got a class java.util.ArrayList"));
         }

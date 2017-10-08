@@ -303,7 +303,7 @@ public class DateMathParserTests extends ESTestCase {
         try {
             parser.parse("1234567890123", () -> 42, false, DateTimeZone.forTimeZone(TimeZone.getTimeZone("CET")));
             fail("Expected ElasticsearchParseException");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("failed to parse date field"));
             assertThat(e.getMessage(), containsString("with format [epoch_millis]"));
         }

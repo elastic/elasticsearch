@@ -80,7 +80,7 @@ public class RenameProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[3] is out of bounds for array with length [2] as part of path [list.3]"));
             assertThat(actualList.size(), equalTo(2));
             assertThat(actualList.get(0), equalTo("item2"));
@@ -96,7 +96,7 @@ public class RenameProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [" + fieldName + "] doesn't exist"));
         }
     }
@@ -119,7 +119,7 @@ public class RenameProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [" + fieldName + "] already exists"));
         }
     }
@@ -153,7 +153,7 @@ public class RenameProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(UnsupportedOperationException e) {
+        } catch (UnsupportedOperationException e) {
             //the set failed, the old field has not been removed
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));

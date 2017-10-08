@@ -232,7 +232,7 @@ public class DoSection implements ExecutableSection {
                 fail(formatStatusCodeMessage(response, catchStatusCode));
             }
             checkWarningHeaders(response.getWarningHeaders());
-        } catch(ClientYamlTestResponseException e) {
+        } catch (ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
             if (!Strings.hasLength(catchParam)) {
                 fail(formatStatusCodeMessage(restTestResponse, "2xx"));

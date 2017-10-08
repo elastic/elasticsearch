@@ -177,7 +177,7 @@ public final class RandomObjects {
             addFields(random, builder, minNumFields, 0);
             builder.endObject();
             return builder.bytes();
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }

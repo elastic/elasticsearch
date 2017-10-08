@@ -43,7 +43,7 @@ public final class ConvertProcessor extends AbstractProcessor {
             public Object convert(Object value) {
                 try {
                     return Integer.parseInt(value.toString());
-                } catch(NumberFormatException e) {
+                } catch (NumberFormatException e) {
                     throw new IllegalArgumentException("unable to convert [" + value + "] to integer", e);
                 }
 
@@ -53,7 +53,7 @@ public final class ConvertProcessor extends AbstractProcessor {
             public Object convert(Object value) {
                 try {
                     return Float.parseFloat(value.toString());
-                } catch(NumberFormatException e) {
+                } catch (NumberFormatException e) {
                     throw new IllegalArgumentException("unable to convert [" + value + "] to float", e);
                 }
             }
@@ -102,7 +102,7 @@ public final class ConvertProcessor extends AbstractProcessor {
         public static Type fromString(String processorTag, String propertyName, String type) {
             try {
                 return Type.valueOf(type.toUpperCase(Locale.ROOT));
-            } catch(IllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 throw newConfigurationException(TYPE, processorTag, propertyName, "type [" + type +
                         "] not supported, cannot convert field.");
             }

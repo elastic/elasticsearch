@@ -38,7 +38,7 @@ public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
         try {
             getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"));
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             Response response = e.getResponse();
             assertThat(response.getHeader("Content-Type"), containsString("application/json"));
             assertThat(EntityUtils.toString(response.getEntity()),
@@ -49,7 +49,7 @@ public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
         try {
             getRestClient().performRequest("DELETE", "/");
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             Response response = e.getResponse();
             assertThat(response.getHeader("Content-Type"), containsString("application/json; charset=UTF-8"));
             assertThat(EntityUtils.toString(response.getEntity()),

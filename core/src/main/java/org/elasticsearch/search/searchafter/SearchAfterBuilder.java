@@ -200,7 +200,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                     throw new IllegalArgumentException("Comparator type [" + sortType.name() + "] for field [" + fieldName
                             + "] is not supported.");
             }
-        } catch(NumberFormatException e) {
+        } catch (NumberFormatException e) {
             throw new IllegalArgumentException(
                     "Failed to parse " + SEARCH_AFTER.getPreferredName() + " value for field [" + fieldName + "].", e);
         }

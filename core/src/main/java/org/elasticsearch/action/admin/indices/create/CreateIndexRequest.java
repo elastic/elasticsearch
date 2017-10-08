@@ -319,7 +319,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 alias(Alias.fromXContent(parser));
             }
             return this;
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse aliases", e);
         }
     }

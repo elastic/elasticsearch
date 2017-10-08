@@ -224,7 +224,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     .version(1);
             try {
                 IndexResponse response = client.index(request);
-            } catch(ElasticsearchException e) {
+            } catch (ElasticsearchException e) {
                 if (e.status() == RestStatus.CONFLICT) {
                     // <1>
                 }
@@ -238,7 +238,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     .opType(DocWriteRequest.OpType.CREATE);
             try {
                 IndexResponse response = client.index(request);
-            } catch(ElasticsearchException e) {
+            } catch (ElasticsearchException e) {
                 if (e.status() == RestStatus.CONFLICT) {
                     // <1>
                 }
@@ -417,7 +417,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     .version(1);
             try {
                 UpdateResponse updateResponse = client.update(request);
-            } catch(ElasticsearchException e) {
+            } catch (ElasticsearchException e) {
                 if (e.status() == RestStatus.CONFLICT) {
                     // <1>
                 }

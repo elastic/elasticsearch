@@ -74,7 +74,7 @@ public class ConvertProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("unable to convert [" + value + "] to integer"));
         }
     }
@@ -117,7 +117,7 @@ public class ConvertProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("unable to convert [" + value + "] to float"));
         }
     }
@@ -172,7 +172,7 @@ public class ConvertProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(Exception e) {
+        } catch (Exception e) {
             assertThat(e.getMessage(), equalTo("[" + fieldValue + "] is not a boolean value, cannot convert to boolean"));
         }
     }

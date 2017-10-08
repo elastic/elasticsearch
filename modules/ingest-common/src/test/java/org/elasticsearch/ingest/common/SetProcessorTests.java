@@ -62,7 +62,7 @@ public class SetProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot set [inner] with parent object of type [java.lang.String] as " +
                     "part of path [field.inner]"));
         }

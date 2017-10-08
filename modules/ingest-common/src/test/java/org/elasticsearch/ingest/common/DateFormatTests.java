@@ -64,7 +64,7 @@ public class DateFormatTests extends ESTestCase {
         try {
             function.apply("2001-01-0:00-0800");
             fail("parse should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             //all good
         }
     }

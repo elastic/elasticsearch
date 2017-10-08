@@ -49,7 +49,7 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         BytesReference bytes;
         try {
             bytes = XContentHelper.toXContent(wrappedQuery, XContentType.JSON, false);
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
 

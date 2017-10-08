@@ -89,12 +89,12 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
     public void testConfiguredBufferLimit() throws Exception {
         try {
             new HeapBufferedAsyncResponseConsumer(randomIntBetween(Integer.MIN_VALUE, 0));
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("bufferLimit must be greater than 0", e.getMessage());
         }
         try {
             new HeapBufferedAsyncResponseConsumer(0);
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("bufferLimit must be greater than 0", e.getMessage());
         }
         int bufferLimit = randomIntBetween(1, MAX_TEST_BUFFER_SIZE - 100);
@@ -140,7 +140,7 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
         contentLength.set(randomLongBetween(bufferLimit + 1, MAX_TEST_BUFFER_SIZE));
         try {
             consumer.onEntityEnclosed(entity, ContentType.APPLICATION_JSON);
-        } catch(ContentTooLongException e) {
+        } catch (ContentTooLongException e) {
             assertEquals("entity content is too long [" + entity.getContentLength() +
                     "] for the configured buffer limit [" + bufferLimit + "]", e.getMessage());
         }

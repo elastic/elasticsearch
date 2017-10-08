@@ -168,7 +168,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 } else {
                     listener.onFailure(new IllegalStateException("proceed was called too many times"));
                 }
-            } catch(Exception e) {
+            } catch (Exception e) {
                 logger.trace("Error during transport action execution.", e);
                 listener.onFailure(e);
             }

@@ -50,7 +50,7 @@ public class RemoveProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("remove field should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
         }
     }

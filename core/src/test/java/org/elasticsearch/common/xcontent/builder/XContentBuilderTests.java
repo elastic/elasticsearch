@@ -339,7 +339,7 @@ public class XContentBuilderTests extends ESTestCase {
         try {
             builder.map(Collections.singletonMap(null, "test"));
             fail("write map should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Field name cannot be null"));
         }
     }
@@ -349,7 +349,7 @@ public class XContentBuilderTests extends ESTestCase {
         try {
             builder.map(Collections.singletonMap(null, "test"));
             fail("write map should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Field name cannot be null"));
         }
     }
@@ -360,7 +360,7 @@ public class XContentBuilderTests extends ESTestCase {
             builder.startObject();
             builder.field("map", Collections.singletonMap(null, "test"));
             fail("write map should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Field name cannot be null"));
         }
     }

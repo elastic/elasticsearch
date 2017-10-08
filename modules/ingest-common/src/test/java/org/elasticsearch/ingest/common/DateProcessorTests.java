@@ -79,7 +79,7 @@ public class DateProcessorTests extends ESTestCase {
         try {
             dateProcessor.execute(ingestDocument);
             fail("processor should have failed due to not supported date format");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("unable to parse date [2010]"));
         }
     }
@@ -89,7 +89,7 @@ public class DateProcessorTests extends ESTestCase {
             new DateProcessor(randomAlphaOfLength(10), DateTimeZone.UTC, randomLocale(random()),
                 "date_as_string", Collections.singletonList("invalid pattern"), "date_as_date");
             fail("date processor initialization should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Illegal pattern component: i"));
         }
     }

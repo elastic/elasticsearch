@@ -247,7 +247,7 @@ public class SortProcessorTests extends ESTestCase {
         Processor processor = new SortProcessor(randomAlphaOfLength(10), fieldName, order, fieldName);
         try {
             processor.execute(ingestDocument);
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [" + fieldName + "] of type [java.lang.String] cannot be cast to [java.util.List]"));
         }
     }
@@ -259,7 +259,7 @@ public class SortProcessorTests extends ESTestCase {
         Processor processor = new SortProcessor(randomAlphaOfLength(10), fieldName, order, fieldName);
         try {
             processor.execute(ingestDocument);
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
         }
     }
@@ -270,7 +270,7 @@ public class SortProcessorTests extends ESTestCase {
         Processor processor = new SortProcessor(randomAlphaOfLength(10), "field", order, "field");
         try {
             processor.execute(ingestDocument);
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [field] is null, cannot sort."));
         }
     }

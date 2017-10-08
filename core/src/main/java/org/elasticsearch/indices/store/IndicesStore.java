@@ -339,7 +339,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                         public void sendResult(boolean shardActive) {
                             try {
                                 channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
-                            } catch(IOException | EsRejectedExecutionException e) {
+                            } catch (IOException | EsRejectedExecutionException e) {
                                 logger.error((Supplier<?>) () -> new ParameterizedMessage("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", request.shardId), e);
                             }
                         }

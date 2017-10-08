@@ -19,15 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.lucene.BytesRefs;
-
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.lucene.BytesRefs;
 
 public final class Uid {
 
@@ -244,7 +243,7 @@ public final class Uid {
         }
     }
 
-    private static String decodeNumericId(byte[] idBytes) {
+    private static String decodeNumericId(byte... idBytes) {
         assert Byte.toUnsignedInt(idBytes[0]) == NUMERIC;
         int length = (idBytes.length - 1) * 2;
         char[] chars = new char[length];
@@ -262,12 +261,12 @@ public final class Uid {
         return new String(chars, 0, length);
     }
 
-    private static String decodeUtf8Id(byte[] idBytes) {
+    private static String decodeUtf8Id(byte... idBytes) {
         assert Byte.toUnsignedInt(idBytes[0]) == UTF8;
         return new BytesRef(idBytes, 1, idBytes.length - 1).utf8ToString();
     }
 
-    private static String decodeBase64Id(byte[] idBytes) {
+    private static String decodeBase64Id(byte... idBytes) {
         assert Byte.toUnsignedInt(idBytes[0]) <= BASE64_ESCAPE;
         if (Byte.toUnsignedInt(idBytes[0]) == BASE64_ESCAPE) {
             idBytes = Arrays.copyOfRange(idBytes, 1, idBytes.length);
@@ -275,9 +274,12 @@ public final class Uid {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
     }
 
-    /** Decode an indexed id back to its original form.
-     *  @see #encodeId */
-    public static String decodeId(byte[] idBytes) {
+    /**
+     * Decode an indexed id back to its original form.
+     *
+     * @see #encodeId
+     */
+    public static String decodeId(byte... idBytes) {
         if (idBytes.length == 0) {
             throw new IllegalArgumentException("Ids can't be empty");
         }

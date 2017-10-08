@@ -94,7 +94,7 @@ public final class MessageDigests {
      * @param bytes the input to be represented as hex.
      * @return a hex representation of the input as a String.
      */
-    public static String toHexString(byte[] bytes) {
+    public static String toHexString(byte... bytes) {
         Objects.requireNonNull(bytes);
         StringBuilder sb = new StringBuilder(2 * bytes.length);
 

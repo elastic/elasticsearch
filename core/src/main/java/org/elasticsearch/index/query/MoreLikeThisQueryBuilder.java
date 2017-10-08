@@ -19,6 +19,19 @@
 
 package org.elasticsearch.index.query;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.search.BooleanClause;
@@ -55,20 +68,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.UidFieldMapper;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
 
 /**
  * A more like this query that finds documents that are "like" the provided set of document(s).
@@ -570,10 +569,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return likeItems;
     }
 
-    /**
-     * Sets the text from which the terms should not be selected from.
-     */
-    public MoreLikeThisQueryBuilder unlike(String[] unlikeTexts) {
+    /** Sets the text from which the terms should not be selected from. */
+    public MoreLikeThisQueryBuilder unlike(String... unlikeTexts) {
         this.unlikeTexts = Optional.ofNullable(unlikeTexts).orElse(Strings.EMPTY_ARRAY);
         return this;
     }
@@ -582,10 +579,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return unlikeTexts;
     }
 
-    /**
-     * Sets the documents from which the terms should not be selected from.
-     */
-    public MoreLikeThisQueryBuilder unlike(Item[] unlikeItems) {
+    /** Sets the documents from which the terms should not be selected from. */
+    public MoreLikeThisQueryBuilder unlike(Item... unlikeItems) {
         this.unlikeItems = Optional.ofNullable(unlikeItems).orElse(new Item[0]);
         return this;
     }

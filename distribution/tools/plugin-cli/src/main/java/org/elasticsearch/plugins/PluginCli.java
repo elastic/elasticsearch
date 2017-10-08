@@ -19,14 +19,13 @@
 
 package org.elasticsearch.plugins;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 
 /**
  * A cli tool for adding, removing and listing plugins for elasticsearch.
@@ -43,7 +42,7 @@ public class PluginCli extends MultiCommand {
         commands = Collections.unmodifiableCollection(subcommands.values());
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String... args) throws Exception {
         exit(new PluginCli().main(args, Terminal.DEFAULT));
     }
 

@@ -19,12 +19,19 @@
 
 package org.elasticsearch.search;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
@@ -72,16 +79,6 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
 
 final class DefaultSearchContext extends SearchContext {
 
@@ -297,7 +294,7 @@ final class DefaultSearchContext extends SearchContext {
         }
     }
 
-    private Query createTypeFilter(String[] types) {
+    private Query createTypeFilter(String... types) {
         if (types != null && types.length >= 1) {
             MappedFieldType ft = mapperService().fullName(TypeFieldMapper.NAME);
             if (ft != null) {

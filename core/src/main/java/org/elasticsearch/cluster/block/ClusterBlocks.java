@@ -19,16 +19,12 @@
 
 package org.elasticsearch.cluster.block;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.rest.RestStatus;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableSet;
+import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Stream.concat;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -37,11 +33,14 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
-
-import static java.util.Collections.emptySet;
-import static java.util.Collections.unmodifiableSet;
-import static java.util.stream.Collectors.toSet;
-import static java.util.stream.Stream.concat;
+import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  * Represents current cluster level blocks to block dirty operations done against the cluster.
@@ -204,12 +203,14 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     }
 
     /**
-     * Returns <code>true</code> iff non of the given have a {@link ClusterBlockLevel#METADATA_WRITE} in place where the
-     * {@link ClusterBlock#isAllowReleaseResources()} returns <code>false</code>. This is used in places where resources will be released
-     * like the deletion of an index to free up resources on nodes.
+     * Returns <code>true</code> iff non of the given have a {@link
+     * ClusterBlockLevel#METADATA_WRITE} in place where the {@link
+     * ClusterBlock#isAllowReleaseResources()} returns <code>false</code>. This is used in places
+     * where resources will be released like the deletion of an index to free up resources on nodes.
+     *
      * @param indices the indices to check
      */
-    public ClusterBlockException indicesAllowReleaseResources(String[] indices) {
+    public ClusterBlockException indicesAllowReleaseResources(String... indices) {
         final Function<String, Stream<ClusterBlock>> blocksForIndexAtLevel = index ->
             blocksForIndex(ClusterBlockLevel.METADATA_WRITE, index).stream();
         Stream<ClusterBlock> blocks = concat(

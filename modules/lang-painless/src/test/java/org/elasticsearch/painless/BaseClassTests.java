@@ -19,18 +19,15 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.script.ScriptContext;
-
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Tests for Painless implementing different interfaces.
@@ -126,7 +123,8 @@ public class BaseClassTests extends ScriptTestCase {
 
     public abstract static class ArrayArg {
         public static final String[] PARAMETERS = new String[] {"arg"};
-        public abstract Object execute(String[] arg);
+
+        public abstract Object execute(String... arg);
     }
     public void testArrayArg() {
         Compiler compiler = new Compiler(ArrayArg.class, Definition.BUILTINS);
@@ -136,7 +134,8 @@ public class BaseClassTests extends ScriptTestCase {
 
     public abstract static class PrimitiveArrayArg {
         public static final String[] PARAMETERS = new String[] {"arg"};
-        public abstract Object execute(int[] arg);
+
+        public abstract Object execute(int... arg);
     }
     public void testPrimitiveArrayArg() {
         Compiler compiler = new Compiler(PrimitiveArrayArg.class, Definition.BUILTINS);
@@ -146,7 +145,8 @@ public class BaseClassTests extends ScriptTestCase {
 
     public abstract static class DefArrayArg {
         public static final String[] PARAMETERS = new String[] {"arg"};
-        public abstract Object execute(Object[] arg);
+
+        public abstract Object execute(Object... arg);
     }
     public void testDefArrayArg() {
         Compiler compiler = new Compiler(DefArrayArg.class, Definition.BUILTINS);
@@ -452,7 +452,8 @@ public class BaseClassTests extends ScriptTestCase {
 
     public abstract static class UnknownArgTypeInArray {
         public static final String[] PARAMETERS = new String[] {"foo"};
-        public abstract Object execute(UnknownArgTypeInArray[] foo);
+
+        public abstract Object execute(UnknownArgTypeInArray... foo);
     }
     public void testUnknownArgTypeInArray() {
         Compiler compiler = new Compiler(UnknownArgTypeInArray.class, Definition.BUILTINS);

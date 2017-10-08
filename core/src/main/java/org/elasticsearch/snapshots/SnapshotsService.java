@@ -19,8 +19,25 @@
 
 package org.elasticsearch.snapshots;
 
+import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
+
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
@@ -66,24 +83,6 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.stream.Collectors;
-
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
  * Service responsible for creating snapshots
@@ -1538,7 +1537,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
          * @param indices list of indices
          * @return this request
          */
-        public SnapshotRequest indices(String[] indices) {
+        public SnapshotRequest indices(String... indices) {
             this.indices = indices;
             return this;
         }

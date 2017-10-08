@@ -18,6 +18,18 @@
  */
 package org.elasticsearch.action.termvectors;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.payloads.FloatEncoder;
@@ -40,19 +52,6 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class GetTermVectorsTests extends ESSingleNodeTestCase {
 
@@ -237,7 +236,7 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
         return finalTokens;
     }
 
-    private String createRandomDelimiter(String[] tokens) {
+    private String createRandomDelimiter(String... tokens) {
         String delimiter = "";
         boolean isTokenOrWhitespace = true;
         while(isTokenOrWhitespace) {

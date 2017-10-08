@@ -191,7 +191,7 @@ public final class DefBootstrap {
          * megamorphic cache using {@link ClassValue}).
          */
         @SuppressForbidden(reason = "slow path")
-        Object fallback(final Object[] callArgs) throws Throwable {
+        Object fallback(final Object... callArgs)throws Throwable {
             if (depth >= MAX_DEPTH) {
                 // we revert the whole cache and build a new megamorphic one
                 final MethodHandle target = this.createMegamorphicHandle();
@@ -263,7 +263,7 @@ public final class DefBootstrap {
         /**
          * Does a slow lookup for the operator
          */
-        private MethodHandle lookup(Object[] args) throws Throwable {
+        private MethodHandle lookup(Object... args)throws Throwable {
             switch(flavor) {
                 case UNARY_OPERATOR:
                 case SHIFT_OPERATOR:
@@ -308,7 +308,7 @@ public final class DefBootstrap {
          * In that case we revert to a generic, but slower operator handling.
          */
         @SuppressForbidden(reason = "slow path")
-        Object fallback(Object[] args) throws Throwable {
+        Object fallback(Object... args)throws Throwable {
             if (initialized) {
                 // caching defeated
                 MethodHandle generic = lookupGeneric();

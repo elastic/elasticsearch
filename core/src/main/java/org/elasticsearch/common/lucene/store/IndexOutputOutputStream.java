@@ -19,10 +19,9 @@
 
 package org.elasticsearch.common.lucene.store;
 
-import org.apache.lucene.store.IndexOutput;
-
 import java.io.IOException;
 import java.io.OutputStream;
+import org.apache.lucene.store.IndexOutput;
 
 /**
  * {@link OutputStream} that writes into underlying IndexOutput
@@ -41,7 +40,7 @@ public class IndexOutputOutputStream extends OutputStream {
     }
 
     @Override
-    public void write(byte[] b) throws IOException {
+    public void write(byte... b) throws IOException {
         out.writeBytes(b, b.length);
     }
 

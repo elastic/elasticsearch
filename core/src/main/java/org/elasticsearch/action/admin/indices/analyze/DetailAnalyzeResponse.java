@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
-
+import java.io.IOException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,8 +27,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-
-import java.io.IOException;
 
 public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
 
@@ -74,7 +72,7 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         return this.charfilters;
     }
 
-    public DetailAnalyzeResponse charfilters(CharFilteredText[] charfilters) {
+    public DetailAnalyzeResponse charfilters(CharFilteredText... charfilters) {
         this.charfilters = charfilters;
         return this;
     }
@@ -92,7 +90,7 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         return tokenfilters;
     }
 
-    public DetailAnalyzeResponse tokenfilters(AnalyzeTokenList[] tokenfilters) {
+    public DetailAnalyzeResponse tokenfilters(AnalyzeTokenList... tokenfilters) {
         this.tokenfilters = tokenfilters;
         return this;
     }

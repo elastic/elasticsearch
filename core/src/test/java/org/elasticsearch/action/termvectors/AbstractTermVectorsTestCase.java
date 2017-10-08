@@ -19,6 +19,17 @@
 
 package org.elasticsearch.action.termvectors;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.LowerCaseFilter;
@@ -52,18 +63,6 @@ import org.elasticsearch.common.inject.internal.Join;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.Map;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
     protected static class TestFieldSetting {
@@ -290,7 +289,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
         };
     }
 
-    protected DirectoryReader indexDocsWithLucene(TestDoc[] testDocs) throws IOException {
+    protected DirectoryReader indexDocsWithLucene(TestDoc... testDocs) throws IOException {
         Map<String, Analyzer> mapping = new HashMap<>();
         for (TestFieldSetting field : testDocs[0].fieldSettings) {
             if (field.storedPayloads) {

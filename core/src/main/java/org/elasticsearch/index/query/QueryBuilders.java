@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -29,10 +32,6 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
 
 /**
  * Utility class to create search queries.
@@ -411,7 +410,8 @@ public final class QueryBuilders {
      * @param filterFunctionBuilders the filters and functions to execute
      * @return the function score query
      */
-    public static FunctionScoreQueryBuilder functionScoreQuery(FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
+    public static FunctionScoreQueryBuilder functionScoreQuery(
+            FunctionScoreQueryBuilder.FilterFunctionBuilder... filterFunctionBuilders) {
         return new FunctionScoreQueryBuilder(filterFunctionBuilders);
     }
 
@@ -457,20 +457,22 @@ public final class QueryBuilders {
     }
 
     /**
-     * A more like this query that finds documents that are "like" the provided texts
-     * which is checked against the "_all" field.
+     * A more like this query that finds documents that are "like" the provided texts which is
+     * checked against the "_all" field.
+     *
      * @param likeTexts the text to use when generating the 'More Like This' query.
      */
-    public static MoreLikeThisQueryBuilder moreLikeThisQuery(String[] likeTexts) {
+    public static MoreLikeThisQueryBuilder moreLikeThisQuery(String... likeTexts) {
         return moreLikeThisQuery(null, likeTexts, null);
     }
 
     /**
-     * A more like this query that finds documents that are "like" the provided documents
-     * which is checked against the "_all" field.
+     * A more like this query that finds documents that are "like" the provided documents which is
+     * checked against the "_all" field.
+     *
      * @param likeItems the documents to use when generating the 'More Like This' query.
      */
-    public static MoreLikeThisQueryBuilder moreLikeThisQuery(Item[] likeItems) {
+    public static MoreLikeThisQueryBuilder moreLikeThisQuery(Item... likeItems) {
         return moreLikeThisQuery(null, null, likeItems);
     }
 
@@ -562,10 +564,8 @@ public final class QueryBuilders {
         return new WrapperQueryBuilder(source);
     }
 
-    /**
-     * A Query builder which allows building a query thanks to a JSON string or binary data.
-     */
-    public static WrapperQueryBuilder wrapperQuery(byte[] source) {
+    /** A Query builder which allows building a query thanks to a JSON string or binary data. */
+    public static WrapperQueryBuilder wrapperQuery(byte... source) {
         return new WrapperQueryBuilder(source);
     }
 

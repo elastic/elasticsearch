@@ -34,11 +34,9 @@ public abstract class IndicesClusterStateUpdateRequest<T extends IndicesClusterS
         return indices;
     }
 
-    /**
-     * Sets the indices the operation needs to be executed on
-     */
+    /** Sets the indices the operation needs to be executed on */
     @SuppressWarnings("unchecked")
-    public T indices(Index[] indices) {
+    public T indices(Index... indices) {
         this.indices = indices;
         return (T)this;
     }

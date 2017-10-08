@@ -18,19 +18,6 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
-import org.apache.hadoop.fs.CreateFlag;
-import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.Options.CreateOpts;
-import org.apache.hadoop.fs.Path;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.blobstore.BlobMetaData;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
-
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,6 +30,18 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.apache.hadoop.fs.CreateFlag;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.Options.CreateOpts;
+import org.apache.hadoop.fs.Path;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
 final class HdfsBlobContainer extends AbstractBlobContainer {
     private final HdfsBlobStore store;
@@ -160,7 +159,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             return doPrivilegedOrThrow(in::read);
         }
 
-        public int read(byte b[]) throws IOException {
+        public int read(byte... b) throws IOException {
             return doPrivilegedOrThrow(() -> in.read(b));
         }
 

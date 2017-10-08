@@ -19,9 +19,6 @@
 
 package org.elasticsearch.common.network;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.Constants;
-
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -33,6 +30,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Constants;
 
 /**
  * Utilities for network interfaces / addresses binding and publishing.
@@ -242,9 +241,9 @@ public abstract class NetworkUtils {
         }
         return list.toArray(new InetAddress[list.size()]);
     }
-    
+
     /** Returns only the IPV4 addresses in {@code addresses} */
-    static InetAddress[] filterIPV4(InetAddress addresses[]) {
+    static InetAddress[] filterIPV4(InetAddress... addresses) {
         List<InetAddress> list = new ArrayList<>();
         for (InetAddress address : addresses) {
             if (address instanceof Inet4Address) {
@@ -256,9 +255,9 @@ public abstract class NetworkUtils {
         }
         return list.toArray(new InetAddress[list.size()]);
     }
-    
+
     /** Returns only the IPV6 addresses in {@code addresses} */
-    static InetAddress[] filterIPV6(InetAddress addresses[]) {
+    static InetAddress[] filterIPV6(InetAddress... addresses) {
         List<InetAddress> list = new ArrayList<>();
         for (InetAddress address : addresses) {
             if (address instanceof Inet6Address) {

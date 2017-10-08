@@ -19,15 +19,14 @@
 
 package org.elasticsearch.repositories.azure;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
 
 /**
  * Azure Repository
@@ -95,7 +94,7 @@ import java.util.concurrent.CountDownLatch;
  </pre>
  */
 public class AzureRepositoryF {
-    public static void main(String[] args) throws Throwable {
+    public static void main(String... args) throws Throwable {
         Settings.Builder settings = Settings.builder();
         settings.put("http.cors.enabled", "true");
         settings.put("http.cors.allow-origin", "*");

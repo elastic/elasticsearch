@@ -21,6 +21,9 @@ package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,10 +32,6 @@ import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 
 /**
  * A one stop to use {@link org.elasticsearch.common.xcontent.XContent} and {@link XContentBuilder}.
@@ -195,14 +194,16 @@ public class XContentFactory {
     }
 
     /**
-     * Guesses the content type based on the provided bytes and returns the corresponding {@link XContent}
+     * Guesses the content type based on the provided bytes and returns the corresponding {@link
+     * XContent}
      *
-     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
-     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
-     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     * @deprecated the content type should not be guessed except for few cases where we effectively
+     *     don't know the content type. The REST layer should move to reading the Content-Type
+     *     header instead. There are other places where auto-detection may be needed. This method is
+     *     deprecated to prevent usages of it from spreading further without specific reasons.
      */
     @Deprecated
-    public static XContent xContent(byte[] data) {
+    public static XContent xContent(byte... data) {
         return xContent(data, 0, data.length);
     }
 
@@ -224,12 +225,13 @@ public class XContentFactory {
     /**
      * Guesses the content type based on the provided bytes.
      *
-     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
-     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
-     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     * @deprecated the content type should not be guessed except for few cases where we effectively
+     *     don't know the content type. The REST layer should move to reading the Content-Type
+     *     header instead. There are other places where auto-detection may be needed. This method is
+     *     deprecated to prevent usages of it from spreading further without specific reasons.
      */
     @Deprecated
-    public static XContentType xContentType(byte[] data) {
+    public static XContentType xContentType(byte... data) {
         return xContentType(data, 0, data.length);
     }
 

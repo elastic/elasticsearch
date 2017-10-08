@@ -19,12 +19,11 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticsearchGenerationException;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import org.elasticsearch.ElasticsearchGenerationException;
 
 /**
  * A list backed by an {@link AtomicReferenceArray} with potential null values, easily allowing
@@ -98,10 +97,8 @@ public class AtomicArray<E> {
         return nonNullList;
     }
 
-    /**
-     * Copies the content of the underlying atomic array to a normal one.
-     */
-    public E[] toArray(E[] a) {
+    /** Copies the content of the underlying atomic array to a normal one. */
+    public E[] toArray(E... a) {
         if (a.length != array.length()) {
             throw new ElasticsearchGenerationException("AtomicArrays can only be copied to arrays of the same size");
         }

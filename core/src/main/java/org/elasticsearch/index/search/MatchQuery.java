@@ -19,9 +19,13 @@
 
 package org.elasticsearch.index.search;
 
+import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
+import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
+
+import java.io.IOException;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
@@ -51,15 +55,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
-
-import java.io.IOException;
-
-import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
-import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
 public class MatchQuery {
 
@@ -335,7 +333,7 @@ public class MatchQuery {
         }
 
         @Override
-        protected Query newSynonymQuery(Term[] terms) {
+        protected Query newSynonymQuery(Term... terms) {
             return blendTermsQuery(terms, mapper);
         }
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util;
 
-
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.MissingResourceException;
@@ -85,7 +84,7 @@ public class LocaleUtils {
         return parseParts(parts);
     }
 
-    private static Locale parseParts(String[] parts) {
+    private static Locale parseParts(String... parts) {
         switch (parts.length) {
         case 3:
             // lang, country, variant

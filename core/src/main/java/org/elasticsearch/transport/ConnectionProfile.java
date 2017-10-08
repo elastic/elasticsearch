@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.inject.internal.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -28,6 +25,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * A connection profile describes how many connection are established to specific node for each of the available request types.
@@ -205,10 +204,10 @@ public final class ConnectionProfile {
         }
 
         /**
-         * Returns one of the channels out configured for this handle. The channel is selected in a round-robin
-         * fashion.
+         * Returns one of the channels out configured for this handle. The channel is selected in a
+         * round-robin fashion.
          */
-        <T> T getChannel(T[] channels) {
+        <T> T getChannel(T... channels) {
             if (length == 0) {
                 throw new IllegalStateException("can't select channel size is 0 for types: " + types);
             }

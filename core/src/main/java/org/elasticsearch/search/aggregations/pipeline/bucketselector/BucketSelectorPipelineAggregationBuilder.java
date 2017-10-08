@@ -19,15 +19,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketselector;
 
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,9 +30,15 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.TreeMap;
-
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<BucketSelectorPipelineAggregationBuilder> {
     public static final String NAME = "bucket_selector";
@@ -83,7 +82,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
         gapPolicy.writeTo(out);
     }
 
-    private static Map<String, String> convertToBucketsPathMap(String[] bucketsPaths) {
+    private static Map<String, String> convertToBucketsPathMap(String... bucketsPaths) {
         Map<String, String> bucketsPathsMap = new HashMap<>();
         for (int i = 0; i < bucketsPaths.length; i++) {
             bucketsPathsMap.put("_value" + i, bucketsPaths[i]);

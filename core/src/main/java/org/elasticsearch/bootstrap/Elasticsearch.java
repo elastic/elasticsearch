@@ -19,6 +19,10 @@
 
 package org.elasticsearch.bootstrap;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.security.Permission;
+import java.util.Arrays;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
@@ -33,11 +37,6 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
-
-import java.io.IOException;
-import java.nio.file.Path;
-import java.security.Permission;
-import java.util.Arrays;
 
 /**
  * This class starts elasticsearch.
@@ -68,10 +67,8 @@ class Elasticsearch extends EnvironmentAwareCommand {
             .availableUnless(daemonizeOption);
     }
 
-    /**
-     * Main entry point for starting elasticsearch
-     */
-    public static void main(final String[] args) throws Exception {
+    /** Main entry point for starting elasticsearch */
+    public static void main(final String... args) throws Exception {
         // we want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
         // presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy)
         System.setSecurityManager(new SecurityManager() {
@@ -136,15 +133,15 @@ class Elasticsearch extends EnvironmentAwareCommand {
     }
 
     /**
-     * Required method that's called by Apache Commons procrun when
-     * running as a service on Windows, when the service is stopped.
+     * Required method that's called by Apache Commons procrun when running as a service on Windows,
+     * when the service is stopped.
      *
-     * http://commons.apache.org/proper/commons-daemon/procrun.html
+     * <p>http://commons.apache.org/proper/commons-daemon/procrun.html
      *
-     * NOTE: If this method is renamed and/or moved, make sure to
-     * update elasticsearch-service.bat!
+     * <p>NOTE: If this method is renamed and/or moved, make sure to update
+     * elasticsearch-service.bat!
      */
-    static void close(String[] args) throws IOException {
+    static void close(String... args) throws IOException {
         Bootstrap.stop();
     }
 

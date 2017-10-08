@@ -19,6 +19,15 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.BiFunction;
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
 import org.elasticsearch.Version;
@@ -36,16 +45,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.function.BiFunction;
-
-import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 /**
  * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}
@@ -427,12 +426,12 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * When using the highlighterType <tt>fvh</tt> this setting
-     * defines what constitutes a boundary for highlighting. It’s a single string with
-     * each boundary character defined in it. It defaults to .,!? \t\n
+     * When using the highlighterType <tt>fvh</tt> this setting defines what constitutes a boundary
+     * for highlighting. It’s a single string with each boundary character defined in it. It
+     * defaults to .,!? \t\n
      */
     @SuppressWarnings("unchecked")
-    public HB boundaryChars(char[] boundaryChars) {
+    public HB boundaryChars(char... boundaryChars) {
         this.boundaryChars = boundaryChars;
         return (HB) this;
     }

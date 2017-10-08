@@ -28,6 +28,12 @@ import com.fasterxml.jackson.core.json.JsonWriteContext;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.Objects;
+import java.util.Set;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,13 +45,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.filtering.FilterPathBasedFilter;
-
-import java.io.BufferedInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.Objects;
-import java.util.Set;
 
 public class JsonXContentGenerator implements XContentGenerator {
 
@@ -274,7 +273,7 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void writeBinary(byte[] value) throws IOException {
+    public void writeBinary(byte... value) throws IOException {
         generator.writeBinary(value);
     }
 

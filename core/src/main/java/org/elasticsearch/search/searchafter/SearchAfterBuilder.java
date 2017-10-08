@@ -19,6 +19,11 @@
 
 package org.elasticsearch.search.searchafter;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -37,12 +42,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.SortAndFormats;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
 
 public class SearchAfterBuilder implements ToXContentObject, Writeable {
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
@@ -72,7 +71,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         }
     }
 
-    public SearchAfterBuilder setSortValues(Object[] values) {
+    public SearchAfterBuilder setSortValues(Object... values) {
         if (values == null) {
             throw new NullPointerException("Values cannot be null.");
         }

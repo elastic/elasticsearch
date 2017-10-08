@@ -19,10 +19,9 @@
 
 package org.elasticsearch.common;
 
-import org.apache.lucene.util.BytesRef;
-
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import org.apache.lucene.util.BytesRef;
 
 /**
  * A set of utilities for numbers.
@@ -42,7 +41,7 @@ public final class Numbers {
      * @param arr The byte array to convert to an short
      * @return The int converted
      */
-    public static short bytesToShort(byte[] arr) {
+    public static short bytesToShort(byte... arr) {
         return (short) (((arr[0] & 0xff) << 8) | (arr[1] & 0xff));
     }
 
@@ -56,7 +55,7 @@ public final class Numbers {
      * @param arr The byte array to convert to an int
      * @return The int converted
      */
-    public static int bytesToInt(byte[] arr) {
+    public static int bytesToInt(byte... arr) {
         return (arr[0] << 24) | ((arr[1] & 0xff) << 16) | ((arr[2] & 0xff) << 8) | (arr[3] & 0xff);
     }
 
@@ -70,7 +69,7 @@ public final class Numbers {
      * @param arr The byte array to convert to a long
      * @return The long converter
      */
-    public static long bytesToLong(byte[] arr) {
+    public static long bytesToLong(byte... arr) {
         int high = (arr[0] << 24) | ((arr[1] & 0xff) << 16) | ((arr[2] & 0xff) << 8) | (arr[3] & 0xff);
         int low = (arr[4] << 24) | ((arr[5] & 0xff) << 16) | ((arr[6] & 0xff) << 8) | (arr[7] & 0xff);
         return (((long) high) << 32) | (low & 0x0ffffffffL);
@@ -88,7 +87,7 @@ public final class Numbers {
      * @param arr The byte array to convert to a float
      * @return The float converted
      */
-    public static float bytesToFloat(byte[] arr) {
+    public static float bytesToFloat(byte... arr) {
         return Float.intBitsToFloat(bytesToInt(arr));
     }
 
@@ -102,7 +101,7 @@ public final class Numbers {
      * @param arr The byte array to convert to a double
      * @return The double converted
      */
-    public static double bytesToDouble(byte[] arr) {
+    public static double bytesToDouble(byte... arr) {
         return Double.longBitsToDouble(bytesToLong(arr));
     }
 

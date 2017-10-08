@@ -19,6 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import static java.util.Collections.unmodifiableMap;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -29,7 +36,6 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -38,17 +44,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * Transport client that collects snapshot shard statuses from data nodes
@@ -133,7 +132,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
             super(nodesIds);
         }
 
-        public Request snapshots(Snapshot[] snapshots) {
+        public Request snapshots(Snapshot... snapshots) {
             this.snapshots = snapshots;
             return this;
         }

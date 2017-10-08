@@ -19,7 +19,13 @@
 
 package org.elasticsearch.search.sort;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.instanceOf;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -48,14 +54,6 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanceSortBuilder> {
 
@@ -131,7 +129,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         return clone;
     }
 
-    private static GeoPoint[] points(GeoPoint[] original) {
+    private static GeoPoint[] points(GeoPoint... original) {
         GeoPoint[] result = null;
         while (result == null || Arrays.deepEquals(original, result)) {
             int count = randomIntBetween(1, 10);

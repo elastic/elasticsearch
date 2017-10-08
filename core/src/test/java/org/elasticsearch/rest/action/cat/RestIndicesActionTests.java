@@ -19,6 +19,13 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.equalTo;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -59,14 +66,6 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.usage.UsageService;
-
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
-import static java.util.Collections.emptyList;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests for {@link RestIndicesAction}
@@ -133,7 +132,7 @@ public class RestIndicesActionTests extends ESTestCase {
         }
     }
 
-    private IndicesStatsResponse randomIndicesStatsResponse(final Index[] indices) {
+    private IndicesStatsResponse randomIndicesStatsResponse(final Index... indices) {
         List<ShardStats> shardStats = new ArrayList<>();
         for (final Index index : indices) {
             for (int i = 0; i < 2; i++) {

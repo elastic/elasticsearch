@@ -20,7 +20,11 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
 import com.carrotsearch.hppc.DoubleArrayList;
-
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,12 +36,6 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregationBuilder;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
 public class PercentilesBucketPipelineAggregationBuilder
         extends BucketMetricsPipelineAggregationBuilder<PercentilesBucketPipelineAggregationBuilder> {
@@ -72,10 +70,8 @@ public class PercentilesBucketPipelineAggregationBuilder
         return percents;
     }
 
-    /**
-     * Set the percentages to calculate percentiles for in this aggregation
-     */
-    public PercentilesBucketPipelineAggregationBuilder percents(double[] percents) {
+    /** Set the percentages to calculate percentiles for in this aggregation */
+    public PercentilesBucketPipelineAggregationBuilder percents(double... percents) {
         if (percents == null) {
             throw new IllegalArgumentException("[percents] must not be null: [" + name + "]");
         }

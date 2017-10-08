@@ -35,11 +35,12 @@ final class JavaVersionChecker {
     private static final List<Integer> JAVA_8 = Arrays.asList(1, 8);
 
     /**
-     * The main entry point. The exit code is 0 if the Java version is at least 1.8, otherwise the exit code is 1.
+     * The main entry point. The exit code is 0 if the Java version is at least 1.8, otherwise the
+     * exit code is 1.
      *
      * @param args the args to the program which are rejected if not empty
      */
-    public static void main(final String[] args) {
+    public static void main(final String... args) {
         // no leniency!
         if (args.length != 0) {
             throw new IllegalArgumentException("expected zero arguments but was: " + Arrays.toString(args));

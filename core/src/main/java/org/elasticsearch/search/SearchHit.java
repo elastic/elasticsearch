@@ -19,6 +19,26 @@
 
 package org.elasticsearch.search;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.lucene.Lucene.readExplanation;
+import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
+import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.readHighlightField;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.OriginalIndices;
@@ -50,27 +70,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.transport.RemoteClusterAware;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.lucene.Lucene.readExplanation;
-import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
-import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.readHighlightField;
 
 /**
  * A single search hit.
@@ -342,7 +341,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         return clusterAlias;
     }
 
-    public void matchedQueries(String[] matchedQueries) {
+    public void matchedQueries(String... matchedQueries) {
         this.matchedQueries = matchedQueries;
     }
 

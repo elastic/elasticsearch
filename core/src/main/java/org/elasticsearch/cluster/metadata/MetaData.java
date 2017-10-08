@@ -19,9 +19,26 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.Diff;
@@ -54,24 +71,6 @@ import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
-
-import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, ToXContentFragment {
 
@@ -283,7 +282,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return mapBuilder.build();
     }
 
-    private static boolean matchAllAliases(final String[] aliases) {
+    private static boolean matchAllAliases(final String... aliases) {
         for (String alias : aliases) {
             if (alias.equals(ALL)) {
                 return true;
@@ -512,24 +511,24 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     /**
-     * Identifies whether the array containing type names given as argument refers to all types
-     * The empty or null array identifies all types
+     * Identifies whether the array containing type names given as argument refers to all types The
+     * empty or null array identifies all types
      *
      * @param types the array containing types
      * @return true if the provided array maps to all types, false otherwise
      */
-    public static boolean isAllTypes(String[] types) {
+    public static boolean isAllTypes(String... types) {
         return types == null || types.length == 0 || isExplicitAllType(types);
     }
 
     /**
-     * Identifies whether the array containing type names given as argument explicitly refers to all types
-     * The empty or null array doesn't explicitly map to all types
+     * Identifies whether the array containing type names given as argument explicitly refers to all
+     * types The empty or null array doesn't explicitly map to all types
      *
      * @param types the array containing index names
      * @return true if the provided array explicitly maps to all types, false otherwise
      */
-    public static boolean isExplicitAllType(String[] types) {
+    public static boolean isExplicitAllType(String... types) {
         return types != null && types.length == 1 && ALL.equals(types[0]);
     }
 

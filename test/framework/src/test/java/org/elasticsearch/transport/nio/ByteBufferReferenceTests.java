@@ -19,10 +19,9 @@
 
 package org.elasticsearch.transport.nio;
 
+import java.nio.ByteBuffer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
-
-import java.nio.ByteBuffer;
 
 public class ByteBufferReferenceTests extends ESTestCase {
 
@@ -147,7 +146,7 @@ public class ByteBufferReferenceTests extends ESTestCase {
         }
     }
 
-    private void initializeBytes(byte[] bytes) {
+    private void initializeBytes(byte... bytes) {
         for (int i = 0 ; i < bytes.length; ++i) {
             bytes[i] = (byte) i;
         }

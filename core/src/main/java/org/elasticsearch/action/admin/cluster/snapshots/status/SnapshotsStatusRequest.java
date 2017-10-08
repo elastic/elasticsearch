@@ -19,15 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
+import java.io.IOException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Get snapshot status request
@@ -124,7 +123,7 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
      *
      * @return this request
      */
-    public SnapshotsStatusRequest snapshots(String[] snapshots) {
+    public SnapshotsStatusRequest snapshots(String... snapshots) {
         this.snapshots = snapshots;
         return this;
     }

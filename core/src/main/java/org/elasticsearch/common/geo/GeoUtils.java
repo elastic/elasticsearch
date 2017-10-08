@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.geo;
 
+import java.io.IOException;
 import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
@@ -33,8 +34,6 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
-
-import java.io.IOException;
 
 public class GeoUtils {
 
@@ -288,7 +287,7 @@ public class GeoUtils {
         point.reset(pt[1], pt[0]);
     }
 
-    public static void normalizePoint(double[] lonLat) {
+    public static void normalizePoint(double... lonLat) {
         normalizePoint(lonLat, true, true);
     }
 

@@ -19,6 +19,12 @@
 
 package org.elasticsearch.common.compress;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -26,13 +32,6 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Random;
-import java.util.concurrent.CountDownLatch;
 
 /**
  * Test streaming compression (e.g. used for recovery)
@@ -383,7 +382,7 @@ public class DeflateCompressTests extends ESTestCase {
         }
     }
 
-    private void doTest(byte bytes[]) throws IOException {
+    private void doTest(byte... bytes) throws IOException {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         StreamInput rawIn = new ByteBufferStreamInput(bb);
         Compressor c = compressor;

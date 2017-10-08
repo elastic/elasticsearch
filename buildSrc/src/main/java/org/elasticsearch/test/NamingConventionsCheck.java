@@ -44,7 +44,7 @@ import java.util.Set;
  * {@code --self-test} that is only run in the test:framework project.
  */
 public class NamingConventionsCheck {
-    public static void main(String[] args) throws IOException {
+    public static void main(String... args) throws IOException {
         Class<?> testClass = null;
         Class<?> integTestClass = null;
         Path rootPath = null;

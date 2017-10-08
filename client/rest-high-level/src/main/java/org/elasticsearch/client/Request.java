@@ -19,6 +19,15 @@
 
 package org.elasticsearch.client;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.StringJoiner;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
@@ -55,16 +64,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.StringJoiner;
 
 public final class Request {
 
@@ -493,7 +492,7 @@ public final class Request {
             return putParam("routing", routing);
         }
 
-        Params withStoredFields(String[] storedFields) {
+        Params withStoredFields(String... storedFields) {
             if (storedFields != null && storedFields.length > 0) {
                 return putParam("stored_fields", String.join(",", storedFields));
             }

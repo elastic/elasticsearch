@@ -16,9 +16,6 @@
 
 package org.elasticsearch.common.inject.assistedinject;
 
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.TypeLiteral;
-
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -28,6 +25,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.TypeLiteral;
 
 /**
  * Internal representation of a constructor annotated with
@@ -84,10 +83,9 @@ class AssistedConstructor<T> {
     }
 
     /**
-     * Returns an instance of T, constructed using this constructor, with the
-     * supplied arguments.
+     * Returns an instance of T, constructed using this constructor, with the supplied arguments.
      */
-    public T newInstance(Object[] args) throws Throwable {
+    public T newInstance(Object... args) throws Throwable {
         try {
             return constructor.newInstance(args);
         } catch (InvocationTargetException e) {

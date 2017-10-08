@@ -29,7 +29,7 @@ public class SyncedFlushRequestBuilder extends ActionRequestBuilder<SyncedFlushR
         super(client, action, new SyncedFlushRequest());
     }
 
-    public SyncedFlushRequestBuilder setIndices(String[] indices) {
+    public SyncedFlushRequestBuilder setIndices(String... indices) {
         super.request().indices(indices);
         return this;
     }

@@ -16,8 +16,7 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.inject.internal.MoreTypes;
-import org.elasticsearch.common.inject.util.Types;
+import static org.elasticsearch.common.inject.internal.MoreTypes.canonicalize;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -31,8 +30,8 @@ import java.lang.reflect.WildcardType;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.common.inject.internal.MoreTypes.canonicalize;
+import org.elasticsearch.common.inject.internal.MoreTypes;
+import org.elasticsearch.common.inject.util.Types;
 
 /**
  * Represents a generic type {@code T}. Java doesn't yet provide a way to
@@ -171,11 +170,8 @@ public class TypeLiteral<T> {
         return new TypeLiteral<>(type);
     }
 
-
-    /**
-     * Returns an immutable list of the resolved types.
-     */
-    private List<TypeLiteral<?>> resolveAll(Type[] types) {
+    /** Returns an immutable list of the resolved types. */
+    private List<TypeLiteral<?>> resolveAll(Type... types) {
         TypeLiteral<?>[] result = new TypeLiteral<?>[types.length];
         for (int t = 0; t < types.length; t++) {
             result[t] = resolve(types[t]);

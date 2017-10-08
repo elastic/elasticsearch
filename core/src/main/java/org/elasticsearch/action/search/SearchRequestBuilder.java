@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.search;
 
+import java.util.Arrays;
+import java.util.List;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -26,20 +28,17 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
-
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * A search action request builder.
@@ -334,11 +333,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-    /**
-     * Set the sort values that indicates which docs this request should "search after".
-     *
-     */
-    public SearchRequestBuilder searchAfter(Object[] values) {
+    /** Set the sort values that indicates which docs this request should "search after". */
+    public SearchRequestBuilder searchAfter(Object... values) {
         sourceBuilder().searchAfter(values);
         return this;
     }

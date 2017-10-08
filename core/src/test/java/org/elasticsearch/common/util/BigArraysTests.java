@@ -19,6 +19,14 @@
 
 package org.elasticsearch.common.util;
 
+import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -29,15 +37,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.List;
-import java.util.function.Function;
-
-import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class BigArraysTests extends ESTestCase {
 
@@ -326,7 +325,7 @@ public class BigArraysTests extends ESTestCase {
         array2.close();
     }
 
-    private ByteArray byteArrayWithBytes(byte[] bytes) {
+    private ByteArray byteArrayWithBytes(byte... bytes) {
         ByteArray bytearray = bigArrays.newByteArray(bytes.length);
         for (int i = 0; i < bytes.length; ++i) {
             bytearray.set(i, bytes[i]);

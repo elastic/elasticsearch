@@ -19,6 +19,13 @@
 
 package org.elasticsearch.search.builder;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -58,14 +65,6 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 /**
  * A search source builder allowing to easily build search source. Simple
@@ -531,10 +530,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return searchAfterBuilder.getSortValues();
     }
 
-    /**
-     * Set the sort values that indicates which docs this request should "search after".
-     */
-    public SearchSourceBuilder searchAfter(Object[] values) {
+    /** Set the sort values that indicates which docs this request should "search after". */
+    public SearchSourceBuilder searchAfter(Object... values) {
         this.searchAfterBuilder = new SearchAfterBuilder().setSortValues(values);
         return this;
     }

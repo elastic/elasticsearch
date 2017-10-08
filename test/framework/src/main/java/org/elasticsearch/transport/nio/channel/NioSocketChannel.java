@@ -19,15 +19,14 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.transport.nio.NetworkBytesReference;
-import org.elasticsearch.transport.nio.SocketSelector;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.Arrays;
+import org.elasticsearch.transport.nio.NetworkBytesReference;
+import org.elasticsearch.transport.nio.SocketSelector;
 
 public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
@@ -59,7 +58,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return socketSelector;
     }
 
-    public int write(NetworkBytesReference[] references) throws IOException {
+    public int write(NetworkBytesReference... references) throws IOException {
         int written;
         if (references.length == 1) {
             written = socketChannel.write(references[0].getReadByteBuffer());

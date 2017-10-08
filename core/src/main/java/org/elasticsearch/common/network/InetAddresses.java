@@ -16,8 +16,6 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.common.collect.Tuple;
-
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -25,6 +23,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Locale;
+import org.elasticsearch.common.collect.Tuple;
 
 public class InetAddresses {
     private static int IPV4_PART_COUNT = 4;
@@ -254,13 +253,12 @@ public class InetAddresses {
     /**
      * Identify and mark the longest run of zeroes in an IPv6 address.
      *
-     * <p>Only runs of two or more hextets are considered.  In case of a tie, the
-     * leftmost run wins.  If a qualifying run is found, its hextets are replaced
-     * by the sentinel value -1.
+     * <p>Only runs of two or more hextets are considered. In case of a tie, the leftmost run wins.
+     * If a qualifying run is found, its hextets are replaced by the sentinel value -1.
      *
      * @param hextets {@code int[]} mutable array of eight 16-bit hextets
      */
-    private static void compressLongestRunOfZeroes(int[] hextets) {
+    private static void compressLongestRunOfZeroes(int... hextets) {
         int bestRunStart = -1;
         int bestRunLength = -1;
         int runStart = -1;
@@ -286,12 +284,12 @@ public class InetAddresses {
     /**
      * Convert a list of hextets into a human-readable IPv6 address.
      *
-     * <p>In order for "::" compression to work, the input should contain negative
-     * sentinel values in place of the elided zeroes.
+     * <p>In order for "::" compression to work, the input should contain negative sentinel values
+     * in place of the elided zeroes.
      *
      * @param hextets {@code int[]} array of eight 16-bit hextets, or -1s
      */
-    private static String hextetsToIPv6String(int[] hextets) {
+    private static String hextetsToIPv6String(int... hextets) {
     /*
      * While scanning the array, handle these state transitions:
      *   start->num => "num"     start->gap => "::"
@@ -341,15 +339,14 @@ public class InetAddresses {
     /**
      * Convert a byte array into an InetAddress.
      *
-     * {@link InetAddress#getByAddress} is documented as throwing a checked
-     * exception "if IP address is of illegal length."  We replace it with
-     * an unchecked exception, for use by callers who already know that addr
-     * is an array of length 4 or 16.
+     * <p>{@link InetAddress#getByAddress} is documented as throwing a checked exception "if IP
+     * address is of illegal length." We replace it with an unchecked exception, for use by callers
+     * who already know that addr is an array of length 4 or 16.
      *
      * @param addr the raw 4-byte or 16-byte IP address in big-endian order
      * @return an InetAddress object created from the raw IP address
      */
-    private static InetAddress bytesToInetAddress(byte[] addr) {
+    private static InetAddress bytesToInetAddress(byte... addr) {
         try {
             return InetAddress.getByAddress(addr);
         } catch (UnknownHostException e) {

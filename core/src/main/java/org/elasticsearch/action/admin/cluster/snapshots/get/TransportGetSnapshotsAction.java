@@ -19,6 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -39,15 +47,6 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Transport Action for get snapshots operation
@@ -151,11 +150,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
     }
 
-    private boolean isAllSnapshots(String[] snapshots) {
+    private boolean isAllSnapshots(String... snapshots) {
         return (snapshots.length == 0) || (snapshots.length == 1 && GetSnapshotsRequest.ALL_SNAPSHOTS.equalsIgnoreCase(snapshots[0]));
     }
 
-    private boolean isCurrentSnapshotsOnly(String[] snapshots) {
+    private boolean isCurrentSnapshotsOnly(String... snapshots) {
         return (snapshots.length == 1 && GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshots[0]));
     }
 

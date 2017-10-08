@@ -129,7 +129,7 @@ public class EvictingQueue<T> implements Queue<T> {
     }
 
     @Override
-    public <T1> T1[] toArray(T1[] a) {
+    public <T1> T1[] toArray(T1... a) {
         return queue.toArray(a);
     }
 

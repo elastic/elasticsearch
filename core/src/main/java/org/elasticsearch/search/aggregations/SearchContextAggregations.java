@@ -42,11 +42,12 @@ public class SearchContextAggregations {
     }
 
     /**
-     * Registers all the created aggregators (top level aggregators) for the search execution context.
+     * Registers all the created aggregators (top level aggregators) for the search execution
+     * context.
      *
      * @param aggregators The top level aggregators of the search execution.
      */
-    public void aggregators(Aggregator[] aggregators) {
+    public void aggregators(Aggregator... aggregators) {
         this.aggregators = aggregators;
     }
 

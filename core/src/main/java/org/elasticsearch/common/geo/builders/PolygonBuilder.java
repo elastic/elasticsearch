@@ -25,14 +25,6 @@ import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LinearRing;
 import com.vividsolutions.jts.geom.MultiPolygon;
 import com.vividsolutions.jts.geom.Polygon;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
-import org.locationtech.spatial4j.shape.Shape;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,6 +35,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Shape;
 
 /**
  * The {@link PolygonBuilder} implements the groundwork to create polygons. This contains
@@ -715,10 +714,8 @@ public class PolygonBuilder extends ShapeBuilder {
         return edges;
     }
 
-    /**
-     * Transforms coordinates in the eastern hemisphere (-180:0) to a (180:360) range
-     */
-    private static void translate(Coordinate[] points) {
+    /** Transforms coordinates in the eastern hemisphere (-180:0) to a (180:360) range */
+    private static void translate(Coordinate... points) {
         for (Coordinate c : points) {
             if (c.x < 0) {
                 c.x += 2*DATELINE;

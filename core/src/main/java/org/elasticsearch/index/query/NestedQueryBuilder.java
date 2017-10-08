@@ -19,6 +19,13 @@
 
 package org.elasticsearch.index.query;
 
+import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -47,14 +54,6 @@ import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-
-import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
 
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
     public static final String NAME = "nested";
@@ -370,7 +369,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
 
         @Override
-        public TopDocs[] topDocs(SearchHit[] hits) throws IOException {
+        public TopDocs[] topDocs(SearchHit... hits) throws IOException {
             Weight innerHitQueryWeight = createInnerHitQueryWeight();
             TopDocs[] result = new TopDocs[hits.length];
             for (int i = 0; i < hits.length; i++) {

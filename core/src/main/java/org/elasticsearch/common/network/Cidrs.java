@@ -102,7 +102,7 @@ public final class Cidrs {
         return octets;
     }
 
-    static String octetsToString(int[] octets) {
+    static String octetsToString(int... octets) {
         assert octets != null;
         assert octets.length == 4;
         return String.format(Locale.ROOT, "%d.%d.%d.%d", octets[0], octets[1], octets[2], octets[3]);

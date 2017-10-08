@@ -18,6 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
@@ -34,11 +38,6 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * A specialization of {@link DeferringBucketCollector} that collects all
@@ -230,7 +229,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             }
         }
 
-        public void replayRelatedMatches(ScoreDoc[] sd) throws IOException {
+        public void replayRelatedMatches(ScoreDoc... sd) throws IOException {
             final LeafBucketCollector leafCollector = deferred.getLeafCollector(readerContext);
             leafCollector.setScorer(this);
 

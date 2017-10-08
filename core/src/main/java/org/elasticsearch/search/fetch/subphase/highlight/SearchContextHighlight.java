@@ -19,9 +19,6 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.apache.lucene.search.Query;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
-
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -29,6 +26,8 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 
 public class SearchContextHighlight {
 
@@ -234,12 +233,12 @@ public class SearchContextHighlight {
                 return this;
             }
 
-            Builder preTags(String[] preTags) {
+            Builder preTags(String... preTags) {
                 fieldOptions.preTags = preTags;
                 return this;
             }
 
-            Builder postTags(String[] postTags) {
+            Builder postTags(String... postTags) {
                 fieldOptions.postTags = postTags;
                 return this;
             }
@@ -284,7 +283,7 @@ public class SearchContextHighlight {
                 return this;
             }
 
-            Builder boundaryChars(Character[] boundaryChars) {
+            Builder boundaryChars(Character... boundaryChars) {
                 fieldOptions.boundaryChars = boundaryChars;
                 return this;
             }

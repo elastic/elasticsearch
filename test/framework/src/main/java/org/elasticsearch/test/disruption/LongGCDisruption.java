@@ -19,12 +19,6 @@
 
 package org.elasticsearch.test.disruption;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.test.InternalTestCluster;
-
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
@@ -35,6 +29,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.test.InternalTestCluster;
 
 /**
  * Suspends all threads on the specified node in order to simulate a long gc.
@@ -173,7 +172,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
         return threadName.contains("[" + disruptedNode + "]");
     }
 
-    private String stackTrace(StackTraceElement[] stackTraceElements) {
+    private String stackTrace(StackTraceElement... stackTraceElements) {
         return Arrays.stream(stackTraceElements).map(Object::toString).collect(Collectors.joining("\n"));
     }
 

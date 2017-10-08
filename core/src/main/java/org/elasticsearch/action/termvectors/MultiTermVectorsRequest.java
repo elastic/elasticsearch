@@ -19,6 +19,13 @@
 
 package org.elasticsearch.action.termvectors;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -29,14 +36,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentParser;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
 
 public class MultiTermVectorsRequest extends ActionRequest implements Iterable<TermVectorsRequest>, CompositeIndicesRequest, RealtimeRequest {
 
@@ -152,7 +151,7 @@ public class MultiTermVectorsRequest extends ActionRequest implements Iterable<T
         }
     }
 
-    public void ids(String[] ids) {
+    public void ids(String... ids) {
         for (String id : ids) {
             this.ids.add(id.replaceAll("\\s", ""));
         }

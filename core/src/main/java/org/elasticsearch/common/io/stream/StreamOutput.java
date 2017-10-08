@@ -19,25 +19,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BitUtil;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.Writeable.Writer;
-import org.elasticsearch.common.text.Text;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableInstant;
-
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -58,6 +39,24 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.stream.Writeable.Writer;
+import org.elasticsearch.common.text.Text;
+import org.joda.time.DateTimeZone;
+import org.joda.time.ReadableInstant;
 
 /**
  * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
@@ -106,7 +105,7 @@ public abstract class StreamOutput extends OutputStream {
      *
      * @param b the bytes to write
      */
-    public void writeBytes(byte[] b) throws IOException {
+    public void writeBytes(byte... b) throws IOException {
         writeBytes(b, 0, b.length);
     }
 
@@ -134,7 +133,7 @@ public abstract class StreamOutput extends OutputStream {
      *
      * @param b the bytes to write
      */
-    public void writeByteArray(byte[] b) throws IOException {
+    public void writeByteArray(byte... b) throws IOException {
         writeVInt(b.length);
         writeBytes(b, 0, b.length);
     }
@@ -407,17 +406,15 @@ public abstract class StreamOutput extends OutputStream {
         writeBytes(b, off, len);
     }
 
-    public void writeStringArray(String[] array) throws IOException {
+    public void writeStringArray(String... array) throws IOException {
         writeVInt(array.length);
         for (String s : array) {
             writeString(s);
         }
     }
 
-    /**
-     * Writes a string array, for nullable string, writes it as 0 (empty string).
-     */
-    public void writeStringArrayNullable(@Nullable String[] array) throws IOException {
+    /** Writes a string array, for nullable string, writes it as 0 (empty string). */
+    public void writeStringArrayNullable(@Nullable String... array) throws IOException {
         if (array == null) {
             writeVInt(0);
         } else {
@@ -428,10 +425,8 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    /**
-     * Writes a string array, for nullable string, writes false.
-     */
-    public void writeOptionalStringArray(@Nullable String[] array) throws IOException {
+    /** Writes a string array, for nullable string, writes false. */
+    public void writeOptionalStringArray(@Nullable String... array) throws IOException {
         if (array == null) {
             writeBoolean(false);
         } else {
@@ -664,56 +659,56 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeIntArray(int[] values) throws IOException {
+    public void writeIntArray(int... values) throws IOException {
         writeVInt(values.length);
         for (int value : values) {
             writeInt(value);
         }
     }
 
-    public void writeVIntArray(int[] values) throws IOException {
+    public void writeVIntArray(int... values) throws IOException {
         writeVInt(values.length);
         for (int value : values) {
             writeVInt(value);
         }
     }
 
-    public void writeLongArray(long[] values) throws IOException {
+    public void writeLongArray(long... values) throws IOException {
         writeVInt(values.length);
         for (long value : values) {
             writeLong(value);
         }
     }
 
-    public void writeVLongArray(long[] values) throws IOException {
+    public void writeVLongArray(long... values) throws IOException {
         writeVInt(values.length);
         for (long value : values) {
             writeVLong(value);
         }
     }
 
-    public void writeFloatArray(float[] values) throws IOException {
+    public void writeFloatArray(float... values) throws IOException {
         writeVInt(values.length);
         for (float value : values) {
             writeFloat(value);
         }
     }
 
-    public void writeDoubleArray(double[] values) throws IOException {
+    public void writeDoubleArray(double... values) throws IOException {
         writeVInt(values.length);
         for (double value : values) {
             writeDouble(value);
         }
     }
 
-    public <T extends Writeable> void writeArray(T[] array) throws IOException {
+    public <T extends Writeable> void writeArray(T... array) throws IOException {
         writeVInt(array.length);
         for (T value: array) {
             value.writeTo(this);
         }
     }
 
-    public <T extends Writeable> void writeOptionalArray(@Nullable T[] array) throws IOException {
+    public <T extends Writeable> void writeOptionalArray(@Nullable T... array) throws IOException {
         if (array == null) {
             writeBoolean(false);
         } else {

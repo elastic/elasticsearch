@@ -21,7 +21,12 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import com.carrotsearch.hppc.BitMixer;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
-
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -45,13 +50,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
-
-import java.io.IOException;
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 /**
  * Defines the include/exclude regular expression filtering for string terms aggregation. In this filtering logic,
@@ -464,7 +462,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
-    private static SortedSet<BytesRef> convertToBytesRefSet(String[] values) {
+    private static SortedSet<BytesRef> convertToBytesRefSet(String... values) {
         SortedSet<BytesRef> returnSet = null;
         if (values != null) {
             returnSet = new TreeSet<>();
@@ -475,7 +473,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         return returnSet;
     }
 
-    private static SortedSet<BytesRef> convertToBytesRefSet(double[] values) {
+    private static SortedSet<BytesRef> convertToBytesRefSet(double... values) {
         SortedSet<BytesRef> returnSet = null;
         if (values != null) {
             returnSet = new TreeSet<>();
@@ -486,7 +484,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         return returnSet;
     }
 
-    private static SortedSet<BytesRef> convertToBytesRefSet(long[] values) {
+    private static SortedSet<BytesRef> convertToBytesRefSet(long... values) {
         SortedSet<BytesRef> returnSet = null;
         if (values != null) {
             returnSet = new TreeSet<>();

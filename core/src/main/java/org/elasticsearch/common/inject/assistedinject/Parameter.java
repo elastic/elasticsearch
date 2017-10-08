@@ -16,15 +16,13 @@
 
 package org.elasticsearch.common.inject.assistedinject;
 
-import org.elasticsearch.common.inject.BindingAnnotation;
-import org.elasticsearch.common.inject.ConfigurationException;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Provider;
-
 import java.lang.annotation.Annotation;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import org.elasticsearch.common.inject.BindingAnnotation;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.Provider;
 
 /**
  * Models a method or constructor parameter.
@@ -69,7 +67,7 @@ class Parameter {
         return result.toString();
     }
 
-    private boolean hasAssistedAnnotation(Annotation[] annotations) {
+    private boolean hasAssistedAnnotation(Annotation... annotations) {
         for (Annotation annotation : annotations) {
             if (annotation.annotationType().equals(Assisted.class)) {
                 return true;
@@ -109,12 +107,12 @@ class Parameter {
     }
 
     /**
-     * Returns the unique binding annotation from the specified list, or
-     * {@code null} if there are none.
+     * Returns the unique binding annotation from the specified list, or {@code null} if there are
+     * none.
      *
      * @throws IllegalStateException if multiple binding annotations exist.
      */
-    private Annotation getBindingAnnotation(Annotation[] annotations) {
+    private Annotation getBindingAnnotation(Annotation... annotations) {
         Annotation bindingAnnotation = null;
         for (Annotation a : annotations) {
             if (a.annotationType().getAnnotation(BindingAnnotation.class) != null) {

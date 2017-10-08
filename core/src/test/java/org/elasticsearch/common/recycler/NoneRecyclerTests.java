@@ -27,13 +27,12 @@ public class NoneRecyclerTests extends AbstractRecyclerTestCase {
     }
 
     @Override
-    protected void assertRecycled(byte[] data) {
+    protected void assertRecycled(byte... data) {
         // will never match
     }
 
     @Override
-    protected void assertDead(byte[] data) {
+    protected void assertDead(byte... data) {
         // will never match
     }
-
 }

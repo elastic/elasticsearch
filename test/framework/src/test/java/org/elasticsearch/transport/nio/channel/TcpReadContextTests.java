@@ -19,23 +19,22 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 import org.junit.Before;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
-import static org.mockito.Mockito.when;
 
 public class TcpReadContextTests extends ESTestCase {
 
@@ -125,7 +124,7 @@ public class TcpReadContextTests extends ESTestCase {
         }
     }
 
-    private static byte[] combineMessageAndHeader(byte[] bytes) {
+    private static byte[] combineMessageAndHeader(byte... bytes) {
         return combineMessageAndHeader(bytes, bytes.length);
     }
 

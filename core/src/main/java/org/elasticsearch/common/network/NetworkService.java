@@ -19,11 +19,6 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -34,6 +29,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 public final class NetworkService {
 
@@ -83,15 +82,14 @@ public final class NetworkService {
     }
 
     /**
-     * Resolves {@code bindHosts} to a list of internet addresses. The list will
-     * not contain duplicate addresses.
+     * Resolves {@code bindHosts} to a list of internet addresses. The list will not contain
+     * duplicate addresses.
      *
-     * @param bindHosts list of hosts to bind to. this may contain special pseudo-hostnames
-     *                  such as _local_ (see the documentation). if it is null, it will fall back to _local_
-     *
+     * @param bindHosts list of hosts to bind to. this may contain special pseudo-hostnames such as
+     *     _local_ (see the documentation). if it is null, it will fall back to _local_
      * @return unique set of internet addresses
      */
-    public InetAddress[] resolveBindHostAddresses(String bindHosts[]) throws IOException {
+    public InetAddress[] resolveBindHostAddresses(String... bindHosts) throws IOException {
         if (bindHosts == null || bindHosts.length == 0) {
             for (CustomNameResolver customNameResolver : customNameResolvers) {
                 InetAddress addresses[] = customNameResolver.resolveDefault();
@@ -120,17 +118,18 @@ public final class NetworkService {
     }
 
     /**
-     * Resolves {@code publishHosts} to a single publish address. The fact that it returns
-     * only one address is just a current limitation.
-     * <p>
-     * If {@code publishHosts} resolves to more than one address, <b>then one is selected with magic</b>
+     * Resolves {@code publishHosts} to a single publish address. The fact that it returns only one
+     * address is just a current limitation.
+     *
+     * <p>If {@code publishHosts} resolves to more than one address, <b>then one is selected with
+     * magic</b>
      *
      * @param publishHosts list of hosts to publish as. this may contain special pseudo-hostnames
-     *                     such as _local_ (see the documentation). if it is null, it will fall back to _local_
+     *     such as _local_ (see the documentation). if it is null, it will fall back to _local_
      * @return single internet address
      */
     // TODO: needs to be InetAddress[]
-    public InetAddress resolvePublishHostAddresses(String publishHosts[]) throws IOException {
+    public InetAddress resolvePublishHostAddresses(String... publishHosts) throws IOException {
         if (publishHosts == null || publishHosts.length == 0) {
             for (CustomNameResolver customNameResolver : customNameResolvers) {
                 InetAddress addresses[] = customNameResolver.resolveDefault();
@@ -176,7 +175,7 @@ public final class NetworkService {
     }
 
     /** resolves (and deduplicates) host specification */
-    private InetAddress[] resolveInetAddresses(String hosts[]) throws IOException {
+    private InetAddress[] resolveInetAddresses(String... hosts) throws IOException {
         if (hosts.length == 0) {
             throw new IllegalArgumentException("empty host specification");
         }

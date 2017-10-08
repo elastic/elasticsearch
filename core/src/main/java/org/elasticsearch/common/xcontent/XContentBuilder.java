@@ -19,20 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.BytesStream;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableInstant;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
-
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,6 +35,19 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
+import org.joda.time.DateTimeZone;
+import org.joda.time.ReadableInstant;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.ISODateTimeFormat;
 
 /**
  * A utility to build XContent (ie json).
@@ -276,7 +275,7 @@ public final class XContentBuilder implements Releasable, Flushable {
         return field(name).values(values);
     }
 
-    private XContentBuilder values(boolean[] values) throws IOException {
+    private XContentBuilder values(boolean... values) throws IOException {
         if (values == null) {
             return nullValue();
         }
@@ -336,7 +335,7 @@ public final class XContentBuilder implements Releasable, Flushable {
         return field(name).values(values);
     }
 
-    private XContentBuilder values(double[] values) throws IOException {
+    private XContentBuilder values(double... values) throws IOException {
         if (values == null) {
             return nullValue();
         }
@@ -375,7 +374,7 @@ public final class XContentBuilder implements Releasable, Flushable {
         return field(name).values(values);
     }
 
-    private XContentBuilder values(float[] values) throws IOException {
+    private XContentBuilder values(float... values) throws IOException {
         if (values == null) {
             return nullValue();
         }
@@ -414,7 +413,7 @@ public final class XContentBuilder implements Releasable, Flushable {
         return field(name).values(values);
     }
 
-    private XContentBuilder values(int[] values) throws IOException {
+    private XContentBuilder values(int... values) throws IOException {
         if (values == null) {
             return nullValue();
         }
@@ -453,7 +452,7 @@ public final class XContentBuilder implements Releasable, Flushable {
         return field(name).values(values);
     }
 
-    private XContentBuilder values(long[] values) throws IOException {
+    private XContentBuilder values(long... values) throws IOException {
         if (values == null) {
             return nullValue();
         }
@@ -490,7 +489,7 @@ public final class XContentBuilder implements Releasable, Flushable {
         return field(name).values(values);
     }
 
-    private XContentBuilder values(short[] values) throws IOException {
+    private XContentBuilder values(short... values) throws IOException {
         if (values == null) {
             return nullValue();
         }
@@ -528,7 +527,7 @@ public final class XContentBuilder implements Releasable, Flushable {
         return field(name).values(values);
     }
 
-    private XContentBuilder values(String[] values) throws IOException {
+    private XContentBuilder values(String... values) throws IOException {
         if (values == null) {
             return nullValue();
         }
@@ -561,7 +560,7 @@ public final class XContentBuilder implements Releasable, Flushable {
         return this;
     }
 
-    public XContentBuilder value(byte[] value) throws IOException {
+    public XContentBuilder value(byte... value) throws IOException {
         if (value == null) {
             return nullValue();
         }
@@ -776,7 +775,7 @@ public final class XContentBuilder implements Releasable, Flushable {
         return field(name).values(values);
     }
 
-    XContentBuilder values(Object[] values) throws IOException {
+    XContentBuilder values(Object... values) throws IOException {
         if (values == null) {
             return nullValue();
         }

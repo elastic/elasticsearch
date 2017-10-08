@@ -19,7 +19,13 @@
 
 package org.elasticsearch.index.mapper;
 
+import static org.elasticsearch.index.mapper.TypeParsers.parseField;
+
 import com.carrotsearch.hppc.ObjectArrayList;
+import java.io.IOException;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -36,13 +42,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-
-import java.io.IOException;
-import java.util.Base64;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 public class BinaryFieldMapper extends FieldMapper {
 
@@ -186,7 +185,7 @@ public class BinaryFieldMapper extends FieldMapper {
             add(bytes);
         }
 
-        public void add(byte[] bytes) {
+        public void add(byte... bytes) {
             bytesList.add(bytes);
             totalSize += bytes.length;
         }

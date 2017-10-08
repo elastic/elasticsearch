@@ -19,19 +19,18 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.ngram.NGramTokenizer;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
+import static java.util.Collections.unmodifiableMap;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-
-import static java.util.Collections.unmodifiableMap;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.ngram.NGramTokenizer;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
 public class NGramTokenizerFactory extends AbstractTokenizerFactory {
 
@@ -65,7 +64,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         MATCHERS = unmodifiableMap(matchers);
     }
 
-    static CharMatcher parseTokenChars(String[] characterClasses) {
+    static CharMatcher parseTokenChars(String... characterClasses) {
         if (characterClasses == null || characterClasses.length == 0) {
             return null;
         }

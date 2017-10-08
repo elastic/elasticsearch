@@ -19,25 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BitUtil;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.text.Text;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
+import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -66,8 +48,25 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.ElasticsearchException.readStackTrace;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.text.Text;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
@@ -161,7 +160,7 @@ public abstract class StreamInput extends InputStream {
         return new BytesRef(bytes, 0, length);
     }
 
-    public void readFully(byte[] b) throws IOException {
+    public void readFully(byte... b) throws IOException {
         readBytes(b, 0, b.length);
     }
 
@@ -923,7 +922,7 @@ public abstract class StreamInput extends InputStream {
         return values[ordinal];
     }
 
-    public static StreamInput wrap(byte[] bytes) {
+    public static StreamInput wrap(byte... bytes) {
         return wrap(bytes, 0, bytes.length);
     }
 

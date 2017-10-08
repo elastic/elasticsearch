@@ -30,7 +30,6 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
@@ -52,7 +51,7 @@ public class MiniHDFS {
     private static String PORT_FILE_NAME = "ports";
     private static String PID_FILE_NAME = "pid";
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String... args) throws Exception {
         if (args.length != 1 && args.length != 3) {
             throw new IllegalArgumentException("Expected: MiniHDFS <baseDirectory> [<kerberosPrincipal> <kerberosKeytab>], " +
                 "got: " + Arrays.toString(args));

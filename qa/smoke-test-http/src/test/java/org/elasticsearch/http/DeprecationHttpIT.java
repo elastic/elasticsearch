@@ -18,6 +18,24 @@
  */
 package org.elasticsearch.http;
 
+import static org.elasticsearch.common.logging.DeprecationLogger.WARNING_HEADER_PATTERN;
+import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
+import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
+import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
+import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
@@ -31,25 +49,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.hamcrest.Matcher;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static org.elasticsearch.common.logging.DeprecationLogger.WARNING_HEADER_PATTERN;
-import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
-import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
-import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests {@code DeprecationLogger} uses the {@code ThreadContext} to add response headers.
@@ -187,7 +186,7 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
         }
     }
 
-    private List<String> getWarningHeaders(Header[] headers) {
+    private List<String> getWarningHeaders(Header... headers) {
         List<String> warnings = new ArrayList<>();
 
         for (Header header : headers) {

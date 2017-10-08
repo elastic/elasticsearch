@@ -19,15 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
+import java.io.IOException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Get repository request
@@ -82,14 +81,14 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
 
     /**
      * Sets the list or repositories.
-     * <p>
-     * If the list of repositories is empty or it contains a single element "_all", all registered repositories
-     * are returned.
+     *
+     * <p>If the list of repositories is empty or it contains a single element "_all", all
+     * registered repositories are returned.
      *
      * @param repositories list of repositories
      * @return this request
      */
-    public GetRepositoriesRequest repositories(String[] repositories) {
+    public GetRepositoriesRequest repositories(String... repositories) {
         this.repositories = repositories;
         return this;
     }

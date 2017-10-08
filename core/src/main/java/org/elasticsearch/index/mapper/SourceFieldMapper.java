@@ -19,12 +19,18 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -38,14 +44,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
 
@@ -88,12 +86,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return this;
         }
 
-        public Builder includes(String[] includes) {
+        public Builder includes(String... includes) {
             this.includes = includes;
             return this;
         }
 
-        public Builder excludes(String[] excludes) {
+        public Builder excludes(String... excludes) {
             this.excludes = excludes;
             return this;
         }

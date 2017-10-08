@@ -19,11 +19,10 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.io.Streams;
-
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import org.elasticsearch.common.io.Streams;
 
 public class InputStreamStreamInput extends StreamInput {
 
@@ -101,7 +100,7 @@ public class InputStreamStreamInput extends StreamInput {
     }
 
     @Override
-    public int read(byte[] b) throws IOException {
+    public int read(byte... b) throws IOException {
         return is.read(b);
     }
 

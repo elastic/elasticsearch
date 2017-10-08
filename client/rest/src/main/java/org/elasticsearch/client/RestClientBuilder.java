@@ -19,6 +19,9 @@
 
 package org.elasticsearch.client;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Objects;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
@@ -27,10 +30,6 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
-
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.Objects;
 
 /**
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
@@ -74,12 +73,12 @@ public final class RestClientBuilder {
 
     /**
      * Sets the default request headers, which will be sent along with each request.
-     * <p>
-     * Request-time headers will always overwrite any default headers.
+     *
+     * <p>Request-time headers will always overwrite any default headers.
      *
      * @throws NullPointerException if {@code defaultHeaders} or any header is {@code null}.
      */
-    public RestClientBuilder setDefaultHeaders(Header[] defaultHeaders) {
+    public RestClientBuilder setDefaultHeaders(Header... defaultHeaders) {
         Objects.requireNonNull(defaultHeaders, "defaultHeaders must not be null");
         for (Header defaultHeader : defaultHeaders) {
             Objects.requireNonNull(defaultHeader, "default header must not be null");

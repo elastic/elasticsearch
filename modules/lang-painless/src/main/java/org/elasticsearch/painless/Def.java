@@ -19,9 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.RuntimeClass;
-
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -35,6 +32,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.RuntimeClass;
 
 /**
  * Support for dynamic type (def).
@@ -76,15 +75,41 @@ public final class Def {
 
         private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
 
-        static int getArrayLength(final boolean[] array) { return array.length; }
-        static int getArrayLength(final byte[] array)    { return array.length; }
-        static int getArrayLength(final short[] array)   { return array.length; }
-        static int getArrayLength(final int[] array)     { return array.length; }
-        static int getArrayLength(final long[] array)    { return array.length; }
-        static int getArrayLength(final char[] array)    { return array.length; }
-        static int getArrayLength(final float[] array)   { return array.length; }
-        static int getArrayLength(final double[] array)  { return array.length; }
-        static int getArrayLength(final Object[] array)  { return array.length; }
+        static int getArrayLength(final boolean... array) {
+            return array.length;
+        }
+
+        static int getArrayLength(final byte... array) {
+            return array.length;
+        }
+
+        static int getArrayLength(final short... array) {
+            return array.length;
+        }
+
+        static int getArrayLength(final int... array) {
+            return array.length;
+        }
+
+        static int getArrayLength(final long... array) {
+            return array.length;
+        }
+
+        static int getArrayLength(final char... array) {
+            return array.length;
+        }
+
+        static int getArrayLength(final float... array) {
+            return array.length;
+        }
+
+        static int getArrayLength(final double... array) {
+            return array.length;
+        }
+
+        static int getArrayLength(final Object... array) {
+            return array.length;
+        }
 
         static MethodHandle arrayLengthGetter(Class<?> arrayType) {
             if (!arrayType.isArray()) {
@@ -212,14 +237,16 @@ public final class Def {
 
     /**
      * Looks up handle for a dynamic method call, with lambda replacement
-     * <p>
-     * A dynamic method call for variable {@code x} of type {@code def} looks like:
-     * {@code x.method(args...)}
-     * <p>
-     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
-     * until it finds a matching whitelisted method. If one is not found, it throws an exception.
+     *
+     * <p>A dynamic method call for variable {@code x} of type {@code def} looks like: {@code
+     * x.method(args...)}
+     *
+     * <p>This method traverses {@code recieverClass}'s class hierarchy (including interfaces) until
+     * it finds a matching whitelisted method. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching method.
+     *
      * <p>
+     *
      * @param definition the whitelist
      * @param lookup caller's lookup
      * @param callSiteType callsite's type
@@ -230,8 +257,14 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      * @throws Throwable if a method reference cannot be converted to an functional interface
      */
-    static MethodHandle lookupMethod(Definition definition, Lookup lookup, MethodType callSiteType,
-             Class<?> receiverClass, String name, Object args[]) throws Throwable {
+    static MethodHandle lookupMethod(
+            Definition definition,
+            Lookup lookup,
+            MethodType callSiteType,
+            Class<?> receiverClass,
+            String name,
+            Object... args)
+            throws Throwable {
          String recipeString = (String) args[0];
          int numArguments = callSiteType.parameterCount();
          // simple case: no lambdas
@@ -607,63 +640,71 @@ public final class Def {
 
         private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
 
-        static Iterator<Boolean> iterator(final boolean[] array) {
+        static Iterator<Boolean> iterator(final boolean... array) {
             return new Iterator<Boolean>() {
                 int index = 0;
                 @Override public boolean hasNext() { return index < array.length; }
                 @Override public Boolean next() { return array[index++]; }
             };
         }
-        static Iterator<Byte> iterator(final byte[] array) {
+
+        static Iterator<Byte> iterator(final byte... array) {
             return new Iterator<Byte>() {
                 int index = 0;
                 @Override public boolean hasNext() { return index < array.length; }
                 @Override public Byte next() { return array[index++]; }
             };
         }
-        static Iterator<Short> iterator(final short[] array) {
+
+        static Iterator<Short> iterator(final short... array) {
             return new Iterator<Short>() {
                 int index = 0;
                 @Override public boolean hasNext() { return index < array.length; }
                 @Override public Short next() { return array[index++]; }
             };
         }
-        static Iterator<Integer> iterator(final int[] array) {
+
+        static Iterator<Integer> iterator(final int... array) {
             return new Iterator<Integer>() {
                 int index = 0;
                 @Override public boolean hasNext() { return index < array.length; }
                 @Override public Integer next() { return array[index++]; }
             };
         }
-        static Iterator<Long> iterator(final long[] array) {
+
+        static Iterator<Long> iterator(final long... array) {
             return new Iterator<Long>() {
                 int index = 0;
                 @Override public boolean hasNext() { return index < array.length; }
                 @Override public Long next() { return array[index++]; }
             };
         }
-        static Iterator<Character> iterator(final char[] array) {
+
+        static Iterator<Character> iterator(final char... array) {
             return new Iterator<Character>() {
                 int index = 0;
                 @Override public boolean hasNext() { return index < array.length; }
                 @Override public Character next() { return array[index++]; }
             };
         }
-        static Iterator<Float> iterator(final float[] array) {
+
+        static Iterator<Float> iterator(final float... array) {
             return new Iterator<Float>() {
                 int index = 0;
                 @Override public boolean hasNext() { return index < array.length; }
                 @Override public Float next() { return array[index++]; }
             };
         }
-        static Iterator<Double> iterator(final double[] array) {
+
+        static Iterator<Double> iterator(final double... array) {
             return new Iterator<Double>() {
                 int index = 0;
                 @Override public boolean hasNext() { return index < array.length; }
                 @Override public Double next() { return array[index++]; }
             };
         }
-        static Iterator<Object> iterator(final Object[] array) {
+
+        static Iterator<Object> iterator(final Object... array) {
             return new Iterator<Object>() {
                 int index = 0;
                 @Override public boolean hasNext() { return index < array.length; }

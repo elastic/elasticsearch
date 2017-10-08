@@ -19,10 +19,6 @@
 
 package org.elasticsearch.common.settings;
 
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
-import javax.security.auth.DestroyFailedException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -50,7 +46,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+import javax.security.auth.DestroyFailedException;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -59,7 +58,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Randomness;
@@ -159,7 +157,7 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Constructs a new keystore with the given password. */
-    public static KeyStoreWrapper create(char[] password) throws Exception {
+    public static KeyStoreWrapper create(char... password) throws Exception {
         KeyStoreWrapper wrapper = new KeyStoreWrapper(FORMAT_VERSION, password.length != 0, NEW_KEYSTORE_TYPE,
             NEW_KEYSTORE_STRING_KEY_ALGO, NEW_KEYSTORE_FILE_KEY_ALGO, new HashMap<>(), null);
         KeyStore keyStore = KeyStore.getInstance(NEW_KEYSTORE_TYPE);
@@ -251,9 +249,9 @@ public class KeyStoreWrapper implements SecureSettings {
     /**
      * Decrypts the underlying java keystore.
      *
-     * This may only be called once. The provided password will be zeroed out.
+     * <p>This may only be called once. The provided password will be zeroed out.
      */
-    public void decrypt(char[] password) throws GeneralSecurityException, IOException {
+    public void decrypt(char... password) throws GeneralSecurityException, IOException {
         if (keystore.get() != null) {
             throw new IllegalStateException("Keystore has already been decrypted");
         }

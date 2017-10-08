@@ -18,6 +18,10 @@
  */
 package org.elasticsearch.client.benchmark.transport;
 
+import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -38,13 +42,8 @@ import org.elasticsearch.plugin.noop.action.search.NoopSearchRequestBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
 
-import java.net.InetAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-
 public final class TransportClientBenchmark extends AbstractBenchmark<TransportClient> {
-    public static void main(String[] args) throws Exception {
+    public static void main(String... args) throws Exception {
         TransportClientBenchmark benchmark = new TransportClientBenchmark();
         benchmark.run(args);
     }

@@ -34,6 +34,14 @@
  */
 package org.elasticsearch.common.lucene.search;
 
+import java.io.IOException;
+import java.io.Reader;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -59,16 +67,6 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.FastStringReader;
-
-import java.io.IOException;
-import java.io.Reader;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
 
 /**
  * Generate "more like this" similarity queries.
@@ -491,14 +489,14 @@ public final class XMoreLikeThis {
     }
 
     /**
-     * Sets the field names that will be used when generating the 'More Like This' query.
-     * Set this to null for the field names to be determined at runtime from the IndexReader
-     * provided in the constructor.
+     * Sets the field names that will be used when generating the 'More Like This' query. Set this
+     * to null for the field names to be determined at runtime from the IndexReader provided in the
+     * constructor.
      *
      * @param fieldNames the field names that will be used when generating the 'More Like This'
-     * query.
+     *     query.
      */
-    public void setFieldNames(String[] fieldNames) {
+    public void setFieldNames(String... fieldNames) {
         this.fieldNames = fieldNames;
     }
 

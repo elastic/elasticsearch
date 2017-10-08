@@ -19,13 +19,12 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.test.ESTestCase;
-
 import java.io.IOException;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Random;
+import org.elasticsearch.test.ESTestCase;
 
 /**
  * Tests for network address formatting. Please avoid using any methods that cause DNS lookups!
@@ -71,14 +70,14 @@ public class NetworkAddressTests extends ESTestCase {
     }
 
     /**
-     * Round trip test code for both IPv4 and IPv6. {@link InetAddress} contains the {@code getByAddress} and
-     * {@code getbyName} methods for both IPv4 and IPv6, unless you also specify a {@code scopeid}, which this does not
-     * test.
+     * Round trip test code for both IPv4 and IPv6. {@link InetAddress} contains the {@code
+     * getByAddress} and {@code getbyName} methods for both IPv4 and IPv6, unless you also specify a
+     * {@code scopeid}, which this does not test.
      *
      * @param bytes 4 (32-bit for IPv4) or 16 bytes (128-bit for IPv6)
      * @throws Exception if any error occurs while interacting with the network address
      */
-    private void roundTrip(byte[] bytes) throws Exception {
+    private void roundTrip(byte... bytes) throws Exception {
         Random random = random();
         for (int i = 0; i < 10000; i++) {
             random.nextBytes(bytes);

@@ -19,6 +19,13 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import java.io.IOException;
+import java.io.Reader;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -36,14 +43,6 @@ import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FastStringReader;
-
-import java.io.IOException;
-import java.io.Reader;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
 
 public class MoreLikeThisQuery extends Query {
 
@@ -244,7 +243,7 @@ public class MoreLikeThisQuery extends Query {
         this.unlikeFields = unlikeFields;
     }
 
-    public void setUnlikeText(String[] unlikeText) {
+    public void setUnlikeText(String... unlikeText) {
         this.unlikeText = unlikeText;
     }
 
@@ -252,7 +251,7 @@ public class MoreLikeThisQuery extends Query {
         return moreLikeFields;
     }
 
-    public void setMoreLikeFields(String[] moreLikeFields) {
+    public void setMoreLikeFields(String... moreLikeFields) {
         this.moreLikeFields = moreLikeFields;
     }
 

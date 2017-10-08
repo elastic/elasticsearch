@@ -19,10 +19,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
 import java.util.HashMap;
 import java.util.Map;
-
-import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -108,7 +107,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         this.forcedAwarenessAttributes = forcedAwarenessAttributes;
     }
 
-    private void setAwarenessAttributes(String[] awarenessAttributes) {
+    private void setAwarenessAttributes(String... awarenessAttributes) {
         this.awarenessAttributes = awarenessAttributes;
     }
 

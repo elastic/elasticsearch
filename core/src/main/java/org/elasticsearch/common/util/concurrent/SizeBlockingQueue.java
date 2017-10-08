@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-
 import java.util.AbstractQueue;
 import java.util.Collection;
 import java.util.Iterator;
@@ -191,7 +190,7 @@ public class SizeBlockingQueue<E> extends AbstractQueue<E> implements BlockingQu
     }
 
     @Override
-    public <T> T[] toArray(T[] a) {
+    public <T> T[] toArray(T... a) {
         return (T[]) queue.toArray(a);
     }
 

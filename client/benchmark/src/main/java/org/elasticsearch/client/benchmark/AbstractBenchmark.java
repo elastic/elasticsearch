@@ -18,20 +18,17 @@
  */
 package org.elasticsearch.client.benchmark;
 
+import java.io.Closeable;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.elasticsearch.client.benchmark.ops.bulk.BulkBenchmarkTask;
 import org.elasticsearch.client.benchmark.ops.bulk.BulkRequestExecutor;
 import org.elasticsearch.client.benchmark.ops.search.SearchBenchmarkTask;
 import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
 import org.elasticsearch.common.SuppressForbidden;
-
-import java.io.Closeable;
-import java.lang.management.GarbageCollectorMXBean;
-import java.lang.management.ManagementFactory;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
 
 public abstract class AbstractBenchmark<T extends Closeable> {
     private static final int SEARCH_BENCHMARK_ITERATIONS = 10_000;
@@ -43,7 +40,7 @@ public abstract class AbstractBenchmark<T extends Closeable> {
     protected abstract SearchRequestExecutor searchRequestExecutor(T client, String indexName);
 
     @SuppressForbidden(reason = "system out is ok for a command line tool")
-    public final void run(String[] args) throws Exception {
+    public final void run(String... args) throws Exception {
         if (args.length < 1) {
             System.err.println("usage: [search|bulk]");
             System.exit(1);
@@ -64,7 +61,7 @@ public abstract class AbstractBenchmark<T extends Closeable> {
     }
 
     @SuppressForbidden(reason = "system out is ok for a command line tool")
-    private void runBulkIndexBenchmark(String[] args) throws Exception {
+    private void runBulkIndexBenchmark(String... args) throws Exception {
         if (args.length != 7) {
             System.err.println(
                 "usage: 'bulk' benchmarkTargetHostIp indexFilePath indexName typeName numberOfDocuments bulkSize");
@@ -100,7 +97,7 @@ public abstract class AbstractBenchmark<T extends Closeable> {
     }
 
     @SuppressForbidden(reason = "system out is ok for a command line tool")
-    private void runSearchBenchmark(String[] args) throws Exception {
+    private void runSearchBenchmark(String... args) throws Exception {
         if (args.length != 5) {
             System.err.println(
                 "usage: 'search' benchmarkTargetHostIp indexName searchRequestBody throughputRates");

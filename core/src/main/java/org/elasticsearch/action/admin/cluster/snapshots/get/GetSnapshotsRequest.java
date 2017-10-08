@@ -19,16 +19,15 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.snapshots.SnapshotInfo.VERBOSE_INTRODUCED;
+
+import java.io.IOException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.snapshots.SnapshotInfo.VERBOSE_INTRODUCED;
 
 /**
  * Get snapshot request
@@ -134,7 +133,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      *
      * @return this request
      */
-    public GetSnapshotsRequest snapshots(String[] snapshots) {
+    public GetSnapshotsRequest snapshots(String... snapshots) {
         this.snapshots = snapshots;
         return this;
     }

@@ -19,15 +19,8 @@
 
 package org.elasticsearch.common;
 
-import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -41,9 +34,15 @@ import java.util.List;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
-
-import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 public class Strings {
 
@@ -708,13 +707,13 @@ public class Strings {
     }
 
     /**
-     * Convenience method to return a String array as a CSV String.
-     * E.g. useful for <code>toString()</code> implementations.
+     * Convenience method to return a String array as a CSV String. E.g. useful for <code>toString()
+     * </code> implementations.
      *
      * @param arr the array to display
      * @return the delimited String
      */
-    public static String arrayToCommaDelimitedString(Object[] arr) {
+    public static String arrayToCommaDelimitedString(Object... arr) {
         return arrayToDelimitedString(arr, ",");
     }
 
@@ -742,12 +741,11 @@ public class Strings {
     }
 
     /**
-     * Determine whether the given array is empty:
-     * i.e. <code>null</code> or of zero length.
+     * Determine whether the given array is empty: i.e. <code>null</code> or of zero length.
      *
      * @param array the array to check
      */
-    private static boolean isEmpty(Object[] array) {
+    private static boolean isEmpty(Object... array) {
         return (array == null || array.length == 0);
     }
 
@@ -782,10 +780,10 @@ public class Strings {
     }
 
     /**
-     * If an array only consists of zero or one element, which is "*" or "_all" return an empty array
-     * which is usually used as everything
+     * If an array only consists of zero or one element, which is "*" or "_all" return an empty
+     * array which is usually used as everything
      */
-    public static boolean isAllOrWildcard(String[] data) {
+    public static boolean isAllOrWildcard(String... data) {
         return CollectionUtils.isEmpty(data) ||
                data.length == 1 && ("_all".equals(data[0]) || "*".equals(data[0]));
     }

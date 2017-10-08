@@ -19,6 +19,13 @@
 
 package org.elasticsearch;
 
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -28,14 +35,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
-
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 public final class ExceptionsHelper {
 
@@ -193,10 +192,9 @@ public final class ExceptionsHelper {
         return true;
     }
 
-    /**
-     * Deduplicate the failures by exception message and index.
-     */
-    public static ShardOperationFailedException[] groupBy(ShardOperationFailedException[] failures) {
+    /** Deduplicate the failures by exception message and index. */
+    public static ShardOperationFailedException[] groupBy(
+            ShardOperationFailedException... failures) {
         List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
         Set<GroupBy> reasons = new HashSet<>();
         for (ShardOperationFailedException failure : failures) {

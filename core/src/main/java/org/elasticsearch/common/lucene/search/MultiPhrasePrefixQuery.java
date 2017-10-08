@@ -20,6 +20,12 @@
 package org.elasticsearch.common.lucene.search;
 
 import com.carrotsearch.hppc.ObjectHashSet;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -32,13 +38,6 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
 
 public class MultiPhrasePrefixQuery extends Query {
 
@@ -81,12 +80,11 @@ public class MultiPhrasePrefixQuery extends Query {
     }
 
     /**
-     * Add multiple terms at the next position in the phrase.  Any of the terms
-     * may match.
+     * Add multiple terms at the next position in the phrase. Any of the terms may match.
      *
      * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term)
      */
-    public void add(Term[] terms) {
+    public void add(Term... terms) {
         int position = 0;
         if (positions.size() > 0)
             position = positions.get(positions.size() - 1) + 1;

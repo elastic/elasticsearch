@@ -19,12 +19,11 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.bytes.BytesReference;
-
 import java.io.Closeable;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
+import org.elasticsearch.common.bytes.BytesReference;
 
 public interface XContentGenerator extends Closeable, Flushable {
 
@@ -82,7 +81,7 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     void writeBinaryField(String name, byte[] value) throws IOException;
 
-    void writeBinary(byte[] value) throws IOException;
+    void writeBinary(byte... value) throws IOException;
 
     void writeBinary(byte[] value, int offset, int length) throws IOException;
 

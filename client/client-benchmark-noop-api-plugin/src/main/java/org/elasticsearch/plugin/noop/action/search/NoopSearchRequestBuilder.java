@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.plugin.noop.action.search;
 
+import java.util.Arrays;
+import java.util.List;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -38,9 +40,6 @@ import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
-
-import java.util.Arrays;
-import java.util.List;
 
 public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, NoopSearchRequestBuilder> {
 
@@ -334,10 +333,8 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
         return this;
     }
 
-    /**
-     * Set the sort values that indicates which docs this request should "search after".
-     */
-    public NoopSearchRequestBuilder searchAfter(Object[] values) {
+    /** Set the sort values that indicates which docs this request should "search after". */
+    public NoopSearchRequestBuilder searchAfter(Object... values) {
         sourceBuilder().searchAfter(values);
         return this;
     }

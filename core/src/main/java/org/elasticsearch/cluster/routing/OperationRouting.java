@@ -19,6 +19,13 @@
 
 package org.elasticsearch.cluster.routing;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -34,14 +41,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.node.ResponseCollectorService;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public class OperationRouting extends AbstractComponent {
 
@@ -65,7 +64,7 @@ public class OperationRouting extends AbstractComponent {
         this.useAdaptiveReplicaSelection = useAdaptiveReplicaSelection;
     }
 
-    private void setAwarenessAttributes(String[] awarenessAttributes) {
+    private void setAwarenessAttributes(String... awarenessAttributes) {
         this.awarenessAttributes = awarenessAttributes;
     }
 

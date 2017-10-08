@@ -18,33 +18,27 @@
  */
 package org.elasticsearch.client.benchmark.rest;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHeaders;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpStatus;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.conn.ConnectionKeepAliveStrategy;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.entity.NStringEntity;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.benchmark.AbstractBenchmark;
-import org.elasticsearch.client.benchmark.ops.bulk.BulkRequestExecutor;
-import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHeaders;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpStatus;
+import org.apache.http.entity.ContentType;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.benchmark.AbstractBenchmark;
+import org.elasticsearch.client.benchmark.ops.bulk.BulkRequestExecutor;
+import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
 
 public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
-    public static void main(String[] args) throws Exception {
+    public static void main(String... args) throws Exception {
         RestClientBenchmark b = new RestClientBenchmark();
         b.run(args);
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.nodes;
 
+import java.io.IOException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -26,8 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-
-import java.io.IOException;
 
 public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>> extends ActionRequest {
 
@@ -93,7 +92,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
         return concreteNodes;
     }
 
-    public void setConcreteNodes(DiscoveryNode[] concreteNodes) {
+    public void setConcreteNodes(DiscoveryNode... concreteNodes) {
         this.concreteNodes = concreteNodes;
     }
 

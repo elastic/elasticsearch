@@ -19,6 +19,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,12 +33,6 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilde
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.function.Function;
 
 public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R>, R extends Range>
         extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, AB> implements MultiBucketAggregationBuilder {
@@ -71,7 +70,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         return ranges;
     }
 
-    private static void sortRanges(final Range[] ranges) {
+    private static void sortRanges(final Range... ranges) {
         new InPlaceMergeSorter() {
 
             @Override

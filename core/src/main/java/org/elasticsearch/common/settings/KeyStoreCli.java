@@ -36,7 +36,7 @@ public class KeyStoreCli extends MultiCommand {
         subcommands.put("remove", new RemoveSettingKeyStoreCommand());
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String... args) throws Exception {
         exit(new KeyStoreCli().main(args, Terminal.DEFAULT));
     }
 }

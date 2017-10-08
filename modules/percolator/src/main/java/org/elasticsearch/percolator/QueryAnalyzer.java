@@ -18,6 +18,19 @@
  */
 package org.elasticsearch.percolator;
 
+import static java.util.stream.Collectors.toSet;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import org.apache.lucene.document.BinaryRange;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
@@ -48,20 +61,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.function.BiFunction;
-import java.util.function.Predicate;
-
-import static java.util.stream.Collectors.toSet;
 
 final class QueryAnalyzer {
 
@@ -378,7 +377,7 @@ final class QueryAnalyzer {
         };
     }
 
-    private static byte[] prepad(byte[] original) {
+    private static byte[] prepad(byte... original) {
         int offset = BinaryRange.BYTES - original.length;
         byte[] result = new byte[BinaryRange.BYTES];
         System.arraycopy(original, 0, result, offset, original.length);

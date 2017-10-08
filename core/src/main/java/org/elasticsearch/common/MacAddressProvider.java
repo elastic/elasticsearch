@@ -43,7 +43,7 @@ public class MacAddressProvider {
         return null;
     }
 
-    private static boolean isValidAddress(byte[] address) {
+    private static boolean isValidAddress(byte... address) {
         if (address == null || address.length != 6) {
             return false;
         }

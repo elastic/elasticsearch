@@ -39,10 +39,8 @@ public class TypesExistsRequestBuilder extends MasterNodeReadOperationRequestBui
         super(client, action, new TypesExistsRequest());
     }
 
-    /**
-     * @param indices What indices to check for types
-     */
-    public TypesExistsRequestBuilder setIndices(String[] indices) {
+    /** @param indices What indices to check for types */
+    public TypesExistsRequestBuilder setIndices(String... indices) {
         request.indices(indices);
         return this;
     }

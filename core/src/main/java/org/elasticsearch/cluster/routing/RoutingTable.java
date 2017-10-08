@@ -22,6 +22,15 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Predicate;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -37,16 +46,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.function.Predicate;
 
 /**
  * Represents a global cluster-wide routing table for all indices including the
@@ -271,11 +270,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return new GroupShardsIterator<>(set);
     }
 
-    public ShardsIterator allShards(String[] indices) {
+    public ShardsIterator allShards(String... indices) {
         return allShardsSatisfyingPredicate(indices, shardRouting -> true, false);
     }
 
-    public ShardsIterator allShardsIncludingRelocationTargets(String[] indices) {
+    public ShardsIterator allShardsIncludingRelocationTargets(String... indices) {
         return allShardsSatisfyingPredicate(indices, shardRouting -> true, true);
     }
 

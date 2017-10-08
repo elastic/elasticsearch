@@ -19,12 +19,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.Loggers;
-
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
@@ -47,6 +41,11 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.Loggers;
 
 /**
  * Simple check for duplicate class files across the classpath.
@@ -67,7 +66,7 @@ public class JarHell {
 
     /** Simple driver class, can be used eg. from builds. Returns non-zero on jar-hell */
     @SuppressForbidden(reason = "command line tool")
-    public static void main(String args[]) throws Exception {
+    public static void main(String... args) throws Exception {
         System.out.println("checking for jar hell...");
         checkJarHell();
         System.out.println("no jar hell found");

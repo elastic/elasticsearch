@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import java.io.IOException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -26,8 +27,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-
-import java.io.IOException;
 
 public class Version implements Comparable<Version> {
     /*
@@ -395,7 +394,7 @@ public class Version implements Comparable<Version> {
     }
 
     @SuppressForbidden(reason = "System.out.*")
-    public static void main(String[] args) {
+    public static void main(String... args) {
         System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date() + ", JVM: "
                 + JvmInfo.jvmInfo().version());
     }

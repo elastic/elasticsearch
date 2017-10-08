@@ -19,6 +19,9 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import static java.util.Collections.unmodifiableMap;
+import static java.util.Collections.unmodifiableSet;
+
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
@@ -28,9 +31,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
-
-import static java.util.Collections.unmodifiableMap;
-import static java.util.Collections.unmodifiableSet;
 
 public class DeadlockAnalyzer {
 
@@ -114,8 +114,7 @@ public class DeadlockAnalyzer {
         return deadlockChain;
     }
 
-
-    private Map<Long, ThreadInfo> createThreadInfoMap(long threadIds[]) {
+    private Map<Long, ThreadInfo> createThreadInfoMap(long... threadIds) {
         ThreadInfo threadInfos[] = threadBean.getThreadInfo(threadIds);
         Map<Long, ThreadInfo> threadInfoMap = new HashMap<>();
         for (ThreadInfo threadInfo : threadInfos) {

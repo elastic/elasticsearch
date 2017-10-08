@@ -18,10 +18,9 @@
  */
 package org.elasticsearch.common.text;
 
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-
-import java.nio.charset.StandardCharsets;
 
 /**
  * Both {@link String} and {@link BytesReference} representation of the text. Starts with one of those, and if
@@ -31,7 +30,7 @@ public final class Text implements Comparable<Text> {
 
     public static final Text[] EMPTY_ARRAY = new Text[0];
 
-    public static Text[] convertFromStringArray(String[] strings) {
+    public static Text[] convertFromStringArray(String... strings) {
         if (strings.length == 0) {
             return EMPTY_ARRAY;
         }

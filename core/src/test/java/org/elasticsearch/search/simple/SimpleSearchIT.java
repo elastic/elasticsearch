@@ -79,7 +79,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i++) {
             String randomPreference = randomUnicodeOfLengthBetween(0, 4);
-            // randomPreference should not start with '_' (reserved for known preference types (e.g. _shards, _primary)
+            // randomPreference should not start with '_' (reserved for known preference types (e.g. _shards)
             while (randomPreference.startsWith("_")) {
                 randomPreference = randomUnicodeOfLengthBetween(0, 4);
             }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -73,13 +74,21 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
 
         logger.info("using preference {}", preference);
         // we want to make sure that while recovery happens, and a replica gets recovered, its properly refreshed
-        ClusterHealthStatus status = client().admin().cluster().prepareHealth("test").get().getStatus();;
+        ClusterHealthStatus status = client().admin().cluster().prepareHealth("test").get().getStatus();
+
         while (status != ClusterHealthStatus.GREEN) {
             // first, verify that search on the primary search works
-            SearchResponse searchResponse = client().prepareSearch("test").setPreference("_primary").setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
-            assertHitCount(searchResponse, 1);
+            for (IndexShardRoutingTable shardRoutingTable : clusterService().state().routingTable().index("test")) {
+                String primaryNode = shardRoutingTable.primaryShard().currentNodeId();
+                SearchResponse searchResponse = client().prepareSearch("test")
+                    .setPreference("_only_nodes:" + primaryNode)
+                    .setQuery(QueryBuilders.termQuery("field", "test"))
+                    .execute().actionGet();
+                assertHitCount(searchResponse, 1);
+                break;
+            }
             Client client = client();
-            searchResponse = client.prepareSearch("test").setPreference(preference + Integer.toString(counter++)).setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
+            SearchResponse searchResponse = client.prepareSearch("test").setPreference(preference + Integer.toString(counter++)).setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
             if (searchResponse.getHits().getTotalHits() != 1) {
                 refresh();
                 SearchResponse searchResponseAfterRefresh = client.prepareSearch("test").setPreference(preference).setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
@@ -93,8 +102,13 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
             status = client().admin().cluster().prepareHealth("test").get().getStatus();
             internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
         }
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
-        assertHitCount(searchResponse, 1);
+
+        for (String node : internalCluster().nodesInclude("test")) {
+            SearchResponse searchResponse = client().prepareSearch("test")
+                .setPreference("_prefer_nodes:" + node)
+                .setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
+            assertHitCount(searchResponse, 1);
+        }
         cluster().wipeIndices("test");
     }
 }

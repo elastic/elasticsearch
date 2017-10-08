@@ -395,7 +395,7 @@ POST /sales/_search?size=0
 
 There are some cases where date histogram can't help us, like for example, when we need
 to aggregate the results by day of the week.
-In this case to overcame the problem, we can use a script that returns the day of the week:
+In this case to overcome the problem, we can use a script that returns the day of the week:
 
 
 [source,js]

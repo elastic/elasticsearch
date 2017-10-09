@@ -22,6 +22,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,8 +36,8 @@ public class ClientYamlSuiteRestApi {
     private final String name;
     private List<String> methods = new ArrayList<>();
     private List<String> paths = new ArrayList<>();
-    private List<String> pathParts = new ArrayList<>();
-    private List<String> params = new ArrayList<>();
+    private Map<String, Boolean> pathParts = new HashMap<>();
+    private Map<String, Boolean> params = new HashMap<>();
     private Body body = Body.NOT_SUPPORTED;
 
     public enum Body {
@@ -98,20 +99,20 @@ public class ClientYamlSuiteRestApi {
         this.paths.add(path);
     }
 
-    public List<String> getPathParts() {
+    public Map<String, Boolean> getPathParts() {
         return pathParts;
     }
 
-    void addPathPart(String pathPart) {
-        this.pathParts.add(pathPart);
+    void addPathPart(String pathPart, Boolean required) {
+        this.pathParts.put(pathPart, required);
     }
 
-    public List<String> getParams() {
+    public Map<String, Boolean> getParams() {
         return params;
     }
 
-    void addParam(String param) {
-        this.params.add(param);
+    void addParam(String param, Boolean required) {
+        this.params.put(param, required);
     }
 
     void setBodyOptional() {

@@ -19,6 +19,7 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -42,6 +43,8 @@ import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 /**
  * Used by {@link ESClientYamlSuiteTestCase} to execute REST requests according to the tests written in yaml suite files. Wraps a
@@ -80,18 +83,32 @@ public class ClientYamlTestClient {
         //divide params between ones that go within query string and ones that go within path
         Map<String, String> pathParts = new HashMap<>();
         Map<String, String> queryStringParams = new HashMap<>();
+
+        List<String> apiPathParts = restApi.getPathParts().entrySet().stream().filter(e -> e.getValue() == true).map(Entry::getKey)
+                .collect(Collectors.toList());
+        List<String> apiParameters = restApi.getParams().entrySet().stream().filter(e -> e.getValue() == true).map(Entry::getKey)
+                .collect(Collectors.toList());
+
         for (Map.Entry<String, String> entry : params.entrySet()) {
-            if (restApi.getPathParts().contains(entry.getKey())) {
+            if (restApi.getPathParts().containsKey(entry.getKey())) {
                 pathParts.put(entry.getKey(), entry.getValue());
+                apiPathParts.remove(entry.getKey());
+            } else if (restApi.getParams().containsKey(entry.getKey())
+                    || restSpec.isGlobalParameter(entry.getKey())
+                    || restSpec.isClientParameter(entry.getKey())) {
+                queryStringParams.put(entry.getKey(), entry.getValue());
+                apiParameters.remove(entry.getKey());
             } else {
-                if (restApi.getParams().contains(entry.getKey()) || restSpec.isGlobalParameter(entry.getKey())
-                        || restSpec.isClientParameter(entry.getKey())) {
-                    queryStringParams.put(entry.getKey(), entry.getValue());
-                } else {
-                    throw new IllegalArgumentException("param [" + entry.getKey() + "] not supported in ["
-                            + restApi.getName() + "] " + "api");
-                }
+                throw new IllegalArgumentException(
+                        "path/param [" + entry.getKey() + "] not supported by [" + restApi.getName() + "] " + "api");
             }
+        }
+        
+        if (!apiPathParts.isEmpty()) {
+            throw new IllegalArgumentException("missing required path part: " + apiPathParts + " by [" + restApi.getName() + "] api");
+        }
+        if (!apiParameters.isEmpty()) {
+            throw new IllegalArgumentException("missing required parameter: " + apiParameters + " by [" + restApi.getName() + "] api");
         }
 
         List<String> supportedMethods = restApi.getSupportedMethods(pathParts.keySet());

@@ -75,6 +75,7 @@ import org.junit.Before;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
@@ -87,6 +88,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -103,7 +105,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomLongBetween;
 import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
@@ -2498,29 +2502,32 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testGetSnapshotBetweenAPI() throws IOException {
-        final int operations = randomIntBetween(2, 8096);
-        long seqNo = 0;
-        for (int i = 0; i < operations; i++) {
-            translog.add(new Translog.NoOp(seqNo++, 0, "test'"));
+        final int numOperations = randomIntBetween(2, 8196);
+        final List<Integer> sequenceNumbers = IntStream.range(0, numOperations).boxed().collect(Collectors.toList());
+        Collections.shuffle(sequenceNumbers);
+        for (Integer sequenceNumber : sequenceNumbers) {
+            translog.add(new Translog.NoOp(sequenceNumber, 0, "test"));
             if (rarely()) {
                 translog.rollGeneration();
             }
         }
         translog.rollGeneration();
 
-        int iters = randomIntBetween(8, 32);
+        final int iters = randomIntBetween(8, 32);
         for (int iter = 0; iter < iters; iter++) {
-            int min = randomIntBetween(0, operations - 1);
-            int max = randomIntBetween(min, operations);
+            int min = randomIntBetween(0, numOperations - 1);
+            int max = randomIntBetween(min, numOperations);
             try (Translog.Snapshot snapshot = translog.getSnapshotBetween(min, max)) {
-                Translog.Operation operation;
-                do {
-                    operation = snapshot.next();
-                } while (operation.seqNo() < (min - 1));
-
+                final List<Translog.Operation> operations = new ArrayList<>();
+                for (Translog.Operation operation = snapshot.next(); operation != null; operation = snapshot.next()) {
+                    if (operation.seqNo() >= min && operation.seqNo() <= max) {
+                        operations.add(operation);
+                    }
+                }
+                operations.sort(Comparator.comparingLong(Translog.Operation::seqNo));
+                Iterator<Translog.Operation> iterator = operations.iterator();
                 for (long expectedSeqNo = min; expectedSeqNo < max; expectedSeqNo++) {
-                    operation = snapshot.next();
-                    assertThat(operation.seqNo(), equalTo(expectedSeqNo));
+                    assertThat(iterator.next().seqNo(), equalTo(expectedSeqNo));
                 }
             }
         }

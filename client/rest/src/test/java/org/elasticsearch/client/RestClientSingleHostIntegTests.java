@@ -178,7 +178,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             Response esResponse;
             try {
                 esResponse = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(), requestHeaders);
-            } catch(ResponseException e) {
+            } catch (ResponseException e) {
                 esResponse = e.getResponse();
             }
 
@@ -255,7 +255,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         Response esResponse;
         try {
             esResponse = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(), entity);
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             esResponse = e.getResponse();
         }
         assertEquals(method, esResponse.getRequestLine().getMethod());

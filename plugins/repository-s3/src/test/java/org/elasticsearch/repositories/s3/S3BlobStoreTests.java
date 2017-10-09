@@ -81,7 +81,7 @@ public class S3BlobStoreTests extends ESTestCase {
     public void testInvalidStorageClass() throws IOException {
         try {
             S3BlobStore.initStorageClass("whatever");
-        } catch(BlobStoreException ex) {
+        } catch (BlobStoreException ex) {
             assertThat(ex.getMessage(), equalTo("`whatever` is not a valid S3 Storage Class."));
         }
     }
@@ -89,7 +89,7 @@ public class S3BlobStoreTests extends ESTestCase {
     public void testRejectGlacierStorageClass() throws IOException {
         try {
             S3BlobStore.initStorageClass("glacier");
-        } catch(BlobStoreException ex) {
+        } catch (BlobStoreException ex) {
             assertThat(ex.getMessage(), equalTo("Glacier storage class is not supported"));
         }
     }

@@ -43,7 +43,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
         try {
             syncResponseListener.onSuccess(null);
             fail("onSuccess should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("response must not be null", e.getMessage());
         }
     }
@@ -53,7 +53,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
         try {
             syncResponseListener.onFailure(null);
             fail("onFailure should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("exception must not be null", e.getMessage());
         }
     }
@@ -68,7 +68,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
         try {
             syncResponseListener.onSuccess(mockResponse);
             fail("get should have failed");
-        } catch(IllegalStateException e) {
+        } catch (IllegalStateException e) {
             assertEquals(e.getMessage(), "response is already set");
         }
         response = syncResponseListener.get();
@@ -79,7 +79,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
         try {
             syncResponseListener.get();
             fail("get should have failed");
-        } catch(IllegalStateException e) {
+        } catch (IllegalStateException e) {
             assertEquals("response and exception are unexpectedly set at the same time", e.getMessage());
             assertNotNull(e.getSuppressed());
             assertEquals(1, e.getSuppressed().length);
@@ -94,20 +94,20 @@ public class SyncResponseListenerTests extends RestClientTestCase {
         try {
             syncResponseListener.get();
             fail("get should have failed");
-        } catch(RuntimeException e) {
+        } catch (RuntimeException e) {
             assertSame(firstException, e);
         }
 
         RuntimeException secondException = new RuntimeException("second-test");
         try {
             syncResponseListener.onFailure(secondException);
-        } catch(IllegalStateException e) {
+        } catch (IllegalStateException e) {
             assertEquals(e.getMessage(), "exception is already set");
         }
         try {
             syncResponseListener.get();
             fail("get should have failed");
-        } catch(RuntimeException e) {
+        } catch (RuntimeException e) {
             assertSame(firstException, e);
         }
 
@@ -116,7 +116,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
         try {
             syncResponseListener.get();
             fail("get should have failed");
-        } catch(IllegalStateException e) {
+        } catch (IllegalStateException e) {
             assertEquals("response and exception are unexpectedly set at the same time", e.getMessage());
             assertNotNull(e.getSuppressed());
             assertEquals(1, e.getSuppressed().length);
@@ -131,7 +131,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
         try {
             syncResponseListener.get();
             fail("get should have failed");
-        } catch(RuntimeException e) {
+        } catch (RuntimeException e) {
             assertSame(runtimeException, e);
         }
     }
@@ -143,7 +143,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
         try {
             syncResponseListener.get();
             fail("get should have failed");
-        } catch(IOException e) {
+        } catch (IOException e) {
             assertSame(ioException, e);
         }
     }
@@ -156,7 +156,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
         try {
             syncResponseListener.get();
             fail("get should have failed");
-        } catch(RuntimeException e) {
+        } catch (RuntimeException e) {
             assertEquals("error while performing request", e.getMessage());
             assertSame(exception, e.getCause());
         }

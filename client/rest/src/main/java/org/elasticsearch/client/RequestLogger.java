@@ -69,14 +69,14 @@ final class RequestLogger {
             String requestLine;
             try {
                 requestLine = buildTraceRequest(request, host);
-            } catch(IOException e) {
+            } catch (IOException e) {
                 requestLine = "";
                 tracer.trace("error while reading request for trace purposes", e);
             }
             String responseLine;
             try {
                 responseLine = buildTraceResponse(httpResponse);
-            } catch(IOException e) {
+            } catch (IOException e) {
                 responseLine = "";
                 tracer.trace("error while reading response for trace purposes", e);
             }

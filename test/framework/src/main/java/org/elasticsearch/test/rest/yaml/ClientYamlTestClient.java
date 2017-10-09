@@ -153,7 +153,7 @@ public class ClientYamlTestClient {
         try {
             Response response = restClient.performRequest(requestMethod, requestPath, queryStringParams, entity, requestHeaders);
             return new ClientYamlTestResponse(response);
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             throw new ClientYamlTestResponseException(e);
         }
     }

@@ -83,7 +83,7 @@ public class JoinProcessorTests extends ESTestCase {
         Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, "-", fieldName);
         try {
             processor.execute(ingestDocument);
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [" + fieldName + "] of type [java.lang.String] cannot be cast to [java.util.List]"));
         }
     }
@@ -94,7 +94,7 @@ public class JoinProcessorTests extends ESTestCase {
         Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, "-", fieldName);
         try {
             processor.execute(ingestDocument);
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
         }
     }
@@ -104,7 +104,7 @@ public class JoinProcessorTests extends ESTestCase {
         Processor processor = new JoinProcessor(randomAlphaOfLength(10), "field", "-", "field");
         try {
             processor.execute(ingestDocument);
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [field] is null, cannot join."));
         }
     }

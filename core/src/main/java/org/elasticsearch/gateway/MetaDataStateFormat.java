@@ -202,7 +202,7 @@ public abstract class MetaDataStateFormat<T> {
                         return fromXContent(parser);
                     }
                 }
-            } catch(CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we trick this into a dedicated exception with the original stacktrace
                 throw new CorruptStateException(ex);
             }

@@ -57,7 +57,7 @@ public class AutoCreateIndexTests extends ESTestCase {
         try {
             newAutoCreateIndex(settings);
             fail("initialization should have failed");
-        } catch(IllegalArgumentException ex) {
+        } catch (IllegalArgumentException ex) {
             assertEquals("Can't parse [" + prefix + "] for setting [action.auto_create_index] must contain an index name after ["
                     + prefix + "]", ex.getMessage());
         }

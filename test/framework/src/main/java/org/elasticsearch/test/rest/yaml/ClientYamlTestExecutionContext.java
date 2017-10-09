@@ -88,7 +88,7 @@ public class ClientYamlTestExecutionContext {
         try {
             response = callApiInternal(apiName, requestParams, entity, requestHeaders);
             return response;
-        } catch(ClientYamlTestResponseException e) {
+        } catch (ClientYamlTestResponseException e) {
             response = e.getRestTestResponse();
             throw e;
         } finally {

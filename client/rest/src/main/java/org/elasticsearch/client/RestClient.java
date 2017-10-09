@@ -363,7 +363,7 @@ public class RestClient implements Closeable {
                             listener.onDefinitiveFailure(responseException);
                         }
                     }
-                } catch(Exception e) {
+                } catch (Exception e) {
                     listener.onDefinitiveFailure(e);
                 }
             }
@@ -374,7 +374,7 @@ public class RestClient implements Closeable {
                     RequestLogger.logFailedRequest(logger, request, host, failure);
                     onFailure(host);
                     retryIfPossible(failure);
-                } catch(Exception e) {
+                } catch (Exception e) {
                     listener.onDefinitiveFailure(e);
                 }
             }
@@ -573,7 +573,7 @@ public class RestClient implements Closeable {
                 uriBuilder.addParameter(param.getKey(), param.getValue());
             }
             return uriBuilder.build();
-        } catch(URISyntaxException e) {
+        } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
         }
     }

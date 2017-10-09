@@ -65,7 +65,7 @@ public class ClientYamlTestSuite {
         try (XContentParser parser = YamlXContent.yamlXContent.createParser(ExecutableSection.XCONTENT_REGISTRY,
                 Files.newInputStream(file))) {
             return parse(api, filename, parser);
-        } catch(Exception e) {
+        } catch (Exception e) {
             throw new IOException("Error parsing " + api + "/" + filename, e);
         }
     }

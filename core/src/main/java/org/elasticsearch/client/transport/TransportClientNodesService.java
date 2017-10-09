@@ -292,7 +292,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 } else {
                     try {
                         callback.doWithNode(getNode(i), this);
-                    } catch(final Exception inner) {
+                    } catch (final Exception inner) {
                         inner.addSuppressed(e);
                         // this exception can't come from the TransportService as it doesn't throw exceptions at all
                         listener.onFailure(inner);

@@ -71,7 +71,7 @@ public class CorsRegexIT extends HttpSmokeTestCase {
             getRestClient().performRequest("GET", "/", new BasicHeader("User-Agent", "Mozilla Bar"),
                     new BasicHeader("Origin", "http://evil-host:9200"));
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             Response response = e.getResponse();
             // a rejected origin gets a FORBIDDEN - 403
             assertThat(response.getStatusLine().getStatusCode(), is(403));
@@ -106,7 +106,7 @@ public class CorsRegexIT extends HttpSmokeTestCase {
                     new BasicHeader("Origin", "http://evil-host:9200"),
                     new BasicHeader("Access-Control-Request-Method", "GET"));
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             Response response = e.getResponse();
             // a rejected origin gets a FORBIDDEN - 403
             assertThat(response.getStatusLine().getStatusCode(), is(403));

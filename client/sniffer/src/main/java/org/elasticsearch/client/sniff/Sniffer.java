@@ -92,7 +92,7 @@ public class Sniffer implements Closeable {
                     }
                     logger.debug("scheduling next sniff in " + delayMillis + " ms");
                     this.scheduledFuture = this.scheduledExecutorService.schedule(this, delayMillis, TimeUnit.MILLISECONDS);
-                } catch(Exception e) {
+                } catch (Exception e) {
                     logger.error("error while scheduling next sniffer task", e);
                 }
             }

@@ -91,7 +91,7 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
         try {
             new ElasticsearchHostsSniffer(null, 1, ElasticsearchHostsSniffer.Scheme.HTTP);
             fail("should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("restClient cannot be null", e.getMessage());
         }
         HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
@@ -126,7 +126,7 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
                 for (HttpHost sniffedHost : sniffedHosts) {
                     assertEquals(sniffedHost, responseHostsIterator.next());
                 }
-            } catch(ResponseException e) {
+            } catch (ResponseException e) {
                 Response response = e.getResponse();
                 if (sniffResponse.isFailure) {
                     final String errorPrefix = "method [GET], host [" + httpHost + "], URI [/_nodes/http?timeout=" + sniffRequestTimeout

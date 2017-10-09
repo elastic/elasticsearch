@@ -57,7 +57,7 @@ public class IndexRequestBuilderIT extends ESIntegTestCase {
         try {
             client().prepareIndex("test", "test").setSource("test_field", "foobar", new Object());
             fail ("Expected IllegalArgumentException");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("The number of object passed must be even but was [3]"));
         }
     }

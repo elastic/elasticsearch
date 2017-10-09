@@ -110,7 +110,7 @@ public final class CategoryQueryContext implements ToXContentObject {
         if (token == XContentParser.Token.START_OBJECT) {
             try {
                 CATEGORY_PARSER.parse(parser, builder, null);
-            } catch(ParsingException e) {
+            } catch (ParsingException e) {
                 throw new ElasticsearchParseException("category context must be a string, number or boolean");
             }
         } else if (token == XContentParser.Token.VALUE_STRING || token == XContentParser.Token.VALUE_BOOLEAN

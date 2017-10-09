@@ -1108,7 +1108,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, namedSuggestion);
             fail("Post query error has been swallowed");
-        } catch(ElasticsearchException e) {
+        } catch (ElasticsearchException e) {
             // expected
         }
 
@@ -1139,7 +1139,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, namedSuggestion);
             fail("Post filter error has been swallowed");
-        } catch(ElasticsearchException e) {
+        } catch (ElasticsearchException e) {
             //expected
         }
 

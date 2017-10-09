@@ -209,7 +209,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         try {
             client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").execute().actionGet();
             fail("update with missing routing when routing is required should fail");
-        } catch(ElasticsearchException e) {
+        } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
 

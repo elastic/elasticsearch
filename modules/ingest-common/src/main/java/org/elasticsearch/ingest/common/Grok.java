@@ -82,9 +82,7 @@ final class Grok {
             int begin = region.beg[number];
             int end = region.end[number];
             return new String(pattern.getBytes(StandardCharsets.UTF_8), begin, end - begin, StandardCharsets.UTF_8);
-        } catch (StringIndexOutOfBoundsException e) {
-            return null;
-        } catch (ValueException e) {
+        } catch (StringIndexOutOfBoundsException | ValueException e) {
             return null;
         }
     }

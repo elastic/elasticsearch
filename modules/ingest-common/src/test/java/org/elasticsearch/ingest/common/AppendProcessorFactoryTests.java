@@ -66,7 +66,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
         }
     }
@@ -77,7 +77,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));
         }
     }
@@ -89,7 +89,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));
         }
     }

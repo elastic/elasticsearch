@@ -54,7 +54,7 @@ import java.util.concurrent.TimeoutException;
  *                  process();
  *                  barrier.await();    //wait for all threads to process
  *                }
- *              catch(Exception e){
+ *              catch (Exception e){
  *                  log(&quot;Worker thread caught exception&quot;, e);
  *                  barrier.reset(e);
  *                }
@@ -71,7 +71,7 @@ import java.util.concurrent.TimeoutException;
  *              barrier.await();    //wait for all threads to prepare
  *              barrier.await();    //wait for all threads to process
  *            }
- *          catch(BrokenBarrierException bbe) {
+ *          catch (BrokenBarrierException bbe) {
  *              Assert.fail(bbe);
  *            }
  *       }
@@ -87,7 +87,7 @@ import java.util.concurrent.TimeoutException;
  *               Assert.assertFalse(&quot;Exceeded notification count&quot;,
  *                                          actualNotificationCount &gt; EXPECTED_COUNT);
  *            }
- *          catch(Exception e) {
+ *          catch (Exception e) {
  *              log(&quot;Worker thread caught exception&quot;, e);
  *              barrier.reset(e);
  *            }

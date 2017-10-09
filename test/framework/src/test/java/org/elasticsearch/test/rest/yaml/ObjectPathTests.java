@@ -186,7 +186,7 @@ public class ObjectPathTests extends ESTestCase {
         try {
             objectPath.evaluate("field1.$placeholder.element1");
             fail("evaluate should have failed due to unresolved placeholder");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("stashed value not found for key [placeholder]"));
         }
 

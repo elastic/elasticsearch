@@ -253,7 +253,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                     } else {
                         fail("request should have failed");
                     }
-                } catch(ResponseException e) {
+                } catch (ResponseException e) {
                     if (expectedIgnores.contains(errorStatusCode)) {
                         throw e;
                     }
@@ -274,14 +274,14 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             try {
                 performRequest(method, "/coe");
                 fail("request should have failed");
-            } catch(IOException e) {
+            } catch (IOException e) {
                 assertThat(e, instanceOf(ConnectTimeoutException.class));
             }
             failureListener.assertCalled(httpHost);
             try {
                 performRequest(method, "/soe");
                 fail("request should have failed");
-            } catch(IOException e) {
+            } catch (IOException e) {
                 assertThat(e, instanceOf(SocketTimeoutException.class));
             }
             failureListener.assertCalled(httpHost);
@@ -305,7 +305,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 try {
                     restClient.performRequest(method, "/" + errorStatusCode, Collections.<String, String>emptyMap(), entity);
                     fail("request should have failed");
-                } catch(ResponseException e) {
+                } catch (ResponseException e) {
                     Response response = e.getResponse();
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(errorStatusCode));
                     assertThat(EntityUtils.toString(response.getEntity()), equalTo(body));
@@ -316,7 +316,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             try {
                 restClient.performRequest(method, "/" + randomStatusCode(getRandom()), Collections.<String, String>emptyMap(), entity);
                 fail("request should have failed");
-            } catch(UnsupportedOperationException e) {
+            } catch (UnsupportedOperationException e) {
                 assertThat(e.getMessage(), equalTo(method + " with body is not supported"));
             }
         }
@@ -328,13 +328,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         try {
             performRequest(method, "/" + statusCode, (Header[])null);
             fail("request should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("request headers must not be null", e.getMessage());
         }
         try {
             performRequest(method, "/" + statusCode, (Header)null);
             fail("request should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("request header must not be null", e.getMessage());
         }
     }
@@ -345,13 +345,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         try {
             restClient.performRequest(method, "/" + statusCode, (Map<String, String>)null);
             fail("request should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("params must not be null", e.getMessage());
         }
         try {
             restClient.performRequest(method, "/" + statusCode, null, (HttpEntity)null);
             fail("request should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("params must not be null", e.getMessage());
         }
     }
@@ -367,7 +367,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             Response esResponse;
             try {
                 esResponse = restClient.performRequest(method, "/" + statusCode, requestHeaders);
-            } catch(ResponseException e) {
+            } catch (ResponseException e) {
                 esResponse = e.getResponse();
             }
             assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
@@ -460,7 +460,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             } else {
                 restClient.performRequest(method, uriAsString, params, entity, headers);
             }
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             //all good
         }
         return request;

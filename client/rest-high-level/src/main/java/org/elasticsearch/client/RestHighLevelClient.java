@@ -443,7 +443,7 @@ public class RestHighLevelClient implements Closeable {
 
         try {
             return responseConverter.apply(response);
-        } catch(Exception e) {
+        } catch (Exception e) {
             throw new IOException("Unable to parse response body for " + response, e);
         }
     }
@@ -484,7 +484,7 @@ public class RestHighLevelClient implements Closeable {
             public void onSuccess(Response response) {
                 try {
                     actionListener.onResponse(responseConverter.apply(response));
-                } catch(Exception e) {
+                } catch (Exception e) {
                     IOException ioe = new IOException("Unable to parse response body for " + response, e);
                     onFailure(ioe);
                 }

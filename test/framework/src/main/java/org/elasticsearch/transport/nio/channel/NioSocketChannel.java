@@ -167,10 +167,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     private boolean internalFinish() throws IOException {
         try {
             return socketChannel.finishConnect();
-        } catch (IOException e) {
-            connectFuture.setConnectionFailed(e);
-            throw e;
-        } catch (RuntimeException e) {
+        } catch (IOException | RuntimeException e) {
             connectFuture.setConnectionFailed(e);
             throw e;
         }

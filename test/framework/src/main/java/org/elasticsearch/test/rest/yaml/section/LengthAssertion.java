@@ -48,7 +48,7 @@ public class LengthAssertion extends Assertion {
         } else {
             try {
                 value = Integer.valueOf(stringObjectTuple.v2().toString());
-            } catch(NumberFormatException e) {
+            } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("length is not a valid number", e);
             }
         }

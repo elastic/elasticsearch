@@ -12,12 +12,14 @@ import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
@@ -66,12 +68,13 @@ public abstract class SessionFactory {
     protected final RealmConfig config;
     protected final TimeValue timeout;
     protected final SSLService sslService;
+    protected final ThreadPool threadPool;
 
     protected final ServerSet serverSet;
     protected final boolean sslUsed;
     protected final boolean ignoreReferralErrors;
 
-    protected SessionFactory(RealmConfig config, SSLService sslService) {
+    protected SessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) {
         this.config = config;
         this.logger = config.logger(getClass());
         final Settings settings = config.settings();
@@ -84,6 +87,7 @@ public abstract class SessionFactory {
         }
         this.timeout = searchTimeout;
         this.sslService = sslService;
+        this.threadPool = threadPool;
         LDAPServers ldapServers = ldapServers(settings);
         this.serverSet = serverSet(config, sslService, ldapServers);
         this.sslUsed = ldapServers.ssl;

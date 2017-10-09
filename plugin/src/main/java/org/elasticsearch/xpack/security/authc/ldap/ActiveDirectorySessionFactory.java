@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.Filter;
 import com.unboundid.ldap.sdk.LDAPConnection;
-import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
@@ -18,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -25,6 +25,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
@@ -36,6 +38,8 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.CharArrays;
 import org.elasticsearch.xpack.ssl.SSLService;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -72,7 +76,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     final DownLevelADAuthenticator downLevelADAuthenticator;
     final UpnADAuthenticator upnADAuthenticator;
 
-    ActiveDirectorySessionFactory(RealmConfig config, SSLService sslService) throws LDAPException {
+    ActiveDirectorySessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) throws LDAPException {
         super(config, sslService, new ActiveDirectoryGroupsResolver(config.settings()), POOL_ENABLED, () -> {
             if (BIND_DN.exists(config.settings())) {
                 return new SimpleBindRequest(getBindDN(config.settings()), BIND_PASSWORD.get(config.settings()));
@@ -87,7 +91,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                 }
             }
             return config.settings().get(AD_USER_SEARCH_BASEDN_SETTING, config.settings().get(AD_DOMAIN_NAME_SETTING));
-        });
+        }, threadPool);
         Settings settings = config.settings();
         String domainName = settings.get(AD_DOMAIN_NAME_SETTING);
         if (domainName == null) {
@@ -95,11 +99,11 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         }
         String domainDN = buildDnFromDomain(domainName);
         defaultADAuthenticator = new DefaultADAuthenticator(config, timeout, ignoreReferralErrors, logger, groupResolver,
-                metaDataResolver, domainDN);
-        downLevelADAuthenticator = new DownLevelADAuthenticator(config, timeout, ignoreReferralErrors, logger, groupResolver, 
-                metaDataResolver, domainDN, sslService);
-        upnADAuthenticator = new UpnADAuthenticator(config, timeout, ignoreReferralErrors, logger, groupResolver, 
-                metaDataResolver, domainDN);
+                metaDataResolver, domainDN, threadPool);
+        downLevelADAuthenticator = new DownLevelADAuthenticator(config, timeout, ignoreReferralErrors, logger, groupResolver,
+                metaDataResolver, domainDN, sslService, threadPool);
+        upnADAuthenticator = new UpnADAuthenticator(config, timeout, ignoreReferralErrors, logger, groupResolver,
+                metaDataResolver, domainDN, threadPool);
 
     }
 
@@ -117,26 +121,20 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
 
     @Override
     void getSessionWithPool(LDAPConnectionPool connectionPool, String user, SecureString password, ActionListener<LdapSession> listener) {
-        getADAuthenticator(user).authenticate(connectionPool, user, password, listener);
+        getADAuthenticator(user).authenticate(connectionPool, user, password, threadPool, listener);
     }
 
     @Override
     void getSessionWithoutPool(String username, SecureString password, ActionListener<LdapSession> listener) {
-        // the runnable action here allows us make the control/flow logic simpler to understand. If we got a connection then lets
-        // authenticate. If there was a failure pass it back using the listener
-        Runnable runnable;
         try {
             final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
-            runnable = () -> getADAuthenticator(username).authenticate(connection, username, password,
-                    ActionListener.wrap(listener::onResponse,
-                            (e) -> {
-                                IOUtils.closeWhileHandlingException(connection);
-                                listener.onFailure(e);
-                            }));
+            getADAuthenticator(username).authenticate(connection, username, password, ActionListener.wrap(listener::onResponse, e -> {
+                IOUtils.closeWhileHandlingException(connection);
+                listener.onFailure(e);
+            }));
         } catch (LDAPException e) {
-            runnable = () -> listener.onFailure(e);
+            listener.onFailure(e);
         }
-        runnable.run();
     }
 
     @Override
@@ -153,37 +151,41 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
 
     @Override
     void getUnauthenticatedSessionWithoutPool(String user, ActionListener<LdapSession> listener) {
-        if (BIND_DN.exists(config.settings())) {
-            LDAPConnection connection = null;
-            boolean startedSearching = false;
-            try {
-                connection = LdapUtils.privilegedConnect(serverSet::getConnection);
-                connection.bind(new SimpleBindRequest(getBindDN(config.settings()), BIND_PASSWORD.get(config.settings())));
-                final LDAPConnection finalConnection = connection;
-                getADAuthenticator(user).searchForDN(finalConnection, user, null, Math.toIntExact(timeout.getSeconds()),
-                        ActionListener.wrap(entry -> {
-                            if (entry == null) {
-                                IOUtils.closeWhileHandlingException(finalConnection);
-                                listener.onResponse(null);
-                            } else {
-                                final String dn = entry.getDN();
-                                listener.onResponse(new LdapSession(logger, config, finalConnection, dn, groupResolver, metaDataResolver,
-                                        timeout, null));
-                            }
-                        }, e -> {
-                            IOUtils.closeWhileHandlingException(finalConnection);
-                            listener.onFailure(e);
-                        }));
-                startedSearching = true;
-            } catch (LDAPException e) {
-                listener.onFailure(e);
-            } finally {
-                if (connection != null && startedSearching == false) {
-                    IOUtils.closeWhileHandlingException(connection);
-                }
-            }
-        } else {
+        if (BIND_DN.exists(config.settings()) == false) {
             listener.onResponse(null);
+            return;
+        }
+        try {
+            final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
+            final SimpleBindRequest bind = new SimpleBindRequest(getBindDN(config.settings()), BIND_PASSWORD.get(config.settings()));
+            LdapUtils.maybeForkThenBind(connection, bind, threadPool, new AbstractRunnable() {
+
+                @Override
+                public void onFailure(Exception e) {
+                    IOUtils.closeWhileHandlingException(connection);
+                    listener.onFailure(e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    getADAuthenticator(user).searchForDN(connection, user, null, Math.toIntExact(timeout.getSeconds()),
+                            ActionListener.wrap(entry -> {
+                                if (entry == null) {
+                                    IOUtils.close(connection);
+                                    listener.onResponse(null);
+                                } else {
+                                    listener.onResponse(new LdapSession(logger, config, connection, entry.getDN(), groupResolver,
+                                            metaDataResolver, timeout, null));
+                                }
+                            }, e -> {
+                                IOUtils.closeWhileHandlingException(connection);
+                                listener.onFailure(e);
+                            }));
+
+                }
+            });
+        } catch (LDAPException e) {
+            listener.onFailure(e);
         }
     }
 
@@ -241,10 +243,11 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         final String userSearchFilter;
         final String bindDN;
         final String bindPassword; // TODO this needs to be a setting in the secure settings store!
+        final ThreadPool threadPool;
 
-        ADAuthenticator(RealmConfig realm, TimeValue timeout, boolean ignoreReferralErrors, Logger logger,
-                        GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN,
-                        String userSearchFilterSetting, String defaultUserSearchFilter) {
+        ADAuthenticator(RealmConfig realm, TimeValue timeout, boolean ignoreReferralErrors, Logger logger, GroupsResolver groupsResolver,
+                LdapMetaDataResolver metaDataResolver, String domainDN, String userSearchFilterSetting, String defaultUserSearchFilter,
+                ThreadPool threadPool) {
             this.realm = realm;
             this.timeout = timeout;
             this.ignoreReferralErrors = ignoreReferralErrors;
@@ -254,65 +257,71 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             final Settings settings = realm.settings();
             this.bindDN = getBindDN(settings);
             this.bindPassword = BIND_PASSWORD.get(settings);
+            this.threadPool = threadPool;
             userSearchDN = settings.get(AD_USER_SEARCH_BASEDN_SETTING, domainDN);
             userSearchScope = LdapSearchScope.resolve(settings.get(AD_USER_SEARCH_SCOPE_SETTING), LdapSearchScope.SUB_TREE);
             userSearchFilter = settings.get(userSearchFilterSetting, defaultUserSearchFilter);
         }
 
-        final void authenticate(LDAPConnection connection, String username, SecureString password,
-                          ActionListener<LdapSession> listener) {
-            boolean success = false;
-            try {
-                connection.bind(new SimpleBindRequest(bindUsername(username), CharArrays.toUtf8Bytes(password.getChars()),
-                        new AuthorizationIdentityRequestControl()));
-                if (bindDN.isEmpty() == false) {
-                    connection.bind(new SimpleBindRequest(bindDN, bindPassword));
-                }
-                searchForDN(connection, username, password, Math.toIntExact(timeout.seconds()), ActionListener.wrap((entry) -> {
-                    if (entry == null) {
-                        IOUtils.close(connection);
-                        // we did not find the user, cannot authenticate in this realm
-                        listener.onFailure(new ElasticsearchSecurityException("search for user [" + username
-                                + "] by principle name yielded no results"));
+        final void authenticate(LDAPConnection connection, String username, SecureString password, ActionListener<LdapSession> listener) {
+            final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
+            final SimpleBindRequest userBind = new SimpleBindRequest(bindUsername(username), passwordBytes,
+                    new AuthorizationIdentityRequestControl());
+            LdapUtils.maybeForkThenBind(connection, userBind, threadPool, new ActionRunnable<LdapSession>(listener) {
+                @Override
+                protected void doRun() throws Exception {
+                    final ActionRunnable<LdapSession> searchRunnable = new ActionRunnable<LdapSession>(listener) {
+                        @Override
+                        protected void doRun() throws Exception {
+                            searchForDN(connection, username, password, Math.toIntExact(timeout.seconds()), ActionListener.wrap((entry) -> {
+                                if (entry == null) {
+                                    // we did not find the user, cannot authenticate in this realm
+                                    listener.onFailure(new ElasticsearchSecurityException(
+                                            "search for user [" + username + "] by principal name yielded no results"));
+                                } else {
+                                    listener.onResponse(new LdapSession(logger, realm, connection, entry.getDN(), groupsResolver,
+                                            metaDataResolver, timeout, null));
+                                }
+                                Arrays.fill(passwordBytes, (byte) 0);
+                            }, e -> {
+                                Arrays.fill(passwordBytes, (byte) 0);
+                                listener.onFailure(e);
+                            }));
+                        }
+                    };
+                    if (bindDN.isEmpty()) {
+                        searchRunnable.run();
                     } else {
-                        final String dn = entry.getDN();
-                        listener.onResponse(new LdapSession(logger, realm, connection, dn, groupsResolver, metaDataResolver,
-                                timeout, null));
+                        final SimpleBindRequest bind = new SimpleBindRequest(bindDN, bindPassword);
+                        LdapUtils.maybeForkThenBind(connection, bind, threadPool, searchRunnable);
                     }
-                }, (e) -> {
-                    IOUtils.closeWhileHandlingException(connection);
-                    listener.onFailure(e);
-                }));
-                success = true;
-            } catch (LDAPException e) {
-                listener.onFailure(e);
-            } finally {
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(connection);
                 }
-            }
+            });
         }
 
-        final void authenticate(LDAPConnectionPool pool, String username, SecureString password,
+        final void authenticate(LDAPConnectionPool pool, String username, SecureString password, ThreadPool threadPool,
                                 ActionListener<LdapSession> listener) {
-            try {
-                LdapUtils.privilegedConnect(() -> {
-                    SimpleBindRequest request = new SimpleBindRequest(bindUsername(username), CharArrays.toUtf8Bytes(password.getChars()));
-                    return pool.bindAndRevertAuthentication(request);
-                });
-                searchForDN(pool, username, password, Math.toIntExact(timeout.seconds()), ActionListener.wrap((entry) -> {
-                    if (entry == null) {
-                        // we did not find the user, cannot authenticate in this realm
-                        listener.onFailure(new ElasticsearchSecurityException("search for user [" + username
-                                + "] by principle name yielded no results"));
-                    } else {
-                        final String dn = entry.getDN();
-                        listener.onResponse(new LdapSession(logger, realm, pool, dn, groupsResolver, metaDataResolver, timeout, null));
-                    }
-                }, listener::onFailure));
-            } catch (LDAPException e) {
-                listener.onFailure(e);
-            }
+            final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
+            final SimpleBindRequest bind = new SimpleBindRequest(bindUsername(username), passwordBytes);
+            LdapUtils.maybeForkThenBind(pool, bind, threadPool, new ActionRunnable<LdapSession>(listener) {
+                @Override
+                protected void doRun() throws Exception {
+                    searchForDN(pool, username, password, Math.toIntExact(timeout.seconds()), ActionListener.wrap((entry) -> {
+                        if (entry == null) {
+                            // we did not find the user, cannot authenticate in this realm
+                            listener.onFailure(new ElasticsearchSecurityException(
+                                    "search for user [" + username + "] by principal name yielded no results"));
+                        } else {
+                            listener.onResponse(
+                                    new LdapSession(logger, realm, pool, entry.getDN(), groupsResolver, metaDataResolver, timeout, null));
+                        }
+                        Arrays.fill(passwordBytes, (byte) 0);
+                    }, e -> {
+                        Arrays.fill(passwordBytes, (byte) 0);
+                        listener.onFailure(e);
+                    }));
+                }
+            });
         }
 
         String bindUsername(String username) {
@@ -336,10 +345,11 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     static class DefaultADAuthenticator extends ADAuthenticator {
 
         final String domainName;
-        DefaultADAuthenticator(RealmConfig realm, TimeValue timeout, boolean ignoreReferralErrors,
-                               Logger logger, GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN) {
+
+        DefaultADAuthenticator(RealmConfig realm, TimeValue timeout, boolean ignoreReferralErrors, Logger logger,
+                GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN, ThreadPool threadPool) {
             super(realm, timeout, ignoreReferralErrors, logger, groupsResolver, metaDataResolver, domainDN, AD_USER_SEARCH_FILTER_SETTING,
-                    "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={0}@" + domainName(realm) + ")))");
+                    "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={0}@" + domainName(realm) + ")))", threadPool);
             domainName = domainName(realm);
         }
 
@@ -380,10 +390,10 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         final RealmConfig config;
 
         DownLevelADAuthenticator(RealmConfig config, TimeValue timeout, boolean ignoreReferralErrors, Logger logger,
-                                 GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN,
-                                 SSLService sslService) {
+                GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN, SSLService sslService,
+                ThreadPool threadPool) {
             super(config, timeout, ignoreReferralErrors, logger, groupsResolver, metaDataResolver, domainDN,
-                    AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING, DOWN_LEVEL_FILTER);
+                    AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING, DOWN_LEVEL_FILTER, threadPool);
             this.domainDN = domainDN;
             this.settings = config.settings();
             this.sslService = sslService;
@@ -402,81 +412,74 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                 if (domainDN == null) {
                     listener.onResponse(null);
                 } else {
-                    try {
-                        searchForEntry(connection, domainDN, LdapSearchScope.SUB_TREE.scope(),
-                                createFilter(userSearchFilter,
-                                        accountName), timeLimitSeconds, ignoreReferralErrors,
-                                listener, attributesToSearchFor(groupsResolver.attributes()));
-                    } catch (LDAPException e) {
-                        listener.onFailure(e);
-                    }
+                    searchForEntry(connection, domainDN, LdapSearchScope.SUB_TREE.scope(), createFilter(userSearchFilter, accountName),
+                            timeLimitSeconds, ignoreReferralErrors, listener, attributesToSearchFor(groupsResolver.attributes()));
                 }
             }, listener::onFailure));
         }
 
         void netBiosDomainNameToDn(LDAPInterface ldapInterface, String netBiosDomainName, String username, SecureString password,
                                    int timeLimitSeconds, ActionListener<String> listener) {
-            final String cachedName = domainNameCache.get(netBiosDomainName);
+            LDAPConnection ldapConnection = null;
             try {
+                final Filter filter = createFilter(NETBIOS_NAME_FILTER_TEMPLATE, netBiosDomainName);
+                final String cachedName = domainNameCache.get(netBiosDomainName);
                 if (cachedName != null) {
                     listener.onResponse(cachedName);
-                } else if (usingGlobalCatalog(ldapInterface)) {
-                    // the global catalog does not replicate the necessary information to map a netbios
-                    // dns name to a DN so we need to instead connect to the normal ports. This code
-                    // uses the standard ports to avoid adding even more settings and is probably ok as
-                    // most AD users do not use non-standard ports
-                    final LDAPConnectionOptions options = connectionOptions(config, sslService, logger);
-                    boolean startedSearching = false;
-                    LDAPConnection searchConnection = null;
-                    LDAPConnection ldapConnection = null;
-                    try {
-                        Filter filter = createFilter(NETBIOS_NAME_FILTER_TEMPLATE, netBiosDomainName);
-                        if (ldapInterface instanceof LDAPConnection) {
-                            ldapConnection = (LDAPConnection) ldapInterface;
-                        } else {
-                            ldapConnection = LdapUtils.privilegedConnect(((LDAPConnectionPool) ldapInterface)::getConnection);
-                        }
-                        final LDAPConnection finalLdapConnection = ldapConnection;
-                        searchConnection = LdapUtils.privilegedConnect(
-                                () -> new LDAPConnection(finalLdapConnection.getSocketFactory(), options,
-                                        finalLdapConnection.getConnectedAddress(),
-                                        finalLdapConnection.getSSLSession() != null ? 636 : 389));
-
-                        final SimpleBindRequest bindRequest =
-                                bindDN.isEmpty() ? new SimpleBindRequest(username, CharArrays.toUtf8Bytes(password.getChars())) :
-                                        new SimpleBindRequest(bindDN, bindPassword);
-                        searchConnection.bind(bindRequest);
-                        final LDAPConnection finalConnection = searchConnection;
-                        search(finalConnection, domainDN, LdapSearchScope.SUB_TREE.scope(), filter,
-                                timeLimitSeconds, ignoreReferralErrors, ActionListener.wrap(
-                                        (results) -> {
-                                            IOUtils.close(finalConnection);
-                                            handleSearchResults(results, netBiosDomainName, domainNameCache, listener);
-                                        }, (e) -> {
-                                            IOUtils.closeWhileHandlingException(finalConnection);
-                                            listener.onFailure(e);
-                                        }),
-                                "ncname");
-                        startedSearching = true;
-                    } finally {
-                        if (startedSearching == false) {
-                            IOUtils.closeWhileHandlingException(searchConnection);
-                        }
-                        if (ldapInterface instanceof LDAPConnectionPool && ldapConnection != null) {
-                            ((LDAPConnectionPool) ldapInterface).releaseConnection(ldapConnection);
-                        }
-                    }
-                } else {
-                    Filter filter = createFilter(NETBIOS_NAME_FILTER_TEMPLATE, netBiosDomainName);
-                    search(ldapInterface, domainDN, LdapSearchScope.SUB_TREE.scope(), filter,
-                            timeLimitSeconds, ignoreReferralErrors, ActionListener.wrap(
-                                    (results) -> handleSearchResults(results, netBiosDomainName,
-                                            domainNameCache, listener),
+                } else if (usingGlobalCatalog(ldapInterface) == false) {
+                    search(ldapInterface, domainDN, LdapSearchScope.SUB_TREE.scope(), filter, timeLimitSeconds, ignoreReferralErrors,
+                            ActionListener.wrap((results) -> handleSearchResults(results, netBiosDomainName, domainNameCache, listener),
                                     listener::onFailure),
                             "ncname");
+                } else {
+                    // the global catalog does not replicate the necessary information to map a
+                    // netbios dns name to a DN so we need to instead connect to the normal ports.
+                    // This code uses the standard ports to avoid adding even more settings and is
+                    // probably ok as most AD users do not use non-standard ports
+                    if (ldapInterface instanceof LDAPConnection) {
+                        ldapConnection = (LDAPConnection) ldapInterface;
+                    } else {
+                        ldapConnection = LdapUtils.privilegedConnect(((LDAPConnectionPool) ldapInterface)::getConnection);
+                    }
+                    final LDAPConnection finalLdapConnection = ldapConnection;
+                    final LDAPConnection searchConnection = LdapUtils.privilegedConnect(
+                            () -> new LDAPConnection(finalLdapConnection.getSocketFactory(), connectionOptions(config, sslService, logger),
+                                    finalLdapConnection.getConnectedAddress(), finalLdapConnection.getSSLSession() != null ? 636 : 389));
+                    final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
+                    final SimpleBindRequest bind = bindDN.isEmpty()
+                            ? new SimpleBindRequest(username, passwordBytes)
+                            : new SimpleBindRequest(bindDN, bindPassword);
+                    LdapUtils.maybeForkThenBind(searchConnection, bind, threadPool, new ActionRunnable<String>(listener) {
+                        @Override
+                        protected void doRun() throws Exception {
+                            search(searchConnection, domainDN, LdapSearchScope.SUB_TREE.scope(), filter, timeLimitSeconds,
+                                    ignoreReferralErrors,
+                                    ActionListener.wrap(
+                                            results -> {
+                                                IOUtils.close(searchConnection);
+                                                Arrays.fill(passwordBytes, (byte) 0);
+                                                handleSearchResults(results, netBiosDomainName, domainNameCache, listener);
+                                            }, e -> {
+                                                IOUtils.closeWhileHandlingException(searchConnection);
+                                                Arrays.fill(passwordBytes, (byte) 0);
+                                                listener.onFailure(e);
+                                            }),
+                                    "ncname");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            IOUtils.closeWhileHandlingException(searchConnection);
+                            listener.onFailure(e);
+                        };
+                    });
                 }
             } catch (LDAPException e) {
                 listener.onFailure(e);
+            } finally {
+                if (ldapInterface instanceof LDAPConnectionPool && ldapConnection != null) {
+                    ((LDAPConnectionPool) ldapInterface).releaseConnection(ldapConnection);
+                }
             }
         }
 
@@ -530,9 +533,9 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         static final String UPN_USER_FILTER = "(&(objectClass=user)(userPrincipalName={1}))";
 
         UpnADAuthenticator(RealmConfig config, TimeValue timeout, boolean ignoreReferralErrors, Logger logger,
-                           GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN) {
+                GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN, ThreadPool threadPool) {
             super(config, timeout, ignoreReferralErrors, logger, groupsResolver, metaDataResolver, domainDN,
-                    AD_UPN_USER_SEARCH_FILTER_SETTING, UPN_USER_FILTER);
+                    AD_UPN_USER_SEARCH_FILTER_SETTING, UPN_USER_FILTER, threadPool);
             if (userSearchFilter.contains("{0}")) {
                 new DeprecationLogger(logger).deprecated("The use of the account name variable {0} in the setting ["
                         + RealmSettings.getFullSettingKey(config, AD_UPN_USER_SEARCH_FILTER_SETTING) +
@@ -540,6 +543,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             }
         }
 
+        @Override
         void searchForDN(LDAPInterface connection, String username, SecureString password, int timeLimitSeconds,
                          ActionListener<SearchResultEntry> listener) {
             String[] parts = username.split("@");

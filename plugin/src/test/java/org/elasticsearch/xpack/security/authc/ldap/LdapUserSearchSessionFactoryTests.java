@@ -10,6 +10,7 @@ import com.unboundid.ldap.sdk.BindRequest;
 import com.unboundid.ldap.sdk.GetEntryLDAPConnectionPoolHealthCheck;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPConnectionPoolHealthCheck;
+import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import com.unboundid.ldap.sdk.SingleServerSet;
@@ -29,6 +30,9 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -45,9 +49,10 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
     private SSLService sslService;
     private Settings globalSettings;
+    private ThreadPool threadPool;
 
     @Before
-    public void initializeSslSocketFactory() throws Exception {
+    public void init() throws Exception {
         Path keystore = getDataPath("support/ldaptrust.jks");
         Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
         /*
@@ -62,6 +67,12 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .setSecureSettings(newSecureSettings("xpack.ssl.truststore.secure_password", "changeit"))
                 .build();
         sslService = new SSLService(globalSettings, env);
+        threadPool = new TestThreadPool("LdapUserSearchSessionFactoryTests");
+    }
+
+    @After
+    public void shutdown() throws InterruptedException {
+        terminate(threadPool);
     }
 
     private MockSecureSettings newSecureSettings(String key, String value) {
@@ -87,7 +98,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         RealmConfig config = new RealmConfig("ldap_realm", builder.build(), globalSettings, new Environment(globalSettings),
                 new ThreadContext(globalSettings));
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService);
+        LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
         try {
             assertThat(sessionFactory.supportsUnauthenticatedSession(), is(true));
         } finally {
@@ -98,6 +109,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             assertSettingDeprecationsAndWarnings(new Setting[] { LdapUserSearchSessionFactory.SEARCH_ATTRIBUTE });
         }
     }
+
 
     public void testUserSearchSubTree() throws Exception {
         String groupSearchBase = "o=sevenSeas";
@@ -118,7 +130,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         RealmConfig config = new RealmConfig("ldap_realm", builder.build(), globalSettings, new Environment(globalSettings),
                 new ThreadContext(globalSettings));
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService);
+        LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "William Bush";
         SecureString userPass = new SecureString("pass");
@@ -164,7 +176,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         RealmConfig config = new RealmConfig("ldap_realm", builder.build(), globalSettings, new Environment(globalSettings),
                 new ThreadContext(globalSettings));
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService);
+        LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "William Bush";
         SecureString userPass = new SecureString("pass");
@@ -201,7 +213,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         RealmConfig config = new RealmConfig("ldap_realm", builder.build(), globalSettings, new Environment(globalSettings),
                 new ThreadContext(globalSettings));
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService);
+        LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "William Bush";
         SecureString userPass = new SecureString("pass");
@@ -247,7 +259,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         RealmConfig config = new RealmConfig("ldap_realm", builder.build(), globalSettings, new Environment(globalSettings),
                 new ThreadContext(globalSettings));
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService);
+        LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "William Bush";
         SecureString userPass = new SecureString("pass");
@@ -284,7 +296,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         RealmConfig config = new RealmConfig("ldap_realm", builder.build(), globalSettings, new Environment(globalSettings),
                 new ThreadContext(globalSettings));
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService);
+        LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "William Bush";
         SecureString userPass = new SecureString("pass");
@@ -329,7 +341,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         RealmConfig config = new RealmConfig("ldap_realm", builder.build(), globalSettings, new Environment(globalSettings),
                 new ThreadContext(globalSettings));
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService);
+        LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "William Bush";
         SecureString userPass = new SecureString("pass");
@@ -358,7 +370,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                         .put("user_search.pool.enabled", randomBoolean())
                         .build(), globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings));
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService);
+        LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "wbush";
         SecureString userPass = new SecureString("pass");
@@ -404,7 +416,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         Settings fullSettings = builder.build();
         sslService = new SSLService(fullSettings, new Environment(fullSettings));
         RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings));
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService);
+        LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "Bruce Banner";
         try {
@@ -500,7 +512,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         LdapUserSearchSessionFactory searchSessionFactory = null;
         try {
-            searchSessionFactory = new LdapUserSearchSessionFactory(config, sslService);
+            searchSessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
         } finally {
             if (searchSessionFactory != null) {
                 searchSessionFactory.close();
@@ -520,7 +532,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         LdapUserSearchSessionFactory searchSessionFactory = null;
         try {
-            searchSessionFactory = new LdapUserSearchSessionFactory(config, sslService);
+            searchSessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
             final PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
             searchSessionFactory.session("cn=ironman", new SecureString("password".toCharArray()), future);
             future.get();
@@ -572,7 +584,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         RealmConfig config = new RealmConfig("ldap_realm", ldapSettings, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings));
         LdapUserSearchSessionFactory searchSessionFactory = null;
         try {
-            searchSessionFactory = new LdapUserSearchSessionFactory(config, sslService);
+            searchSessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
         } finally {
             if (searchSessionFactory != null) {
                 searchSessionFactory.close();
@@ -580,5 +592,16 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         }
 
         assertSettingDeprecationsAndWarnings(new Setting[] { LdapUserSearchSessionFactory.SEARCH_ATTRIBUTE });
+    }
+
+    static LdapUserSearchSessionFactory getLdapUserSearchSessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool)
+            throws LDAPException {
+        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService, threadPool);
+        if (sessionFactory.getConnectionPool() != null) {
+            // don't use this in production
+            // used here to catch bugs that might get masked by an automatic retry
+            sessionFactory.getConnectionPool().setRetryFailedOperationsDueToInvalidConnections(false);
+        }
+        return sessionFactory;
     }
 }

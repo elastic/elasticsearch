@@ -16,8 +16,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.ssl.VerificationMode;
+import org.junit.After;
+import org.junit.Before;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -25,6 +29,18 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class SessionFactoryTests extends ESTestCase {
+
+    private ThreadPool threadPool;
+
+    @Before
+    public void init() throws Exception {
+        threadPool = new TestThreadPool("SessionFactoryTests thread pool");
+    }
+
+    @After
+    public void shutdown() throws InterruptedException {
+        terminate(threadPool);
+    }
 
     public void testConnectionFactoryReturnsCorrectLDAPConnectionOptionsWithDefaultSettings() throws Exception {
         final Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
@@ -92,7 +108,7 @@ public class SessionFactoryTests extends ESTestCase {
         Settings global = Settings.builder().put("path.home", createTempDir()).build();
         final RealmConfig realmConfig = new RealmConfig("_name", Settings.builder().put("url", "ldap://localhost:389").build(),
                 global, new ThreadContext(Settings.EMPTY));
-        return new SessionFactory(realmConfig, null) {
+        return new SessionFactory(realmConfig, null, threadPool) {
 
             @Override
             public void session(String user, SecureString password, ActionListener<LdapSession> listener) {

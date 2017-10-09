@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.ldap.support;
 
 import com.unboundid.ldap.sdk.AsyncRequestID;
 import com.unboundid.ldap.sdk.AsyncSearchResultListener;
+import com.unboundid.ldap.sdk.BindRequest;
 import com.unboundid.ldap.sdk.DN;
 import com.unboundid.ldap.sdk.DereferencePolicy;
 import com.unboundid.ldap.sdk.Filter;
@@ -30,8 +31,11 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.support.Exceptions;
 
 import javax.naming.ldap.Rdn;
@@ -80,6 +84,69 @@ public final class LdapUtils {
     public static String escapedRDNValue(String rdn) {
         // We can't use UnboundID RDN here because it expects attribute=value, not just value
         return Rdn.escapeValue(rdn);
+    }
+
+    /**
+     * This method submits the {@code bind} request over the provided {@code ldap}
+     * connection or connection pool. The connection authentication status changes,
+     * see {@code LDAPConnection#bind}; in case of a connection pool the bind
+     * authentication status is reverted, so that the connection can be safely
+     * returned to the pool, see:
+     * {@code LDAPConnectionPool#bindAndRevertAuthentication}.
+     *
+     * Bind calls are blocking and if a bind is executed on the LDAP Connection
+     * Reader thread (as returned by {@code LdapUtils#isLdapConnectionThread}),
+     * the thread will be blocked until it is interrupted by something else
+     * such as a timeout timer.
+     * <b>Do not call bind</b> outside of this method.
+     *
+     * @param ldap
+     *            The LDAP connection or connection pool on which to submit the bind
+     *            operation.
+     * @param bind
+     *            The request object of the bind operation.
+     * @param threadPool
+     *            The threads that will call the blocking bind operation, in case
+     *            the calling thread is a connection reader, see:
+     *            {@code LdapUtils#isLdapConnectionThread}.
+     * @param runnable
+     *            The runnable that continues the program flow after the bind
+     *            operation. It is executed on the same thread as the prior bind.
+     */
+    public static void maybeForkThenBind(LDAPInterface ldap, BindRequest bind, ThreadPool threadPool,
+                                   AbstractRunnable runnable) {
+        Runnable bindRunnable = new AbstractRunnable() {
+            @Override
+            @SuppressForbidden(reason = "Bind allowed if forking of the LDAP Connection Reader Thread.")
+            protected void doRun() throws Exception {
+                if (ldap instanceof LDAPConnectionPool) {
+                    privilegedConnect(() -> ((LDAPConnectionPool) ldap).bindAndRevertAuthentication(bind));
+                } else if (ldap instanceof LDAPConnection) {
+                    ((LDAPConnection) ldap).bind(bind);
+                } else {
+                    throw new IllegalArgumentException("unsupported LDAPInterface implementation: " + ldap);
+                }
+                runnable.run();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                runnable.onFailure(e);
+            }
+
+            @Override
+            public void onAfter() {
+                runnable.onAfter();
+            }
+        };
+
+        if (isLdapConnectionThread(Thread.currentThread())) {
+            // only fork if binding on the LDAPConnectionReader thread
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(bindRunnable);
+        } else {
+            // avoids repeated forking
+            bindRunnable.run();
+        }
     }
 
     /**
@@ -146,11 +213,13 @@ public final class LdapUtils {
             final LDAPConnection finalConnection = ldapConnection;
             searchForEntry(finalConnection, baseDN, scope, filter, timeLimitSeconds,
                     ignoreReferralErrors, ActionListener.wrap(
-                            (entry) -> {
+                            entry -> {
+                                assert isLdapConnectionThread(Thread.currentThread()) : "Expected current thread [" + Thread.currentThread()
+                                        + "] to be an LDAPConnectionReader Thread. Probably the new library has changed the thread's name.";
                                 IOUtils.close(() -> ldap.releaseConnection(finalConnection));
                                 listener.onResponse(entry);
                             },
-                            (e) -> {
+                            e -> {
                                 IOUtils.closeWhileHandlingException(
                                         () -> ldap.releaseConnection(finalConnection)
                                 );
@@ -198,9 +267,11 @@ public final class LdapUtils {
                 ldap,
                 ignoreReferralErrors,
                 ActionListener.wrap(
-                        searchResult -> listener.onResponse(
-                                Collections.unmodifiableList(searchResult.getSearchEntries())
-                        ),
+                        searchResult -> {
+                            assert isLdapConnectionThread(Thread.currentThread()) : "Expected current thread [" + Thread.currentThread()
+                                    + "] to be an LDAPConnectionReader Thread. Probably the new library has changed the thread's name.";
+                            listener.onResponse(Collections.unmodifiableList(searchResult.getSearchEntries()));
+                        },
                         listener::onFailure),
                 1);
         try {
@@ -226,27 +297,13 @@ public final class LdapUtils {
         try {
             ldapConnection = privilegedConnect(ldap::getConnection);
             final LDAPConnection finalConnection = ldapConnection;
-            LdapSearchResultListener ldapSearchResultListener = new LdapSearchResultListener(
-                    finalConnection, ignoreReferralErrors,
-                    ActionListener.wrap(
-                            searchResult -> {
-                                IOUtils.closeWhileHandlingException(
-                                        () -> ldap.releaseConnection(finalConnection)
-                                );
-                                listener.onResponse(Collections.unmodifiableList(
-                                        searchResult.getSearchEntries()
-                                ));
-                            }, (e) -> {
-                                IOUtils.closeWhileHandlingException(
-                                        () -> ldap.releaseConnection(finalConnection)
-                                );
-                                listener.onFailure(e);
-                            }),
-                    1);
-            SearchRequest request = new SearchRequest(ldapSearchResultListener, baseDN, scope,
-                    DereferencePolicy.NEVER, 0, timeLimitSeconds, false, filter, attributes);
-            ldapSearchResultListener.setSearchRequest(request);
-            finalConnection.asyncSearch(request);
+            search(finalConnection, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, ActionListener.wrap(searchResult -> {
+                IOUtils.closeWhileHandlingException(() -> ldap.releaseConnection(finalConnection));
+                listener.onResponse(searchResult);
+            }, (e) -> {
+                IOUtils.closeWhileHandlingException(() -> ldap.releaseConnection(finalConnection));
+                listener.onFailure(e);
+            }), attributes);
             searching = true;
         } catch (LDAPException e) {
             listener.onFailure(e);
@@ -256,6 +313,10 @@ public final class LdapUtils {
                 IOUtils.closeWhileHandlingException(() -> ldap.releaseConnection(finalConnection));
             }
         }
+    }
+
+    static boolean isLdapConnectionThread(Thread thread) {
+        return Thread.currentThread().getName().startsWith("Connection reader for connection ");
     }
 
     /**
@@ -529,10 +590,11 @@ public final class LdapUtils {
                 referralConn, ignoreErrors,
                 ActionListener.wrap(
                         searchResult -> {
-                            IOUtils.closeWhileHandlingException(referralConn);
+                            IOUtils.close(referralConn);
                             listener.onResponse(searchResult);
                         },
                         e -> {
+                            IOUtils.closeWhileHandlingException(referralConn);
                             if (ignoreErrors) {
                                 if (LOGGER.isDebugEnabled()) {
                                     LOGGER.debug(new ParameterizedMessage(

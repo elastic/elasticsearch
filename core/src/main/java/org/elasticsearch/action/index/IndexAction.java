@@ -22,8 +22,6 @@ package org.elasticsearch.action.index;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class IndexAction extends Action<IndexRequest, IndexResponse, IndexRequestBuilder> {
 
     public static final IndexAction INSTANCE = new IndexAction();

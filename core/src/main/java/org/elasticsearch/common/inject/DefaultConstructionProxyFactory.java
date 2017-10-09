@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,6 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
 
 /**
  * Produces construction proxies that invoke the class constructor.
@@ -43,12 +42,6 @@ class DefaultConstructionProxyFactory<T> implements ConstructionProxyFactory<T> 
         @SuppressWarnings("unchecked") // the injection point is for a constructor of T
         final Constructor<T> constructor = (Constructor<T>) injectionPoint.getMember();
 
-        // Use FastConstructor if the constructor is public.
-        if (Modifier.isPublic(constructor.getModifiers())) {
-        } else {
-            constructor.setAccessible(true);
-        }
-
         return new ConstructionProxy<T>() {
             @Override
             public T newInstance(Object... arguments) throws InvocationTargetException {
@@ -57,7 +50,7 @@ class DefaultConstructionProxyFactory<T> implements ConstructionProxyFactory<T> 
                 } catch (InstantiationException e) {
                     throw new AssertionError(e); // shouldn't happen, we know this is a concrete type
                 } catch (IllegalAccessException e) {
-                    throw new AssertionError(e); // a security manager is blocking us, we're hosed
+                    throw new AssertionError("Wrong access modifiers on " + constructor, e); // a security manager is blocking us, we're hosed
                 }
             }
 

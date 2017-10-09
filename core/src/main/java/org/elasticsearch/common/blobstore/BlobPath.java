@@ -19,26 +19,29 @@
 
 package org.elasticsearch.common.blobstore;
 
-import com.google.common.collect.ImmutableList;
-
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 
 /**
- *
+ * The list of paths where a blob can reside.  The contents of the paths are dependent upon the implementation of {@link BlobContainer}.
  */
 public class BlobPath implements Iterable<String> {
 
-    private final ImmutableList<String> paths;
+    private static final String SEPARATOR = "/";
+
+    private final List<String> paths;
 
     public BlobPath() {
-        this.paths = ImmutableList.of();
+        this.paths = Collections.emptyList();
     }
 
     public static BlobPath cleanPath() {
         return new BlobPath();
     }
 
-    private BlobPath(ImmutableList<String> paths) {
+    private BlobPath(List<String> paths) {
         this.paths = paths;
     }
 
@@ -52,19 +55,17 @@ public class BlobPath implements Iterable<String> {
     }
 
     public BlobPath add(String path) {
-        ImmutableList.Builder<String> builder = ImmutableList.builder();
-        return new BlobPath(builder.addAll(paths).add(path).build());
+        List<String> paths = new ArrayList<>(this.paths);
+        paths.add(path);
+        return new BlobPath(Collections.unmodifiableList(paths));
     }
 
-    public String buildAsString(String separator) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < paths.size(); i++) {
-            sb.append(paths.get(i));
-            if (i < (paths.size() - 1)) {
-                sb.append(separator);
-            }
+    public String buildAsString() {
+        String p = String.join(SEPARATOR, paths);
+        if (p.isEmpty() || p.endsWith(SEPARATOR)) {
+            return p;
         }
-        return sb.toString();
+        return p + SEPARATOR;
     }
 
     @Override

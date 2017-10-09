@@ -13,6 +13,8 @@ include::tokenfilters/standard-tokenfilter.asciidoc[]
 
 include::tokenfilters/asciifolding-tokenfilter.asciidoc[]
 
+include::tokenfilters/flatten-graph-tokenfilter.asciidoc[]
+
 include::tokenfilters/length-tokenfilter.asciidoc[]
 
 include::tokenfilters/lowercase-tokenfilter.asciidoc[]
@@ -31,6 +33,8 @@ include::tokenfilters/stop-tokenfilter.asciidoc[]
 
 include::tokenfilters/word-delimiter-tokenfilter.asciidoc[]
 
+include::tokenfilters/word-delimiter-graph-tokenfilter.asciidoc[]
+
 include::tokenfilters/stemmer-tokenfilter.asciidoc[]
 
 include::tokenfilters/stemmer-override-tokenfilter.asciidoc[]
@@ -46,6 +50,8 @@ include::tokenfilters/snowball-tokenfilter.asciidoc[]
 include::tokenfilters/phonetic-tokenfilter.asciidoc[]
 
 include::tokenfilters/synonym-tokenfilter.asciidoc[]
+
+include::tokenfilters/synonym-graph-tokenfilter.asciidoc[]
 
 include::tokenfilters/compound-word-tokenfilter.asciidoc[]
 
@@ -84,3 +90,9 @@ include::tokenfilters/keep-types-tokenfilter.asciidoc[]
 include::tokenfilters/classic-tokenfilter.asciidoc[]
 
 include::tokenfilters/apostrophe-tokenfilter.asciidoc[]
+
+include::tokenfilters/decimal-digit-tokenfilter.asciidoc[]
+
+include::tokenfilters/fingerprint-tokenfilter.asciidoc[]
+
+include::tokenfilters/minhash-tokenfilter.asciidoc[]

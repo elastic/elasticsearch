@@ -20,18 +20,16 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.Scroll.readScroll;
-
-/**
- *
- */
 public class InternalScrollSearchRequest extends TransportRequest {
 
     private long id;
@@ -42,9 +40,21 @@ public class InternalScrollSearchRequest extends TransportRequest {
     }
 
     public InternalScrollSearchRequest(SearchScrollRequest request, long id) {
-        super(request);
         this.id = id;
         this.scroll = request.scroll();
+    }
+
+    public InternalScrollSearchRequest(StreamInput in) throws IOException {
+        super(in);
+        id = in.readLong();
+        scroll = in.readOptionalWriteable(Scroll::new);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeLong(id);
+        out.writeOptionalWriteable(scroll);
     }
 
     public long id() {
@@ -62,22 +72,17 @@ public class InternalScrollSearchRequest extends TransportRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readLong();
-        if (in.readBoolean()) {
-            scroll = readScroll(in);
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeLong(id);
-        if (scroll == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            scroll.writeTo(out);
-        }
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new SearchTask(id, type, action, getDescription(), parentTaskId);
     }
+
+    @Override
+    public String getDescription() {
+        return "id[" + id + "], scroll[" + scroll + "]";
+    }
+
 }

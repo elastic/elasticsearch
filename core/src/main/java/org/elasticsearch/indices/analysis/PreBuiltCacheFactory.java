@@ -18,15 +18,12 @@
  */
 package org.elasticsearch.indices.analysis;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 
+import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public class PreBuiltCacheFactory {
 
     /**
@@ -36,7 +33,7 @@ public class PreBuiltCacheFactory {
      * LUCENE            Exactly one version for each lucene version is stored. Useful to prevent different analyzers with the same version
      * ELASTICSEARCH     Exactly one version per elasticsearch version is stored. Useful if you change an analyzer between elasticsearch releases, when the lucene version does not change
      */
-    static enum CachingStrategy { ONE, LUCENE, ELASTICSEARCH };
+    public enum CachingStrategy { ONE, LUCENE, ELASTICSEARCH };
 
     public interface PreBuiltCache<T> {
         T get(Version version);
@@ -45,7 +42,7 @@ public class PreBuiltCacheFactory {
 
     private PreBuiltCacheFactory() {}
 
-    static <T> PreBuiltCache<T> getCache(CachingStrategy cachingStrategy) {
+    public static <T> PreBuiltCache<T> getCache(CachingStrategy cachingStrategy) {
         switch (cachingStrategy) {
             case ONE:
                 return new PreBuiltCacheStrategyOne<>();
@@ -81,7 +78,7 @@ public class PreBuiltCacheFactory {
      */
     private static class PreBuiltCacheStrategyElasticsearch<T> implements PreBuiltCache<T> {
 
-        Map<Version, T> mapModel = Maps.newHashMapWithExpectedSize(2);
+        Map<Version, T> mapModel = new HashMap<>(2);
 
         @Override
         public T get(Version version) {
@@ -99,7 +96,7 @@ public class PreBuiltCacheFactory {
      */
     private static class PreBuiltCacheStrategyLucene<T> implements PreBuiltCache<T> {
 
-        private Map<org.apache.lucene.util.Version, T> mapModel = Maps.newHashMapWithExpectedSize(2);
+        private Map<org.apache.lucene.util.Version, T> mapModel = new HashMap<>(2);
 
         @Override
         public T get(Version version) {

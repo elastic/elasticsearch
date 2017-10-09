@@ -19,46 +19,47 @@
 
 package org.elasticsearch.action.search;
 
-import com.google.common.collect.Iterators;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 
 /**
  * A multi search response.
  */
-public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ToXContent {
+public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ToXContentObject {
 
     /**
      * A search response item, holding the actual search response, or an error message if it failed.
      */
     public static class Item implements Streamable {
         private SearchResponse response;
-        private String failureMessage;
+        private Exception exception;
 
         Item() {
 
         }
 
-        public Item(SearchResponse response, String failureMessage) {
+        public Item(SearchResponse response, Exception exception) {
             this.response = response;
-            this.failureMessage = failureMessage;
+            this.exception = exception;
         }
 
         /**
          * Is it a failed search?
          */
         public boolean isFailure() {
-            return failureMessage != null;
+            return exception != null;
         }
 
         /**
@@ -66,7 +67,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
          */
         @Nullable
         public String getFailureMessage() {
-            return failureMessage;
+            return exception == null ? null : exception.getMessage();
         }
 
         /**
@@ -89,7 +90,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
                 this.response = new SearchResponse();
                 response.readFrom(in);
             } else {
-                failureMessage = in.readString();
+                exception = in.readException();
             }
         }
 
@@ -100,8 +101,12 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
                 response.writeTo(out);
             } else {
                 out.writeBoolean(false);
-                out.writeString(failureMessage);
+                out.writeException(exception);
             }
+        }
+
+        public Exception getFailure() {
+            return exception;
         }
     }
 
@@ -116,7 +121,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     @Override
     public Iterator<Item> iterator() {
-        return Iterators.forArray(items);
+        return Arrays.stream(items).iterator();
     }
 
     /**
@@ -146,37 +151,31 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startArray(Fields.RESPONSES);
         for (Item item : items) {
+            builder.startObject();
             if (item.isFailure()) {
-                builder.startObject();
-                builder.field(Fields.ERROR, item.getFailureMessage());
-                builder.endObject();
+                ElasticsearchException.generateFailureXContent(builder, params, item.getFailure(), true);
+                builder.field(Fields.STATUS, ExceptionsHelper.status(item.getFailure()).getStatus());
             } else {
-                builder.startObject();
-                item.getResponse().toXContent(builder, params);
-                builder.endObject();
+                item.getResponse().innerToXContent(builder, params);
+                builder.field(Fields.STATUS, item.getResponse().status().getStatus());
             }
+            builder.endObject();
         }
         builder.endArray();
+        builder.endObject();
         return builder;
     }
 
     static final class Fields {
-        static final XContentBuilderString RESPONSES = new XContentBuilderString("responses");
-        static final XContentBuilderString ERROR = new XContentBuilderString("error");
+        static final String RESPONSES = "responses";
+        static final String STATUS = "status";
     }
-    
+
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this);
     }
 }

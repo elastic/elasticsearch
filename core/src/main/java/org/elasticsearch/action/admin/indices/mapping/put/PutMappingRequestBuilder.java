@@ -23,6 +23,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
 
 import java.util.Map;
 
@@ -40,9 +42,14 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMapp
         return this;
     }
 
+    public PutMappingRequestBuilder setConcreteIndex(Index index) {
+        request.setConcreteIndex(index);
+        return this;
+    }
+
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     * <p/>
+     * <p>
      * For example indices that don't exist.
      */
     public PutMappingRequestBuilder setIndicesOptions(IndicesOptions options) {
@@ -77,8 +84,8 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMapp
     /**
      * The mapping source definition.
      */
-    public PutMappingRequestBuilder setSource(String mappingSource) {
-        request.source(mappingSource);
+    public PutMappingRequestBuilder setSource(String mappingSource, XContentType xContentType) {
+        request.source(mappingSource, xContentType);
         return this;
     }
 
@@ -88,6 +95,12 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMapp
      */
     public PutMappingRequestBuilder setSource(Object... source) {
         request.source(source);
+        return this;
+    }
+
+    /** True if all fields that span multiple types should be updated, false otherwise */
+    public PutMappingRequestBuilder setUpdateAllTypes(boolean updateAllTypes) {
+        request.updateAllTypes(updateAllTypes);
         return this;
     }
 

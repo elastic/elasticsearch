@@ -19,16 +19,20 @@
 
 package org.elasticsearch.search.query;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.internal.SearchContext;
 
-/**
- *
- */
+import java.io.IOException;
+
 public class QueryPhaseExecutionException extends SearchContextException {
 
     public QueryPhaseExecutionException(SearchContext context, String msg, Throwable cause) {
         super(context, "Query Failed [" + msg + "]", cause);
+    }
+
+    public QueryPhaseExecutionException(StreamInput in) throws IOException {
+        super(in);
     }
 
     public QueryPhaseExecutionException(SearchContext context, String msg) {

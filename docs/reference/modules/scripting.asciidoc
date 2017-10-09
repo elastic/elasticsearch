@@ -1,639 +1,82 @@
 [[modules-scripting]]
 == Scripting
 
-The scripting module allows to use scripts in order to evaluate custom
-expressions. For example, scripts can be used to return "script fields"
-as part of a search request, or can be used to evaluate a custom score
-for a query and so on.
+The scripting module enables you to use scripts to evaluate custom
+expressions. For example, you could use a script to return "script fields"
+as part of a search request or evaluate a custom score for a query.
 
-The scripting module uses by default http://groovy.codehaus.org/[groovy]
-(previously http://mvel.codehaus.org/[mvel] in 1.3.x and earlier) as the
-scripting language with some extensions. Groovy is used since it is extremely
-fast and very simple to use.
+The default scripting language is <<modules-scripting-painless, `Painless`>>.
+Additional `lang` plugins enable you to run scripts written in other languages.
+Everywhere a script can be used, you can include a `lang` parameter
+to specify the language of the script.
 
-.Groovy dynamic scripting off by default from v1.4.3
-[IMPORTANT]
-===================================================
+[float]
+=== General-purpose languages:
 
-Groovy dynamic scripting is off by default, preventing dynamic Groovy scripts
-from being accepted as part of a request or retrieved from the special
-`.scripts` index. You will still be able to use Groovy scripts stored in files
-in the `config/scripts/` directory on every node.
-
-To convert an inline script to a file, take this simple script
-as an example:
-
-[source,json]
------------------------------------
-GET /_search
-{
-    "script_fields": {
-        "my_field": {
-            "inline": "1 + my_var",
-            "params": {
-              "my_var": 2
-            }
-        }
-    }
-}
------------------------------------
-
-Save the contents of the `inline` field as a file called `config/scripts/my_script.groovy`
-on every data node in the cluster:
-
-[source,js]
------------------------------------
-1 + my_var
------------------------------------
-
-Now you can access the script by file name (without the extension):
-
-[source,json]
------------------------------------
-GET /_search
-{
-    "script_fields": {
-        "my_field": {
-            "file": "my_script",
-            "params": {
-              "my_var": 2
-            }
-        }
-    }
-}
------------------------------------
-
-===================================================
-
-
-Additional `lang` plugins are provided to allow to execute scripts in
-different languages. All places where a script can be used, a `lang` parameter
-can be provided to define the language of the script. The following are the 
-supported scripting languages:
+These languages can be used for any purpose in the scripting APIs,
+and give the most flexibility.
 
 [cols="<,<,<",options="header",]
 |=======================================================================
-|Language   |Sandboxed |Required plugin
-|groovy     |no        |built-in
-|expression |yes       |built-in
-|mustache   |yes       |built-in
-|mvel       |no        |https://github.com/elastic/elasticsearch-lang-mvel[elasticsearch-lang-mvel]
-|javascript |no        |https://github.com/elastic/elasticsearch-lang-javascript[elasticsearch-lang-javascript]
-|python     |no        |https://github.com/elastic/elasticsearch-lang-python[elasticsearch-lang-python]
-|=======================================================================
+|Language
+    |Sandboxed
+    |Required plugin
 
-To increase security, Elasticsearch does not allow you to specify scripts for
-non-sandboxed languages with a request. Instead, scripts must be placed in the
-`scripts` directory inside the configuration directory (the directory where
-elasticsearch.yml is). Scripts placed into this directory will automatically be
-picked up and be available to be used. Once a script has been placed in this
-directory, it can be referenced by name. For example, a script called
-`calculate-score.groovy` can be referenced in a request like this:
+|<<modules-scripting-painless, `painless`>>
+    |yes
+    |built-in
 
-[source,sh]
---------------------------------------------------
-$ tree config
-config
-├── elasticsearch.yml
-├── logging.yml
-└── scripts
-    └── calculate-score.groovy
---------------------------------------------------
-
-[source,sh]
---------------------------------------------------
-$ cat config/scripts/calculate-score.groovy
-log(_score * 2) + my_modifier
---------------------------------------------------
-
-[source,js]
---------------------------------------------------
-curl -XPOST localhost:9200/_search -d '{
-  "query": {
-    "function_score": {
-      "query": {
-        "match": {
-          "body": "foo"
-        }
-      },
-      "functions": [
-        {
-          "script_score": {
-            "lang": "groovy",
-            "file": "calculate-score",
-            "params": {
-              "my_modifier": 8
-            }
-          }
-        }
-      ]
-    }
-  }
-}'
---------------------------------------------------
-
-The name of the script is derived from the hierarchy of directories it
-exists under, and the file name without the lang extension. For example,
-a script placed under `config/scripts/group1/group2/test.py` will be
-named `group1_group2_test`.
-
-[float]
-=== Indexed Scripts
-Elasticsearch allows you to store scripts in an internal index known as
-`.scripts` and reference them by id. There are REST endpoints to manage
-indexed scripts as follows:
-
-Requests to the scripts endpoint look like :
-[source,js]
------------------------------------
-/_scripts/{lang}/{id}
------------------------------------
-Where the `lang` part is the language the script is in and the `id` part is the id
-of the script. In the `.scripts` index the type of the document will be set to the `lang`.
-
-
-[source,js]
------------------------------------
-curl -XPOST localhost:9200/_scripts/groovy/indexedCalculateScore -d '{
-     "script": "log(_score * 2) + my_modifier"
-}'
------------------------------------
-
-This will create a document with id: `indexedCalculateScore` and type: `groovy` in the
-`.scripts` index. The type of the document is the language used by the script.
-
-This script can be accessed at query time by using the `id` script parameter and passing 
-the script id:
-
-[source,js]
---------------------------------------------------
-curl -XPOST localhost:9200/_search -d '{
-  "query": {
-    "function_score": {
-      "query": {
-        "match": {
-          "body": "foo"
-        }
-      },
-      "functions": [
-        {
-          "script_score": {
-            "id": "indexedCalculateScore",
-            "lang" : "groovy",
-            "params": {
-              "my_modifier": 8
-            }
-          }
-        }
-      ]
-    }
-  }
-}'
---------------------------------------------------
-
-The script can be viewed by:
-[source,js]
------------------------------------
-curl -XGET localhost:9200/_scripts/groovy/indexedCalculateScore
------------------------------------
-
-This is rendered as:
-
-[source,js]
------------------------------------
-'{
-     "script": "log(_score * 2) + my_modifier"
-}'
------------------------------------
-
-Indexed scripts can be deleted by:
-[source,js]
------------------------------------
-curl -XDELETE localhost:9200/_scripts/groovy/indexedCalculateScore
------------------------------------
-
-
-
-[float]
-[[enable-dynamic-scripting]]
-=== Enabling dynamic scripting
-
-We recommend running Elasticsearch behind an application or proxy, which
-protects Elasticsearch from the outside world. If users are allowed to run
-inline scripts (even in a search request) or indexed scripts, then they have
-the same access to your box as the user that Elasticsearch is running as. For
-this reason dynamic scripting is allowed only for sandboxed languages by default.
-
-First, you should not run Elasticsearch as the `root` user, as this would allow
-a script to access or do *anything* on your server, without limitations. Second,
-you should not expose Elasticsearch directly to users, but instead have a proxy
-application inbetween. If you *do* intend to expose Elasticsearch directly to
-your users, then you have to decide whether you trust them enough to run scripts
-on your box or not.
-
-It is possible to enable scripts based on their source, for
-every script engine, through the following settings that need to be added to the
-`config/elasticsearch.yml` file on every node.
-
-[source,yaml]
------------------------------------
-script.inline: on
-script.indexed: on
-
------------------------------------
-
-While this still allows execution of named scripts provided in the config, or
-_native_ Java scripts registered through plugins, it also allows users to run
-arbitrary scripts via the API. Instead of sending the name of the file as the
-script, the body of the script can be sent instead or retrieved from the
-`.scripts` indexed if previously stored.
-
-There are three possible configuration values for any of the fine-grained
-script settings:
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Value |Description
-| `off` |scripting is turned off completely, in the context of the setting being set.
-| `on`  |scripting is turned on, in the context of the setting being set.
-| `sandbox` |scripts may be executed only for languages that are sandboxed
-|=======================================================================
-
-The default values are the following:
-
-[source,yaml]
------------------------------------
-script.inline: sandbox
-script.indexed: sandbox
-script.file: on
-
------------------------------------
-
-NOTE: Global scripting settings affect the `mustache` scripting language.
-<<search-template,Search templates>> internally use the `mustache` language,
-and will still be enabled by default as the `mustache` engine is sandboxed,
-but they will be enabled/disabled according to fine-grained settings
-specified in `elasticsearch.yml`.
-
-It is also possible to control which operations can execute scripts. The
-supported operations are:
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Value |Description
-| `aggs`    |Aggregations (wherever they may be used)
-| `mapping` |Mappings (script transform feature)
-| `search`  |Search api, Percolator api and Suggester api (e.g filters, script_fields)
-| `update`  |Update api
-| `plugin`  |Any plugin that makes use of scripts under the generic `plugin` category
-|=======================================================================
-
-Plugins can also define custom operations that they use scripts for instead
-of using the generic `plugin` category. Those operations can be referred to
-in the following form: `${pluginName}_${operation}`.
-
-The following example disables scripting for `update` and `mapping` operations,
-regardless of the script source, for any engine. Scripts can still be
-executed from sandboxed languages as part of `aggregations`, `search`
-and plugins execution though, as the above defaults still get applied.
-
-[source,yaml]
------------------------------------
-script.update: off
-script.mapping: off
-
------------------------------------
-
-Generic settings get applied in order, operation based ones have precedence
-over source based ones. Language specific settings are supported too. They
-need to be prefixed with the `script.engine.<engine>` prefix and have
-precedence over any other generic settings.
-
-[source,yaml]
------------------------------------
-script.engine.groovy.file.aggs: on
-script.engine.groovy.file.mapping: on
-script.engine.groovy.file.search: on
-script.engine.groovy.file.update: on
-script.engine.groovy.file.plugin: on
-script.engine.groovy.indexed.aggs: on
-script.engine.groovy.indexed.mapping: off
-script.engine.groovy.indexed.search: on
-script.engine.groovy.indexed.update: off
-script.engine.groovy.indexed.plugin: off
-script.engine.groovy.inline.aggs: on
-script.engine.groovy.inline.mapping: off
-script.engine.groovy.inline.search: off
-script.engine.groovy.inline.update: off
-script.engine.groovy.inline.plugin: off
-
------------------------------------
-
-[float]
-=== Default Scripting Language
-
-The default scripting language (assuming no `lang` parameter is provided) is
-`groovy`. In order to change it, set the `script.default_lang` to the
-appropriate language.
-
-[float]
-=== Automatic Script Reloading
-
-The `config/scripts` directory is scanned periodically for changes.
-New and changed scripts are reloaded and deleted script are removed
-from preloaded scripts cache. The reload frequency can be specified
-using `watcher.interval` setting, which defaults to `60s`.
-To disable script reloading completely set `script.auto_reload_enabled`
-to `false`.
-
-[[native-java-scripts]]
-[float]
-=== Native (Java) Scripts
-
-Even though `groovy` is pretty fast, this allows to register native Java based
-scripts for faster execution.
-
-In order to allow for scripts, the `NativeScriptFactory` needs to be
-implemented that constructs the script that will be executed. There are
-two main types, one that extends `AbstractExecutableScript` and one that
-extends `AbstractSearchScript` (probably the one most users will extend,
-with additional helper classes in `AbstractLongSearchScript`,
-`AbstractDoubleSearchScript`, and `AbstractFloatSearchScript`).
-
-Registering them can either be done by settings, for example:
-`script.native.my.type` set to `sample.MyNativeScriptFactory` will
-register a script named `my`. Another option is in a plugin, access
-`ScriptModule` and call `registerScript` on it.
-
-Executing the script is done by specifying the `lang` as `native`, and
-the name of the script as the `script`.
-
-Note, the scripts need to be in the classpath of elasticsearch. One
-simple way to do it is to create a directory under plugins (choose a
-descriptive name), and place the jar / classes files there. They will be
-automatically loaded.
-
-[float]
-=== Lucene Expressions Scripts
-
-experimental[The Lucene expressions module is undergoing significant development and the exposed functionality is likely to change in the future]
-
-Lucene's expressions module provides a mechanism to compile a
-`javascript` expression to bytecode.  This allows very fast execution,
-as if you had written a `native` script.  Expression scripts can be
-used in `script_score`, `script_fields`, sort scripts and numeric aggregation scripts.
-
-See the link:http://lucene.apache.org/core/4_9_0/expressions/index.html?org/apache/lucene/expressions/js/package-summary.html[expressions module documentation]
-for details on what operators and functions are available.
-
-Variables in `expression` scripts are available to access:
-
-* Single valued document fields, e.g. `doc['myfield'].value`
-* Single valued document fields can also be accessed without `.value` e.g. `doc['myfield']`
-* Parameters passed into the script, e.g. `mymodifier`
-* The current document's score, `_score` (only available when used in a `script_score`)
-
-Variables in `expression` scripts that are of type `date` may use the following member methods:
-
-* getYear()
-* getMonth()
-* getDayOfMonth()
-* getHourOfDay()
-* getMinutes()
-* getSeconds()
-
-The following example shows the difference in years between the `date` fields date0 and date1:
-
-`doc['date1'].getYear() - doc['date0'].getYear()`
-
-There are a few limitations relative to other script languages:
-
-* Only numeric fields may be accessed
-* Stored fields are not available
-* If a field is sparse (only some documents contain a value), documents missing the field will have a value of `0`
-
-[float]
-=== Score
-
-In all scripts that can be used in aggregations, the current
-document's score is accessible in `_score`.
-
-[float]
-=== Computing scores based on terms in scripts
-
-see <<modules-advanced-scripting, advanced scripting documentation>>
-
-[float]
-=== Document Fields
-
-Most scripting revolve around the use of specific document fields data.
-The `doc['field_name']` can be used to access specific field data within
-a document (the document in question is usually derived by the context
-the script is used). Document fields are very fast to access since they
-end up being loaded into memory (all the relevant field values/tokens
-are loaded to memory). Note, however, that the `doc[...]` notation only
-allows for simple valued fields (can’t return a json object from it)
-and makes sense only on non-analyzed or single term based fields.
-
-The following data can be extracted from a field:
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Expression |Description
-|`doc['field_name'].value` |The native value of the field. For example,
-if its a short type, it will be short.
-
-|`doc['field_name'].values` |The native array values of the field. For
-example, if its a short type, it will be short[]. Remember, a field can
-have several values within a single doc. Returns an empty array if the
-field has no values.
-
-|`doc['field_name'].empty` |A boolean indicating if the field has no
-values within the doc.
-
-|`doc['field_name'].multiValued` |A boolean indicating that the field
-has several values within the corpus.
-
-|`doc['field_name'].lat` |The latitude of a geo point type.
-
-|`doc['field_name'].lon` |The longitude of a geo point type.
-
-|`doc['field_name'].lats` |The latitudes of a geo point type.
-
-|`doc['field_name'].lons` |The longitudes of a geo point type.
-
-|`doc['field_name'].distance(lat, lon)` |The `plane` distance (in meters)
-of this geo point field from the provided lat/lon.
-
-|`doc['field_name'].distanceWithDefault(lat, lon, default)` |The `plane` distance (in meters)
-of this geo point field from the provided lat/lon with a default value.
-
-|`doc['field_name'].distanceInMiles(lat, lon)` |The `plane` distance (in
-miles) of this geo point field from the provided lat/lon.
-
-|`doc['field_name'].distanceInMilesWithDefault(lat, lon, default)` |The `plane` distance (in
-miles) of this geo point field from the provided lat/lon with a default value.
-
-|`doc['field_name'].distanceInKm(lat, lon)` |The `plane` distance (in
-km) of this geo point field from the provided lat/lon.
-
-|`doc['field_name'].distanceInKmWithDefault(lat, lon, default)` |The `plane` distance (in
-km) of this geo point field from the provided lat/lon with a default value.
-
-|`doc['field_name'].arcDistance(lat, lon)` |The `arc` distance (in
-meters) of this geo point field from the provided lat/lon.
-
-|`doc['field_name'].arcDistanceWithDefault(lat, lon, default)` |The `arc` distance (in
-meters) of this geo point field from the provided lat/lon with a default value.
-
-|`doc['field_name'].arcDistanceInMiles(lat, lon)` |The `arc` distance (in
-miles) of this geo point field from the provided lat/lon.
-
-|`doc['field_name'].arcDistanceInMilesWithDefault(lat, lon, default)` |The `arc` distance (in
-miles) of this geo point field from the provided lat/lon with a default value.
-
-|`doc['field_name'].arcDistanceInKm(lat, lon)` |The `arc` distance (in
-km) of this geo point field from the provided lat/lon.
-
-|`doc['field_name'].arcDistanceInKmWithDefault(lat, lon, default)` |The `arc` distance (in
-km) of this geo point field from the provided lat/lon with a default value.
-
-|`doc['field_name'].factorDistance(lat, lon)` |The distance factor of this geo point field from the provided lat/lon.
-
-|`doc['field_name'].factorDistance(lat, lon, default)` |The distance factor of this geo point field from the provided lat/lon with a default value.
-
-|`doc['field_name'].geohashDistance(geohash)` |The `arc` distance (in meters)
-of this geo point field from the provided geohash.
-
-|`doc['field_name'].geohashDistanceInKm(geohash)` |The `arc` distance (in km)
-of this geo point field from the provided geohash.
-
-|`doc['field_name'].geohashDistanceInMiles(geohash)` |The `arc` distance (in
-miles) of this geo point field from the provided geohash.
 |=======================================================================
 
 [float]
-=== Stored Fields
+=== Special-purpose languages:
 
-Stored fields can also be accessed when executing a script. Note, they
-are much slower to access compared with document fields, as they are not
-loaded into memory. They can be simply accessed using
-`_fields['my_field_name'].value` or `_fields['my_field_name'].values`.
+These languages are less flexible, but typically have higher performance for
+certain tasks.
 
-[float]
-=== Accessing the score of a document within a script
-
-When using scripting for calculating the score of a document (for instance, with
-the `function_score` query), you can access the score using the `_score`
-variable inside of a Groovy script.
-
-[float]
-=== Source Field
-
-The source field can also be accessed when executing a script. The
-source field is loaded per doc, parsed, and then provided to the script
-for evaluation. The `_source` forms the context under which the source
-field can be accessed, for example `_source.obj2.obj1.field3`.
-
-Accessing `_source` is much slower compared to using `_doc`
-but the data is not loaded into memory. For a single field access `_fields` may be
-faster than using `_source` due to the extra overhead of potentially parsing large documents.
-However, `_source` may be faster if you access multiple fields or if the source has already been
-loaded for other purposes.
-
-
-[float]
-=== Groovy Built In Functions
-
-There are several built in functions that can be used within scripts.
-They include:
-
-[cols="<,<",options="header",]
+[cols="<,<,<,<",options="header",]
 |=======================================================================
-|Function |Description
-|`sin(a)` |Returns the trigonometric sine of an angle.
+|Language
+    |Sandboxed
+    |Required plugin
+    |Purpose
 
-|`cos(a)` |Returns the trigonometric cosine of an angle.
+|<<modules-scripting-expression, `expression`>>
+    |yes
+    |built-in
+    |fast custom ranking and sorting
 
-|`tan(a)` |Returns the trigonometric tangent of an angle.
+|<<search-template, `mustache`>>
+    |yes
+    |built-in
+    |templates
 
-|`asin(a)` |Returns the arc sine of a value.
+|<<modules-scripting-engine, `java`>>
+    |n/a
+    |you write it!
+    |expert API
 
-|`acos(a)` |Returns the arc cosine of a value.
-
-|`atan(a)` |Returns the arc tangent of a value.
-
-|`toRadians(angdeg)` |Converts an angle measured in degrees to an
-approximately equivalent angle measured in radians
-
-|`toDegrees(angrad)` |Converts an angle measured in radians to an
-approximately equivalent angle measured in degrees.
-
-|`exp(a)` |Returns Euler's number _e_ raised to the power of value.
-
-|`log(a)` |Returns the natural logarithm (base _e_) of a value.
-
-|`log10(a)` |Returns the base 10 logarithm of a value.
-
-|`sqrt(a)` |Returns the correctly rounded positive square root of a
-value.
-
-|`cbrt(a)` |Returns the cube root of a double value.
-
-|`IEEEremainder(f1, f2)` |Computes the remainder operation on two
-arguments as prescribed by the IEEE 754 standard.
-
-|`ceil(a)` |Returns the smallest (closest to negative infinity) value
-that is greater than or equal to the argument and is equal to a
-mathematical integer.
-
-|`floor(a)` |Returns the largest (closest to positive infinity) value
-that is less than or equal to the argument and is equal to a
-mathematical integer.
-
-|`rint(a)` |Returns the value that is closest in value to the argument
-and is equal to a mathematical integer.
-
-|`atan2(y, x)` |Returns the angle _theta_ from the conversion of
-rectangular coordinates (_x_, _y_) to polar coordinates (r,_theta_).
-
-|`pow(a, b)` |Returns the value of the first argument raised to the
-power of the second argument.
-
-|`round(a)` |Returns the closest _int_ to the argument.
-
-|`random()` |Returns a random _double_ value.
-
-|`abs(a)` |Returns the absolute value of a value.
-
-|`max(a, b)` |Returns the greater of two values.
-
-|`min(a, b)` |Returns the smaller of two values.
-
-|`ulp(d)` |Returns the size of an ulp of the argument.
-
-|`signum(d)` |Returns the signum function of the argument.
-
-|`sinh(x)` |Returns the hyperbolic sine of a value.
-
-|`cosh(x)` |Returns the hyperbolic cosine of a value.
-
-|`tanh(x)` |Returns the hyperbolic tangent of a value.
-
-|`hypot(x, y)` |Returns sqrt(_x2_ + _y2_) without intermediate overflow
-or underflow.
 |=======================================================================
 
-[float]
-=== Arithmetic precision in MVEL
+[WARNING]
+.Scripts and security
+=================================================
 
-When dividing two numbers using MVEL based scripts, the engine tries to
-be smart and adheres to the default behaviour of java. This means if you
-divide two integers (you might have configured the fields as integer in
-the mapping), the result will also be an integer. This means, if a
-calculation like `1/num` is happening in your scripts and `num` is an
-integer with the value of `8`, the result is `0` even though you were
-expecting it to be `0.125`. You may need to enforce precision by
-explicitly using a double like `1.0/num` in order to get the expected
-result.
+Languages that are sandboxed are designed with security in mind. However, non-
+sandboxed languages can be a security issue, please read
+<<modules-scripting-security, Scripting and security>> for more details.
 
+=================================================
+
+
+include::scripting/using.asciidoc[]
+
+include::scripting/fields.asciidoc[]
+
+include::scripting/security.asciidoc[]
+
+include::scripting/painless.asciidoc[]
+
+include::scripting/expression.asciidoc[]
+
+include::scripting/engine.asciidoc[]

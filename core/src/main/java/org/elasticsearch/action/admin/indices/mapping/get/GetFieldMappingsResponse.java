@@ -19,26 +19,30 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
+
 /** Response object for {@link GetFieldMappingsRequest} API */
-public class GetFieldMappingsResponse extends ActionResponse implements ToXContent {
+public class GetFieldMappingsResponse extends ActionResponse implements ToXContentFragment {
 
-    private ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> mappings = ImmutableMap.of();
+    private Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = emptyMap();
 
-    GetFieldMappingsResponse(ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> mappings) {
+    GetFieldMappingsResponse(Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings) {
         this.mappings = mappings;
     }
 
@@ -46,7 +50,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     }
 
     /** returns the retrieved field mapping. The return map keys are index, type, field (as specified in the request). */
-    public ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> mappings() {
+    public Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings() {
         return mappings;
     }
 
@@ -57,11 +61,11 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
      * @return FieldMappingMetaData for the requested field or null if not found.
      */
     public FieldMappingMetaData fieldMappings(String index, String type, String field) {
-        ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>> indexMapping = mappings.get(index);
+        Map<String, Map<String, FieldMappingMetaData>> indexMapping = mappings.get(index);
         if (indexMapping == null) {
             return null;
         }
-        ImmutableMap<String, FieldMappingMetaData> typeMapping = indexMapping.get(type);
+        Map<String, FieldMappingMetaData> typeMapping = indexMapping.get(type);
         if (typeMapping == null) {
             return null;
         }
@@ -70,11 +74,11 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (Map.Entry<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> indexEntry : mappings.entrySet()) {
-            builder.startObject(indexEntry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+        for (Map.Entry<String, Map<String, Map<String, FieldMappingMetaData>>> indexEntry : mappings.entrySet()) {
+            builder.startObject(indexEntry.getKey());
             builder.startObject("mappings");
-            for (Map.Entry<String, ImmutableMap<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
-                builder.startObject(typeEntry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+            for (Map.Entry<String, Map<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
+                builder.startObject(typeEntry.getKey());
                 for (Map.Entry<String, FieldMappingMetaData> fieldEntry : typeEntry.getValue().entrySet()) {
                     builder.startObject(fieldEntry.getKey());
                     fieldEntry.getValue().toXContent(builder, params);
@@ -88,7 +92,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         return builder;
     }
 
-    public static class FieldMappingMetaData implements ToXContent {
+    public static class FieldMappingMetaData implements ToXContentFragment {
         public static final FieldMappingMetaData NULL = new FieldMappingMetaData("", BytesArray.EMPTY);
 
         private String fullName;
@@ -105,11 +109,16 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
         /** Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}. */
         public Map<String, Object> sourceAsMap() {
-            return XContentHelper.convertToMap(source, true).v2();
+            return XContentHelper.convertToMap(source, true, XContentType.JSON).v2();
         }
 
         public boolean isNull() {
             return NULL.fullName().equals(fullName) && NULL.source.length() == source.length();
+        }
+
+        //pkg-private for testing
+        BytesReference getSource() {
+            return source;
         }
 
         @Override
@@ -118,7 +127,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             if (params.paramAsBoolean("pretty", false)) {
                 builder.field("mapping", sourceAsMap());
             } else {
-                builder.rawField("mapping", source);
+                builder.rawField("mapping", source, XContentType.JSON);
             }
             return builder;
         }
@@ -128,33 +137,33 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        ImmutableMap.Builder<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> indexMapBuilder = ImmutableMap.builder();
+        Map<String, Map<String, Map<String, FieldMappingMetaData>>> indexMapBuilder = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             String index = in.readString();
             int typesSize = in.readVInt();
-            ImmutableMap.Builder<String, ImmutableMap<String, FieldMappingMetaData>> typeMapBuilder = ImmutableMap.builder();
+            Map<String, Map<String, FieldMappingMetaData>> typeMapBuilder = new HashMap<>(typesSize);
             for (int j = 0; j < typesSize; j++) {
                 String type = in.readString();
-                ImmutableMap.Builder<String, FieldMappingMetaData> fieldMapBuilder = ImmutableMap.builder();
                 int fieldSize = in.readVInt();
+                Map<String, FieldMappingMetaData> fieldMapBuilder = new HashMap<>(fieldSize);
                 for (int k = 0; k < fieldSize; k++) {
                     fieldMapBuilder.put(in.readString(), new FieldMappingMetaData(in.readString(), in.readBytesReference()));
                 }
-                typeMapBuilder.put(type, fieldMapBuilder.build());
+                typeMapBuilder.put(type, unmodifiableMap(fieldMapBuilder));
             }
-            indexMapBuilder.put(index, typeMapBuilder.build());
+            indexMapBuilder.put(index, unmodifiableMap(typeMapBuilder));
         }
-        mappings = indexMapBuilder.build();
+        mappings = unmodifiableMap(indexMapBuilder);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(mappings.size());
-        for (Map.Entry<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> indexEntry : mappings.entrySet()) {
+        for (Map.Entry<String, Map<String, Map<String, FieldMappingMetaData>>> indexEntry : mappings.entrySet()) {
             out.writeString(indexEntry.getKey());
             out.writeVInt(indexEntry.getValue().size());
-            for (Map.Entry<String, ImmutableMap<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
+            for (Map.Entry<String, Map<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
                 out.writeString(typeEntry.getKey());
                 out.writeVInt(typeEntry.getValue().size());
                 for (Map.Entry<String, FieldMappingMetaData> fieldEntry : typeEntry.getValue().entrySet()) {

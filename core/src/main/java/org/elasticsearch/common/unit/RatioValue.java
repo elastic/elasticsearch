@@ -55,21 +55,21 @@ public class RatioValue {
             try {
                 final double percent = Double.parseDouble(percentAsString);
                 if (percent < 0 || percent > 100) {
-                    throw new ElasticsearchParseException("Percentage should be in [0-100], got " + percentAsString);
+                    throw new ElasticsearchParseException("Percentage should be in [0-100], got [{}]", percentAsString);
                 }
                 return new RatioValue(Math.abs(percent));
             } catch (NumberFormatException e) {
-                throw new ElasticsearchParseException("Failed to parse [" + percentAsString + "] as a double", e);
+                throw new ElasticsearchParseException("Failed to parse [{}] as a double", e, percentAsString);
             }
         } else {
             try {
                 double ratio = Double.parseDouble(sValue);
                 if (ratio < 0 || ratio > 1.0) {
-                    throw new ElasticsearchParseException("Ratio should be in [0-1.0], got " + ratio);
+                    throw new ElasticsearchParseException("Ratio should be in [0-1.0], got [{}]", ratio);
                 }
                 return new RatioValue(100.0 * Math.abs(ratio));
             } catch (NumberFormatException e) {
-                throw new ElasticsearchParseException("Invalid ratio or percentage: [" + sValue + "]");
+                throw new ElasticsearchParseException("Invalid ratio or percentage [{}]", sValue);
             }
 
         }

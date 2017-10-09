@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,9 +30,7 @@ import org.elasticsearch.common.inject.Provider;
 public interface ProviderBinding<T extends Provider<?>> extends Binding<T> {
 
     /**
-     * Returns the key whose binding is used to {@link Provider#get provide instances}. That binding
-     * can be retrieved from an injector using {@link org.elasticsearch.common.inject.Injector#getBinding(Key)
-     * Injector.getBinding(providedKey)}
+     * Returns the key whose binding is used to {@link Provider#get provide instances}.
      */
     Key<?> getProvidedKey();
 }

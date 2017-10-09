@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,8 +16,7 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.Sets;
-
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -29,12 +28,12 @@ final class WeakKeySet {
 
     /**
      * We store strings rather than keys so we don't hold strong references.
-     * <p/>
-     * <p>One potential problem with this approach is that parent and child injectors cannot define
+     * <p>
+     * One potential problem with this approach is that parent and child injectors cannot define
      * keys whose class names are equal but class loaders are different. This shouldn't be an issue
      * in practice.
      */
-    private Set<String> backingSet = Sets.newHashSet();
+    private Set<String> backingSet = new HashSet<>();
 
     public boolean add(Key<?> key) {
         return backingSet.add(key.toString());

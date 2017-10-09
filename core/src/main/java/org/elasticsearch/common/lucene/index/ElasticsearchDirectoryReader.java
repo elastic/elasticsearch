@@ -20,8 +20,9 @@ package org.elasticsearch.common.lucene.index;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -49,6 +50,12 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
     }
 
     @Override
+    public CacheHelper getReaderCacheHelper() {
+        // safe to delegate since this reader does not alter the index
+        return in.getReaderCacheHelper();
+    }
+
+    @Override
     protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
         return new ElasticsearchDirectoryReader(in, wrapper, shardId);
     }
@@ -65,7 +72,7 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
         return new ElasticsearchDirectoryReader(reader, new SubReaderWrapper(shardId), shardId);
     }
 
-    private final static class SubReaderWrapper extends FilterDirectoryReader.SubReaderWrapper {
+    private static final class SubReaderWrapper extends FilterDirectoryReader.SubReaderWrapper {
         private final ShardId shardId;
         SubReaderWrapper(ShardId shardId) {
             this.shardId = shardId;
@@ -76,4 +83,41 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
         }
     }
 
+    /**
+     * Adds the given listener to the provided directory reader. The reader must contain an {@link ElasticsearchDirectoryReader} in it's hierarchy
+     * otherwise we can't safely install the listener.
+     *
+     * @throws IllegalArgumentException if the reader doesn't contain an {@link ElasticsearchDirectoryReader} in it's hierarchy
+     */
+    @SuppressForbidden(reason = "This is the only sane way to add a ReaderClosedListener")
+    public static void addReaderCloseListener(DirectoryReader reader, IndexReader.ClosedListener listener) {
+        ElasticsearchDirectoryReader elasticsearchDirectoryReader = getElasticsearchDirectoryReader(reader);
+        if (elasticsearchDirectoryReader == null) {
+            throw new IllegalArgumentException("Can't install close listener reader is not an ElasticsearchDirectoryReader/ElasticsearchLeafReader");
+        }
+        IndexReader.CacheHelper cacheHelper = elasticsearchDirectoryReader.getReaderCacheHelper();
+        if (cacheHelper == null) {
+            throw new IllegalArgumentException("Reader " + elasticsearchDirectoryReader + " does not support caching");
+        }
+        assert cacheHelper.getKey() == reader.getReaderCacheHelper().getKey();
+        cacheHelper.addClosedListener(listener);
+    }
+
+    /**
+     * Tries to unwrap the given reader until the first {@link ElasticsearchDirectoryReader} instance is found or <code>null</code> if no instance is found;
+     */
+    public static ElasticsearchDirectoryReader getElasticsearchDirectoryReader(DirectoryReader reader) {
+        if (reader instanceof FilterDirectoryReader) {
+            if (reader instanceof ElasticsearchDirectoryReader) {
+                return (ElasticsearchDirectoryReader) reader;
+            } else {
+                // We need to use FilterDirectoryReader#getDelegate and not FilterDirectoryReader#unwrap, because
+                // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
+                // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
+                // may be instance of ElasticsearchLeafReader. This can cause us to miss the shardId.
+                return getElasticsearchDirectoryReader(((FilterDirectoryReader) reader).getDelegate());
+            }
+        }
+        return null;
+    }
 }

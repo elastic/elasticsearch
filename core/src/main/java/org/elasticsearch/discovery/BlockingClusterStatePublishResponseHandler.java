@@ -61,7 +61,7 @@ public class BlockingClusterStatePublishResponseHandler {
      * Called for each failure obtained from non master nodes
      * @param node the node that replied to the publish event
      */
-    public void onFailure(DiscoveryNode node, Throwable t) {
+    public void onFailure(DiscoveryNode node, Exception e) {
         boolean found = pendingNodes.remove(node);
         assert found : "node [" + node + "] already responded or failed";
         latch.countDown();
@@ -71,7 +71,6 @@ public class BlockingClusterStatePublishResponseHandler {
      * Allows to wait for all non master nodes to reply to the publish event up to a timeout
      * @param timeout the timeout
      * @return true if the timeout expired or not, false otherwise
-     * @throws InterruptedException
      */
     public boolean awaitAllNodes(TimeValue timeout) throws InterruptedException {
         boolean success = latch.await(timeout.millis(), TimeUnit.MILLISECONDS);

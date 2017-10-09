@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class ClusterStatsAction extends Action<ClusterStatsRequest, ClusterStatsResponse, ClusterStatsRequestBuilder> {
 
     public static final ClusterStatsAction INSTANCE = new ClusterStatsAction();

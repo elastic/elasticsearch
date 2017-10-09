@@ -20,14 +20,14 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
-/**
- *
- */
-public class RoutingMissingException extends ElasticsearchException {
+import java.io.IOException;
+import java.util.Objects;
 
-    private final String index;
+public class RoutingMissingException extends ElasticsearchException {
 
     private final String type;
 
@@ -35,25 +35,37 @@ public class RoutingMissingException extends ElasticsearchException {
 
     public RoutingMissingException(String index, String type, String id) {
         super("routing is required for [" + index + "]/[" + type + "]/[" + id + "]");
-        this.index = index;
+        Objects.requireNonNull(index, "index must not be null");
+        Objects.requireNonNull(type, "type must not be null");
+        Objects.requireNonNull(id, "id must not be null");
+        setIndex(index);
         this.type = type;
         this.id = id;
     }
 
-    public String index() {
-        return index;
-    }
-
-    public String type() {
+    public String getType() {
         return type;
     }
 
-    public String id() {
+    public String getId() {
         return id;
     }
 
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;
+    }
+
+    public RoutingMissingException(StreamInput in) throws IOException{
+        super(in);
+        type = in.readString();
+        id = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(type);
+        out.writeString(id);
     }
 }

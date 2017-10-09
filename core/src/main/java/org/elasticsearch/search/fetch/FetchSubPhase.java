@@ -18,39 +18,37 @@
  */
 package org.elasticsearch.search.fetch;
 
-import com.google.common.collect.Maps;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
- *
+ * Sub phase within the fetch phase used to fetch things *about* the documents like highlighting or matched queries.
  */
 public interface FetchSubPhase {
 
-    public static class HitContext {
-        private InternalSearchHit hit;
+    class HitContext {
+        private SearchHit hit;
         private IndexSearcher searcher;
         private LeafReaderContext readerContext;
         private int docId;
         private Map<String, Object> cache;
 
-        public void reset(InternalSearchHit hit, LeafReaderContext context, int docId, IndexSearcher searcher) {
+        public void reset(SearchHit hit, LeafReaderContext context, int docId, IndexSearcher searcher) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
             this.searcher = searcher;
         }
 
-        public InternalSearchHit hit() {
+        public SearchHit hit() {
             return hit;
         }
 
@@ -70,48 +68,20 @@ public interface FetchSubPhase {
             return searcher.getIndexReader();
         }
 
-        public IndexSearcher topLevelSearcher() {
-            return searcher;
-        }
-
         public Map<String, Object> cache() {
             if (cache == null) {
-                cache = Maps.newHashMap();
+                cache = new HashMap<>();
             }
             return cache;
         }
 
-        public String getSourcePath(String sourcePath) {
-            SearchHit.NestedIdentity nested = hit().getNestedIdentity();
-            if (nested != null) {
-                // in case of nested we need to figure out what is the _source field from the perspective
-                // of the nested hit it self. The nested _source is isolated and the root and potentially parent objects
-                // are gone
-                StringBuilder nestedPath = new StringBuilder();
-                for (; nested != null; nested = nested.getChild()) {
-                    nestedPath.append(nested.getField());
-                }
-
-                assert sourcePath.startsWith(nestedPath.toString());
-                int startIndex = nestedPath.length() + 1; // the path until the deepest nested object + '.'
-                return sourcePath.substring(startIndex);
-            } else {
-                return sourcePath;
-            }
-        }
-
     }
-
-    Map<String, ? extends SearchParseElement> parseElements();
-
-    boolean hitExecutionNeeded(SearchContext context);
 
     /**
      * Executes the hit level phase, with a reader and doc id (note, its a low level reader, and the matching doc).
      */
-    void hitExecute(SearchContext context, HitContext hitContext);
+    default void hitExecute(SearchContext context, HitContext hitContext) throws IOException {}
 
-    boolean hitsExecutionNeeded(SearchContext context);
 
-    void hitsExecute(SearchContext context, InternalSearchHit[] hits);
+    default void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {}
 }

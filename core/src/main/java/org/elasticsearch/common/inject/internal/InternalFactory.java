@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,7 +29,7 @@ public interface InternalFactory<T> {
      * ES:
      * An factory that returns a pre created instance.
      */
-    public static class Instance<T> implements InternalFactory<T> {
+    class Instance<T> implements InternalFactory<T> {
 
         private final T object;
 

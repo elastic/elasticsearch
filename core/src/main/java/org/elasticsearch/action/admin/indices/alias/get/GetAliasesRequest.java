@@ -28,14 +28,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- */
 public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> implements AliasesRequest {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpand();
 
     public GetAliasesRequest(String[] aliases) {
         this.aliases = aliases;
@@ -46,6 +44,21 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
     }
 
     public GetAliasesRequest() {
+    }
+
+    public GetAliasesRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        aliases = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(indices);
+        out.writeStringArray(aliases);
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override
@@ -92,17 +105,6 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        aliases = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        out.writeStringArray(aliases);
-        indicesOptions.writeIndicesOptions(out);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

@@ -18,31 +18,43 @@
  */
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class TranslogStats implements ToXContent, Streamable {
+public class TranslogStats implements Streamable, ToXContentFragment {
 
-    private long translogSizeInBytes = 0;
-    private int estimatedNumberOfOperations = -1;
+    private long translogSizeInBytes;
+    private int numberOfOperations;
+    private long uncommittedSizeInBytes;
+    private int  uncommittedOperations;
 
     public TranslogStats() {
     }
 
-    public TranslogStats(int estimatedNumberOfOperations, long translogSizeInBytes) {
-        assert translogSizeInBytes >= 0 : "translogSizeInBytes must be >= 0, got [" + translogSizeInBytes + "]";
-        this.estimatedNumberOfOperations = estimatedNumberOfOperations;
+    public TranslogStats(int numberOfOperations, long translogSizeInBytes, int uncommittedOperations, long uncommittedSizeInBytes) {
+        if (numberOfOperations < 0) {
+            throw new IllegalArgumentException("numberOfOperations must be >= 0");
+        }
+        if (translogSizeInBytes < 0) {
+            throw new IllegalArgumentException("translogSizeInBytes must be >= 0");
+        }
+        if (uncommittedOperations < 0) {
+            throw new IllegalArgumentException("uncommittedOperations must be >= 0");
+        }
+        if (uncommittedSizeInBytes < 0) {
+            throw new IllegalArgumentException("uncommittedSizeInBytes must be >= 0");
+        }
+        this.numberOfOperations = numberOfOperations;
         this.translogSizeInBytes = translogSizeInBytes;
+        this.uncommittedSizeInBytes = uncommittedSizeInBytes;
+        this.uncommittedOperations = uncommittedOperations;
     }
 
     public void add(TranslogStats translogStats) {
@@ -50,43 +62,66 @@ public class TranslogStats implements ToXContent, Streamable {
             return;
         }
 
-        this.estimatedNumberOfOperations += translogStats.estimatedNumberOfOperations;
-        this.translogSizeInBytes = +translogStats.translogSizeInBytes;
+        this.numberOfOperations += translogStats.numberOfOperations;
+        this.translogSizeInBytes += translogStats.translogSizeInBytes;
+        this.uncommittedOperations += translogStats.uncommittedOperations;
+        this.uncommittedSizeInBytes += translogStats.uncommittedSizeInBytes;
     }
 
-    public ByteSizeValue translogSizeInBytes() {
-        return new ByteSizeValue(translogSizeInBytes);
+    public long getTranslogSizeInBytes() {
+        return translogSizeInBytes;
     }
 
-    public long estimatedNumberOfOperations() {
-        return estimatedNumberOfOperations;
+    public int estimatedNumberOfOperations() {
+        return numberOfOperations;
+    }
+
+    /** the size of the generations in the translog that weren't yet to comitted to lucene */
+    public long getUncommittedSizeInBytes() {
+        return uncommittedSizeInBytes;
+    }
+
+    /** the number of operations in generations of the translog that weren't yet to comitted to lucene */
+    public int getUncommittedOperations() {
+        return uncommittedOperations;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.TRANSLOG);
-        builder.field(Fields.OPERATIONS, estimatedNumberOfOperations);
-        builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, translogSizeInBytes);
+        builder.startObject("translog");
+        builder.field("operations", numberOfOperations);
+        builder.byteSizeField("size_in_bytes", "size", translogSizeInBytes);
+        builder.field("uncommitted_operations", uncommittedOperations);
+        builder.byteSizeField("uncommitted_size_in_bytes", "uncommitted_size", uncommittedSizeInBytes);
         builder.endObject();
         return builder;
     }
 
-    static final class Fields {
-        static final XContentBuilderString TRANSLOG = new XContentBuilderString("translog");
-        static final XContentBuilderString OPERATIONS = new XContentBuilderString("operations");
-        static final XContentBuilderString SIZE = new XContentBuilderString("size");
-        static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        estimatedNumberOfOperations = in.readVInt();
+        numberOfOperations = in.readVInt();
         translogSizeInBytes = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            uncommittedOperations = in.readVInt();
+            uncommittedSizeInBytes = in.readVLong();
+        } else {
+            uncommittedOperations = numberOfOperations;
+            uncommittedSizeInBytes = translogSizeInBytes;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(estimatedNumberOfOperations);
+        out.writeVInt(numberOfOperations);
         out.writeVLong(translogSizeInBytes);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            out.writeVInt(uncommittedOperations);
+            out.writeVLong(uncommittedSizeInBytes);
+        }
     }
 }

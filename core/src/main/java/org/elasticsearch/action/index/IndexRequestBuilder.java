@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
@@ -32,7 +34,8 @@ import java.util.Map;
 /**
  * An index document action request builder.
  */
-public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest, IndexResponse, IndexRequestBuilder> {
+public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest, IndexResponse, IndexRequestBuilder>
+        implements WriteRequestBuilder<IndexRequestBuilder> {
 
     public IndexRequestBuilder(ElasticsearchClient client, IndexAction action) {
         super(client, action, new IndexRequest());
@@ -80,8 +83,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the source.
      */
-    public IndexRequestBuilder setSource(BytesReference source) {
-        request.source(source);
+    public IndexRequestBuilder setSource(BytesReference source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
@@ -107,12 +110,12 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
 
     /**
      * Sets the document source to index.
-     * <p/>
-     * <p>Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
-     * or using the {@link #setSource(byte[])}.
+     * <p>
+     * Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
+     * or using the {@link #setSource(byte[], XContentType)}.
      */
-    public IndexRequestBuilder setSource(String source) {
-        request.source(source);
+    public IndexRequestBuilder setSource(String source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
@@ -127,8 +130,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the document to index in bytes form.
      */
-    public IndexRequestBuilder setSource(byte[] source) {
-        request.source(source);
+    public IndexRequestBuilder setSource(byte[] source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
@@ -139,47 +142,20 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * @param source The source to index
      * @param offset The offset in the byte array
      * @param length The length of the data
+     * @param xContentType The type/format of the source
      */
-    public IndexRequestBuilder setSource(byte[] source, int offset, int length) {
-        request.source(source, offset, length);
-        return this;
-    }
-
-    /**
-     * Constructs a simple document with a field and a value.
-     */
-    public IndexRequestBuilder setSource(String field1, Object value1) {
-        request.source(field1, value1);
-        return this;
-    }
-
-    /**
-     * Constructs a simple document with a field and value pairs.
-     */
-    public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2) {
-        request.source(field1, value1, field2, value2);
-        return this;
-    }
-
-    /**
-     * Constructs a simple document with a field and value pairs.
-     */
-    public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
-        request.source(field1, value1, field2, value2, field3, value3);
-        return this;
-    }
-
-    /**
-     * Constructs a simple document with a field and value pairs.
-     */
-    public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2, String field3, Object value3, String field4, Object value4) {
-        request.source(field1, value1, field2, value2, field3, value3, field4, value4);
+    public IndexRequestBuilder setSource(byte[] source, int offset, int length, XContentType xContentType) {
+        request.source(source, offset, length, xContentType);
         return this;
     }
 
     /**
      * Constructs a simple document with a field name and value pairs.
-     * <b>Note: the number of objects passed to this method must be an even number.</b>
+     * <p>
+     * <b>Note: the number of objects passed to this method must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
      */
     public IndexRequestBuilder setSource(Object... source) {
         request.source(source);
@@ -187,27 +163,23 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * The content type that will be used to generate a document from user provided objects (like Map).
+     * Constructs a simple document with a field name and value pairs.
+     * <p>
+     * <b>Note: the number of objects passed as varargs to this method must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
      */
-    public IndexRequestBuilder setContentType(XContentType contentType) {
-        request.contentType(contentType);
+    public IndexRequestBuilder setSource(XContentType xContentType, Object... source) {
+        request.source(xContentType, source);
         return this;
     }
 
     /**
      * Sets the type of operation to perform.
      */
-    public IndexRequestBuilder setOpType(IndexRequest.OpType opType) {
+    public IndexRequestBuilder setOpType(DocWriteRequest.OpType opType) {
         request.opType(opType);
-        return this;
-    }
-
-    /**
-     * Sets a string representation of the {@link #setOpType(org.elasticsearch.action.index.IndexRequest.OpType)}. Can
-     * be either "index" or "create".
-     */
-    public IndexRequestBuilder setOpType(String opType) {
-        request.opType(IndexRequest.OpType.fromString(opType));
         return this;
     }
 
@@ -216,16 +188,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      */
     public IndexRequestBuilder setCreate(boolean create) {
         request.create(create);
-        return this;
-    }
-
-    /**
-     * Should a refresh be executed post this index operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public IndexRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
         return this;
     }
 
@@ -247,16 +209,10 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * Sets the timestamp either as millis since the epoch, or, in the configured date format.
+     * Sets the ingest pipeline to be executed before indexing the document
      */
-    public IndexRequestBuilder setTimestamp(String timestamp) {
-        request.timestamp(timestamp);
-        return this;
-    }
-
-    // Sets the relative ttl value. It musts be > 0 as it makes little sense otherwise.
-    public IndexRequestBuilder setTTL(long ttl) {
-        request.ttl(ttl);
+    public IndexRequestBuilder setPipeline(String pipeline) {
+        request.setPipeline(pipeline);
         return this;
     }
 }

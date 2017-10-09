@@ -28,3 +28,6 @@ index:
       nysiisfilter:
         type: phonetic
         encoder: nysiis
+      daitch_mokotoff:
+        type: phonetic
+        encoder: daitch_mokotoff

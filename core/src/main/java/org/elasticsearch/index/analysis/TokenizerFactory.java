@@ -21,14 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 
-import java.io.Reader;
-
-/**
- *
- */
-public interface TokenizerFactory {
-
-    String name();
-
+public interface TokenizerFactory { // TODO replace with Supplier<Tokenizer>
     Tokenizer create();
 }

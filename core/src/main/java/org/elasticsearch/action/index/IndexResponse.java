@@ -19,11 +19,15 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.action.ActionWriteResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A response of an index operation,
@@ -31,91 +35,68 @@ import java.io.IOException;
  * @see org.elasticsearch.action.index.IndexRequest
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
-public class IndexResponse extends ActionWriteResponse {
-
-    private String index;
-    private String id;
-    private String type;
-    private long version;
-    private boolean created;
+public class IndexResponse extends DocWriteResponse {
 
     public IndexResponse() {
-
     }
 
-    public IndexResponse(String index, String type, String id, long version, boolean created) {
-        this.index = index;
-        this.id = id;
-        this.type = type;
-        this.version = version;
-        this.created = created;
-    }
-
-    /**
-     * The index the document was indexed into.
-     */
-    public String getIndex() {
-        return this.index;
-    }
-
-    /**
-     * The type of the document indexed.
-     */
-    public String getType() {
-        return this.type;
-    }
-
-    /**
-     * The id of the document indexed.
-     */
-    public String getId() {
-        return this.id;
-    }
-
-    /**
-     * Returns the current version of the doc indexed.
-     */
-    public long getVersion() {
-        return this.version;
-    }
-
-    /**
-     * Returns true if the document was created, false if updated.
-     */
-    public boolean isCreated() {
-        return this.created;
+    public IndexResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, boolean created) {
+        super(shardId, type, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED);
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        index = in.readString();
-        type = in.readString();
-        id = in.readString();
-        version = in.readLong();
-        created = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(index);
-        out.writeString(type);
-        out.writeString(id);
-        out.writeLong(version);
-        out.writeBoolean(created);
+    public RestStatus status() {
+        return result == Result.CREATED ? RestStatus.CREATED : super.status();
     }
 
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append("IndexResponse[");
-        builder.append("index=").append(index);
-        builder.append(",type=").append(type);
-        builder.append(",id=").append(id);
-        builder.append(",version=").append(version);
-        builder.append(",created=").append(created);
-        builder.append(",shards=").append(getShardInfo());
+        builder.append("index=").append(getIndex());
+        builder.append(",type=").append(getType());
+        builder.append(",id=").append(getId());
+        builder.append(",version=").append(getVersion());
+        builder.append(",result=").append(getResult().getLowercase());
+        builder.append(",seqNo=").append(getSeqNo());
+        builder.append(",primaryTerm=").append(getPrimaryTerm());
+        builder.append(",shards=").append(Strings.toString(getShardInfo()));
         return builder.append("]").toString();
+    }
+
+    public static IndexResponse fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+
+        Builder context = new Builder();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            parseXContentFields(parser, context);
+        }
+        return context.build();
+    }
+
+    /**
+     * Parse the current token and update the parsing context appropriately.
+     */
+    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
+        DocWriteResponse.parseInnerToXContent(parser, context);
+    }
+
+    /**
+     * Builder class for {@link IndexResponse}. This builder is usually used during xcontent parsing to
+     * temporarily store the parsed values, then the {@link Builder#build()} method is called to
+     * instantiate the {@link IndexResponse}.
+     */
+    public static class Builder extends DocWriteResponse.Builder {
+
+        @Override
+        public IndexResponse build() {
+            IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, primaryTerm, version,
+                    result == Result.CREATED ? true : false);
+            indexResponse.setForcedRefresh(forcedRefresh);
+            if (shardInfo != null) {
+                indexResponse.setShardInfo(shardInfo);
+            }
+            return indexResponse;
+        }
     }
 }

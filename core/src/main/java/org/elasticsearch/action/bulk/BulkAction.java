@@ -24,8 +24,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequestOptions;
 
-/**
- */
 public class BulkAction extends Action<BulkRequest, BulkResponse, BulkRequestBuilder> {
 
     public static final BulkAction INSTANCE = new BulkAction();
@@ -47,9 +45,9 @@ public class BulkAction extends Action<BulkRequest, BulkResponse, BulkRequestBui
 
     @Override
     public TransportRequestOptions transportOptions(Settings settings) {
-        return TransportRequestOptions.options()
+        return TransportRequestOptions.builder()
                 .withType(TransportRequestOptions.Type.BULK)
                 .withCompress(settings.getAsBoolean("action.bulk.compress", true)
-                );
+                ).build();
     }
 }

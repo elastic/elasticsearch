@@ -18,38 +18,26 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class SettingsFilterTests extends ElasticsearchTestCase {
-
-    @Test
+public class SettingsFilterTests extends ESTestCase {
     public void testAddingAndRemovingFilters() {
-        SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY);
-        settingsFilter.addFilter("foo");
-        settingsFilter.addFilter("bar");
-        settingsFilter.addFilter("baz");
-        assertThat(settingsFilter.getPatterns(), equalTo("foo,bar,baz"));
-
-        settingsFilter.removeFilter("bar");
-        assertThat(settingsFilter.getPatterns(), equalTo("foo,baz"));
-
-        settingsFilter.removeFilter("bar");
-        settingsFilter.removeFilter("foo");
-        settingsFilter.removeFilter("baz");
-
-        assertThat(settingsFilter.getPatterns(), equalTo(""));
+        HashSet<String> hashSet = new HashSet<>(Arrays.asList("foo", "bar", "baz"));
+        SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY, hashSet);
+        assertEquals(settingsFilter.getPatterns(), hashSet);
     }
 
-    @Test
     public void testSettingsFiltering() throws IOException {
 
         testFiltering(Settings.builder()
@@ -59,10 +47,10 @@ public class SettingsFilterTests extends ElasticsearchTestCase {
                         .put("bar1", "bar1_test")
                         .put("bar.2", "bar2_test")
                         .build(),
-                Settings.builder()
+                    Settings.builder()
                         .put("foo1", "foo1_test")
                         .build(),
-                "foo,bar*"
+                "foo", "bar*"
         );
 
         testFiltering(Settings.builder()
@@ -88,7 +76,7 @@ public class SettingsFilterTests extends ElasticsearchTestCase {
                         .build(),
                 Settings.builder()
                         .build(),
-                "foo,bar*,foo*"
+                "foo", "bar*", "foo*"
         );
 
         testFiltering(Settings.builder()
@@ -102,17 +90,25 @@ public class SettingsFilterTests extends ElasticsearchTestCase {
                         .put("baz", "baz_test")
                         .build()
         );
+
+        testFiltering(Settings.builder()
+                .put("a.b.something.d", "foo_test")
+                .put("a.b.something.c", "foo1_test")
+                .build(),
+            Settings.builder()
+                .put("a.b.something.c", "foo1_test")
+                .build(),
+            "a.b.*.d"
+        );
+
     }
 
     private void testFiltering(Settings source, Settings filtered, String... patterns) throws IOException {
-        SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY);
-        for (String pattern : patterns) {
-            settingsFilter.addFilter(pattern);
-        }
+        SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY, Arrays.asList(patterns));
 
         // Test using direct filtering
-        Settings filteredSettings = SettingsFilter.filterSettings(settingsFilter.getPatterns(), source);
-        assertThat(filteredSettings.getAsMap().entrySet(), equalTo(filtered.getAsMap().entrySet()));
+        Settings filteredSettings = settingsFilter.filter(source);
+        assertThat(filteredSettings, equalTo(filtered));
 
         // Test using toXContent filtering
         RestRequest request = new FakeRestRequest();
@@ -122,7 +118,7 @@ public class SettingsFilterTests extends ElasticsearchTestCase {
         source.toXContent(xContentBuilder, request);
         xContentBuilder.endObject();
         String filteredSettingsString = xContentBuilder.string();
-        filteredSettings = Settings.builder().loadFromSource(filteredSettingsString).build();
-        assertThat(filteredSettings.getAsMap().entrySet(), equalTo(filtered.getAsMap().entrySet()));
+        filteredSettings = Settings.builder().loadFromSource(filteredSettingsString, xContentBuilder.contentType()).build();
+        assertThat(filteredSettings, equalTo(filtered));
     }
 }

@@ -36,8 +36,13 @@ Histogram agg = sr.getAggregations().get("agg");
 
 // For each entry
 for (Histogram.Bucket entry : agg.getBuckets()) {
-    Number key = (Number) entry.getKey();                    // Key
-    String keyAsString = entry.getKeyAsString();             // Key As String
-    long docCount = entry.getDocCount();                     // Doc count
+    Number key = (Number) entry.getKey();   // Key
+    long docCount = entry.getDocCount();    // Doc count
+
+    logger.info("key [{}], doc_count [{}]", key, docCount);
 }
 --------------------------------------------------
+
+===== Order
+
+Supports the same order functionality as the <<java-aggs-bucket-terms,`Terms Aggregation`>>.

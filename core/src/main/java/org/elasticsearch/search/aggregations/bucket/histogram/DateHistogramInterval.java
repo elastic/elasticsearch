@@ -19,10 +19,17 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
+import java.util.Objects;
+
 /**
  * The interval the date histogram is based on.
  */
-public class DateHistogramInterval {
+public class DateHistogramInterval implements Writeable {
 
     public static final DateHistogramInterval SECOND = new DateHistogramInterval("1s");
     public static final DateHistogramInterval MINUTE = new DateHistogramInterval("1m");
@@ -59,8 +66,38 @@ public class DateHistogramInterval {
         this.expression = expression;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public DateHistogramInterval(StreamInput in) throws IOException {
+        expression = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(expression);
+    }
+
+
     @Override
     public String toString() {
         return expression;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(expression);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        DateHistogramInterval other = (DateHistogramInterval) obj;
+        return Objects.equals(expression, other.expression);
     }
 }

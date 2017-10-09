@@ -21,41 +21,32 @@ package org.elasticsearch.common.joda;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import java.util.TimeZone;
-import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongSupplier;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DateMathParserTests extends ElasticsearchTestCase {
+public class DateMathParserTests extends ESTestCase {
 
     FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime||epoch_millis");
     DateMathParser parser = new DateMathParser(formatter);
 
-    private static Callable<Long> callable(final long value) {
-        return new Callable<Long>() {
-            @Override
-            public Long call() throws Exception {
-                return value;
-            }
-        };
-    }
-
     void assertDateMathEquals(String toTest, String expected) {
         assertDateMathEquals(toTest, expected, 0, false, null);
     }
-    
+
     void assertDateMathEquals(String toTest, String expected, final long now, boolean roundUp, DateTimeZone timeZone) {
-        long gotMillis = parser.parse(toTest, callable(now), roundUp, timeZone);
+        long gotMillis = parser.parse(toTest, () -> now, roundUp, timeZone);
         assertDateEquals(gotMillis, toTest, expected);
     }
-    
+
     void assertDateEquals(long gotMillis, String original, String expected) {
-        long expectedMillis = parser.parse(expected, callable(0));
+        long expectedMillis = parser.parse(expected, () -> 0);
         if (gotMillis != expectedMillis) {
             fail("Date math not equal\n" +
                 "Original              : " + original + "\n" +
@@ -65,7 +56,7 @@ public class DateMathParserTests extends ElasticsearchTestCase {
                 "Actual milliseconds   : " + gotMillis + "\n");
         }
     }
-    
+
     public void testBasicDates() {
         assertDateMathEquals("2014", "2014-01-01T00:00:00.000");
         assertDateMathEquals("2014-05", "2014-05-01T00:00:00.000");
@@ -77,22 +68,44 @@ public class DateMathParserTests extends ElasticsearchTestCase {
     }
 
     public void testRoundingDoesNotAffectExactDate() {
-        assertDateMathEquals("2014-11-12T22:55:00Z", "2014-11-12T22:55:00Z", 0, true, null);
-        assertDateMathEquals("2014-11-12T22:55:00Z", "2014-11-12T22:55:00Z", 0, false, null);
+        assertDateMathEquals("2014-11-12T22:55:00.000Z", "2014-11-12T22:55:00.000Z", 0, true, null);
+        assertDateMathEquals("2014-11-12T22:55:00.000Z", "2014-11-12T22:55:00.000Z", 0, false, null);
+
+        assertDateMathEquals("2014-11-12T22:55:00.000", "2014-11-12T21:55:00.000Z", 0, true, DateTimeZone.forID("+01:00"));
+        assertDateMathEquals("2014-11-12T22:55:00.000", "2014-11-12T21:55:00.000Z", 0, false, DateTimeZone.forID("+01:00"));
+
+        assertDateMathEquals("2014-11-12T22:55:00.000+01:00", "2014-11-12T21:55:00.000Z", 0, true, null);
+        assertDateMathEquals("2014-11-12T22:55:00.000+01:00", "2014-11-12T21:55:00.000Z", 0, false, null);
     }
 
     public void testTimezone() {
         // timezone works within date format
         assertDateMathEquals("2014-05-30T20:21+02:00", "2014-05-30T18:21:00.000");
 
+        // test alternative ways of writing zero offsets, according to ISO 8601 +00:00, +00, +0000 should work.
+        // joda also seems to allow for -00:00, -00, -0000
+        assertDateMathEquals("2014-05-30T18:21+00:00", "2014-05-30T18:21:00.000");
+        assertDateMathEquals("2014-05-30T18:21+00", "2014-05-30T18:21:00.000");
+        assertDateMathEquals("2014-05-30T18:21+0000", "2014-05-30T18:21:00.000");
+        assertDateMathEquals("2014-05-30T18:21-00:00", "2014-05-30T18:21:00.000");
+        assertDateMathEquals("2014-05-30T18:21-00", "2014-05-30T18:21:00.000");
+        assertDateMathEquals("2014-05-30T18:21-0000", "2014-05-30T18:21:00.000");
+
         // but also externally
         assertDateMathEquals("2014-05-30T20:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+02:00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+00:00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+00:00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+0000"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("-00:00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("-00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("-0000"));
 
         // and timezone in the date has priority
         assertDateMathEquals("2014-05-30T20:21+03:00", "2014-05-30T17:21:00.000", 0, false, DateTimeZone.forID("-08:00"));
         assertDateMathEquals("2014-05-30T20:21Z", "2014-05-30T20:21:00.000", 0, false, DateTimeZone.forID("-08:00"));
     }
-    
+
     public void testBasicMath() {
         assertDateMathEquals("2014-11-18||+y", "2015-11-18");
         assertDateMathEquals("2014-11-18||-2y", "2012-11-18");
@@ -117,7 +130,7 @@ public class DateMathParserTests extends ElasticsearchTestCase {
         assertDateMathEquals("2014-11-18T14:27:32||+60s", "2014-11-18T14:28:32");
         assertDateMathEquals("2014-11-18T14:27:32||-3600s", "2014-11-18T13:27:32");
     }
-    
+
     public void testLenientEmptyMath() {
         assertDateMathEquals("2014-05-30T20:21||", "2014-05-30T20:21:00.000");
     }
@@ -132,18 +145,54 @@ public class DateMathParserTests extends ElasticsearchTestCase {
 
 
     public void testNow() {
-        final long now = parser.parse("2014-11-18T14:27:32", callable(0), false, null);
-        
+        final long now = parser.parse("2014-11-18T14:27:32", () -> 0, false, null);
+
         assertDateMathEquals("now", "2014-11-18T14:27:32", now, false, null);
         assertDateMathEquals("now+M", "2014-12-18T14:27:32", now, false, null);
         assertDateMathEquals("now-2d", "2014-11-16T14:27:32", now, false, null);
         assertDateMathEquals("now/m", "2014-11-18T14:27", now, false, null);
-        
+
         // timezone does not affect now
         assertDateMathEquals("now/m", "2014-11-18T14:27", now, false, DateTimeZone.forID("+02:00"));
     }
 
-    public void testRounding() {
+    public void testRoundingPreservesEpochAsBaseDate() {
+        // If a user only specifies times, then the date needs to always be 1970-01-01 regardless of rounding
+        FormatDateTimeFormatter formatter = Joda.forPattern("HH:mm:ss");
+        DateMathParser parser = new DateMathParser(formatter);
+        assertEquals(
+                this.formatter.parser().parseMillis("1970-01-01T04:52:20.000Z"),
+                parser.parse("04:52:20", () -> 0, false, null));
+        assertEquals(
+                this.formatter.parser().parseMillis("1970-01-01T04:52:20.999Z"),
+                parser.parse("04:52:20", () -> 0, true, null));
+    }
+
+    // Implicit rounding happening when parts of the date are not specified
+    public void testImplicitRounding() {
+        assertDateMathEquals("2014-11-18", "2014-11-18", 0, false, null);
+        assertDateMathEquals("2014-11-18", "2014-11-18T23:59:59.999Z", 0, true, null);
+
+        assertDateMathEquals("2014-11-18T09:20", "2014-11-18T09:20", 0, false, null);
+        assertDateMathEquals("2014-11-18T09:20", "2014-11-18T09:20:59.999Z", 0, true, null);
+
+        assertDateMathEquals("2014-11-18", "2014-11-17T23:00:00.000Z", 0, false, DateTimeZone.forID("CET"));
+        assertDateMathEquals("2014-11-18", "2014-11-18T22:59:59.999Z", 0, true, DateTimeZone.forID("CET"));
+
+        assertDateMathEquals("2014-11-18T09:20", "2014-11-18T08:20:00.000Z", 0, false, DateTimeZone.forID("CET"));
+        assertDateMathEquals("2014-11-18T09:20", "2014-11-18T08:20:59.999Z", 0, true, DateTimeZone.forID("CET"));
+
+        // implicit rounding with explicit timezone in the date format
+        FormatDateTimeFormatter formatter = Joda.forPattern("YYYY-MM-ddZ");
+        DateMathParser parser = new DateMathParser(formatter);
+        long time = parser.parse("2011-10-09+01:00", () -> 0, false, null);
+        assertEquals(this.parser.parse("2011-10-09T00:00:00.000+01:00", () -> 0), time);
+        time = parser.parse("2011-10-09+01:00", () -> 0, true, null);
+        assertEquals(this.parser.parse("2011-10-09T23:59:59.999+01:00", () -> 0), time);
+    }
+
+    // Explicit rounding using the || separator
+    public void testExplicitRounding() {
         assertDateMathEquals("2014-11-18||/y", "2014-01-01", 0, false, null);
         assertDateMathEquals("2014-11-18||/y", "2014-12-31T23:59:59.999", 0, true, null);
         assertDateMathEquals("2014||/y", "2014-01-01", 0, false, null);
@@ -151,14 +200,14 @@ public class DateMathParserTests extends ElasticsearchTestCase {
         // rounding should also take into account time zone
         assertDateMathEquals("2014-11-18||/y", "2013-12-31T23:00:00.000Z", 0, false, DateTimeZone.forID("CET"));
         assertDateMathEquals("2014-11-18||/y", "2014-12-31T22:59:59.999Z", 0, true, DateTimeZone.forID("CET"));
-        
+
         assertDateMathEquals("2014-11-18||/M", "2014-11-01", 0, false, null);
         assertDateMathEquals("2014-11-18||/M", "2014-11-30T23:59:59.999", 0, true, null);
         assertDateMathEquals("2014-11||/M", "2014-11-01", 0, false, null);
         assertDateMathEquals("2014-11||/M", "2014-11-30T23:59:59.999", 0, true, null);
         assertDateMathEquals("2014-11-18||/M", "2014-10-31T23:00:00.000Z", 0, false, DateTimeZone.forID("CET"));
         assertDateMathEquals("2014-11-18||/M", "2014-11-30T22:59:59.999Z", 0, true, DateTimeZone.forID("CET"));
-        
+
         assertDateMathEquals("2014-11-18T14||/w", "2014-11-17", 0, false, null);
         assertDateMathEquals("2014-11-18T14||/w", "2014-11-23T23:59:59.999", 0, true, null);
         assertDateMathEquals("2014-11-18||/w", "2014-11-17", 0, false, null);
@@ -168,12 +217,12 @@ public class DateMathParserTests extends ElasticsearchTestCase {
         assertDateMathEquals("2014-11-18||/w", "2014-11-16T23:00:00.000Z", 0, false, DateTimeZone.forID("CET"));
         assertDateMathEquals("2014-11-18||/w", "2014-11-23T22:59:59.999Z", 0, true, DateTimeZone.forID("CET"));
         assertDateMathEquals("2014-07-22||/w", "2014-07-20T22:00:00.000Z", 0, false, DateTimeZone.forID("CET")); // with DST
-        
+
         assertDateMathEquals("2014-11-18T14||/d", "2014-11-18", 0, false, null);
         assertDateMathEquals("2014-11-18T14||/d", "2014-11-18T23:59:59.999", 0, true, null);
         assertDateMathEquals("2014-11-18||/d", "2014-11-18", 0, false, null);
         assertDateMathEquals("2014-11-18||/d", "2014-11-18T23:59:59.999", 0, true, null);
-        
+
         assertDateMathEquals("2014-11-18T14:27||/h", "2014-11-18T14", 0, false, null);
         assertDateMathEquals("2014-11-18T14:27||/h", "2014-11-18T14:59:59.999", 0, true, null);
         assertDateMathEquals("2014-11-18T14||/H", "2014-11-18T14", 0, false, null);
@@ -182,12 +231,12 @@ public class DateMathParserTests extends ElasticsearchTestCase {
         assertDateMathEquals("2014-11-18T14:27||/h", "2014-11-18T14:59:59.999", 0, true, null);
         assertDateMathEquals("2014-11-18T14||/H", "2014-11-18T14", 0, false, null);
         assertDateMathEquals("2014-11-18T14||/H", "2014-11-18T14:59:59.999", 0, true, null);
-        
+
         assertDateMathEquals("2014-11-18T14:27:32||/m", "2014-11-18T14:27", 0, false, null);
         assertDateMathEquals("2014-11-18T14:27:32||/m", "2014-11-18T14:27:59.999", 0, true, null);
         assertDateMathEquals("2014-11-18T14:27||/m", "2014-11-18T14:27", 0, false, null);
         assertDateMathEquals("2014-11-18T14:27||/m", "2014-11-18T14:27:59.999", 0, true, null);
-        
+
         assertDateMathEquals("2014-11-18T14:27:32.123||/s", "2014-11-18T14:27:32", 0, false, null);
         assertDateMathEquals("2014-11-18T14:27:32.123||/s", "2014-11-18T14:27:32.999", 0, true, null);
         assertDateMathEquals("2014-11-18T14:27:32||/s", "2014-11-18T14:27:32", 0, false, null);
@@ -196,15 +245,17 @@ public class DateMathParserTests extends ElasticsearchTestCase {
 
     public void testTimestamps() {
         assertDateMathEquals("1418248078000", "2014-12-10T21:47:58.000");
+        assertDateMathEquals("32484216259000", "2999-05-20T17:24:19.000");
+        assertDateMathEquals("253382837059000", "9999-05-20T17:24:19.000");
 
         // datemath still works on timestamps
         assertDateMathEquals("1418248078000||/m", "2014-12-10T21:47:00.000");
-        
+
         // also check other time units
         DateMathParser parser = new DateMathParser(Joda.forPattern("epoch_second||dateOptionalTime"));
-        long datetime = parser.parse("1418248078", callable(0));
+        long datetime = parser.parse("1418248078", () -> 0);
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
-        
+
         // a timestamp before 10000 is a year
         assertDateMathEquals("9999", "9999-01-01T00:00:00.000");
         // 10000 is also a year, breaking bwc, used to be a timestamp
@@ -215,13 +266,13 @@ public class DateMathParserTests extends ElasticsearchTestCase {
 
     void assertParseException(String msg, String date, String exc) {
         try {
-            parser.parse(date, callable(0));
+            parser.parse(date, () -> 0);
             fail("Date: " + date + "\n" + msg);
         } catch (ElasticsearchParseException e) {
             assertThat(ExceptionsHelper.detailedMessage(e).contains(exc), equalTo(true));
         }
     }
-    
+
     public void testIllegalMathFormat() {
         assertParseException("Expected date math unsupported operator exception", "2014-11-18||*5", "operator not supported");
         assertParseException("Expected date math incompatible rounding exception", "2014-11-18||/2m", "rounding");
@@ -229,7 +280,7 @@ public class DateMathParserTests extends ElasticsearchTestCase {
         assertParseException("Expected date math truncation exception", "2014-11-18||+12", "truncated");
         assertParseException("Expected date math truncation exception", "2014-11-18||-", "truncated");
     }
-    
+
     public void testIllegalDateFormat() {
         assertParseException("Expected bad timestamp exception", Long.toString(Long.MAX_VALUE) + "0", "failed to parse date field");
         assertParseException("Expected bad date format exception", "123bogus", "with format");
@@ -237,12 +288,9 @@ public class DateMathParserTests extends ElasticsearchTestCase {
 
     public void testOnlyCallsNowIfNecessary() {
         final AtomicBoolean called = new AtomicBoolean();
-        final Callable<Long> now = new Callable<Long>() {
-            @Override
-            public Long call() throws Exception {
-                called.set(true);
-                return 42L;
-            }
+        final LongSupplier now = () -> {
+            called.set(true);
+            return 42L;
         };
         parser.parse("2014-11-18T14:27:32", now, false, null);
         assertFalse(called.get());
@@ -250,9 +298,14 @@ public class DateMathParserTests extends ElasticsearchTestCase {
         assertTrue(called.get());
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testThatUnixTimestampMayNotHaveTimeZone() {
         DateMathParser parser = new DateMathParser(Joda.forPattern("epoch_millis"));
-        parser.parse("1234567890123", callable(42), false, DateTimeZone.forTimeZone(TimeZone.getTimeZone("CET")));
+        try {
+            parser.parse("1234567890123", () -> 42, false, DateTimeZone.forTimeZone(TimeZone.getTimeZone("CET")));
+            fail("Expected ElasticsearchParseException");
+        } catch(ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("failed to parse date field"));
+            assertThat(e.getMessage(), containsString("with format [epoch_millis]"));
+        }
     }
 }

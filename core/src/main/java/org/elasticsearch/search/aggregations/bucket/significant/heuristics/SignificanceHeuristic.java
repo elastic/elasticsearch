@@ -19,13 +19,16 @@
 
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
-
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
+import org.elasticsearch.search.internal.SearchContext;
 
-import java.io.IOException;
-
-public abstract class SignificanceHeuristic {
+/**
+ * Heuristic for that {@link SignificantTerms} uses to pick out significant terms.
+ */
+public abstract class SignificanceHeuristic implements NamedWriteable, ToXContentFragment {
     /**
      * @param subsetFreq   The frequency of the term in the selected sample
      * @param subsetSize   The size of the selected sample (typically number of docs)
@@ -34,8 +37,6 @@ public abstract class SignificanceHeuristic {
      * @return a "significance" score
      */
     public abstract double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize);
-
-    abstract public void writeTo(StreamOutput out) throws IOException;
 
     protected void checkFrequencyValidity(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize, String scoreFunctionName) {
         if (subsetFreq < 0 || subsetSize < 0 || supersetFreq < 0 || supersetSize < 0) {
@@ -49,7 +50,23 @@ public abstract class SignificanceHeuristic {
         }
     }
 
-    public void initialize(InternalAggregation.ReduceContext reduceContext) {
+    /**
+     * Provides a hook for subclasses to provide a version of the heuristic
+     * prepared for execution on data on the coordinating node.
+     * @param reduceContext the reduce context on the coordinating node
+     * @return a version of this heuristic suitable for execution
+     */
+    public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext reduceContext) {
+        return this;
+    }
 
+    /**
+     * Provides a hook for subclasses to provide a version of the heuristic
+     * prepared for execution on data on a shard. 
+     * @param context the search context on the data node
+     * @return a version of this heuristic suitable for execution
+     */
+    public SignificanceHeuristic rewrite(SearchContext context) {
+        return this;
     }
 }

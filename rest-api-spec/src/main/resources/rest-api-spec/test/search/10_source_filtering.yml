@@ -1,0 +1,139 @@
+---
+setup:
+  - do:
+      indices.create:
+          index:  test
+          body:
+            mappings:
+              test:
+                properties:
+                  bigint:
+                    type: keyword
+
+
+  - do:
+      index:
+        index:  test_1
+        type:   test
+        id:     1
+        body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1, "bigint": 72057594037927936 }
+  - do:
+      indices.refresh: {}
+
+---
+"_source: true":
+
+  - do:
+      search:
+        body: { _source: true, query: { match_all: {} } }
+
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._source.count: 1 }
+
+---
+"_source: false":
+  - do: { search: { body: { _source: false, query: { match_all: {} } } } }
+  - length:   { hits.hits: 1  }
+  - is_false: hits.hits.0._source
+
+---
+"no filtering":
+  - do: { search: { body: { query: { match_all: {} } } } }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._source.count: 1 }
+
+---
+"_source in body":
+  - do: { search: { body: { _source: include.field1, query: { match_all: {} } } } }
+  - match:  { hits.hits.0._source.include.field1: v1 }
+  - is_false: hits.hits.0._source.include.field2
+
+---
+"_source include and _source in body":
+  - do: { search: { _source_include: include.field1, body: { _source: include.field2, query: { match_all: {} } } } }
+  - match:  { hits.hits.0._source.include.field1: v1 }
+  - is_false: hits.hits.0._source.include.field2
+
+---
+"_source_include":
+  - do: { search: { _source_include: include.field1, body: { query: { match_all: {} } } } }
+  - match:  { hits.hits.0._source.include.field1: v1 }
+  - is_false: hits.hits.0._source.include.field2
+
+---
+"_source_exclude":
+  - do: { search: { _source_exclude: count, body: { query: { match_all: {} } } } }
+  - match:  { hits.hits.0._source.include: { field1 : v1 , field2: v2 }}
+  - is_false: hits.hits.0._source.count
+
+---
+"_source field1 field2":
+  - do:
+      search:
+        body:
+          _source: [ include.field1, include.field2 ]
+          query: { match_all: {} }
+  - match:  { hits.hits.0._source.include.field1: v1 }
+  - match:  { hits.hits.0._source.include.field2: v2 }
+  - is_false: hits.hits.0._source.count
+
+---
+"_source.include field1 field2":
+  - do:
+      search:
+        body:
+          _source:
+            includes: [ include.field1, include.field2 ]
+          query: { match_all: {} }
+  - match:  { hits.hits.0._source.include.field1: v1 }
+  - match:  { hits.hits.0._source.include.field2: v2 }
+  - is_false: hits.hits.0._source.count
+
+---
+"_source includes and excludes":
+  - do:
+      search:
+        body:
+          _source:
+            includes: include
+            excludes: "*.field2"
+          query: { match_all: {} }
+  - match:  { hits.hits.0._source.include.field1: v1 }
+  - is_false:  hits.hits.0._source.include.field2
+
+---
+"_source include on bigint":
+  - do:
+      search:
+        body:
+          _source:
+            includes: bigint
+          query: { match_all: {} }
+  - match:  { hits.hits.0._source.bigint: 72057594037927936 }
+  - is_false:  hits.hits.0._source.include.field2
+
+---
+"fields in body":
+  - do:
+      search:
+        body:
+          stored_fields: [ include.field2 ]
+          query: { match_all: {} }
+  - is_false:  hits.hits.0._source
+
+---
+"fields in body with source":
+  - do:
+        search:
+          body:
+            stored_fields: [ include.field2, _source ]
+            query: { match_all: {} }
+  - match: { hits.hits.0._source.include.field2: v2 }
+  - is_true:  hits.hits.0._source
+
+---
+"docvalue_fields":
+  - do:
+      search:
+        docvalue_fields: [ "count" ]
+  - match: { hits.hits.0.fields.count: [1] }

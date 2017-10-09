@@ -19,120 +19,53 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHits;
-
 /**
- *
+ * {@link SearchResponseSections} subclass that can be serialized over the wire.
  */
-public class InternalSearchResponse implements Streamable, ToXContent {
+public class InternalSearchResponse extends SearchResponseSections implements Writeable, ToXContentFragment {
 
     public static InternalSearchResponse empty() {
-        return new InternalSearchResponse(InternalSearchHits.empty(), null, null, false, null);
+        return new InternalSearchResponse(SearchHits.empty(), null, null, null, false, null, 1);
     }
 
-    private InternalSearchHits hits;
-
-    private InternalAggregations aggregations;
-
-    private Suggest suggest;
-
-    private boolean timedOut;
-
-    private Boolean terminatedEarly = null;
-
-    private InternalSearchResponse() {
+    public InternalSearchResponse(SearchHits hits, InternalAggregations aggregations, Suggest suggest,
+                                  SearchProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly,
+                                  int numReducePhases) {
+        super(hits, aggregations, suggest, timedOut, terminatedEarly, profileResults, numReducePhases);
     }
 
-    public InternalSearchResponse(InternalSearchHits hits, InternalAggregations aggregations, Suggest suggest, boolean timedOut, Boolean terminatedEarly) {
-        this.hits = hits;
-        this.aggregations = aggregations;
-        this.suggest = suggest;
-        this.timedOut = timedOut;
-        this.terminatedEarly = terminatedEarly;
-    }
-
-    public boolean timedOut() {
-        return this.timedOut;
-    }
-
-    public Boolean terminatedEarly() {
-        return this.terminatedEarly;
-    }
-
-    public SearchHits hits() {
-        return hits;
-    }
-
-    public Aggregations aggregations() {
-        return aggregations;
-    }
-
-    public Suggest suggest() {
-        return suggest;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        hits.toXContent(builder, params);
-        if (aggregations != null) {
-            aggregations.toXContent(builder, params);
-        }
-        if (suggest != null) {
-            suggest.toXContent(builder, params);
-        }
-        return builder;
-    }
-
-    public static InternalSearchResponse readInternalSearchResponse(StreamInput in) throws IOException {
-        InternalSearchResponse response = new InternalSearchResponse();
-        response.readFrom(in);
-        return response;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        hits = readSearchHits(in);
-        if (in.readBoolean()) {
-            aggregations = InternalAggregations.readAggregations(in);
-        }
-        if (in.readBoolean()) {
-            suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
-        }
-        timedOut = in.readBoolean();
-
-        terminatedEarly = in.readOptionalBoolean();
+    public InternalSearchResponse(StreamInput in) throws IOException {
+        super(
+                SearchHits.readSearchHits(in),
+                in.readBoolean() ? InternalAggregations.readAggregations(in) : null,
+                in.readBoolean() ? Suggest.readSuggest(in) : null,
+                in.readBoolean(),
+                in.readOptionalBoolean(),
+                in.readOptionalWriteable(SearchProfileShardResults::new),
+                in.readVInt()
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         hits.writeTo(out);
-        if (aggregations == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            aggregations.writeTo(out);
-        }
-        if (suggest == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            suggest.writeTo(out);
-        }
+        out.writeOptionalStreamable((InternalAggregations)aggregations);
+        out.writeOptionalStreamable(suggest);
         out.writeBoolean(timedOut);
-
         out.writeOptionalBoolean(terminatedEarly);
+        out.writeOptionalWriteable(profileResults);
+        out.writeVInt(numReducePhases);
     }
 }

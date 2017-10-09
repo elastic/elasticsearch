@@ -19,18 +19,26 @@
 
 package org.elasticsearch.index.snapshots;
 
-import org.elasticsearch.index.shard.IndexShardException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  * Generic shard restore exception
  */
-public class IndexShardRestoreException extends IndexShardException {
+public class IndexShardRestoreException extends ElasticsearchException {
     public IndexShardRestoreException(ShardId shardId, String msg) {
-        super(shardId, msg);
+        this(shardId, msg, null);
     }
 
     public IndexShardRestoreException(ShardId shardId, String msg, Throwable cause) {
-        super(shardId, msg, cause);
+        super(msg, cause);
+        setShard(shardId);
+    }
+
+    public IndexShardRestoreException(StreamInput in) throws IOException{
+        super(in);
     }
 }

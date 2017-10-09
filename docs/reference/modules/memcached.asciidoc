@@ -7,7 +7,7 @@ as possible).
 
 It is provided as a plugin called `transport-memcached` and installing
 is explained
-https://github.com/elasticsearch/elasticsearch-transport-memcached[here]
+https://github.com/elastic/elasticsearch-transport-memcached[here]
 . Another option is to download the memcached plugin and placing it
 under the `plugins` directory.
 

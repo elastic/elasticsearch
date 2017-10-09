@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -81,8 +81,8 @@ public class Scopes {
      * Injector obtains an instance of an object with "no scope", it injects this
      * instance then immediately forgets it.  When the next request for the same
      * binding arrives it will need to obtain the instance over again.
-     * <p/>
-     * <p>This exists only in case a class has been annotated with a scope
+     * <p>
+     * This exists only in case a class has been annotated with a scope
      * annotation such as {@link Singleton @Singleton}, and you need to override
      * this to "no scope" in your binding.
      *

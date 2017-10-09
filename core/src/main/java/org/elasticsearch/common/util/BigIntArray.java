@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util;
 
-import com.google.common.base.Preconditions;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
@@ -33,10 +32,12 @@ import static org.elasticsearch.common.util.BigArrays.INT_PAGE_SIZE;
  */
 final class BigIntArray extends AbstractBigArray implements IntArray {
 
+    private static final BigIntArray ESTIMATOR = new BigIntArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
+
     private int[][] pages;
 
     /** Constructor. */
-    public BigIntArray(long size, BigArrays bigArrays, boolean clearOnResize) {
+    BigIntArray(long size, BigArrays bigArrays, boolean clearOnResize) {
         super(INT_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
         pages = new int[numPages(size)][];
@@ -71,7 +72,9 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
 
     @Override
     public void fill(long fromIndex, long toIndex, int value) {
-        Preconditions.checkArgument(fromIndex <= toIndex);
+        if (fromIndex > toIndex) {
+            throw new IllegalArgumentException();
+        }
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);
         if (fromPage == toPage) {
@@ -87,7 +90,7 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
 
     @Override
     protected int numBytesPerElement() {
-        return RamUsageEstimator.NUM_BYTES_INT;
+        return Integer.BYTES;
     }
 
     /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
@@ -105,6 +108,11 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
             releasePage(i);
         }
         this.size = newSize;
+    }
+
+    /** Estimates the number of bytes that would be consumed by an array of the given size. */
+    public static long estimateRamBytes(final long size) {
+        return ESTIMATOR.ramBytesEstimated(size);
     }
 
 }

@@ -21,13 +21,11 @@ package org.elasticsearch.common.component;
 
 import org.elasticsearch.common.settings.Settings;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- *
- */
-public abstract class AbstractLifecycleComponent<T> extends AbstractComponent implements LifecycleComponent<T> {
+public abstract class AbstractLifecycleComponent extends AbstractComponent implements LifecycleComponent {
 
     protected final Lifecycle lifecycle = new Lifecycle();
 
@@ -58,9 +56,9 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public T start() {
+    public void start() {
         if (!lifecycle.canMoveToStarted()) {
-            return (T) this;
+            return;
         }
         for (LifecycleListener listener : listeners) {
             listener.beforeStart();
@@ -70,16 +68,15 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         for (LifecycleListener listener : listeners) {
             listener.afterStart();
         }
-        return (T) this;
     }
 
     protected abstract void doStart();
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public T stop() {
+    public void stop() {
         if (!lifecycle.canMoveToStopped()) {
-            return (T) this;
+            return;
         }
         for (LifecycleListener listener : listeners) {
             listener.beforeStop();
@@ -89,7 +86,6 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         for (LifecycleListener listener : listeners) {
             listener.afterStop();
         }
-        return (T) this;
     }
 
     protected abstract void doStop();
@@ -106,11 +102,17 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
             listener.beforeClose();
         }
         lifecycle.moveToClosed();
-        doClose();
+        try {
+            doClose();
+        } catch (IOException e) {
+            // TODO: we need to separate out closing (ie shutting down) services, vs releasing runtime transient
+            // structures. Shutting down services should use IOUtils.close
+            logger.warn("failed to close " + getClass().getName(), e);
+        }
         for (LifecycleListener listener : listeners) {
             listener.afterClose();
         }
     }
 
-    protected abstract void doClose();
+    protected abstract void doClose() throws IOException;
 }

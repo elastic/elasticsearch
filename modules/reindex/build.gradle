@@ -1,0 +1,60 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+apply plugin: 'elasticsearch.test-with-dependencies'
+
+esplugin {
+  description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
+  classname 'org.elasticsearch.index.reindex.ReindexPlugin'
+  hasClientJar = true
+}
+
+integTestCluster {
+  // Whitelist reindexing from the local node so we can test reindex-from-remote.
+  setting 'reindex.remote.whitelist', '127.0.0.1:*'
+}
+
+run {
+  // Whitelist reindexing from the local node so we can test reindex-from-remote.
+  setting 'reindex.remote.whitelist', '127.0.0.1:*'
+}
+
+dependencies {
+  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  // for http - testing reindex from remote
+  testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
+  // for parent/child testing
+  testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+}
+
+dependencyLicenses {
+  // Don't check the client's license. We know it.
+  dependencies = project.configurations.runtime.fileCollection {
+    it.group.startsWith('org.elasticsearch') == false
+  } - project.configurations.provided
+}
+
+thirdPartyAudit.excludes = [
+  // Commons logging
+  'javax.servlet.ServletContextEvent',
+  'javax.servlet.ServletContextListener',
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
+  'org.apache.log.Logger',
+]

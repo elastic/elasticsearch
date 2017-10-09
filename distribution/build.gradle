@@ -1,0 +1,569 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+
+import org.apache.tools.ant.filters.FixCrLfFilter
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.EmptyDirTask
+import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.NoticeTask
+import org.elasticsearch.gradle.precommit.DependencyLicensesTask
+import org.elasticsearch.gradle.precommit.UpdateShasTask
+import org.elasticsearch.gradle.test.RunTask
+
+// for deb/rpm
+buildscript {
+  repositories {
+    maven {
+      url "https://plugins.gradle.org/m2/"
+    }
+  }
+  dependencies {
+    classpath 'com.netflix.nebula:gradle-ospackage-plugin:3.4.0'
+  }
+}
+
+Collection distributions = project.subprojects.findAll {
+   it.path.contains(':tools') == false && it.path.contains(':bwc') == false }
+
+/*****************************************************************************
+ *                                Notice file                                *
+ *****************************************************************************/
+
+// integ test zip only uses core, so a different notice file is needed there
+task buildCoreNotice(type: NoticeTask) {
+  licensesDir new File(project(':core').projectDir, 'licenses')
+}
+
+// other distributions include notices from modules as well, which are added below later
+task buildFullNotice(type: NoticeTask) {
+  licensesDir new File(project(':core').projectDir, 'licenses')
+}
+
+/*****************************************************************************
+ *                                  Modules                                  *
+ *****************************************************************************/
+
+task buildModules(type: Sync) {
+  into 'build/modules'
+}
+
+ext.restTestExpansions = [
+  'expected.modules.count': 0,
+]
+// we create the buildModules task above so the distribution subprojects can
+// depend on it, but we don't actually configure it until here so we can do a single
+// loop over modules to also setup cross task dependencies and increment our modules counter
+project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { Project module ->
+  buildFullNotice {
+    def defaultLicensesDir = new File(module.projectDir, 'licenses')
+    if (defaultLicensesDir.exists()) {
+      licensesDir defaultLicensesDir
+    }
+  }
+  buildModules {
+    dependsOn({ project(module.path).bundlePlugin })
+    into(module.name) {
+      from { zipTree(project(module.path).bundlePlugin.outputs.files.singleFile) }
+    }
+  }
+  // We would like to make sure integ tests for the distribution run after
+  // integ tests for the modules included in the distribution.
+  project.configure(distributions.findAll { it.name != 'integ-test-zip'}) { Project distribution ->
+    distribution.afterEvaluate({
+      // some integTest tasks will have multiple finalizers
+      distribution.integTest.mustRunAfter module.tasks.find { t -> t.name.matches(".*integTest\$") }
+    })
+  }
+  // also want to make sure the module's integration tests run after the integ-test-zip (ie rest tests)
+  module.afterEvaluate({
+    module.integTest.mustRunAfter(':distribution:integ-test-zip:integTest')
+  })
+  restTestExpansions['expected.modules.count'] += 1
+}
+
+// Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
+// All transport modules are included so that they may be randomized for testing
+task buildTransportModules(type: Sync) {
+  into 'build/transport-modules'
+}
+
+project.rootProject.subprojects.findAll { it.path.startsWith(':modules:transport-') }.each { Project transport ->
+  buildTransportModules {
+    dependsOn({ project(transport.path).bundlePlugin })
+    into(transport.name) {
+      from { zipTree(project(transport.path).bundlePlugin.outputs.files.singleFile) }
+    }
+  }
+}
+
+// make sure we have a clean task since we aren't a java project, but we have tasks that
+// put stuff in the build dir
+task clean(type: Delete) {
+  delete 'build'
+}
+
+configure(distributions) {
+  /*****************************************************************************
+   *                            Rest test config                               *
+   *****************************************************************************/
+  apply plugin: 'elasticsearch.standalone-rest-test'
+  apply plugin: 'elasticsearch.rest-test'
+  project.integTest {
+    includePackaged project.name == 'integ-test-zip'
+    if (project.name != 'integ-test-zip') {
+      mustRunAfter ':distribution:integ-test-zip:integTest'
+    }
+  }
+  project.integTestCluster {
+    dependsOn project.assemble
+    distribution = project.name
+  }
+
+  processTestResources {
+    inputs.properties(project(':distribution').restTestExpansions)
+    MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
+  }
+
+  /*****************************************************************************
+   *                              Maven config                                 *
+   *****************************************************************************/
+  // note: the group must be correct before applying the nexus plugin, or it will capture the wrong value...
+  project.group = "org.elasticsearch.distribution.${project.name}"
+  project.archivesBaseName = 'elasticsearch'
+
+  // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
+  /*****************************************************************************
+   *             Properties to expand when copying packaging files             *
+   *****************************************************************************/
+  project.ext {
+    expansions = expansionsForDistribution(project.name)
+
+    /*****************************************************************************
+     *                   Common files in all distributions                       *
+     *****************************************************************************/
+    libFiles = copySpec {
+      into 'lib'
+      from project(':core').jar
+      from project(':core').configurations.runtime
+      // delay add tools using closures, since they have not yet been configured, so no jar task exists yet
+      from { project(':distribution:tools:java-version-checker').jar }
+      from { project(':distribution:tools:plugin-cli').jar }
+    }
+
+    modulesFiles = copySpec {
+      into 'modules'
+      from project(':distribution').buildModules
+    }
+
+    transportModulesFiles = copySpec {
+      into "modules"
+      from project(':distribution').buildTransportModules
+    }
+
+    configFiles = copySpec {
+      from '../src/main/resources/config'
+      MavenFilteringHack.filter(it, expansions)
+    }
+
+    binFiles = copySpec {
+      // everything except windows files
+      from '../src/main/resources/bin'
+      exclude '*.bat'
+      exclude '*.exe'
+      eachFile { it.setMode(0755) }
+      MavenFilteringHack.filter(it, expansions)
+    }
+
+    commonFiles = copySpec {
+      from rootProject.projectDir
+      include 'LICENSE.txt'
+      include 'README.textile'
+    }
+
+    noticeFile = copySpec {
+      if (project.name == 'integ-test-zip') {
+        from buildCoreNotice
+      } else {
+        from buildFullNotice
+      }
+    }
+  }
+
+   /*****************************************************************************
+   *                           Publishing setup                                *
+   *****************************************************************************/
+  if (['zip', 'integ-test-zip'].contains(it.name)) {
+    BuildPlugin.configurePomGeneration(project)
+    apply plugin: 'nebula.info-scm'
+    apply plugin: 'nebula.maven-base-publish'
+    apply plugin: 'nebula.maven-scm'
+  }
+}
+
+/*****************************************************************************
+ *                         Zip and tgz configuration                         *
+ *****************************************************************************/
+configure(distributions.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.name) }) {
+  // CopySpec does not make it easy to create an empty director so we create the directory that we want, and then point CopySpec to its
+  // parent to copy to the root of the distribution
+  File plugins = new File(buildDir, 'plugins-hack/plugins')
+  task createPluginsDir(type: EmptyDirTask) {
+    dir "${plugins}"
+    dirMode 0755
+  }
+  project.ext.archivesFiles = copySpec {
+    into("elasticsearch-${version}") {
+      with libFiles
+      into('config') {
+        dirMode 0750
+        fileMode 0660
+        with configFiles
+      }
+      into('bin') {
+        with copySpec {
+          with binFiles
+          from('../src/main/resources/bin') {
+            include '*.bat'
+            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+          }
+          MavenFilteringHack.filter(it, expansions)
+        }
+      }
+      into('') {
+        from {
+          dirMode 0755
+          plugins.getParent()
+        }
+      }
+      with commonFiles
+      with noticeFile
+      from('../src/main/resources') {
+        include 'bin/*.exe'
+      }
+      if (project.name != 'integ-test-zip') {
+        with modulesFiles
+      } else {
+        with transportModulesFiles
+      }
+    }
+  }
+}
+
+/*****************************************************************************
+ *                         Deb and rpm configuration                         *
+ *****************************************************************************
+ *
+ * The general strategy here is to build a directory on disk, packagingFiles
+ * that contains stuff that needs to be copied into the distributions. This is
+ * important for two reasons:
+ * 1. ospackage wants to copy the directory permissions that it sees off of the
+ *    filesystem. If you ask it to create a directory that doesn't already
+ *    exist on disk it petulantly creates it with 0755 permissions, no matter
+ *    how hard you try to convince it otherwise.
+ * 2. Convincing ospackage to pick up an empty directory as part of a set of
+ *    directories on disk is reasonably easy. Convincing it to just create an
+ *    empty directory requires more wits than I have.
+ * 3. ospackage really wants to suck up some of the debian control scripts
+ *    directly from the filesystem. It doesn't want to process them through
+ *    MavenFilteringHack or any other copy-style action.
+ *
+ * The following commands are useful when it comes to check the user/group
+ * and files permissions set within the RPM and DEB packages:
+ *
+ *    rpm -qlp --dump path/to/elasticsearch.rpm
+ *    dpkg -c path/to/elasticsearch.deb
+ */
+configure(distributions.findAll { ['deb', 'rpm'].contains(it.name) }) {
+  integTest.enabled = Os.isFamily(Os.FAMILY_WINDOWS) == false
+  File packagingFiles = new File(buildDir, 'packaging')
+  project.ext.packagingFiles = packagingFiles
+  task processPackagingFiles(type: Copy) {
+    from '../src/main/packaging'
+    from 'src/main/packaging'
+
+    MavenFilteringHack.filter(it, expansions)
+    into packagingFiles
+    /* Explicitly declare the outputs so that gradle won't skip this task if
+      one of the other tasks like createEtc run first and create the packaging
+      directory as a side effect. */
+    outputs.dir("${packagingFiles}/env")
+    outputs.dir("${packagingFiles}/systemd")
+  }
+
+  task createEtc(type: EmptyDirTask) {
+    dir "${packagingFiles}/etc/elasticsearch"
+    dirMode 0750
+  }
+
+  task fillEtc(type: Copy) {
+    dependsOn createEtc
+    with configFiles
+    into "${packagingFiles}/etc/elasticsearch"
+    /* Explicitly declare the output files so this task doesn't consider itself
+      up to date when the directory is created, which it would by default. And
+      that'll happen when createEtc runs. */
+    outputs.file "${packagingFiles}/etc/elasticsearch/elasticsearch.yml"
+    outputs.file "${packagingFiles}/etc/elasticsearch/jvm.options"
+    outputs.file "${packagingFiles}/etc/elasticsearch/log4j2.properties"
+  }
+
+  task createPidDir(type: EmptyDirTask) {
+    dir "${packagingFiles}/var/run/elasticsearch"
+  }
+  task createLogDir(type: EmptyDirTask) {
+    dir "${packagingFiles}/var/log/elasticsearch"
+  }
+  task createDataDir(type: EmptyDirTask) {
+    dir "${packagingFiles}/var/lib/elasticsearch"
+  }
+  task createPluginsDir(type: EmptyDirTask) {
+    dir "${packagingFiles}/usr/share/elasticsearch/plugins"
+  }
+
+  /**
+   * Setup the build/packaging directory to be like the target filesystem
+   * because ospackage will use arbitrary permissions if you try to create a
+   * directory that doesn't exist on the filesystem.
+   */
+  task preparePackagingFiles {
+    dependsOn processPackagingFiles, fillEtc, createPidDir, createLogDir,
+        createDataDir, createPluginsDir
+  }
+
+  apply plugin: 'nebula.ospackage-base'
+  ospackage {
+    packageName 'elasticsearch'
+    maintainer 'Elasticsearch Team <info@elastic.co>'
+    summary '''
+      Elasticsearch is a distributed RESTful search engine built for the cloud.
+      Reference documentation can be found at
+      https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html
+      and the 'Elasticsearch: The Definitive Guide' book can be found at
+      https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html
+      '''.stripIndent().replace('\n', ' ').trim()
+    url 'https://www.elastic.co/'
+
+    // signing setup
+    if (project.hasProperty('signing.password') && System.getProperty('build.snapshot', 'true') == 'false') {
+      signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'
+      signingKeyPassphrase = project.property('signing.password')
+      signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
+                           project.file(project.property('signing.secretKeyRingFile')) :
+                           new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
+    }
+
+    String scripts = "${packagingFiles}/scripts"
+    preInstall file("${scripts}/preinst")
+    postInstall file("${scripts}/postinst")
+    preUninstall file("${scripts}/prerm")
+    postUninstall file("${scripts}/postrm")
+
+    if (project.name == 'rpm') {
+      requires('/bin/bash')
+    } else if (project.name == 'deb') {
+      requires('bash')
+    }
+
+    into '/usr/share/elasticsearch'
+    fileMode 0644
+    dirMode 0755
+    user 'root'
+    permissionGroup 'root'
+    with libFiles
+    with modulesFiles
+    into('bin') {
+      with binFiles
+    }
+    with copySpec {
+      with commonFiles
+      if (project.name == 'deb') {
+        // Deb gets a copyright file instead.
+        exclude 'LICENSE.txt'
+      }
+    }
+    with noticeFile
+
+    configurationFile '/etc/elasticsearch/elasticsearch.yml'
+    configurationFile '/etc/elasticsearch/jvm.options'
+    configurationFile '/etc/elasticsearch/log4j2.properties'
+    into('/etc/elasticsearch') {
+      dirMode 0750
+      fileMode 0660
+      permissionGroup 'elasticsearch'
+      includeEmptyDirs true
+      createDirectoryEntry true
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/etc/elasticsearch"
+    }
+
+    into('/usr/lib/tmpfiles.d') {
+      from "${packagingFiles}/systemd/elasticsearch.conf"
+    }
+    configurationFile '/usr/lib/systemd/system/elasticsearch.service'
+    into('/usr/lib/systemd/system') {
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/systemd/elasticsearch.service"
+    }
+    into('/usr/lib/sysctl.d') {
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
+    }
+    configurationFile '/etc/init.d/elasticsearch'
+    into('/etc/init.d') {
+      fileMode 0750
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/init.d/elasticsearch"
+    }
+    configurationFile project.expansions['path.env']
+    into(new File(project.expansions['path.env']).getParent()) {
+      fileType CONFIG | NOREPLACE
+      fileMode 0660
+      from "${project.packagingFiles}/env/elasticsearch"
+    }
+
+    /**
+     * Suck up all the empty directories that we need to install into the path.
+     */
+    Closure suckUpEmptyDirectories = { path, u, g, mode ->
+      into(path) {
+        from "${packagingFiles}/${path}"
+        includeEmptyDirs true
+        createDirectoryEntry true
+        user u
+        permissionGroup g
+        dirMode mode
+        fileMode mode
+      }
+    }
+    suckUpEmptyDirectories('/var/run', 'elasticsearch', 'elasticsearch', 0755)
+    suckUpEmptyDirectories('/var/log', 'elasticsearch', 'elasticsearch', 0750)
+    suckUpEmptyDirectories('/var/lib', 'elasticsearch', 'elasticsearch', 0750)
+    suckUpEmptyDirectories('/usr/share/elasticsearch', 'root', 'root', 0755)
+  }
+}
+
+task run(type: RunTask) {
+  distribution = 'zip'
+}
+
+/**
+ * Build some variables that are replaced in the packages. This includes both
+ * scripts like bin/elasticsearch and bin/elasticsearch-plugin that a user might run and also
+ * scripts like postinst which are run as part of the installation.
+ *
+ * <dl>
+ *  <dt>package.name</dt>
+ *  <dd>The name of the project. Its sprinkled throughout the scripts.</dd>
+ *  <dt>package.version</dt>
+ *  <dd>The version of the project. Its mostly used to find the exact jar name.
+ *    </dt>
+ *  <dt>path.conf</dt>
+ *  <dd>The default directory from which to load configuration. This is used in
+ *    the packaging scripts, but in that context it is always
+ *    /etc/elasticsearch. Its also used in bin/elasticsearch-plugin, where it is
+ *    /etc/elasticsearch for the os packages but $ESHOME/config otherwise.</dd>
+ *  <dt>path.env</dt>
+ *  <dd>The env file sourced before bin/elasticsearch to set environment
+ *    variables. Think /etc/defaults/elasticsearch.</dd>
+ *  <dt>heap.min and heap.max</dt>
+ *  <dd>Default min and max heap</dd>
+ *  <dt>scripts.footer</dt>
+ *  <dd>Footer appended to control scripts embedded in the distribution that is
+ *    (almost) entirely there for cosmetic reasons.</dd>
+ *  <dt>stopping.timeout</dt>
+ *  <dd>RPM's init script needs to wait for elasticsearch to stop before
+ *    returning from stop and it needs a maximum time to wait. This is it. One
+ *    day. DEB retries forever.</dd>
+ * </dl>
+ */
+Map<String, String> expansionsForDistribution(distributionType) {
+  final String defaultHeapSize = "1g"
+  final String packagingPathData = "path.data: /var/lib/elasticsearch"
+  final String packagingPathLogs = "path.logs: /var/log/elasticsearch"
+
+  String footer = "# Built for ${project.name}-${project.version} " +
+      "(${distributionType})"
+  Map<String, Object> expansions = [
+    'project.name': project.name,
+    'project.version': version,
+
+    'path.conf': [
+      'tar': '"$ES_HOME"/config',
+      'zip': '"$ES_HOME"/config',
+      'integ-test-zip': '"$ES_HOME"/config',
+      'def': '/etc/elasticsearch',
+    ],
+    'path.data': [
+      'deb': packagingPathData,
+      'rpm': packagingPathData,
+      'def': '#path.data: /path/to/data'
+    ],
+    'path.env': [
+      'deb': '/etc/default/elasticsearch',
+      'rpm': '/etc/sysconfig/elasticsearch',
+      /* There isn't one of these files for tar or zip but its important to
+        make an empty string here so the script can properly skip it. */
+      'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
+    ],
+    'source.path.env': [
+       'deb': 'if [ -f /etc/default/elasticsearch ]; then source /etc/default/elasticsearch; fi',
+       'rpm': 'if [ -f /etc/sysconfig/elasticsearch ]; then source /etc/sysconfig/elasticsearch; fi',
+       'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
+    ],
+    'path.logs': [
+      'deb': packagingPathLogs,
+      'rpm': packagingPathLogs,
+      'def': '#path.logs: /path/to/logs'
+    ],
+
+    'heap.min': defaultHeapSize,
+    'heap.max': defaultHeapSize,
+
+    'heap.dump.path': [
+      'deb': "-XX:HeapDumpPath=/var/lib/elasticsearch",
+      'rpm': "-XX:HeapDumpPath=/var/lib/elasticsearch",
+      'def': "#-XX:HeapDumpPath=/heap/dump/path"
+    ],
+
+    'stopping.timeout': [
+      'rpm': 86400,
+    ],
+
+    'scripts.footer': [
+      /* Debian needs exit 0 on these scripts so we add it here and preserve
+        the pretty footer. */
+      'deb': "exit 0\n${footer}",
+      'def': footer
+    ],
+  ]
+  Map<String, String> result = [:]
+  expansions = expansions.each { key, value ->
+    if (value instanceof Map) {
+      // 'def' is for default but its three characters like 'rpm' and 'deb'
+      value = value[distributionType] ?: value['def']
+      if (value == null) {
+        return
+      }
+    }
+    result[key] = value
+  }
+  return result
+}

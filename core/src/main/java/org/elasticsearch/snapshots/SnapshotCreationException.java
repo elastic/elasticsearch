@@ -19,19 +19,28 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.ElasticsearchWrapperException;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
  * Thrown when snapshot creation fails completely
  */
-public class SnapshotCreationException extends SnapshotException implements ElasticsearchWrapperException {
+public class SnapshotCreationException extends SnapshotException {
 
-    public SnapshotCreationException(SnapshotId snapshot, String message) {
-        super(snapshot, message);
+    public SnapshotCreationException(final String repositoryName, final String snapshotName, final Throwable cause) {
+        super(repositoryName, snapshotName, "failed to create snapshot", cause);
     }
 
-    public SnapshotCreationException(SnapshotId snapshot, Throwable cause) {
-        super(snapshot, "failed to create snapshot", cause);
+    public SnapshotCreationException(final String repositoryName, final SnapshotId snapshotId, final Throwable cause) {
+        super(repositoryName, snapshotId, "failed to create snapshot", cause);
+    }
+
+    public SnapshotCreationException(final String repositoryName, final SnapshotId snapshotId, final String msg) {
+        super(repositoryName, snapshotId, msg);
+    }
+
+    public SnapshotCreationException(StreamInput in) throws IOException {
+        super(in);
     }
 }

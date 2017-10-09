@@ -16,14 +16,18 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import java.lang.annotation.*;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
  * The presence of this annotation on a method parameter indicates that
  * {@code null} is an acceptable value for that parameter.  It should not be
  * used for parameters of primitive types.
- * <p/>
- * <p>This annotation may be used with the Google Web Toolkit (GWT).
+ * <p>
+ * This annotation may be used with the Google Web Toolkit (GWT).
  *
  * @author Kevin Bourrillion
  */

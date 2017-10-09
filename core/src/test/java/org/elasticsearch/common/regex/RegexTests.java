@@ -18,23 +18,20 @@
  */
 package org.elasticsearch.common.regex;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Random;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RegexTests extends ElasticsearchTestCase {
-
-    @Test
+public class RegexTests extends ESTestCase {
     public void testFlags() {
         String[] supportedFlags = new String[]{"CASE_INSENSITIVE", "MULTILINE", "DOTALL", "UNICODE_CASE", "CANON_EQ", "UNIX_LINES",
-                "LITERAL", "COMMENTS", "UNICODE_CHAR_CLASS"};
+                "LITERAL", "COMMENTS", "UNICODE_CHAR_CLASS", "UNICODE_CHARACTER_CLASS"};
         int[] flags = new int[]{Pattern.CASE_INSENSITIVE, Pattern.MULTILINE, Pattern.DOTALL, Pattern.UNICODE_CASE, Pattern.CANON_EQ,
                 Pattern.UNIX_LINES, Pattern.LITERAL, Pattern.COMMENTS, Regex.UNICODE_CHARACTER_CLASS};
-        Random random = getRandom();
+        Random random = random();
         int num = 10 + random.nextInt(100);
         for (int i = 0; i < num; i++) {
             int numFlags = random.nextInt(flags.length + 1);
@@ -55,7 +52,6 @@ public class RegexTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test(timeout = 1000)
     public void testDoubleWildcardMatch() {
         assertTrue(Regex.simpleMatch("ddd", "ddd"));
         assertTrue(Regex.simpleMatch("d*d*d", "dadd"));
@@ -67,5 +63,4 @@ public class RegexTests extends ElasticsearchTestCase {
         assertTrue(Regex.simpleMatch("fff*******ddd", "fffabcddd"));
         assertFalse(Regex.simpleMatch("fff******ddd", "fffabcdd"));
     }
-
 }

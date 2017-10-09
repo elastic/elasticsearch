@@ -19,21 +19,17 @@
 
 package org.elasticsearch.action.explain;
 
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 /**
  * A builder for {@link ExplainRequest}.
  */
 public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
-
-    private QuerySourceBuilder sourceBuilder;
 
     ExplainRequestBuilder(ElasticsearchClient client, ExplainAction action) {
         super(client, action, new ExplainRequest());
@@ -87,23 +83,15 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Sets the query to get a score explanation for.
      */
     public ExplainRequestBuilder setQuery(QueryBuilder query) {
-        sourceBuilder().setQuery(query);
+        request.query(query);
         return this;
     }
 
     /**
-     * Sets the query to get a score explanation for.
+     * Explicitly specify the stored fields that will be returned for the explained document. By default, nothing is returned.
      */
-    public ExplainRequestBuilder setQuery(BytesReference query) {
-        sourceBuilder().setQuery(query);
-        return this;
-    }
-
-    /**
-     * Explicitly specify the fields that will be returned for the explained document. By default, nothing is returned.
-     */
-    public ExplainRequestBuilder setFields(String... fields) {
-        request.fields(fields);
+    public ExplainRequestBuilder setStoredFields(String... fields) {
+        request.storedFields(fields);
         return this;
     }
 
@@ -111,12 +99,9 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Indicates whether the response should contain the stored _source
      */
     public ExplainRequestBuilder setFetchSource(boolean fetch) {
-        FetchSourceContext context = request.fetchSourceContext();
-        if (context == null) {
-            request.fetchSourceContext(new FetchSourceContext(fetch));
-        } else {
-            context.fetchSource(fetch);
-        }
+        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null ? request.fetchSourceContext()
+            : FetchSourceContext.FETCH_SOURCE;
+        request.fetchSourceContext(new FetchSourceContext(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes()));
         return this;
     }
 
@@ -141,38 +126,9 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * @param excludes An optional list of exclude (optionally wildcarded) pattern to filter the returned _source
      */
     public ExplainRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
-        FetchSourceContext context = request.fetchSourceContext();
-        if (context == null) {
-            request.fetchSourceContext(new FetchSourceContext(includes, excludes));
-        } else {
-            context.fetchSource(true);
-            context.includes(includes);
-            context.excludes(excludes);
-        }
+        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null ? request.fetchSourceContext()
+            : FetchSourceContext.FETCH_SOURCE;
+        request.fetchSourceContext(new FetchSourceContext(fetchSourceContext.fetchSource(), includes, excludes));
         return this;
     }
-
-    /**
-     * Sets the full source of the explain request (for example, wrapping an actual query).
-     */
-    public ExplainRequestBuilder setSource(BytesReference source) {
-        request().source(source);
-        return this;
-    }
-
-    @Override
-    protected ExplainRequest beforeExecute(ExplainRequest request) {
-        if (sourceBuilder != null) {
-            request.source(sourceBuilder);
-        }
-        return request;
-    }
-
-    private QuerySourceBuilder sourceBuilder() {
-        if (sourceBuilder == null) {
-            sourceBuilder = new QuerySourceBuilder();
-        }
-        return sourceBuilder;
-    }
-
 }

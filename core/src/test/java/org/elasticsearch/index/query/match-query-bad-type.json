@@ -1,8 +1,0 @@
-{
-    "match" : {
-        "message" : {
-            "query" : "this is a test",
-            "type" : "doesNotExist"
-        }
-    }
-}

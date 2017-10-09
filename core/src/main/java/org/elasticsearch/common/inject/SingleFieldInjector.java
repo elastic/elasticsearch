@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,14 +34,11 @@ class SingleFieldInjector implements SingleMemberInjector {
     final Dependency<?> dependency;
     final InternalFactory<?> factory;
 
-    public SingleFieldInjector(InjectorImpl injector, InjectionPoint injectionPoint, Errors errors)
+    SingleFieldInjector(InjectorImpl injector, InjectionPoint injectionPoint, Errors errors)
             throws ErrorsException {
         this.injectionPoint = injectionPoint;
         this.field = (Field) injectionPoint.getMember();
         this.dependency = injectionPoint.getDependencies().get(0);
-
-        // Ewwwww...
-        field.setAccessible(true);
         factory = injector.getInternalFactory(dependency.getKey(), errors);
     }
 

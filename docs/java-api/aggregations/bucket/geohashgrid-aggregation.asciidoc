@@ -36,11 +36,11 @@ GeoHashGrid agg = sr.getAggregations().get("agg");
 
 // For each entry
 for (GeoHashGrid.Bucket entry : agg.getBuckets()) {
-    String key = entry.getKey();                        // key as String
-    GeoPoint keyAsGeoPoint = entry.getKeyAsGeoPoint();  // key as geo point
-    long docCount = entry.getDocCount();                // Doc count
+    String keyAsString = entry.getKeyAsString(); // key as String
+    GeoPoint key = (GeoPoint) entry.getKey();    // key as geo point
+    long docCount = entry.getDocCount();         // Doc count
 
-    logger.info("key [{}], point {}, doc_count [{}]", key, keyAsGeoPoint, docCount);
+    logger.info("key [{}], point {}, doc_count [{}]", keyAsString, key, docCount);
 }
 --------------------------------------------------
 

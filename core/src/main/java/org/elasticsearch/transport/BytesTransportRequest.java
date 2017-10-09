@@ -28,7 +28,7 @@ import java.io.IOException;
 
 /**
  * A specialized, bytes only request, that can potentially be optimized on the network
- * layer, specifically for teh same large buffer send to several nodes.
+ * layer, specifically for the same large buffer send to several nodes.
  */
 public class BytesTransportRequest extends TransportRequest {
 

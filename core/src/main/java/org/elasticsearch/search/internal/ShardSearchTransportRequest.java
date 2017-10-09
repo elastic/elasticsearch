@@ -22,14 +22,21 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.Template;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -48,11 +55,29 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public ShardSearchTransportRequest(){
     }
 
-    public ShardSearchTransportRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards,
-                                       String[] filteringAliases, long nowInMillis) {
-        super(searchRequest);
-        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardRouting, numberOfShards, filteringAliases, nowInMillis);
-        this.originalIndices = new OriginalIndices(searchRequest);
+    public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int numberOfShards,
+                                       AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias) {
+        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, numberOfShards, aliasFilter, indexBoost,
+            nowInMillis, clusterAlias);
+        this.originalIndices = originalIndices;
+    }
+
+    public ShardSearchTransportRequest(StreamInput in) throws IOException {
+        super(in);
+        shardSearchLocalRequest = new ShardSearchLocalRequest();
+        shardSearchLocalRequest.innerReadFrom(in);
+        originalIndices = OriginalIndices.readOriginalIndices(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        shardSearchLocalRequest.innerWriteTo(out, false);
+        OriginalIndices.writeOriginalIndices(originalIndices, out);
+    }
+
+    public void searchType(SearchType searchType) {
+        shardSearchLocalRequest.setSearchType(searchType);
     }
 
     @Override
@@ -72,12 +97,7 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public String index() {
-        return shardSearchLocalRequest.index();
-    }
-
-    @Override
-    public int shardId() {
+    public ShardId shardId() {
         return shardSearchLocalRequest.shardId();
     }
 
@@ -87,18 +107,23 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public BytesReference source() {
+    public SearchSourceBuilder source() {
         return shardSearchLocalRequest.source();
     }
 
     @Override
-    public void source(BytesReference source) {
-        shardSearchLocalRequest.source(source);
+    public AliasFilter getAliasFilter() {
+        return shardSearchLocalRequest.getAliasFilter();
     }
 
     @Override
-    public BytesReference extraSource() {
-        return shardSearchLocalRequest.extraSource();
+    public void setAliasFilter(AliasFilter filter) {
+        shardSearchLocalRequest.setAliasFilter(filter);
+    }
+
+    @Override
+    public void source(SearchSourceBuilder source) {
+        shardSearchLocalRequest.source(source);
     }
 
     @Override
@@ -112,8 +137,8 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public String[] filteringAliases() {
-        return shardSearchLocalRequest.filteringAliases();
+    public float indexBoost() {
+        return shardSearchLocalRequest.indexBoost();
     }
 
     @Override
@@ -122,18 +147,8 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public Template template() {
-        return shardSearchLocalRequest.template();
-    }
-
-    @Override
-    public BytesReference templateSource() {
-        return shardSearchLocalRequest.templateSource();
-    }
-
-    @Override
-    public Boolean queryCache() {
-        return shardSearchLocalRequest.queryCache();
+    public Boolean requestCache() {
+        return shardSearchLocalRequest.requestCache();
     }
 
     @Override
@@ -143,21 +158,42 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shardSearchLocalRequest = new ShardSearchLocalRequest();
-        shardSearchLocalRequest.innerReadFrom(in);
-        originalIndices = OriginalIndices.readOriginalIndices(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        shardSearchLocalRequest.innerWriteTo(out, false);
-        OriginalIndices.writeOriginalIndices(originalIndices, out);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
     public BytesReference cacheKey() throws IOException {
         return shardSearchLocalRequest.cacheKey();
+    }
+
+    @Override
+    public void setProfile(boolean profile) {
+        shardSearchLocalRequest.setProfile(profile);
+    }
+
+    @Override
+    public boolean isProfile() {
+        return shardSearchLocalRequest.isProfile();
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new SearchTask(id, type, action, getDescription(), parentTaskId);
+    }
+
+    @Override
+    public String getDescription() {
+        // Shard id is enough here, the request itself can be found by looking at the parent task description
+        return "shardId[" + shardSearchLocalRequest.shardId() + "]";
+    }
+
+    @Override
+    public String getClusterAlias() {
+        return shardSearchLocalRequest.getClusterAlias();
+    }
+
+    @Override
+    public Rewriteable<Rewriteable> getRewriteable() {
+        return shardSearchLocalRequest.getRewriteable();
     }
 }

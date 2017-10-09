@@ -1,0 +1,75 @@
+---
+"Test cat count help":
+  - do:
+      cat.count:
+        help: true
+
+  - match:
+      $body: |
+               /^  epoch      .+   \n
+                   timestamp  .+   \n
+                   count      .+   \n  $/
+
+---
+"Test cat count output":
+
+  - do:
+      cat.count: {}
+
+  - match:
+      $body: |
+               /# epoch     timestamp              count
+               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  0  \n$/
+
+  - do:
+      index:
+        index:  index1
+        type:   type1
+        id:     1
+        body:   { foo: bar }
+        refresh: true
+
+  - do:
+      cat.count: {}
+
+  - match:
+      $body: |
+               /# epoch     timestamp              count
+               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  1  \n  $/
+
+  - do:
+      index:
+        index:  index2
+        type:   type2
+        id:     1
+        body:   { foo: bar }
+        refresh: true
+
+  - do:
+      cat.count:
+        h: count
+
+  - match:
+      $body: |
+               /# count
+               ^  2     \n  $/
+
+
+  - do:
+      cat.count:
+        index: index1
+
+  - match:
+      $body: |
+               /# epoch     timestamp              count
+               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  1  \n  $/
+
+  - do:
+      cat.count:
+        index: index2
+        v: true
+
+  - match:
+      $body: |
+               /^  epoch  \s+  timestamp          \s+  count  \n
+                   \d+    \s+  \d{2}:\d{2}:\d{2}  \s+  \d+ \n  $/

@@ -20,7 +20,6 @@
 package org.elasticsearch.common.io;
 
 import org.elasticsearch.common.SuppressForbidden;
-import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -159,32 +158,11 @@ public final class Channels {
         return bytesRead;
     }
 
-
-    /**
-     * Copies bytes from source {@link org.jboss.netty.buffer.ChannelBuffer} to a {@link java.nio.channels.GatheringByteChannel}
-     *
-     * @param source      ChannelBuffer to copy from
-     * @param sourceIndex index in <i>source</i> to start copying from
-     * @param length      how many bytes to copy
-     * @param channel     target GatheringByteChannel
-     * @throws IOException
-     */
-    public static void writeToChannel(ChannelBuffer source, int sourceIndex, int length, GatheringByteChannel channel) throws IOException {
-        while (length > 0) {
-            int written = source.getBytes(sourceIndex, channel, length);
-            sourceIndex += written;
-            length -= written;
-        }
-        assert length == 0;
-    }
-
-
     /**
      * Writes part of a byte array to a {@link java.nio.channels.WritableByteChannel}
      *
      * @param source  byte array to copy from
      * @param channel target WritableByteChannel
-     * @throws IOException
      */
     public static void writeToChannel(byte[] source, WritableByteChannel channel) throws IOException {
         writeToChannel(source, 0, source.length, channel);
@@ -198,7 +176,6 @@ public final class Channels {
      * @param offset  start copying from this offset
      * @param length  how many bytes to copy
      * @param channel target WritableByteChannel
-     * @throws IOException
      */
     public static void writeToChannel(byte[] source, int offset, int length, WritableByteChannel channel) throws IOException {
         int toWrite = Math.min(length, WRITE_CHUNK_SIZE);
@@ -219,7 +196,6 @@ public final class Channels {
      *
      * @param byteBuffer source buffer
      * @param channel    channel to write to
-     * @throws IOException
      */
     public static void writeToChannel(ByteBuffer byteBuffer, WritableByteChannel channel) throws IOException {
         if (byteBuffer.isDirect() || (byteBuffer.remaining() <= WRITE_CHUNK_SIZE)) {

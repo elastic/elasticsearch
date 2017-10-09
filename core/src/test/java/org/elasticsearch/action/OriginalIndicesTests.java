@@ -22,21 +22,19 @@ package org.elasticsearch.action;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class OriginalIndicesTests extends ElasticsearchTestCase {
+public class OriginalIndicesTests extends ESTestCase {
 
     private static final IndicesOptions[] indicesOptionsValues = new IndicesOptions[]{
             IndicesOptions.lenientExpandOpen() , IndicesOptions.strictExpand(), IndicesOptions.strictExpandOpen(),
             IndicesOptions.strictExpandOpenAndForbidClosed(), IndicesOptions.strictSingleIndexNoExpandForbidClosed()};
 
-    @Test
     public void testOriginalIndicesSerialization() throws IOException {
         int iterations = iterations(10, 30);
         for (int i = 0; i < iterations; i++) {
@@ -46,7 +44,7 @@ public class OriginalIndicesTests extends ElasticsearchTestCase {
             out.setVersion(randomVersion(random()));
             OriginalIndices.writeOriginalIndices(originalIndices, out);
 
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             in.setVersion(out.getVersion());
             OriginalIndices originalIndices2 = OriginalIndices.readOriginalIndices(in);
 
@@ -59,7 +57,7 @@ public class OriginalIndicesTests extends ElasticsearchTestCase {
         int numIndices = randomInt(10);
         String[] indices = new String[numIndices];
         for (int j = 0; j < indices.length; j++) {
-            indices[j] = randomAsciiOfLength(randomIntBetween(1, 10));
+            indices[j] = randomAlphaOfLength(randomIntBetween(1, 10));
         }
         IndicesOptions indicesOptions = randomFrom(indicesOptionsValues);
         return new OriginalIndices(indices, indicesOptions);

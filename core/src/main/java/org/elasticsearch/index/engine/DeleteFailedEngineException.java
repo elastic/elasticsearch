@@ -19,14 +19,19 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 
-/**
- *
- */
-public class DeleteFailedEngineException extends EngineException {
+import java.io.IOException;
 
-    public DeleteFailedEngineException(ShardId shardId, Engine.Delete delete, Throwable cause) {
-        super(shardId, "Delete failed for [" + delete.uid().text() + "]", cause);
+/**
+ * Deprecated as not used in 6.0, should be removed in 7.0
+ * Still exists for bwc in serializing/deserializing from
+ * 5.x nodes
+ */
+@Deprecated
+public class DeleteFailedEngineException extends EngineException {
+    public DeleteFailedEngineException(StreamInput in) throws IOException{
+        super(in);
     }
 }

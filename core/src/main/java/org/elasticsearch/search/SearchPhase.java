@@ -19,22 +19,20 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.search.internal.SearchContext;
 
-import java.util.Map;
-
 /**
- *
+ * Represents a phase of a search request e.g. query, fetch etc.
  */
 public interface SearchPhase {
-
-    Map<String, ? extends SearchParseElement> parseElements();
 
     /**
      * Performs pre processing of the search context before the execute.
      */
     void preProcess(SearchContext context);
 
+    /**
+     * Executes the search phase
+     */
     void execute(SearchContext context);
 }

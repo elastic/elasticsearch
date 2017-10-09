@@ -1,0 +1,40 @@
+[[java-query-dsl]]
+== Query DSL
+
+Elasticsearch provides a full Java query dsl in a similar manner to the
+REST {ref}/query-dsl.html[Query DSL]. The factory for query
+builders is `QueryBuilders`. Once your query is ready, you can use the
+<<java-search,Search API>>.
+
+To use `QueryBuilders` just import them in your class:
+
+[source,java]
+--------------------------------------------------
+import static org.elasticsearch.index.query.QueryBuilders.*;
+--------------------------------------------------
+
+Note that you can easily print (aka debug) JSON generated queries using
+`toString()` method on `QueryBuilder` object.
+
+The `QueryBuilder` can then be used with any API that accepts a query,
+such as `count` and `search`.
+
+:query-dsl-test: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/QueryDSLDocumentationTests.java
+
+include::query-dsl/match-all-query.asciidoc[]
+
+include::query-dsl/full-text-queries.asciidoc[]
+
+include::query-dsl/term-level-queries.asciidoc[]
+
+include::query-dsl/compound-queries.asciidoc[]
+
+include::query-dsl/joining-queries.asciidoc[]
+
+include::query-dsl/geo-queries.asciidoc[]
+
+include::query-dsl/special-queries.asciidoc[]
+
+include::query-dsl/span-queries.asciidoc[]
+
+:query-dsl-test!:

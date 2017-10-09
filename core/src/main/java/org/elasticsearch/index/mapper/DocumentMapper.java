@@ -19,214 +19,161 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.base.Function;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.Mapping.SourceTransform;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
-import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.Objects;
 
-/**
- *
- */
-public class DocumentMapper implements ToXContent {
+import static java.util.Collections.emptyMap;
+
+public class DocumentMapper implements ToXContentFragment {
 
     public static class Builder {
 
-        private Map<Class<? extends RootMapper>, RootMapper> rootMappers = new LinkedHashMap<>();
-
-        private List<SourceTransform> sourceTransforms = new ArrayList<>(1);
-
-        private final String index;
-
-        private final Settings indexSettings;
+        private Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
 
         private final RootObjectMapper rootObjectMapper;
 
-        private ImmutableMap<String, Object> meta = ImmutableMap.of();
+        private Map<String, Object> meta = emptyMap();
 
         private final Mapper.BuilderContext builderContext;
 
-        public Builder(String index, Settings indexSettings, RootObjectMapper.Builder builder) {
-            this.index = index;
-            this.indexSettings = indexSettings;
+        public Builder(RootObjectMapper.Builder builder, MapperService mapperService) {
+            final Settings indexSettings = mapperService.getIndexSettings().getSettings();
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
 
-            // UID first so it will be the first stored field to load (so will benefit from "fields: []" early termination
-            this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper(indexSettings));
-            this.rootMappers.put(IdFieldMapper.class, new IdFieldMapper(indexSettings));
-            this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper(indexSettings));
-            // add default mappers, order is important (for example analyzer should come before the rest to set context.analyzer)
-            this.rootMappers.put(SizeFieldMapper.class, new SizeFieldMapper(indexSettings));
-            this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper(indexSettings));
-            this.rootMappers.put(SourceFieldMapper.class, new SourceFieldMapper(indexSettings));
-            this.rootMappers.put(TypeFieldMapper.class, new TypeFieldMapper(indexSettings));
-            this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper(indexSettings));
-            this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper(indexSettings));
-            this.rootMappers.put(TTLFieldMapper.class, new TTLFieldMapper(indexSettings));
-            this.rootMappers.put(VersionFieldMapper.class, new VersionFieldMapper(indexSettings));
-            this.rootMappers.put(ParentFieldMapper.class, new ParentFieldMapper(indexSettings));
-            // _field_names last so that it can see all other fields
-            this.rootMappers.put(FieldNamesFieldMapper.class, new FieldNamesFieldMapper(indexSettings));
+            final String type = rootObjectMapper.name();
+            DocumentMapper existingMapper = mapperService.documentMapper(type);
+            for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : mapperService.mapperRegistry.getMetadataMapperParsers().entrySet()) {
+                final String name = entry.getKey();
+                final MetadataFieldMapper existingMetadataMapper = existingMapper == null
+                        ? null
+                        : (MetadataFieldMapper) existingMapper.mappers().getMapper(name);
+                final MetadataFieldMapper metadataMapper;
+                if (existingMetadataMapper == null) {
+                    final TypeParser parser = entry.getValue();
+                    metadataMapper = parser.getDefault(mapperService.fullName(name),
+                            mapperService.documentMapperParser().parserContext(builder.name()));
+                } else {
+                    metadataMapper = existingMetadataMapper;
+                }
+                metadataMappers.put(metadataMapper.getClass(), metadataMapper);
+            }
         }
 
-        public Builder meta(ImmutableMap<String, Object> meta) {
+        public Builder meta(Map<String, Object> meta) {
             this.meta = meta;
             return this;
         }
 
-        public Builder put(RootMapper.Builder mapper) {
-            RootMapper rootMapper = (RootMapper) mapper.build(builderContext);
-            rootMappers.put(rootMapper.getClass(), rootMapper);
+        public Builder put(MetadataFieldMapper.Builder<?, ?> mapper) {
+            MetadataFieldMapper metadataMapper = mapper.build(builderContext);
+            metadataMappers.put(metadataMapper.getClass(), metadataMapper);
             return this;
         }
 
-        public Builder transform(ScriptService scriptService, Script script) {
-            sourceTransforms.add(new ScriptTransform(scriptService, script));
-            return this;
-        }
-
-        /**
-         * @deprecated Use {@link #transform(ScriptService, Script)} instead.
-         */
-        @Deprecated
-        public Builder transform(ScriptService scriptService, String script, ScriptType scriptType, String language,
-                Map<String, Object> parameters) {
-            sourceTransforms.add(new ScriptTransform(scriptService, new Script(script, scriptType, language, parameters)));
-            return this;
-        }
-
-        public DocumentMapper build(MapperService mapperService, DocumentMapperParser docMapperParser) {
-            Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new DocumentMapper(mapperService, index, indexSettings, docMapperParser, rootObjectMapper, meta, rootMappers, sourceTransforms, mapperService.mappingLock);
+        public DocumentMapper build(MapperService mapperService) {
+            Objects.requireNonNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
+            Mapping mapping = new Mapping(
+                    mapperService.getIndexSettings().getIndexVersionCreated(),
+                    rootObjectMapper,
+                    metadataMappers.values().toArray(new MetadataFieldMapper[metadataMappers.values().size()]),
+                    meta);
+            return new DocumentMapper(mapperService, mapping);
         }
     }
 
     private final MapperService mapperService;
 
     private final String type;
-    private final StringAndBytesText typeText;
+    private final Text typeText;
 
-    private volatile CompressedXContent mappingSource;
+    private final CompressedXContent mappingSource;
 
     private final Mapping mapping;
 
     private final DocumentParser documentParser;
 
-    private volatile DocumentFieldMappers fieldMappers;
+    private final DocumentFieldMappers fieldMappers;
 
-    private volatile ImmutableMap<String, ObjectMapper> objectMappers = ImmutableMap.of();
+    private final Map<String, ObjectMapper> objectMappers;
 
-    private boolean hasNestedObjects = false;
+    private final boolean hasNestedObjects;
 
-    private final Query typeFilter;
-
-    private final ReleasableLock mappingWriteLock;
-    private final ReentrantReadWriteLock mappingLock;
-
-    public DocumentMapper(MapperService mapperService, String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
-                          RootObjectMapper rootObjectMapper,
-                          ImmutableMap<String, Object> meta,
-                          Map<Class<? extends RootMapper>, RootMapper> rootMappers,
-                          List<SourceTransform> sourceTransforms,
-                          ReentrantReadWriteLock mappingLock) {
+    public DocumentMapper(MapperService mapperService, Mapping mapping) {
         this.mapperService = mapperService;
-        this.type = rootObjectMapper.name();
-        this.typeText = new StringAndBytesText(this.type);
-        this.mapping = new Mapping(
-                Version.indexCreated(indexSettings),
-                rootObjectMapper,
-                rootMappers.values().toArray(new RootMapper[rootMappers.values().size()]),
-                sourceTransforms.toArray(new SourceTransform[sourceTransforms.size()]),
-                meta);
-        this.documentParser = new DocumentParser(index, indexSettings, docMapperParser, this, new ReleasableLock(mappingLock.readLock()));
+        this.type = mapping.root().name();
+        this.typeText = new Text(this.type);
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        this.mapping = mapping;
+        this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), this);
 
-        this.typeFilter = typeMapper().termQuery(type, null);
-        this.mappingWriteLock = new ReleasableLock(mappingLock.writeLock());
-        this.mappingLock = mappingLock;
-
-        if (rootMapper(ParentFieldMapper.class).active()) {
+        if (metadataMapper(ParentFieldMapper.class).active()) {
             // mark the routing field mapper as required
-            rootMapper(RoutingFieldMapper.class).markAsRequired();
+            metadataMapper(RoutingFieldMapper.class).markAsRequired();
         }
 
         // collect all the mappers for this type
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
-        for (RootMapper rootMapper : this.mapping.rootMappers) {
-            if (rootMapper instanceof FieldMapper) {
-                newFieldMappers.add((FieldMapper) rootMapper);
+        for (MetadataFieldMapper metadataMapper : this.mapping.metadataMappers) {
+            if (metadataMapper instanceof FieldMapper) {
+                newFieldMappers.add(metadataMapper);
             }
         }
         MapperUtils.collect(this.mapping.root, newObjectMappers, newFieldMappers);
 
-        this.fieldMappers = new DocumentFieldMappers(docMapperParser.analysisService).copyAndAllAll(newFieldMappers);
-        this.objectMappers = Maps.uniqueIndex(newObjectMappers, new Function<ObjectMapper, String>() {
-            @Override
-            public String apply(ObjectMapper mapper) {
-                return mapper.fullPath();
+        final IndexAnalyzers indexAnalyzers = mapperService.getIndexAnalyzers();
+        this.fieldMappers = new DocumentFieldMappers(newFieldMappers,
+                indexAnalyzers.getDefaultIndexAnalyzer(),
+                indexAnalyzers.getDefaultSearchAnalyzer(),
+                indexAnalyzers.getDefaultSearchQuoteAnalyzer());
+
+        Map<String, ObjectMapper> builder = new HashMap<>();
+        for (ObjectMapper objectMapper : newObjectMappers) {
+            ObjectMapper previous = builder.put(objectMapper.fullPath(), objectMapper);
+            if (previous != null) {
+                throw new IllegalStateException("duplicate key " + objectMapper.fullPath() + " encountered");
             }
-        });
+        }
+
+        boolean hasNestedObjects = false;
+        this.objectMappers = Collections.unmodifiableMap(builder);
         for (ObjectMapper objectMapper : newObjectMappers) {
             if (objectMapper.nested().isNested()) {
                 hasNestedObjects = true;
             }
         }
+        this.hasNestedObjects = hasNestedObjects;
 
-        refreshSource();
+        try {
+            mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        } catch (Exception e) {
+            throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
+        }
     }
 
     public Mapping mapping() {
@@ -241,7 +188,7 @@ public class DocumentMapper implements ToXContent {
         return this.typeText;
     }
 
-    public ImmutableMap<String, Object> meta() {
+    public Map<String, Object> meta() {
         return mapping.meta;
     }
 
@@ -254,64 +201,44 @@ public class DocumentMapper implements ToXContent {
     }
 
     public UidFieldMapper uidMapper() {
-        return rootMapper(UidFieldMapper.class);
+        return metadataMapper(UidFieldMapper.class);
     }
 
     @SuppressWarnings({"unchecked"})
-    public <T extends RootMapper> T rootMapper(Class<T> type) {
-        return mapping.rootMapper(type);
+    public <T extends MetadataFieldMapper> T metadataMapper(Class<T> type) {
+        return mapping.metadataMapper(type);
     }
 
     public IndexFieldMapper indexMapper() {
-        return rootMapper(IndexFieldMapper.class);
+        return metadataMapper(IndexFieldMapper.class);
     }
 
     public TypeFieldMapper typeMapper() {
-        return rootMapper(TypeFieldMapper.class);
+        return metadataMapper(TypeFieldMapper.class);
     }
 
     public SourceFieldMapper sourceMapper() {
-        return rootMapper(SourceFieldMapper.class);
-    }
-
-    public AllFieldMapper allFieldMapper() {
-        return rootMapper(AllFieldMapper.class);
+        return metadataMapper(SourceFieldMapper.class);
     }
 
     public IdFieldMapper idFieldMapper() {
-        return rootMapper(IdFieldMapper.class);
+        return metadataMapper(IdFieldMapper.class);
     }
 
     public RoutingFieldMapper routingFieldMapper() {
-        return rootMapper(RoutingFieldMapper.class);
+        return metadataMapper(RoutingFieldMapper.class);
     }
 
     public ParentFieldMapper parentFieldMapper() {
-        return rootMapper(ParentFieldMapper.class);
-    }
-
-    public SizeFieldMapper sizeFieldMapper() {
-        return rootMapper(SizeFieldMapper.class);
-    }
-
-    public TimestampFieldMapper timestampFieldMapper() {
-        return rootMapper(TimestampFieldMapper.class);
-    }
-
-    public TTLFieldMapper TTLFieldMapper() {
-        return rootMapper(TTLFieldMapper.class);
+        return metadataMapper(ParentFieldMapper.class);
     }
 
     public IndexFieldMapper IndexFieldMapper() {
-        return rootMapper(IndexFieldMapper.class);
+        return metadataMapper(IndexFieldMapper.class);
     }
 
-    public SizeFieldMapper SizeFieldMapper() {
-        return rootMapper(SizeFieldMapper.class);
-    }
-
-    public Query typeFilter() {
-        return this.typeFilter;
+    public Query typeFilter(QueryShardContext context) {
+        return typeMapper().fieldType().termQuery(type, context);
     }
 
     public boolean hasNestedObjects() {
@@ -322,12 +249,8 @@ public class DocumentMapper implements ToXContent {
         return this.fieldMappers;
     }
 
-    public ImmutableMap<String, ObjectMapper> objectMappers() {
+    public Map<String, ObjectMapper> objectMappers() {
         return this.objectMappers;
-    }
-
-    public ParsedDocument parse(String type, String id, BytesReference source) throws MapperParsingException {
-        return parse(SourceToParse.source(source).type(type).id(id));
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
@@ -344,22 +267,19 @@ public class DocumentMapper implements ToXContent {
                 continue;
             }
 
-            Filter filter = objectMapper.nestedTypeFilter();
+            Query filter = objectMapper.nestedTypeFilter();
             if (filter == null) {
                 continue;
             }
             // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
             // therefor is guaranteed to be a live doc.
-            DocIdSet nestedTypeSet = filter.getDocIdSet(context, null);
-            if (nestedTypeSet == null) {
-                continue;
-            }
-            DocIdSetIterator iterator = nestedTypeSet.iterator();
-            if (iterator == null) {
+            final Weight nestedWeight = filter.createWeight(sc.searcher(), false, 1f);
+            Scorer scorer = nestedWeight.scorer(context);
+            if (scorer == null) {
                 continue;
             }
 
-            if (iterator.advance(nestedDocId) == nestedDocId) {
+            if (scorer.iterator().advance(nestedDocId) == nestedDocId) {
                 if (nestedObjectMapper == null) {
                     nestedObjectMapper = objectMapper;
                 } else {
@@ -372,175 +292,30 @@ public class DocumentMapper implements ToXContent {
         return nestedObjectMapper;
     }
 
-    /**
-     * Returns the parent {@link ObjectMapper} instance of the specified object mapper or <code>null</code> if there
-     * isn't any.
-     */
-    // TODO: We should add: ObjectMapper#getParentObjectMapper()
-    public ObjectMapper findParentObjectMapper(ObjectMapper objectMapper) {
-        int indexOfLastDot = objectMapper.fullPath().lastIndexOf('.');
-        if (indexOfLastDot != -1) {
-            String parentNestObjectPath = objectMapper.fullPath().substring(0, indexOfLastDot);
-            return objectMappers().get(parentNestObjectPath);
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * Transform the source when it is expressed as a map.  This is public so it can be transformed the source is loaded.
-     * @param sourceAsMap source to transform.  This may be mutated by the script.
-     * @return transformed version of transformMe.  This may actually be the same object as sourceAsMap
-     */
-    public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
-        return DocumentParser.transformSourceAsMap(mapping, sourceAsMap);
-    }
-
-    private void addFieldMappers(Collection<FieldMapper> fieldMappers) {
-        assert mappingLock.isWriteLockedByCurrentThread();
-            this.fieldMappers = this.fieldMappers.copyAndAllAll(fieldMappers);
-        mapperService.addFieldMappers(fieldMappers);
-    }
-
     public boolean isParent(String type) {
         return mapperService.getParentTypes().contains(type);
     }
 
-    private void addObjectMappers(Collection<ObjectMapper> objectMappers) {
-        assert mappingLock.isWriteLockedByCurrentThread();
-            MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
-            for (ObjectMapper objectMapper : objectMappers) {
-                builder.put(objectMapper.fullPath(), objectMapper);
-                if (objectMapper.nested().isNested()) {
-                    hasNestedObjects = true;
-                }
-            }
-            this.objectMappers = builder.immutableMap();
-        mapperService.addObjectMappers(objectMappers);
+    public DocumentMapper merge(Mapping mapping, boolean updateAllTypes) {
+        Mapping merged = this.mapping.merge(mapping, updateAllTypes);
+        return new DocumentMapper(mapperService, merged);
     }
 
-    private MergeResult newMergeContext(boolean simulate) {
-        return new MergeResult(simulate) {
-
-            final List<String> conflicts = new ArrayList<>();
-            final List<FieldMapper> newFieldMappers = new ArrayList<>();
-            final List<ObjectMapper> newObjectMappers = new ArrayList<>();
-
-            @Override
-            public void addFieldMappers(Collection<FieldMapper> fieldMappers) {
-                assert simulate() == false;
-                newFieldMappers.addAll(fieldMappers);
-            }
-
-            @Override
-            public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
-                assert simulate() == false;
-                newObjectMappers.addAll(objectMappers);
-            }
-
-            @Override
-            public Collection<FieldMapper> getNewFieldMappers() {
-                return newFieldMappers;
-            }
-
-            @Override
-            public Collection<ObjectMapper> getNewObjectMappers() {
-                return newObjectMappers;
-            }
-
-            @Override
-            public void addConflict(String mergeFailure) {
-                conflicts.add(mergeFailure);
-            }
-
-            @Override
-            public boolean hasConflicts() {
-                return conflicts.isEmpty() == false;
-            }
-
-            @Override
-            public String[] buildConflicts() {
-                return conflicts.toArray(Strings.EMPTY_ARRAY);
-            }
-
-        };
-    }
-
-    public MergeResult merge(Mapping mapping, boolean simulate) {
-        try (ReleasableLock lock = mappingWriteLock.acquire()) {
-        final MergeResult mergeResult = newMergeContext(simulate);
-        this.mapping.merge(mapping, mergeResult);
-        if (simulate == false) {
-            addFieldMappers(mergeResult.getNewFieldMappers());
-            addObjectMappers(mergeResult.getNewObjectMappers());
-            refreshSource();
+    /**
+     * Recursively update sub field types.
+     */
+    public DocumentMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        Mapping updated = this.mapping.updateFieldType(fullNameToFieldType);
+        if (updated == this.mapping) {
+            // no change
+            return this;
         }
-        return mergeResult;
-    }
-    }
-
-    private void refreshSource() throws ElasticsearchGenerationException {
-        try {
-            BytesStreamOutput bStream = new BytesStreamOutput();
-            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream))) {
-                builder.startObject();
-                toXContent(builder, ToXContent.EMPTY_PARAMS);
-                builder.endObject();
-            }
-            mappingSource = new CompressedXContent(bStream.bytes());
-        } catch (Exception e) {
-            throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
-        }
-    }
-
-    public void close() {
-        documentParser.close();
-        mapping.root.close();
-        for (RootMapper rootMapper : mapping.rootMappers) {
-            rootMapper.close();
-        }
+        assert updated == updated.updateFieldType(fullNameToFieldType) : "updateFieldType operation is not idempotent";
+        return new DocumentMapper(mapperService, updated);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return mapping.toXContent(builder, params);
-    }
-
-    /**
-     * Script based source transformation.
-     */
-    private static class ScriptTransform implements SourceTransform {
-        private final ScriptService scriptService;
-        /**
-         * The script to transform the source document before indexing.
-         */
-        private final Script script;
-
-        public ScriptTransform(ScriptService scriptService, Script script) {
-            this.scriptService = scriptService;
-            this.script = script;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
-            try {
-                // We use the ctx variable and the _source name to be consistent with the update api.
-                ExecutableScript executable = scriptService.executable(script, ScriptContext.Standard.MAPPING);
-                Map<String, Object> ctx = new HashMap<>(1);
-                ctx.put("_source", sourceAsMap);
-                executable.setNextVar("ctx", ctx);
-                executable.run();
-                ctx = (Map<String, Object>) executable.unwrap(ctx);
-                return (Map<String, Object>) ctx.get("_source");
-            } catch (Exception e) {
-                throw new IllegalArgumentException("failed to execute script", e);
-            }
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return script.toXContent(builder, params);
-        }
     }
 }

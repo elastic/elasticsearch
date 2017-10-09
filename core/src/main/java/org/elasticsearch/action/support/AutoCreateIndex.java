@@ -20,83 +20,151 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.MapperService;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
+ * Encapsulates the logic of whether a new index should be automatically created when
+ * a write operation is about to happen in a non existing index.
  */
-public class AutoCreateIndex {
+public final class AutoCreateIndex {
 
-    private final boolean needToCheck;
-    private final boolean globallyDisabled;
-    private final String[] matches;
-    private final String[] matches2;
+    public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING =
+        new Setting<>("action.auto_create_index", "true", AutoCreate::new, Property.NodeScope, Setting.Property.Dynamic);
 
-    public AutoCreateIndex(Settings settings) {
-        String value = settings.get("action.auto_create_index");
-        if (value == null || Booleans.isExplicitTrue(value)) {
-            needToCheck = true;
-            globallyDisabled = false;
-            matches = null;
-            matches2 = null;
-        } else if (Booleans.isExplicitFalse(value)) {
-            needToCheck = false;
-            globallyDisabled = true;
-            matches = null;
-            matches2 = null;
-        } else {
-            needToCheck = true;
-            globallyDisabled = false;
-            matches = Strings.commaDelimitedListToStringArray(value);
-            matches2 = new String[matches.length];
-            for (int i = 0; i < matches.length; i++) {
-                matches2[i] = matches[i].substring(1);
-            }
-        }
+    private final boolean dynamicMappingDisabled;
+    private final IndexNameExpressionResolver resolver;
+    private volatile AutoCreate autoCreate;
+
+    public AutoCreateIndex(Settings settings, ClusterSettings clusterSettings, IndexNameExpressionResolver resolver) {
+        this.resolver = resolver;
+        dynamicMappingDisabled = !MapperService.INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
+        this.autoCreate = AUTO_CREATE_INDEX_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(AUTO_CREATE_INDEX_SETTING, this::setAutoCreate);
     }
 
     /**
      * Do we really need to check if an index should be auto created?
      */
     public boolean needToCheck() {
-        return this.needToCheck;
+        return this.autoCreate.autoCreateIndex;
     }
 
     /**
      * Should the index be auto created?
+     * @throws IndexNotFoundException if the index doesn't exist and shouldn't be auto created
      */
     public boolean shouldAutoCreate(String index, ClusterState state) {
-        if (!needToCheck) {
+        if (resolver.hasIndexOrAlias(index, state)) {
             return false;
         }
-        if (state.metaData().hasConcreteIndex(index)) {
-            return false;
+        // One volatile read, so that all checks are done against the same instance:
+        final AutoCreate autoCreate = this.autoCreate;
+        if (autoCreate.autoCreateIndex == false) {
+            throw new IndexNotFoundException("no such index and [" + AUTO_CREATE_INDEX_SETTING.getKey() + "] is [false]", index);
         }
-        if (globallyDisabled) {
-            return false;
+        if (dynamicMappingDisabled) {
+            throw new IndexNotFoundException("no such index and [" + MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey() + "] is [false]",
+                    index);
         }
         // matches not set, default value of "true"
-        if (matches == null) {
+        if (autoCreate.expressions.isEmpty()) {
             return true;
         }
-        for (int i = 0; i < matches.length; i++) {
-            char c = matches[i].charAt(0);
-            if (c == '-') {
-                if (Regex.simpleMatch(matches2[i], index)) {
-                    return false;
-                }
-            } else if (c == '+') {
-                if (Regex.simpleMatch(matches2[i], index)) {
+        for (Tuple<String, Boolean> expression : autoCreate.expressions) {
+            String indexExpression = expression.v1();
+            boolean include = expression.v2();
+            if (Regex.simpleMatch(indexExpression, index)) {
+                if (include) {
                     return true;
                 }
-            } else {
-                if (Regex.simpleMatch(matches[i], index)) {
-                    return true;
-                }
+                throw new IndexNotFoundException("no such index and [" + AUTO_CREATE_INDEX_SETTING.getKey() + "] contains [-"
+                        + indexExpression + "] which forbids automatic creation of the index", index);
             }
         }
-        return false;
+        throw new IndexNotFoundException("no such index and [" + AUTO_CREATE_INDEX_SETTING.getKey() + "] ([" + autoCreate
+                + "]) doesn't match", index);
+    }
+
+    AutoCreate getAutoCreate() {
+        return autoCreate;
+    }
+
+    void setAutoCreate(AutoCreate autoCreate) {
+        this.autoCreate = autoCreate;
+    }
+
+    static class AutoCreate {
+        private final boolean autoCreateIndex;
+        private final List<Tuple<String, Boolean>> expressions;
+        private final String string;
+
+        private AutoCreate(String value) {
+            boolean autoCreateIndex;
+            List<Tuple<String, Boolean>> expressions = new ArrayList<>();
+            try {
+                autoCreateIndex = Booleans.parseBoolean(value);
+            } catch (IllegalArgumentException ex) {
+                try {
+                    String[] patterns = Strings.commaDelimitedListToStringArray(value);
+                    for (String pattern : patterns) {
+                        if (pattern == null || pattern.trim().length() == 0) {
+                            throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] must "
+                                    + "be either [true, false, or a comma separated list of index patterns]");
+                        }
+                        pattern = pattern.trim();
+                        Tuple<String, Boolean> expression;
+                        if (pattern.startsWith("-")) {
+                            if (pattern.length() == 1) {
+                                throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] "
+                                        + "must contain an index name after [-]");
+                            }
+                            expression = new Tuple<>(pattern.substring(1), false);
+                        } else if(pattern.startsWith("+")) {
+                            if (pattern.length() == 1) {
+                                throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] "
+                                        + "must contain an index name after [+]");
+                            }
+                            expression = new Tuple<>(pattern.substring(1), true);
+                        } else {
+                            expression = new Tuple<>(pattern, true);
+                        }
+                        expressions.add(expression);
+                    }
+                    autoCreateIndex = true;
+                } catch (IllegalArgumentException ex1) {
+                    ex1.addSuppressed(ex);
+                    throw ex1;
+                }
+            }
+            this.expressions = expressions;
+            this.autoCreateIndex = autoCreateIndex;
+            this.string = value;
+        }
+
+        boolean isAutoCreateIndex() {
+            return autoCreateIndex;
+        }
+
+        List<Tuple<String, Boolean>> getExpressions() {
+            return expressions;
+        }
+
+        @Override
+        public String toString() {
+            return string;
+        }
     }
 }

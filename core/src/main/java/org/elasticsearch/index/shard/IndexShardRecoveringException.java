@@ -19,12 +19,17 @@
 
 package org.elasticsearch.index.shard;
 
-/**
- *
- */
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+
 public class IndexShardRecoveringException extends IllegalIndexShardStateException {
 
     public IndexShardRecoveringException(ShardId shardId) {
         super(shardId, IndexShardState.RECOVERING, "Already recovering");
+    }
+
+    public IndexShardRecoveringException(StreamInput in) throws IOException{
+        super(in);
     }
 }

@@ -19,26 +19,32 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
         extends InternalAggregation implements MultiBucketsAggregation {
-
-    public InternalMultiBucketAggregation() {
-    }
-
     public InternalMultiBucketAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
     }
 
     /**
+     * Read from a stream.
+     */
+    protected InternalMultiBucketAggregation(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    /**
      * Create a new copy of this {@link Aggregation} with the same settings as
      * this {@link Aggregation} and contains the provided buckets.
-     * 
+     *
      * @param buckets
      *            the buckets to use in the new {@link Aggregation}
      * @return the new {@link Aggregation}
@@ -48,7 +54,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     /**
      * Create a new {@link InternalBucket} using the provided prototype bucket
      * and aggregations.
-     * 
+     *
      * @param aggregations
      *            the aggregations for the new bucket
      * @param prototype
@@ -58,11 +64,16 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     public abstract B createBucket(InternalAggregations aggregations, B prototype);
 
     @Override
+    public abstract List<? extends InternalBucket> getBuckets();
+
+    @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
+        } else if (path.get(0).equals("_bucket_count")) {
+            return getBuckets().size();
         } else {
-            List<? extends Bucket> buckets = getBuckets();
+            List<? extends InternalBucket> buckets = getBuckets();
             Object[] propertyArray = new Object[buckets.size()];
             for (int i = 0; i < buckets.size(); i++) {
                 propertyArray[i] = buckets.get(i).getProperty(getName(), path);
@@ -71,8 +82,8 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
         }
     }
 
-    public static abstract class InternalBucket implements Bucket {
-        @Override
+    public abstract static class InternalBucket implements Bucket, Writeable {
+
         public Object getProperty(String containingAggName, List<String> path) {
             if (path.isEmpty()) {
                 return this;

@@ -1,0 +1,44 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test date processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "date" : {
+                  "field" : "date_source_field",
+                  "target_field" : "date_target_field",
+                  "formats" : ["dd/MM/yyyy"],
+                  "timezone" : "Europe/Amsterdam"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {date_source_field: "12/06/2010"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.date_source_field: "12/06/2010" }
+  - match: { _source.date_target_field: "2010-06-12T00:00:00.000+02:00" }
+

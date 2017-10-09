@@ -10,15 +10,18 @@ all indices:
 
 [source,js]
 --------------------------------------------------
-curl localhost:9200/_stats
+GET /_stats
 --------------------------------------------------
+// CONSOLE
 
 Specific index stats can be retrieved using:
 
 [source,js]
 --------------------------------------------------
-curl localhost:9200/index1,index2/_stats
+GET /index1,index2/_stats
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT index1\nPUT index2\n/]
 
 By default, all stats are returned, returning only specific stats can be
 specified as well in the URI. Those stats can be any of:
@@ -34,18 +37,20 @@ specified as well in the URI. Those stats can be any of:
 
 `get`:: 		Get statistics, including missing stats.
 
-`search`:: 		Search statistics. You can include statistics for custom groups by adding
+`search`:: 		Search statistics including suggest statistics.
+                You can include statistics for custom groups by adding
                 an extra `groups` parameter (search operations can be associated with one or more
                 groups). The `groups` parameter accepts a comma separated list of group names.
                 Use `_all` to return statistics for all groups.
+
+`segments`::    Retrieve the memory use of the open segments. Optionally, setting the `include_segment_file_sizes` flag, report the aggregated disk usage of each one of the Lucene index files.
 
 `completion`::  Completion suggest statistics.
 `fielddata`::   Fielddata statistics.
 `flush`::       Flush statistics.
 `merge`::       Merge statistics.
-`query_cache`:: <<index-modules-shard-query-cache,Shard query cache>> statistics.
+`request_cache`:: <<shard-request-cache,Shard request cache>> statistics.
 `refresh`::     Refresh statistics.
-`suggest`::     Suggest statistics.
 `warmer`::      Warmer statistics.
 `translog`::    Translog statistics.
 
@@ -72,19 +77,22 @@ Here are some samples:
 [source,js]
 --------------------------------------------------
 # Get back stats for merge and refresh only for all indices
-curl 'localhost:9200/_stats/merge,refresh'
+GET /_stats/merge,refresh
 # Get back stats for type1 and type2 documents for the my_index index
-curl 'localhost:9200/my_index/_stats/indexing?types=type1,type2
+GET /my_index/_stats/indexing?types=type1,type2
 # Get back just search stats for group1 and group2
-curl 'localhost:9200/_stats/search?groups=group1,group2
+GET /_stats/search?groups=group1,group2
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT my_index\n/]
 
 The stats returned are aggregated on the index level, with
-`primaries` and `total` aggregations. In order to get back shard level
-stats, set the `level` parameter to `shards`.
+`primaries` and `total` aggregations, where `primaries` are the values for only the
+primary shards, and `total` are the cumulated values for both primary and replica shards.
+
+In order to get back shard level stats, set the `level` parameter to `shards`.
 
 Note, as shards move around the cluster, their stats will be cleared as
 they are created on other nodes. On the other hand, even though a shard
 "left" a node, that node will still retain the stats that shard
 contributed to.
-

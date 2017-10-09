@@ -19,37 +19,39 @@
 
 package org.elasticsearch.common.unit;
 
-import com.google.common.base.Preconditions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.io.Serializable;
 
-/**
- *
- */
-public class SizeValue implements Serializable, Streamable {
+public class SizeValue implements Writeable, Comparable<SizeValue> {
 
-    private long size;
-
-    private SizeUnit sizeUnit;
-
-    private SizeValue() {
-
-    }
+    private final long size;
+    private final SizeUnit sizeUnit;
 
     public SizeValue(long singles) {
         this(singles, SizeUnit.SINGLE);
     }
 
     public SizeValue(long size, SizeUnit sizeUnit) {
-        Preconditions.checkArgument(size >= 0, "size in SizeValue may not be negative");
+        if (size < 0) {
+            throw new IllegalArgumentException("size in SizeValue may not be negative");
+        }
         this.size = size;
         this.sizeUnit = sizeUnit;
+    }
+
+    public SizeValue(StreamInput in) throws IOException {
+        size = in.readVLong();
+        sizeUnit = SizeUnit.SINGLE;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(singles());
     }
 
     public long singles() {
@@ -175,9 +177,7 @@ public class SizeValue implements Serializable, Streamable {
         }
         long singles;
         try {
-            if (sValue.endsWith("b")) {
-                singles = Long.parseLong(sValue.substring(0, sValue.length() - 1));
-            } else if (sValue.endsWith("k") || sValue.endsWith("K")) {
+            if (sValue.endsWith("k") || sValue.endsWith("K")) {
                 singles = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * SizeUnit.C1);
             } else if (sValue.endsWith("m") || sValue.endsWith("M")) {
                 singles = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * SizeUnit.C2);
@@ -191,26 +191,9 @@ public class SizeValue implements Serializable, Streamable {
                 singles = Long.parseLong(sValue);
             }
         } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("Failed to parse [" + sValue + "]", e);
+            throw new ElasticsearchParseException("failed to parse [{}]", e, sValue);
         }
         return new SizeValue(singles, SizeUnit.SINGLE);
-    }
-
-    public static SizeValue readSizeValue(StreamInput in) throws IOException {
-        SizeValue sizeValue = new SizeValue();
-        sizeValue.readFrom(in);
-        return sizeValue;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        size = in.readVLong();
-        sizeUnit = SizeUnit.SINGLE;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(singles());
     }
 
     @Override
@@ -218,18 +201,18 @@ public class SizeValue implements Serializable, Streamable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        SizeValue sizeValue = (SizeValue) o;
-
-        if (size != sizeValue.size) return false;
-        if (sizeUnit != sizeValue.sizeUnit) return false;
-
-        return true;
+        return compareTo((SizeValue) o) == 0;
     }
 
     @Override
     public int hashCode() {
-        int result = (int) (size ^ (size >>> 32));
-        result = 31 * result + (sizeUnit != null ? sizeUnit.hashCode() : 0);
-        return result;
+        return Double.hashCode(((double) size) * sizeUnit.toSingles(1));
+    }
+
+    @Override
+    public int compareTo(SizeValue other) {
+        double thisValue = ((double) size) * sizeUnit.toSingles(1);
+        double otherValue = ((double) other.size) * other.sizeUnit.toSingles(1);
+        return Double.compare(thisValue, otherValue);
     }
 }

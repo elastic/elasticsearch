@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,11 +16,11 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
+import java.util.HashSet;
+import java.util.Set;
 
-import java.util.List;
+import static java.util.Collections.singleton;
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * Provides access to the calling line of code.
@@ -34,35 +34,29 @@ public class SourceProvider {
      */
     public static final Object UNKNOWN_SOURCE = "[unknown source]";
 
-    private final ImmutableSet<String> classNamesToSkip;
+    private final Set<String> classNamesToSkip;
 
     public SourceProvider() {
-        this.classNamesToSkip = ImmutableSet.of(SourceProvider.class.getName());
+        this.classNamesToSkip = singleton(SourceProvider.class.getName());
     }
 
-    public static final SourceProvider DEFAULT_INSTANCE
-            = new SourceProvider(ImmutableSet.of(SourceProvider.class.getName()));
+    public static final SourceProvider DEFAULT_INSTANCE = new SourceProvider();
 
-    private SourceProvider(Iterable<String> classesToSkip) {
-        this.classNamesToSkip = ImmutableSet.copyOf(classesToSkip);
+    @SuppressWarnings("rawtypes")
+    private SourceProvider(SourceProvider copy, Class[] moreClassesToSkip) {
+        Set<String> classNamesToSkip = new HashSet<>(copy.classNamesToSkip);
+        for (Class toSkip : moreClassesToSkip) {
+            classNamesToSkip.add(toSkip.getName());
+        }
+        this.classNamesToSkip = unmodifiableSet(classNamesToSkip);
     }
 
     /**
      * Returns a new instance that also skips {@code moreClassesToSkip}.
      */
+    @SuppressWarnings("rawtypes")
     public SourceProvider plusSkippedClasses(Class... moreClassesToSkip) {
-        return new SourceProvider(Iterables.concat(classNamesToSkip, asStrings(moreClassesToSkip)));
-    }
-
-    /**
-     * Returns the class names as Strings
-     */
-    private static List<String> asStrings(Class... classes) {
-        List<String> strings = Lists.newArrayList();
-        for (Class c : classes) {
-            strings.add(c.getName());
-        }
-        return strings;
+        return new SourceProvider(this, moreClassesToSkip);
     }
 
     /**

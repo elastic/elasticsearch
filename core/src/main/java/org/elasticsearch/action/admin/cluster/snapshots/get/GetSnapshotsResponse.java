@@ -19,30 +19,31 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
  * Get snapshots response
  */
-public class GetSnapshotsResponse extends ActionResponse implements ToXContent {
+public class GetSnapshotsResponse extends ActionResponse implements ToXContentObject {
 
-    private ImmutableList<SnapshotInfo> snapshots = ImmutableList.of();
+    private List<SnapshotInfo> snapshots = Collections.emptyList();
 
     GetSnapshotsResponse() {
     }
 
-    GetSnapshotsResponse(ImmutableList<SnapshotInfo> snapshots) {
-        this.snapshots = snapshots;
+    GetSnapshotsResponse(List<SnapshotInfo> snapshots) {
+        this.snapshots = Collections.unmodifiableList(snapshots);
     }
 
     /**
@@ -58,11 +59,11 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        ImmutableList.Builder<SnapshotInfo> builder = ImmutableList.builder();
+        List<SnapshotInfo> builder = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            builder.add(SnapshotInfo.readSnapshotInfo(in));
+            builder.add(new SnapshotInfo(in));
         }
-        snapshots = builder.build();
+        snapshots = Collections.unmodifiableList(builder);
     }
 
     @Override
@@ -74,17 +75,15 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContent {
         }
     }
 
-    static final class Fields {
-        static final XContentBuilderString SNAPSHOTS = new XContentBuilderString("snapshots");
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startArray(Fields.SNAPSHOTS);
+        builder.startObject();
+        builder.startArray("snapshots");
         for (SnapshotInfo snapshotInfo : snapshots) {
             snapshotInfo.toXContent(builder, params);
         }
         builder.endArray();
+        builder.endObject();
         return builder;
     }
 

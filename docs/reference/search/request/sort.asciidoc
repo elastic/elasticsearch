@@ -3,10 +3,35 @@
 
 Allows to add one or more sort on specific fields. Each sort can be
 reversed as well. The sort is defined on a per field level, with special
-field name for `_score` to sort by score.
+field name for `_score` to sort by score, and `_doc` to sort by index order.
+
+Assuming the following index mapping:
 
 [source,js]
 --------------------------------------------------
+PUT /my_index
+{
+    "mappings": {
+        "my_type": {
+            "properties": {
+                "post_date": { "type": "date" },
+                "user": {
+                    "type": "keyword"
+                },
+                "name": {
+                    "type": "keyword"
+                },
+                "age": { "type": "integer" }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
+GET /my_index/my_type/_search
 {
     "sort" : [
         { "post_date" : {"order" : "asc"}},
@@ -20,6 +45,12 @@ field name for `_score` to sort by score.
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+NOTE: `_doc` has no real use-case besides being the most efficient sort order.
+So if you don't care about the order in which documents are returned, then you
+should sort by `_doc`. This especially helps when <<search-request-scroll,scrolling>>.
 
 ==== Sort Values
 
@@ -56,66 +87,135 @@ to. The `mode` option can have the following values:
 ===== Sort mode example usage
 
 In the example below the field price has multiple prices per document.
-In this case the result hits will be sort by price ascending based on
+In this case the result hits will be sorted by price ascending based on
 the average price per document.
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/_search' -d '{
+PUT /my_index/my_type/1?refresh
+{
+   "product": "chocolate",
+   "price": [20, 4]
+}
+
+POST /_search
+{
    "query" : {
-    ...
+      "term" : { "product" : "chocolate" }
    },
    "sort" : [
       {"price" : {"order" : "asc", "mode" : "avg"}}
    ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
+[[nested-sorting]]
 ==== Sorting within nested objects.
 
 Elasticsearch also supports sorting by
 fields that are inside one or more nested objects. The sorting by nested
-field support has the following parameters on top of the already
-existing sort options:
+field support has a `nested` sort option with the following properties:
 
-`nested_path`::
-    Defines the on what nested object to sort. The actual
-    sort field must be a direct field inside this nested object. The default
-    is to use the most immediate inherited nested object from the sort
-    field.
+`path`::
+    Defines on which nested object to sort. The actual
+    sort field must be a direct field inside this nested object.
+    When sorting by nested field, this field is mandatory.
 
-`nested_filter`::
-    A filter the inner objects inside the nested path
+`filter`::
+    A filter that the inner objects inside the nested path
     should match with in order for its field values to be taken into account
     by sorting. Common case is to repeat the query / filter inside the
     nested filter or query. By default no `nested_filter` is active.
+`nested`::
+    Same as top-level `nested` but applies to another nested path within the
+    current nested object.
 
-===== Nested sorting example
+[WARNING]
+.Nested sort options before Elasticseach 6.1
+============================================
 
-In the below example `offer` is a field of type `nested`. Because
-`offer` is the closest inherited nested field, it is picked as
-`nested_path`. Only the inner objects that have color blue will
-participate in sorting.
+The `nested_path` and `nested_filter` options have been deprecated in
+favor of the options documented above.
+
+============================================
+
+===== Nested sorting examples
+
+In the below example `offer` is a field of type `nested`.
+The nested `path` needs to be specified; otherwise, elasticsearch doesn't know on what nested level sort values need to be captured.
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/_search' -d '{
+POST /_search
+{
    "query" : {
-    ...
+      "term" : { "product" : "chocolate" }
    },
    "sort" : [
        {
           "offer.price" : {
              "mode" :  "avg",
              "order" : "asc",
-             "nested_filter" : {
-                "term" : { "offer.color" : "blue" }
+             "nested": {
+                "path": "offer",
+                "filter": {
+                   "term" : { "offer.color" : "blue" }
+                }
              }
           }
        }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+
+In the below example `parent` and `child` fields are of type `nested`.
+The `nested_path` needs to be specified at each level; otherwise, elasticsearch doesn't know on what nested level sort values need to be captured.
+
+[source,js]
+--------------------------------------------------
+POST /_search
+{
+   "query": {
+      "nested": {
+         "path": "parent",
+         "query": {
+            "bool": {
+                "must": {"range": {"parent.age": {"gte": 21}}},
+                "filter": {
+                    "nested": {
+                        "path": "parent.child",
+                        "query": {"match": {"parent.child.name": "matt"}}
+                    }
+                }
+            }
+         }
+      }
+   },
+   "sort" : [
+      {
+         "parent.child.age" : {
+            "mode" :  "min",
+            "order" : "asc",
+            "nested": {
+               "path": "parent",
+               "filter": {
+                  "range": {"parent.age": {"gte": 21}}
+               },
+               "nested": {
+                  "path": "parent.child",
+                  "filter": {
+                     "match": {"parent.child.name": "matt"}
+                  }
+               }
+            }
+         }
+      }
+   ]
+}
+--------------------------------------------------
+// CONSOLE
 
 Nested sorting is also supported when sorting by
 scripts and sorting by geo distance.
@@ -125,19 +225,24 @@ scripts and sorting by geo distance.
 The `missing` parameter specifies how docs which are missing
 the field should be treated: The `missing` value can be
 set to `_last`, `_first`, or a custom value (that
-will be used for missing docs as the sort value). For example:
+will be used for missing docs as the sort value).
+The default is `_last`.
+
+For example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "sort" : [
-        { "price" : {"missing" : "_last"} },
+        { "price" : {"missing" : "_last"} }
     ],
     "query" : {
-        "term" : { "user" : "kimchy" }
+        "term" : { "product" : "chocolate" }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 NOTE: If a nested inner object doesn't match with
 the `nested_filter` then a missing value is used.
@@ -152,26 +257,30 @@ example of how it can be used:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "sort" : [
-        { "price" : {"unmapped_type" : "long"} },
+        { "price" : {"unmapped_type" : "long"} }
     ],
     "query" : {
-        "term" : { "user" : "kimchy" }
+        "term" : { "product" : "chocolate" }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 If any of the indices that are queried doesn't have a mapping for `price`
 then Elasticsearch will handle it as if there was a mapping of type
 `long`, with all documents in this index having no value for this field.
 
+[[geo-sorting]]
 ==== Geo Distance Sorting
 
-Allow to sort by `_geo_distance`. Here is an example:
+Allow to sort by `_geo_distance`. Here is an example, assuming `pin.location` is a field of type `geo_point`:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "sort" : [
         {
@@ -180,7 +289,7 @@ Allow to sort by `_geo_distance`. Here is an example:
                 "order" : "asc",
                 "unit" : "km",
 		"mode" : "min",
-		"distance_type" : "sloppy_arc"
+		"distance_type" : "arc"
             }
         }
     ],
@@ -189,15 +298,28 @@ Allow to sort by `_geo_distance`. Here is an example:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 
 
 `distance_type`::
 
-    How to compute the distance. Can either be `sloppy_arc` (default), `arc` (slightly more precise but significantly slower) or `plane` (faster, but inaccurate on long distances and close to the poles).
+    How to compute the distance. Can either be `arc` (default), or `plane` (faster, but inaccurate on long distances and close to the poles).
 
-Note: the geo distance sorting supports `sort_mode` options: `min`,
-`max` and `avg`.
+`mode`::
+
+    What to do in case a field has several geo points. By default, the shortest
+    distance is taken into account when sorting in ascending order and the
+    longest distance when sorting in descending order. Supported values are
+    `min`, `max`, `median` and `avg`.
+
+`unit`::
+
+    The unit to use when computing sort values. The default is `m` (meters).
+
+NOTE: geo distance sorting does not support configurable missing values: the
+distance will always be considered equal to +Infinity+ when a document does not
+have values for the field that is used for distance computation.
 
 The following formats are supported in providing the coordinates:
 
@@ -205,6 +327,7 @@ The following formats are supported in providing the coordinates:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "sort" : [
         {
@@ -223,6 +346,7 @@ The following formats are supported in providing the coordinates:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 ===== Lat Lon as String
 
@@ -230,11 +354,12 @@ Format in `lat,lon`.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "sort" : [
         {
             "_geo_distance" : {
-                "pin.location" : "-70,40",
+                "pin.location" : "40,-70",
                 "order" : "asc",
                 "unit" : "km"
             }
@@ -245,11 +370,13 @@ Format in `lat,lon`.
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 ===== Geohash
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "sort" : [
         {
@@ -265,6 +392,7 @@ Format in `lat,lon`.
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 ===== Lat Lon as Array
 
@@ -273,6 +401,7 @@ conform with http://geojson.org/[GeoJSON].
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "sort" : [
         {
@@ -288,6 +417,7 @@ conform with http://geojson.org/[GeoJSON].
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 
 ==== Multiple reference points
@@ -296,9 +426,23 @@ Multiple geo points can be passed as an array containing any `geo_point` format,
 
 [source,js]
 --------------------------------------------------
-"pin.location" : [[-70, 40], [-71, 42]]
-"pin.location" : [{"lat": -70, "lon": 40}, {"lat": -71, "lon": 42}]
+GET /_search
+{
+    "sort" : [
+        {
+            "_geo_distance" : {
+                "pin.location" : [[-70, 40], [-71, 42]],
+                "order" : "asc",
+                "unit" : "km"
+            }
+        }
+    ],
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
 --------------------------------------------------
+// CONSOLE
 
 and so forth.
 
@@ -312,15 +456,17 @@ Allow to sort based on custom scripts, here is an example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "query" : {
-        ....
+        "term" : { "user" : "kimchy" }
     },
     "sort" : {
         "_script" : {
             "type" : "number",
             "script" : {
-                "inline": "doc['field_name'].value * factor",
+                "lang": "painless",
+                "source": "doc['field_name'].value * params.factor",
                 "params" : {
                     "factor" : 1.1
                 }
@@ -330,9 +476,8 @@ Allow to sort based on custom scripts, here is an example:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
-Note, it is recommended, for single custom based script based sorting,
-to use `function_score` query instead as sorting based on score is faster.
 
 ==== Track Scores
 
@@ -341,10 +486,11 @@ When sorting on a field, scores are not computed. By setting
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "track_scores": true,
     "sort" : [
-        { "post_date" : {"reverse" : true} },
+        { "post_date" : {"order" : "desc"} },
         { "name" : "desc" },
         { "age" : "desc" }
     ],
@@ -353,6 +499,7 @@ When sorting on a field, scores are not computed. By setting
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 ==== Memory Considerations
 
@@ -360,5 +507,5 @@ When sorting, the relevant sorted field values are loaded into memory.
 This means that per shard, there should be enough memory to contain
 them. For string based types, the field sorted on should not be analyzed
 / tokenized. For numeric types, if possible, it is recommended to
-explicitly set the type to six_hun types (like `short`, `integer` and
+explicitly set the type to narrower types (like `short`, `integer` and
 `float`).

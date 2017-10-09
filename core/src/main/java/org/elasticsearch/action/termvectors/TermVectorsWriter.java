@@ -18,7 +18,11 @@
  */
 package org.elasticsearch.action.termvectors;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TermStatistics;
@@ -67,7 +71,7 @@ final class TermVectorsWriter {
 
             // if no terms found, take the retrieved term vector fields for stats
             if (topLevelTerms == null) {
-                topLevelTerms = fieldTermVector;
+                topLevelTerms = EMPTY_TERMS;
             }
 
             TermsEnum topLevelIterator = topLevelTerms.iterator();
@@ -92,7 +96,6 @@ final class TermVectorsWriter {
             final boolean useDocsAndPos = positions || offsets || payloads;
             while (iterator.next() != null) { // iterate all terms of the current field
                 BytesRef termBytesRef = iterator.term();
-                boolean foundTerm = topLevelIterator.seekExact(termBytesRef);
                 Term term = new Term(field, termBytesRef);
 
                 // with filtering we only keep the best terms
@@ -107,6 +110,7 @@ final class TermVectorsWriter {
                         final TermStatistics statistics = dfs.termStatistics().get(term);
                         writeTermStatistics(statistics == null ? new TermStatistics(termBytesRef, 0, 0) : statistics);
                     } else {
+                        boolean foundTerm = topLevelIterator.seekExact(termBytesRef);
                         if (foundTerm) {
                             writeTermStatistics(topLevelIterator);
                         } else {
@@ -151,7 +155,7 @@ final class TermVectorsWriter {
     }
 
     private PostingsEnum writeTermWithDocsOnly(TermsEnum iterator, PostingsEnum docsEnum) throws IOException {
-        docsEnum = iterator.postings(null, docsEnum);
+        docsEnum = iterator.postings(docsEnum);
         int nextDoc = docsEnum.nextDoc();
         assert nextDoc != DocIdSetIterator.NO_MORE_DOCS;
         writeFreq(docsEnum.freq());
@@ -162,7 +166,7 @@ final class TermVectorsWriter {
 
     private PostingsEnum writeTermWithDocsAndPos(TermsEnum iterator, PostingsEnum docsAndPosEnum, boolean positions,
                                                          boolean offsets, boolean payloads) throws IOException {
-        docsAndPosEnum = iterator.postings(null, docsAndPosEnum, PostingsEnum.ALL);
+        docsAndPosEnum = iterator.postings(docsAndPosEnum, PostingsEnum.ALL);
         // for each term (iterator next) in this field (field)
         // iterate over the docs (should only be one)
         int nextDoc = docsAndPosEnum.nextDoc();
@@ -288,4 +292,18 @@ final class TermVectorsWriter {
         // further...
         output.writeVLong(Math.max(0, value + 1));
     }
+
+    /** Implements an empty {@link Terms}. */
+    private static final Terms EMPTY_TERMS = new Terms() {
+        @Override public TermsEnum iterator() throws IOException { return TermsEnum.EMPTY; }
+        @Override public long size() throws IOException { return 0; }
+        @Override public long getSumTotalTermFreq() throws IOException { return 0; }
+        @Override public long getSumDocFreq() throws IOException { return 0; }
+        @Override public int getDocCount() throws IOException { return 0; }
+        @Override public boolean hasFreqs() { return false; }
+        @Override public boolean hasOffsets() { return false; }
+        @Override public boolean hasPositions() { return false; }
+        @Override public boolean hasPayloads() { return false; }
+    };
+
 }

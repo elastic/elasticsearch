@@ -1,0 +1,12 @@
+#!/bin/bash
+
+source "`dirname "$0"`"/elasticsearch-env
+
+exec \
+  "$JAVA" \
+  $ES_JAVA_OPTS \
+  -Des.path.home="$ES_HOME" \
+  -Des.path.conf="$ES_PATH_CONF" \
+  -cp "$ES_CLASSPATH" \
+  org.elasticsearch.plugins.PluginCli \
+  "$@"

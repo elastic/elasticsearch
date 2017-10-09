@@ -18,111 +18,103 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
+import com.carrotsearch.hppc.LongArrayList;
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
-import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
-public class NestedAggregator extends SingleBucketAggregator {
+class NestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
-    private BitDocIdSetFilter parentFilter;
-    private final Filter childFilter;
+    static final ParseField PATH_FIELD = new ParseField("path");
 
-    private DocIdSetIterator childDocs;
-    private BitSet parentDocs;
+    private final BitSetProducer parentFilter;
+    private final Query childFilter;
+    private final boolean collectsFromSingleBucket;
 
-    public NestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parentAggregator, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parentAggregator, pipelineAggregators, metaData);
-        childFilter = objectMapper.nestedTypeFilter();
+    private BufferingNestedLeafBucketCollector bufferingNestedLeafBucketCollector;
+
+    NestedAggregator(String name, AggregatorFactories factories, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
+                     SearchContext context, Aggregator parentAggregator,
+                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+                     boolean collectsFromSingleBucket) throws IOException {
+        super(name, factories, context, parentAggregator, pipelineAggregators, metaData);
+        Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter() : Queries.newNonNestedFilter();
+        this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
+        this.childFilter = childObjectMapper.nestedTypeFilter();
+        this.collectsFromSingleBucket = collectsFromSingleBucket;
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(final LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        // Reset parentFilter, so we resolve the parentDocs for each new segment being searched
-        this.parentFilter = null;
-        // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
-        DocIdSet childDocIdSet = childFilter.getDocIdSet(ctx, null);
-        if (Lucene.isEmpty(childDocIdSet)) {
-            childDocs = null;
-        } else {
-            childDocs = childDocIdSet.iterator();
-        }
+        IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(ctx);
+        IndexSearcher searcher = new IndexSearcher(topLevelContext);
+        searcher.setQueryCache(null);
+        Weight weight = searcher.createNormalizedWeight(childFilter, false);
+        Scorer childDocsScorer = weight.scorer(ctx);
 
-        return new LeafBucketCollectorBase(sub, null) {
-            @Override
-            public void collect(int parentDoc, long bucket) throws IOException {
-                // here we translate the parent doc to a list of its nested docs, and then call super.collect for evey one of them so they'll be collected
-
-                // if parentDoc is 0 then this means that this parent doesn't have child docs (b/c these appear always before the parent doc), so we can skip:
-                if (parentDoc == 0 || childDocs == null) {
-                    return;
-                }
-                if (parentFilter == null) {
-                    // The aggs are instantiated in reverse, first the most inner nested aggs and lastly the top level aggs
-                    // So at the time a nested 'nested' aggs is parsed its closest parent nested aggs hasn't been constructed.
-                    // So the trick is to set at the last moment just before needed and we can use its child filter as the
-                    // parent filter.
-
-                    // Additional NOTE: Before this logic was performed in the setNextReader(...) method, but the the assumption
-                    // that aggs instances are constructed in reverse doesn't hold when buckets are constructed lazily during
-                    // aggs execution
-                    Filter parentFilterNotCached = findClosestNestedPath(parent());
-                    if (parentFilterNotCached == null) {
-                        parentFilterNotCached = Queries.newNonNestedFilter();
-                    }
-                    parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(parentFilterNotCached);
-                    BitDocIdSet parentSet = parentFilter.getDocIdSet(ctx);
-                    if (Lucene.isEmpty(parentSet)) {
-                        // There are no parentDocs in the segment, so return and set childDocs to null, so we exit early for future invocations.
-                        childDocs = null;
+        final BitSet parentDocs = parentFilter.getBitSet(ctx);
+        final DocIdSetIterator childDocs = childDocsScorer != null ? childDocsScorer.iterator() : null;
+        if (collectsFromSingleBucket) {
+            return new LeafBucketCollectorBase(sub, null) {
+                @Override
+                public void collect(int parentDoc, long bucket) throws IOException {
+                    // if parentDoc is 0 then this means that this parent doesn't have child docs (b/c these appear always before the parent
+                    // doc), so we can skip:
+                    if (parentDoc == 0 || parentDocs == null || childDocs == null) {
                         return;
-                    } else {
-                        parentDocs = parentSet.bits();
+                    }
+
+                    final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
+                    int childDocId = childDocs.docID();
+                    if (childDocId <= prevParentDoc) {
+                        childDocId = childDocs.advance(prevParentDoc + 1);
+                    }
+
+                    for (; childDocId < parentDoc; childDocId = childDocs.nextDoc()) {
+                        collectBucket(sub, childDocId, bucket);
                     }
                 }
-
-                final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-                int childDocId = childDocs.docID();
-                if (childDocId <= prevParentDoc) {
-                    childDocId = childDocs.advance(prevParentDoc + 1);
-                }
-
-                for (; childDocId < parentDoc; childDocId = childDocs.nextDoc()) {
-                    collectBucket(sub, childDocId, bucket);
-                }
-            }
-        };
+            };
+        } else {
+            doPostCollection();
+            return bufferingNestedLeafBucketCollector = new BufferingNestedLeafBucketCollector(sub, parentDocs, childDocs);
+        }
     }
-        
+
+    @Override
+    protected void doPostCollection() throws IOException {
+        if (bufferingNestedLeafBucketCollector != null) {
+            bufferingNestedLeafBucketCollector.postCollect();
+        }
+    }
+
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), pipelineAggregators(),
-                metaData());
+        return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal),
+                pipelineAggregators(), metaData());
     }
 
         @Override
@@ -130,58 +122,63 @@ public class NestedAggregator extends SingleBucketAggregator {
         return new InternalNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    private static Filter findClosestNestedPath(Aggregator parent) {
-        for (; parent != null; parent = parent.parent()) {
-            if (parent instanceof NestedAggregator) {
-                return ((NestedAggregator) parent).childFilter;
-            } else if (parent instanceof ReverseNestedAggregator) {
-                return ((ReverseNestedAggregator) parent).getParentFilter();
-            }
-        }
-        return null;
-    }
+    class BufferingNestedLeafBucketCollector extends LeafBucketCollectorBase {
 
-    public static class Factory extends AggregatorFactory {
+        final BitSet parentDocs;
+        final LeafBucketCollector sub;
+        final DocIdSetIterator childDocs;
+        final LongArrayList bucketBuffer = new LongArrayList();
 
-        private final String path;
+        int currentParentDoc = -1;
 
-        public Factory(String name, String path) {
-            super(name, InternalNested.TYPE.name());
-            this.path = path;
+        BufferingNestedLeafBucketCollector(LeafBucketCollector sub, BitSet parentDocs, DocIdSetIterator childDocs) {
+            super(sub, null);
+            this.sub = sub;
+            this.parentDocs = parentDocs;
+            this.childDocs = childDocs;
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            if (collectsFromSingleBucket == false) {
-                return asMultiBucketAggregator(this, context, parent);
+        public void collect(int parentDoc, long bucket) throws IOException {
+            // if parentDoc is 0 then this means that this parent doesn't have child docs (b/c these appear always before the parent
+            // doc), so we can skip:
+            if (parentDoc == 0 || parentDocs == null || childDocs == null) {
+                return;
             }
-            MapperService.SmartNameObjectMapper mapper = context.searchContext().smartNameObjectMapper(path);
-            if (mapper == null) {
-                return new Unmapped(name, context, parent, pipelineAggregators, metaData);
+
+            if (currentParentDoc != parentDoc) {
+                processChildBuckets(currentParentDoc, bucketBuffer);
+                currentParentDoc = parentDoc;
             }
-            ObjectMapper objectMapper = mapper.mapper();
-            if (objectMapper == null) {
-                return new Unmapped(name, context, parent, pipelineAggregators, metaData);
-            }
-            if (!objectMapper.nested().isNested()) {
-                throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
-            }
-            return new NestedAggregator(name, factories, objectMapper, context, parent, pipelineAggregators, metaData);
+            bucketBuffer.add(bucket);
         }
 
-        private final static class Unmapped extends NonCollectingAggregator {
-
-            public Unmapped(String name, AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                    throws IOException {
-                super(name, context, parent, pipelineAggregators, metaData);
+        void processChildBuckets(int parentDoc, LongArrayList buckets) throws IOException {
+            if (bucketBuffer.isEmpty()) {
+                return;
             }
 
-            @Override
-            public InternalAggregation buildEmptyAggregation() {
-                return new InternalNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
+
+            final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
+            int childDocId = childDocs.docID();
+            if (childDocId <= prevParentDoc) {
+                childDocId = childDocs.advance(prevParentDoc + 1);
             }
+
+            for (; childDocId < parentDoc; childDocId = childDocs.nextDoc()) {
+                final long[] buffer = buckets.buffer;
+                final int size = buckets.size();
+                for (int i = 0; i < size; i++) {
+                    collectBucket(sub, childDocId, buffer[i]);
+                }
+            }
+            bucketBuffer.clear();
         }
+
+        void postCollect() throws IOException {
+            processChildBuckets(currentParentDoc, bucketBuffer);
+        }
+
     }
 
 }

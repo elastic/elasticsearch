@@ -19,11 +19,11 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -86,8 +86,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.nodeStats = NodeStats.readNodeStats(in);
         int size = in.readVInt();
         shardsStats = new ShardStats[size];
-        for (size--; size >= 0; size--) {
-            shardsStats[size] = ShardStats.readShardStats(in);
+        for (int i = 0; i < size; i++) {
+            shardsStats[i] = ShardStats.readShardStats(in);
         }
     }
 

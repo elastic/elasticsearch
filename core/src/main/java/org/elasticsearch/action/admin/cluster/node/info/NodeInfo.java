@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -28,24 +27,21 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.monitor.network.NetworkInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Node information (static, does not change over time).
  */
 public class NodeInfo extends BaseNodeResponse {
-
-    @Nullable
-    private ImmutableMap<String, String> serviceAttributes;
 
     private Version version;
     private Build build;
@@ -66,36 +62,40 @@ public class NodeInfo extends BaseNodeResponse {
     private ThreadPoolInfo threadPool;
 
     @Nullable
-    private NetworkInfo network;
-
-    @Nullable
     private TransportInfo transport;
 
     @Nullable
     private HttpInfo http;
 
     @Nullable
-    private PluginsInfo plugins;
+    private PluginsAndModules plugins;
 
-    NodeInfo() {
+    @Nullable
+    private IngestInfo ingest;
+
+    @Nullable
+    private ByteSizeValue totalIndexingBuffer;
+
+    public NodeInfo() {
     }
 
-    public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
-                    @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool, @Nullable NetworkInfo network,
-                    @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsInfo plugins) {
+    public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable Settings settings,
+                    @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool,
+                    @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsAndModules plugins,
+                    @Nullable IngestInfo ingest, @Nullable ByteSizeValue totalIndexingBuffer) {
         super(node);
         this.version = version;
         this.build = build;
-        this.serviceAttributes = serviceAttributes;
         this.settings = settings;
         this.os = os;
         this.process = process;
         this.jvm = jvm;
         this.threadPool = threadPool;
-        this.network = network;
         this.transport = transport;
         this.http = http;
         this.plugins = plugins;
+        this.ingest = ingest;
+        this.totalIndexingBuffer = totalIndexingBuffer;
     }
 
     /**
@@ -118,14 +118,6 @@ public class NodeInfo extends BaseNodeResponse {
      */
     public Build getBuild() {
         return this.build;
-    }
-
-    /**
-     * The service attributes of the node.
-     */
-    @Nullable
-    public ImmutableMap<String, String> getServiceAttributes() {
-        return this.serviceAttributes;
     }
 
     /**
@@ -165,14 +157,6 @@ public class NodeInfo extends BaseNodeResponse {
         return this.threadPool;
     }
 
-    /**
-     * Network level information.
-     */
-    @Nullable
-    public NetworkInfo getNetwork() {
-        return network;
-    }
-
     @Nullable
     public TransportInfo getTransport() {
         return transport;
@@ -184,8 +168,18 @@ public class NodeInfo extends BaseNodeResponse {
     }
 
     @Nullable
-    public PluginsInfo getPlugins() {
+    public PluginsAndModules getPlugins() {
         return this.plugins;
+    }
+
+    @Nullable
+    public IngestInfo getIngest() {
+        return ingest;
+    }
+
+    @Nullable
+    public ByteSizeValue getTotalIndexingBuffer() {
+        return totalIndexingBuffer;
     }
 
     public static NodeInfo readNodeInfo(StreamInput in) throws IOException {
@@ -200,40 +194,21 @@ public class NodeInfo extends BaseNodeResponse {
         version = Version.readVersion(in);
         build = Build.readBuild(in);
         if (in.readBoolean()) {
-            ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                builder.put(in.readString(), in.readString());
-            }
-            serviceAttributes = builder.build();
+            totalIndexingBuffer = new ByteSizeValue(in.readLong());
+        } else {
+            totalIndexingBuffer = null;
         }
         if (in.readBoolean()) {
             settings = Settings.readSettingsFromStream(in);
         }
-        if (in.readBoolean()) {
-            os = OsInfo.readOsInfo(in);
-        }
-        if (in.readBoolean()) {
-            process = ProcessInfo.readProcessInfo(in);
-        }
-        if (in.readBoolean()) {
-            jvm = JvmInfo.readJvmInfo(in);
-        }
-        if (in.readBoolean()) {
-            threadPool = ThreadPoolInfo.readThreadPoolInfo(in);
-        }
-        if (in.readBoolean()) {
-            network = NetworkInfo.readNetworkInfo(in);
-        }
-        if (in.readBoolean()) {
-            transport = TransportInfo.readTransportInfo(in);
-        }
-        if (in.readBoolean()) {
-            http = HttpInfo.readHttpInfo(in);
-        }
-        if (in.readBoolean()) {
-            plugins = PluginsInfo.readPluginsInfo(in);
-        }
+        os = in.readOptionalWriteable(OsInfo::new);
+        process = in.readOptionalWriteable(ProcessInfo::new);
+        jvm = in.readOptionalWriteable(JvmInfo::new);
+        threadPool = in.readOptionalWriteable(ThreadPoolInfo::new);
+        transport = in.readOptionalWriteable(TransportInfo::new);
+        http = in.readOptionalWriteable(HttpInfo::new);
+        plugins = in.readOptionalWriteable(PluginsAndModules::new);
+        ingest = in.readOptionalWriteable(IngestInfo::new);
     }
 
     @Override
@@ -241,15 +216,11 @@ public class NodeInfo extends BaseNodeResponse {
         super.writeTo(out);
         out.writeVInt(version.id);
         Build.writeBuild(build, out);
-        if (getServiceAttributes() == null) {
+        if (totalIndexingBuffer == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeVInt(serviceAttributes.size());
-            for (Map.Entry<String, String> entry : serviceAttributes.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeString(entry.getValue());
-            }
+            out.writeLong(totalIndexingBuffer.getBytes());
         }
         if (settings == null) {
             out.writeBoolean(false);
@@ -257,54 +228,13 @@ public class NodeInfo extends BaseNodeResponse {
             out.writeBoolean(true);
             Settings.writeSettingsToStream(settings, out);
         }
-        if (os == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            os.writeTo(out);
-        }
-        if (process == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            process.writeTo(out);
-        }
-        if (jvm == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            jvm.writeTo(out);
-        }
-        if (threadPool == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            threadPool.writeTo(out);
-        }
-        if (network == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            network.writeTo(out);
-        }
-        if (transport == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            transport.writeTo(out);
-        }
-        if (http == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            http.writeTo(out);
-        }
-        if (plugins == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            plugins.writeTo(out);
-        }
+        out.writeOptionalWriteable(os);
+        out.writeOptionalWriteable(process);
+        out.writeOptionalWriteable(jvm);
+        out.writeOptionalWriteable(threadPool);
+        out.writeOptionalWriteable(transport);
+        out.writeOptionalWriteable(http);
+        out.writeOptionalWriteable(plugins);
+        out.writeOptionalWriteable(ingest);
     }
-
 }

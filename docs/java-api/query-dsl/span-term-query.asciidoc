@@ -1,0 +1,11 @@
+[[java-query-dsl-span-term-query]]
+==== Span Term Query
+
+See {ref}/query-dsl-span-term-query.html[Span Term Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[span_term]
+--------------------------------------------------
+<1> field
+<2> value

@@ -36,12 +36,12 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
 
     private String[] repositories = Strings.EMPTY_ARRAY;
 
-    GetRepositoriesRequest() {
+    public GetRepositoriesRequest() {
     }
 
     /**
      * Constructs a new get repositories request with a list of repositories.
-     * <p/>
+     * <p>
      * If the list of repositories is empty or it contains a single element "_all", all registered repositories
      * are returned.
      *
@@ -49,6 +49,17 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
      */
     public GetRepositoriesRequest(String[] repositories) {
         this.repositories = repositories;
+    }
+
+    public GetRepositoriesRequest(StreamInput in) throws IOException {
+        super(in);
+        repositories = in.readStringArray();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(repositories);
     }
 
     @Override
@@ -71,7 +82,7 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
 
     /**
      * Sets the list or repositories.
-     * <p/>
+     * <p>
      * If the list of repositories is empty or it contains a single element "_all", all registered repositories
      * are returned.
      *
@@ -85,13 +96,6 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        repositories = in.readStringArray();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(repositories);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

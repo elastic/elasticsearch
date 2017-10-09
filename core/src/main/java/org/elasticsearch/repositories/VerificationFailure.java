@@ -25,19 +25,17 @@ import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 
-/**
- */
 public class VerificationFailure implements Streamable {
 
     private String nodeId;
 
-    private String cause;
+    private Exception cause;
 
     VerificationFailure() {
 
     }
 
-    public VerificationFailure(String nodeId, String cause) {
+    public VerificationFailure(String nodeId, Exception cause) {
         this.nodeId = nodeId;
         this.cause = cause;
     }
@@ -46,20 +44,20 @@ public class VerificationFailure implements Streamable {
         return nodeId;
     }
 
-    public String cause() {
+    public Throwable cause() {
         return cause;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         nodeId = in.readOptionalString();
-        cause = in.readOptionalString();
+        cause = in.readException();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(nodeId);
-        out.writeOptionalString(cause);
+        out.writeException(cause);
     }
 
     public static VerificationFailure readNode(StreamInput in) throws IOException {

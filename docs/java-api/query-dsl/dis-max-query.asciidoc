@@ -1,0 +1,13 @@
+[[java-query-dsl-dis-max-query]]
+==== Dis Max Query
+
+See {ref}/query-dsl-dis-max-query.html[Dis Max Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[dis_max]
+--------------------------------------------------
+<1> add your queries
+<2> add your queries
+<3> boost factor
+<4> tie breaker

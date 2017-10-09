@@ -25,117 +25,166 @@ import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.AbstractClientHeadersTests;
+import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.NetworkPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
-import org.junit.Test;
+import org.elasticsearch.transport.MockTransportClient;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
 
-/**
- *
- */
-public class TransportClientHeadersTests extends AbstractClientHeadersTests {
+    private MockTransportService transportService;
 
-    private static final LocalTransportAddress address = new LocalTransportAddress("test");
+    @Override
+    public void tearDown() throws Exception {
+        try {
+            // stop this first before we bubble up since
+            // transportService uses the threadpool that super.tearDown will close
+            transportService.stop();
+            transportService.close();
+        } finally {
+            super.tearDown();
+        }
+
+    }
 
     @Override
     protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
-        TransportClient client = TransportClient.builder().settings(Settings.builder()
+        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        String transport = getTestTransportType();
+        TransportClient client = new MockTransportClient(Settings.builder()
                 .put("client.transport.sniff", false)
+                .put("cluster.name", "cluster1")
                 .put("node.name", "transport_client_" + this.getTestName())
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalTransportService.class.getName())
+                .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), transport)
                 .put(headersSettings)
-                .build()).build();
-
-        client.addTransportAddress(address);
+                .build(), InternalTransportServiceInterceptor.TestPlugin.class);
+        InternalTransportServiceInterceptor.TestPlugin plugin = client.injector.getInstance(PluginsService.class)
+            .filterPlugins(InternalTransportServiceInterceptor.TestPlugin.class).stream().findFirst().get();
+        plugin.instance.threadPool = client.threadPool();
+        plugin.instance.address = transportService.boundAddress().publishAddress();
+        client.addTransportAddress(transportService.boundAddress().publishAddress());
         return client;
     }
 
-    @Test
     public void testWithSniffing() throws Exception {
-        TransportClient client = TransportClient.builder().settings(Settings.builder()
-                .put("client.transport.sniff", true)
-                .put("cluster.name", "cluster1")
-                .put("node.name", "transport_client_" + this.getTestName() + "_1")
-                .put("client.transport.nodes_sampler_interval", "1s")
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalTransportService.class.getName())
-                .put(HEADER_SETTINGS)
-                .put("path.home", createTempDir().toString())
-                .build()).build();
-        try {
-            client.addTransportAddress(address);
+        String transport = getTestTransportType();
+        try (TransportClient client = new MockTransportClient(
+                Settings.builder()
+                        .put("client.transport.sniff", true)
+                        .put("cluster.name", "cluster1")
+                        .put("node.name", "transport_client_" + this.getTestName() + "_1")
+                        .put("client.transport.nodes_sampler_interval", "1s")
+                        .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), transport)
+                        .put(HEADER_SETTINGS)
+                        .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(),
+                InternalTransportServiceInterceptor.TestPlugin.class)) {
+            InternalTransportServiceInterceptor.TestPlugin plugin = client.injector.getInstance(PluginsService.class)
+                .filterPlugins(InternalTransportServiceInterceptor.TestPlugin.class).stream().findFirst().get();
+            plugin.instance.threadPool = client.threadPool();
+            plugin.instance.address = transportService.boundAddress().publishAddress();
+            client.addTransportAddress(transportService.boundAddress().publishAddress());
 
-            InternalTransportService service = (InternalTransportService) client.injector.getInstance(TransportService.class);
-
-            if (!service.clusterStateLatch.await(5, TimeUnit.SECONDS)) {
+            if (!plugin.instance.clusterStateLatch.await(5, TimeUnit.SECONDS)) {
                 fail("takes way too long to get the cluster state");
             }
 
-            assertThat(client.connectedNodes().size(), is(1));
-            assertThat(client.connectedNodes().get(0).getAddress(), is((TransportAddress) address));
-        } finally {
-            client.close();
+            assertEquals(1, client.connectedNodes().size());
+            assertEquals(client.connectedNodes().get(0).getAddress(), transportService.boundAddress().publishAddress());
         }
-
     }
 
-    public static class InternalTransportService extends TransportService {
+    public static class InternalTransportServiceInterceptor implements TransportInterceptor {
 
-        CountDownLatch clusterStateLatch = new CountDownLatch(1);
+        ThreadPool threadPool;
+        TransportAddress address;
 
-        @Inject
-        public InternalTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
-            super(settings, transport, threadPool);
+
+        public static class TestPlugin extends Plugin implements NetworkPlugin {
+            private InternalTransportServiceInterceptor instance = new InternalTransportServiceInterceptor();
+
+            @Override
+            public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                       ThreadContext threadContext) {
+                return Collections.singletonList(new TransportInterceptor() {
+                    @Override
+                    public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                                boolean forceExecution,
+                                                                                                TransportRequestHandler<T> actualHandler) {
+                        return instance.interceptHandler(action, executor, forceExecution, actualHandler);
+                    }
+
+                    @Override
+                    public AsyncSender interceptSender(AsyncSender sender) {
+                        return instance.interceptSender(sender);
+                    }
+                });
+            }
         }
 
-        @Override @SuppressWarnings("unchecked")
-        public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
-            if (TransportLivenessAction.NAME.equals(action)) {
-                assertHeaders(request);
-                ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(new LivenessResponse(ClusterName.DEFAULT, node));
-                return;
-            }
-            if (ClusterStateAction.NAME.equals(action)) {
-                assertHeaders(request);
-                ClusterName cluster1 = new ClusterName("cluster1");
-                ((TransportResponseHandler<ClusterStateResponse>) handler).handleResponse(new ClusterStateResponse(cluster1, state(cluster1)));
-                clusterStateLatch.countDown();
-                return;
-            }
-
-            handler.handleException(new TransportException("", new InternalException(action, request)));
-        }
+        final CountDownLatch clusterStateLatch = new CountDownLatch(1);
 
         @Override
-        public boolean nodeConnected(DiscoveryNode node) {
-            assertThat((LocalTransportAddress) node.getAddress(), equalTo(address));
-            return true;
-        }
-
-        @Override
-        public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-            assertThat((LocalTransportAddress) node.getAddress(), equalTo(address));
+        public AsyncSender interceptSender(AsyncSender sender) {
+            return new AsyncSender() {
+                @Override
+                public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
+                                                                      TransportRequest request,
+                                                                      TransportRequestOptions options,
+                                                                      TransportResponseHandler<T> handler) {
+                    final ClusterName clusterName = new ClusterName("cluster1");
+                    if (TransportLivenessAction.NAME.equals(action)) {
+                        assertHeaders(threadPool);
+                        ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(
+                            new LivenessResponse(clusterName, connection.getNode()));
+                    } else if (ClusterStateAction.NAME.equals(action)) {
+                        assertHeaders(threadPool);
+                        ClusterName cluster1 = clusterName;
+                        ClusterState.Builder builder = ClusterState.builder(cluster1);
+                        //the sniffer detects only data nodes
+                        builder.nodes(DiscoveryNodes.builder().add(new DiscoveryNode("node_id", "someId", "some_ephemeralId_id",
+                            address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
+                                Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT)));
+                        ((TransportResponseHandler<ClusterStateResponse>) handler)
+                                .handleResponse(new ClusterStateResponse(cluster1, builder.build(), 0L));
+                        clusterStateLatch.countDown();
+                    } else if (TransportService.HANDSHAKE_ACTION_NAME .equals(action)) {
+                        ((TransportResponseHandler<TransportService.HandshakeResponse>) handler).handleResponse(
+                            new TransportService.HandshakeResponse(connection.getNode(), clusterName, connection.getNode().getVersion()));
+                    } else {
+                        handler.handleException(new TransportException("", new InternalException(action)));
+                    }
+                }
+            };
         }
     }
-
-    private static ClusterState state(ClusterName clusterName) {
-        ClusterState.Builder builder = ClusterState.builder(clusterName);
-        builder.nodes(DiscoveryNodes.builder().put(new DiscoveryNode("node_id", address, Version.CURRENT)));
-        return builder.build();
-    }
-
 }

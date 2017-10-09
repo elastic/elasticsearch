@@ -1,0 +1,10 @@
+[[java-query-dsl-exists-query]]
+==== Exists Query
+
+See {ref}/query-dsl-exists-query.html[Exists Query].
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[exists]
+--------------------------------------------------
+<1> field

@@ -30,7 +30,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Delete snapshot request
- * <p/>
+ * <p>
  * Delete snapshot request removes the snapshot record from the repository and cleans up all
  * files that are associated with this particular snapshot. All files that are shared with
  * at least one other existing snapshot are left intact.
@@ -65,6 +65,19 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
      */
     public DeleteSnapshotRequest(String repository) {
         this.repository = repository;
+    }
+
+    public DeleteSnapshotRequest(StreamInput in) throws IOException {
+        super(in);
+        repository = in.readString();
+        snapshot = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(repository);
+        out.writeString(snapshot);
     }
 
     @Override
@@ -115,15 +128,6 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        repository = in.readString();
-        snapshot = in.readString();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(repository);
-        out.writeString(snapshot);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

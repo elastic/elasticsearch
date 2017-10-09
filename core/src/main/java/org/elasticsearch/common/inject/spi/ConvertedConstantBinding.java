@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,8 +36,7 @@ public interface ConvertedConstantBinding<T> extends Binding<T>, HasDependencies
     T getValue();
 
     /**
-     * Returns the key for the source binding. That binding can e retrieved from an injector using
-     * {@link org.elasticsearch.common.inject.Injector#getBinding(Key) Injector.getBinding(key)}.
+     * Returns the key for the source binding.
      */
     Key<String> getSourceKey();
 

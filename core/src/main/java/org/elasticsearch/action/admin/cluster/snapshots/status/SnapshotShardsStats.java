@@ -20,8 +20,8 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -29,7 +29,7 @@ import java.util.Collection;
 /**
  * Status of a snapshot shards
  */
-public class SnapshotShardsStats  implements ToXContent {
+public class SnapshotShardsStats implements ToXContentFragment {
 
     private int initializingShards;
     private int startedShards;
@@ -106,13 +106,13 @@ public class SnapshotShardsStats  implements ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString SHARDS_STATS = new XContentBuilderString("shards_stats");
-        static final XContentBuilderString INITIALIZING = new XContentBuilderString("initializing");
-        static final XContentBuilderString STARTED = new XContentBuilderString("started");
-        static final XContentBuilderString FINALIZING = new XContentBuilderString("finalizing");
-        static final XContentBuilderString DONE = new XContentBuilderString("done");
-        static final XContentBuilderString FAILED = new XContentBuilderString("failed");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final String SHARDS_STATS = "shards_stats";
+        static final String INITIALIZING = "initializing";
+        static final String STARTED = "started";
+        static final String FINALIZING = "finalizing";
+        static final String DONE = "done";
+        static final String FAILED = "failed";
+        static final String TOTAL = "total";
     }
 
     @Override

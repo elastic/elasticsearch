@@ -1,0 +1,135 @@
+[[analysis-synonym-graph-tokenfilter]]
+=== Synonym Graph Token Filter
+
+experimental[This functionality is marked as experimental in Lucene]
+
+The `synonym_graph` token filter allows to easily handle synonyms,
+including multi-word synonyms correctly during the analysis process.
+
+In order to properly handle multi-word synonyms this token filter
+creates a "graph token stream" during processing.  For more information
+on this topic and its various complexities, please read the
+http://blog.mikemccandless.com/2012/04/lucenes-tokenstreams-are-actually.html[Lucene's TokenStreams are actually graphs] blog post.
+
+["NOTE",id="synonym-graph-index-note"]
+===============================
+This token filter is designed to be used as part of a search analyzer
+only.  If you want to apply synonyms during indexing please use the
+standard <<analysis-synonym-tokenfilter,synonym token filter>>.
+===============================
+
+Synonyms are configured using a configuration file.
+Here is an example:
+
+[source,js]
+--------------------------------------------------
+PUT /test_index
+{
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "search_synonyms" : {
+                        "tokenizer" : "whitespace",
+                        "filter" : ["graph_synonyms"]
+                    }
+                },
+                "filter" : {
+                    "graph_synonyms" : {
+                        "type" : "synonym_graph",
+                        "synonyms_path" : "analysis/synonym.txt"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The above configures a `search_synonyms` filter, with a path of
+`analysis/synonym.txt` (relative to the `config` location). The
+`search_synonyms` analyzer is then configured with the filter.
+Additional settings are: `expand` (defaults to `true`).
+
+[float]
+==== `tokenizer` and `ignore_case` are deprecated
+
+The `tokenizer` parameter controls the tokenizers that will be used to
+tokenize the synonym, this parameter is for backwards compatibility for indices that created before 6.0..
+The `ignore_case` parameter works with `tokenizer` parameter only.
+
+Two synonym formats are supported: Solr, WordNet.
+
+[float]
+==== Solr synonyms
+
+The following is a sample format of the file:
+
+[source,synonyms]
+--------------------------------------------------
+include::{es-test-dir}/cluster/config/analysis/synonym.txt[]
+--------------------------------------------------
+
+You can also define synonyms for the filter directly in the
+configuration file (note use of `synonyms` instead of `synonyms_path`):
+
+[source,js]
+--------------------------------------------------
+PUT /test_index
+{
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "filter" : {
+                    "synonym" : {
+                        "type" : "synonym_graph",
+                        "synonyms" : [
+                            "lol, laughing out loud",
+                            "universe, cosmos"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+However, it is recommended to define large synonyms set in a file using
+`synonyms_path`, because specifying them inline increases cluster size unnecessarily.
+
+[float]
+==== WordNet synonyms
+
+Synonyms based on http://wordnet.princeton.edu/[WordNet] format can be
+declared using `format`:
+
+[source,js]
+--------------------------------------------------
+PUT /test_index
+{
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "filter" : {
+                    "synonym" : {
+                        "type" : "synonym_graph",
+                        "format" : "wordnet",
+                        "synonyms" : [
+                            "s(100000001,1,'abstain',v,1,0).",
+                            "s(100000001,2,'refrain',v,1,0).",
+                            "s(100000001,3,'desist',v,1,0)."
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+Using `synonyms_path` to define WordNet synonyms in a file is supported
+as well.

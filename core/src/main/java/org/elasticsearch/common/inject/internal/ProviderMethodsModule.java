@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,9 +16,12 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.Binder;
+import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.inject.Provides;
+import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.inject.util.Modules;
@@ -26,9 +29,13 @@ import org.elasticsearch.common.inject.util.Modules;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
-import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * Creates bindings to methods annotated with {@literal @}{@link Provides}. Use the scope and
@@ -42,7 +49,7 @@ public final class ProviderMethodsModule implements Module {
     private final TypeLiteral<?> typeLiteral;
 
     private ProviderMethodsModule(Object delegate) {
-        this.delegate = checkNotNull(delegate, "delegate");
+        this.delegate = Objects.requireNonNull(delegate, "delegate");
         this.typeLiteral = TypeLiteral.get(this.delegate.getClass());
     }
 
@@ -74,9 +81,9 @@ public final class ProviderMethodsModule implements Module {
     }
 
     public List<ProviderMethod<?>> getProviderMethods(Binder binder) {
-        List<ProviderMethod<?>> result = Lists.newArrayList();
+        List<ProviderMethod<?>> result = new ArrayList<>();
         for (Class<?> c = delegate.getClass(); c != Object.class; c = c.getSuperclass()) {
-            for (Method method : c.getDeclaredMethods()) {
+            for (Method method : c.getMethods()) {
                 if (method.getAnnotation(Provides.class) != null) {
                     result.add(createProviderMethod(binder, method));
                 }
@@ -90,8 +97,8 @@ public final class ProviderMethodsModule implements Module {
         Errors errors = new Errors(method);
 
         // prepare the parameter providers
-        List<Dependency<?>> dependencies = Lists.newArrayList();
-        List<Provider<?>> parameterProviders = Lists.newArrayList();
+        Set<Dependency<?>> dependencies = new HashSet<>();
+        List<Provider<?>> parameterProviders = new ArrayList<>();
         List<TypeLiteral<?>> parameterTypes = typeLiteral.getParameterTypes(method);
         Annotation[][] parameterAnnotations = method.getParameterAnnotations();
         for (int i = 0; i < parameterTypes.size(); i++) {
@@ -111,7 +118,7 @@ public final class ProviderMethodsModule implements Module {
             binder.addError(message);
         }
 
-        return new ProviderMethod<>(key, method, delegate, ImmutableSet.copyOf(dependencies),
+        return new ProviderMethod<>(key, method, delegate, unmodifiableSet(dependencies),
                 parameterProviders, scopeAnnotation);
     }
 

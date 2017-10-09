@@ -1,0 +1,24 @@
+[[cat-repositories]]
+== cat repositories
+
+The `repositories` command shows the snapshot repositories registered in the
+cluster. For example:
+
+[source,js]
+--------------------------------------------------
+GET /_cat/repositories?v
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT \/_snapshot\/repo1\n{"type": "fs", "settings": {"location": "repo\/1"}}\n/]
+
+might looks like:
+
+[source,txt]
+--------------------------------------------------
+id    type
+repo1   fs
+repo2   s3
+--------------------------------------------------
+// TESTRESPONSE[s/\nrepo2   s3// _cat]
+
+We can quickly see which repositories are registered and their type.

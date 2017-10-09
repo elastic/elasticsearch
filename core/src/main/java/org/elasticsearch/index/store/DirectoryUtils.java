@@ -22,7 +22,6 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.FilterDirectory;
-import org.elasticsearch.common.Nullable;
 
 /**
  * Utils for working with {@link Directory} classes.
@@ -31,7 +30,7 @@ public final class DirectoryUtils {
 
     private DirectoryUtils() {} // no instance
 
-    static final <T extends Directory> Directory getLeafDirectory(FilterDirectory dir, Class<T> targetClass) {
+    static <T extends Directory> Directory getLeafDirectory(FilterDirectory dir, Class<T> targetClass) {
         Directory current = dir.getDelegate();
         while (true) {
             if ((current instanceof FilterDirectory)) {
@@ -79,6 +78,6 @@ public final class DirectoryUtils {
             return defaultValue;
         }
     }
-    
+
 
 }

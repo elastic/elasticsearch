@@ -1,0 +1,513 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+apply plugin: 'elasticsearch.docs-test'
+
+integTestCluster {
+  /* Enable regexes in painless so our tests don't complain about example
+   * snippets that use them. */
+  setting 'script.painless.regex.enabled', 'true'
+  Closure configFile = {
+    extraConfigFile it, "src/test/cluster/config/$it"
+  }
+  configFile 'analysis/example_word_list.txt'
+  configFile 'analysis/hyphenation_patterns.xml'
+  configFile 'analysis/synonym.txt'
+  configFile 'analysis/stemmer_override.txt'
+  configFile 'userdict_ja.txt'
+  configFile 'KeywordTokenizer.rbbi'
+  extraConfigFile 'hunspell/en_US/en_US.aff', '../core/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff'
+  extraConfigFile 'hunspell/en_US/en_US.dic', '../core/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic'
+  // Whitelist reindexing from the local node so we can test it.
+  setting 'reindex.remote.whitelist', '127.0.0.1:*'
+}
+
+// Build the cluster with all plugins
+
+project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
+  /* Skip repositories. We just aren't going to be able to test them so it
+   * doesn't make sense to waste time installing them. */
+  if (subproj.path.startsWith(':plugins:repository-')) {
+    return
+  }
+  subproj.afterEvaluate { // need to wait until the project has been configured
+    integTestCluster {
+      plugin subproj.path
+    }
+  }
+}
+
+buildRestTests.docs = fileTree(projectDir) {
+  // No snippets in here!
+  exclude 'build.gradle'
+  // That is where the snippets go, not where they come from!
+  exclude 'build'
+}
+
+Closure setupTwitter = { String name, int count ->
+  buildRestTests.setups[name] = '''
+  - do:
+        indices.create:
+          index: twitter
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              tweet:
+                properties:
+                  user:
+                    type: keyword
+                    doc_values: true
+                  date:
+                    type: date
+                  likes:
+                    type: long
+  - do:
+        bulk:
+          index: twitter
+          type: tweet
+          refresh: true
+          body: |'''
+    for (int i = 0; i < count; i++) {
+      String user, text
+      if (i == 0) {
+        user = 'kimchy'
+        text = 'trying out Elasticsearch'
+      } else {
+        user = 'test'
+        text = "some message with the number $i"
+      }
+      buildRestTests.setups[name] += """
+            {"index":{"_id": "$i"}}
+            {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
+    }
+  }
+setupTwitter('twitter', 5)
+setupTwitter('big_twitter', 120)
+setupTwitter('huge_twitter', 1200)
+
+buildRestTests.setups['host'] = '''
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+'''
+
+buildRestTests.setups['node'] = '''
+  # Fetch the node name. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - is_true: master_node
+  - set: { master_node: node_name }
+'''
+
+// Used by scripted metric docs
+buildRestTests.setups['ledger'] = '''
+  - do:
+        indices.create:
+          index: ledger
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              sale:
+                properties:
+                  type:
+                    type: keyword
+                  amount:
+                    type: double
+  - do:
+        bulk:
+          index: ledger
+          type: sale
+          refresh: true
+          body: |
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 200, "type": "sale", "description": "something"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "decription": "another thing"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 150, "type": "sale", "description": "blah"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "cost of blah"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "advertisement"}'''
+
+// Used by aggregation docs
+buildRestTests.setups['sales'] = '''
+  - do:
+        indices.create:
+          index: sales
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              sale:
+                properties:
+                  type:
+                    type: keyword
+  - do:
+        bulk:
+          index: sales
+          type: sale
+          refresh: true
+          body: |
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 150, "promoted": true, "rating": 5, "type": "bag"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 50, "promoted": false, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 10, "promoted": true, "rating": 4, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}'''
+
+// Dummy bank account data used by getting-started.asciidoc
+buildRestTests.setups['bank'] = '''
+  - do:
+        bulk:
+          index: bank
+          type: account
+          refresh: true
+          body: |
+#bank_data#
+'''
+/* Load the actual accounts only if we're going to use them. This complicates
+ * dependency checking but that is a small price to pay for not building a
+ * 400kb string every time we start the build. */
+File accountsFile = new File("$projectDir/src/test/resources/accounts.json")
+buildRestTests.inputs.file(accountsFile)
+buildRestTests.doFirst {
+  String accounts = accountsFile.getText('UTF-8')
+  // Indent like a yaml test needs
+  accounts = accounts.replaceAll('(?m)^', '            ')
+  buildRestTests.setups['bank'] =
+    buildRestTests.setups['bank'].replace('#bank_data#', accounts)
+}
+
+buildRestTests.setups['range_index'] = '''
+  - do :
+        indices.create:
+          index: range_index
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              my_type:
+                properties:
+                  expected_attendees:
+                    type: integer_range
+                  time_frame:
+                    type: date_range
+                    format: yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis
+  - do:
+        bulk:
+          index: range_index
+          type: my_type
+          refresh: true
+          body: |
+            {"index":{"_id": 1}}
+            {"expected_attendees": {"gte": 10, "lte": 20}, "time_frame": {"gte": "2015-10-31 12:00:00", "lte": "2015-11-01"}}'''
+
+// Used by index boost doc
+buildRestTests.setups['index_boost'] = '''
+  - do:
+      indices.create:
+          index:  index1
+  - do:
+      indices.create:
+          index:  index2
+
+  - do:
+      indices.put_alias:
+        index: index1
+        name: alias1
+'''
+// Used by sampler and diversified-sampler aggregation docs
+buildRestTests.setups['stackoverflow'] = '''
+  - do:
+        indices.create:
+          index: stackoverflow
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              question:
+                properties:
+                  author:
+                    type: keyword
+                  tags:
+                    type: keyword
+  - do:
+        bulk:
+          index: stackoverflow
+          type: question
+          refresh: true
+          body: |'''
+
+// Make Kibana strongly connected to elasticsearch and logstash
+// Make Kibana rarer (and therefore higher-ranking) than Javascript
+// Make Javascript strongly connected to jquery and angular
+// Make Cabana strongly connected to elasticsearch but only as a result of a single author
+
+for (int i = 0; i < 150; i++) {
+  buildRestTests.setups['stackoverflow'] += """
+            {"index":{}}
+            {"author": "very_relevant_$i", "tags": ["elasticsearch", "kibana"]}"""
+}
+for (int i = 0; i < 50; i++) {
+  buildRestTests.setups['stackoverflow'] += """
+            {"index":{}}
+            {"author": "very_relevant_$i", "tags": ["logstash", "kibana"]}"""
+}
+for (int i = 0; i < 200; i++) {
+  buildRestTests.setups['stackoverflow'] += """
+            {"index":{}}
+            {"author": "partially_relevant_$i", "tags": ["javascript", "jquery"]}"""
+}
+for (int i = 0; i < 200; i++) {
+  buildRestTests.setups['stackoverflow'] += """
+            {"index":{}}
+            {"author": "partially_relevant_$i", "tags": ["javascript", "angular"]}"""
+}
+for (int i = 0; i < 50; i++) {
+  buildRestTests.setups['stackoverflow'] += """
+            {"index":{}}
+            {"author": "noisy author", "tags": ["elasticsearch", "cabana"]}"""
+}
+buildRestTests.setups['stackoverflow'] += """
+"""
+// Used by significant_text aggregation docs
+buildRestTests.setups['news'] = '''
+  - do:
+        indices.create:
+          index: news
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              question:
+                properties:
+                  source:
+                    type: keyword
+                  content:
+                    type: text
+  - do:
+        bulk:
+          index: news
+          type: article
+          refresh: true
+          body: |'''
+
+// Make h5n1 strongly connected to bird flu
+
+for (int i = 0; i < 100; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "very_relevant_$i", "content": "bird flu h5n1"}"""
+}
+for (int i = 0; i < 100; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "filler_$i", "content": "bird dupFiller "}"""
+}
+for (int i = 0; i < 100; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "filler_$i", "content": "flu dupFiller "}"""
+}
+for (int i = 0; i < 20; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "partially_relevant_$i", "content": "elasticsearch dupFiller dupFiller dupFiller dupFiller pozmantier"}"""
+}
+for (int i = 0; i < 10; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "partially_relevant_$i", "content": "elasticsearch logstash kibana"}"""
+}
+buildRestTests.setups['news'] += """
+"""
+
+// Used by some aggregations
+buildRestTests.setups['exams'] = '''
+  - do:
+        indices.create:
+          index: exams
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              exam:
+                properties:
+                  grade:
+                    type: byte
+  - do:
+        bulk:
+          index: exams
+          type: exam
+          refresh: true
+          body: |
+            {"index":{}}
+            {"grade": 100}
+            {"index":{}}
+            {"grade": 50}'''
+
+buildRestTests.setups['stored_example_script'] = '''
+  # Simple script to load a field. Not really a good example, but a simple one.
+  - do:
+      put_script:
+        id: "my_script"
+        body: { "script": { "lang": "painless", "source": "doc[params.field].value" } }
+  - match: { acknowledged: true }
+'''
+
+buildRestTests.setups['stored_scripted_metric_script'] = '''
+  - do:
+      put_script:
+        id: "my_init_script"
+        body: { "script": { "lang": "painless", "source": "params._agg.transactions = []" } }
+  - match: { acknowledged: true }
+
+  - do:
+      put_script:
+        id: "my_map_script"
+        body: { "script": { "lang": "painless", "source": "params._agg.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
+  - match: { acknowledged: true }
+
+  - do:
+      put_script:
+        id: "my_combine_script"
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (t in params._agg.transactions) { profit += t; } return profit" } }
+  - match: { acknowledged: true }
+
+  - do:
+      put_script:
+        id: "my_reduce_script"
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in params._aggs) { profit += a; } return profit" } }
+  - match: { acknowledged: true }
+'''
+
+// Used by analyze api
+buildRestTests.setups['analyze_sample'] = '''
+  - do:
+        indices.create:
+          index: analyze_sample
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+              analysis:
+                normalizer:
+                  my_normalizer:
+                    type: custom
+                    filter: [lowercase]
+            mappings:
+              tweet:
+                properties:
+                  obj1.field1:
+                    type: text'''
+
+// Used by percentile/percentile-rank aggregations
+buildRestTests.setups['latency'] = '''
+  - do:
+        indices.create:
+          index: latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              data:
+                properties:
+                  load_time:
+                    type: long
+  - do:
+        bulk:
+          index: latency
+          type: data
+          refresh: true
+          body: |'''
+
+
+for (int i = 0; i < 100; i++) {
+  def value = i
+  if (i % 10) {
+    value = i*10
+  }
+  buildRestTests.setups['latency'] += """
+            {"index":{}}
+            {"load_time": "$value"}"""
+}
+
+// Used by iprange agg
+buildRestTests.setups['iprange'] = '''
+  - do:
+        indices.create:
+          index: ip_addresses
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              data:
+                properties:
+                  ip:
+                    type: ip
+  - do:
+        bulk:
+          index: ip_addresses
+          type: data
+          refresh: true
+          body: |'''
+
+
+for (int i = 0; i < 255; i++) {
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "10.0.0.$i"}"""
+}
+for (int i = 0; i < 5; i++) {
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "9.0.0.$i"}"""
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "11.0.0.$i"}"""
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "12.0.0.$i"}"""
+}

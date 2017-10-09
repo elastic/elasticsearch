@@ -1,0 +1,11 @@
+[[java-query-dsl-common-terms-query]]
+==== Common Terms Query
+
+See {ref}/query-dsl-common-terms-query.html[Common Terms Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[common_terms]
+--------------------------------------------------
+<1> field
+<2> value

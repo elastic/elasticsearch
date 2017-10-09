@@ -22,11 +22,9 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
 import org.apache.lucene.analysis.path.ReversePathHierarchyTokenizer;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
 public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
 
@@ -37,15 +35,14 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
     private final int skip;
     private final boolean reverse;
 
-    @Inject
-    public PathHierarchyTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public PathHierarchyTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
         bufferSize = settings.getAsInt("buffer_size", 1024);
         String delimiter = settings.get("delimiter");
         if (delimiter == null) {
             this.delimiter = PathHierarchyTokenizer.DEFAULT_DELIMITER;
-        } else if (delimiter.length() > 1) {
-            throw new IllegalArgumentException("delimiter can only be a one char value");
+        } else if (delimiter.length() != 1) {
+            throw new IllegalArgumentException("delimiter must be a one char value");
         } else {
             this.delimiter = delimiter.charAt(0);
         }
@@ -53,8 +50,8 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
         String replacement = settings.get("replacement");
         if (replacement == null) {
             this.replacement = this.delimiter;
-        } else if (replacement.length() > 1) {
-            throw new IllegalArgumentException("replacement can only be a one char value");
+        } else if (replacement.length() != 1) {
+            throw new IllegalArgumentException("replacement must be a one char value");
         } else {
             this.replacement = replacement.charAt(0);
         }
@@ -69,4 +66,5 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
         }
         return new PathHierarchyTokenizer(bufferSize, delimiter, replacement, skip);
     }
+
 }

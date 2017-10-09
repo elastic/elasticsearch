@@ -19,295 +19,340 @@
 
 package org.elasticsearch.index.shard;
 
-import com.google.common.base.Charsets;
-import com.google.common.base.Preconditions;
-import org.apache.lucene.codecs.PostingsFormat;
+import com.carrotsearch.hppc.ObjectLongMap;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
-import org.elasticsearch.index.cache.filter.FilterCacheStats;
-import org.elasticsearch.index.cache.filter.ShardFilterCache;
-import org.elasticsearch.index.cache.query.ShardQueryCache;
+import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.RefreshFailedEngineException;
+import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
-import org.elasticsearch.index.indexing.IndexingStats;
-import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapperForType;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.merge.policy.MergePolicyProvider;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
-import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
-import org.elasticsearch.index.percolator.stats.ShardPercolateService;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
-import org.elasticsearch.index.search.stats.ShardSearchService;
-import org.elasticsearch.index.settings.IndexSettingsService;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.index.suggest.stats.ShardSuggestService;
-import org.elasticsearch.index.suggest.stats.SuggestStats;
-import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.index.translog.TranslogWriter;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
-import org.elasticsearch.indices.IndicesLifecycle;
-import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.indices.InternalIndicesLifecycle;
+import org.elasticsearch.indices.IndexingMemoryController;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.TypeMissingException;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
-/**
- *
- */
-public class IndexShard extends AbstractIndexShardComponent {
+import static org.elasticsearch.index.mapper.SourceToParse.source;
+
+public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
     private final ThreadPool threadPool;
-    private final IndexSettingsService indexSettingsService;
     private final MapperService mapperService;
-    private final IndexQueryParserService queryParserService;
     private final IndexCache indexCache;
-    private final InternalIndicesLifecycle indicesLifecycle;
     private final Store store;
-    private final MergeSchedulerProvider mergeScheduler;
-    private final IndexAliasesService indexAliasesService;
-    private final ShardIndexingService indexingService;
-    private final ShardSearchService searchService;
+    private final InternalIndexingStats internalIndexingStats;
+    private final ShardSearchStats searchStats = new ShardSearchStats();
     private final ShardGetService getService;
     private final ShardIndexWarmerService shardWarmerService;
-    private final ShardFilterCache shardFilterCache;
-    private final ShardQueryCache shardQueryCache;
+    private final ShardRequestCache requestCacheStats;
     private final ShardFieldData shardFieldData;
-    private final PercolatorQueriesRegistry percolatorQueriesRegistry;
-    private final ShardPercolateService shardPercolateService;
-    private final ShardTermVectorsService termVectorsService;
-    private final IndexFieldDataService indexFieldDataService;
-    private final IndexService indexService;
-    private final ShardSuggestService shardSuggestService;
     private final ShardBitsetFilterCache shardBitsetFilterCache;
-    private final DiscoveryNode localNode;
-
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
-    private final NodeEnvironment nodeEnv;
     private final CodecService codecService;
-    private final IndicesWarmer warmer;
-    private final SnapshotDeletionPolicy deletionPolicy;
+    private final Engine.Warmer warmer;
     private final SimilarityService similarityService;
-    private final MergePolicyProvider mergePolicyProvider;
-    private final EngineConfig engineConfig;
     private final TranslogConfig translogConfig;
+    private final IndexEventListener indexEventListener;
+    private final QueryCachingPolicy cachingPolicy;
+    private final Supplier<Sort> indexSortSupplier;
 
-    private TimeValue refreshInterval;
+    /**
+     * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
+     * across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
+     * being indexed/deleted.
+     */
+    private final AtomicLong writingBytes = new AtomicLong();
+    private final SearchOperationListener searchOperationListener;
 
-    private volatile ScheduledFuture refreshScheduledFuture;
-    private volatile ScheduledFuture mergeScheduleFuture;
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
+    protected volatile long primaryTerm;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     protected final EngineFactory engineFactory;
+
+    private final IndexingOperationListener indexingOperationListeners;
+    private final Runnable globalCheckpointSyncer;
+
+    Runnable getGlobalCheckpointSyncer() {
+        return globalCheckpointSyncer;
+    }
 
     @Nullable
     private RecoveryState recoveryState;
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
-
-    private ApplyRefreshSettings applyRefreshSettings = new ApplyRefreshSettings();
-
     private final MeanMetric refreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
 
-    private final ShardEngineFailListener failedEngineListener = new ShardEngineFailListener();
+    private final ShardEventListener shardEventListener = new ShardEventListener();
 
-    private final MapperAnalyzer mapperAnalyzer;
-    private volatile boolean flushOnClose = true;
-
-    /**
-     * Index setting to control if a flush is executed before engine is closed
-     * This setting is realtime updateable.
-     */
-    public static final String INDEX_FLUSH_ON_CLOSE = "index.flush_on_close";
     private final ShardPath path;
 
-    private final IndexShardOperationCounter indexShardOperationCounter;
+    private final IndexShardOperationPermits indexShardOperationPermits;
 
-    @Inject
-    public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler,
-                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
-                      ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
-                      ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService,
-                      ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
-                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory,
-                      ClusterService clusterService, NodeEnvironment nodeEnv, ShardPath path, BigArrays bigArrays) {
-        super(shardId, indexSettingsService.getSettings());
-        this.codecService = codecService;
+    private static final EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
+    // for primaries, we only allow to write when actually started (so the cluster has decided we started)
+    // in case we have a relocation of a primary, we also allow to write after phase 2 completed, where the shard may be
+    // in state RECOVERING or POST_RECOVERY. After a primary has been marked as RELOCATED, we only allow writes to the relocation target
+    // which can be either in POST_RECOVERY or already STARTED (this prevents writing concurrently to two primaries).
+    public static final EnumSet<IndexShardState> writeAllowedStatesForPrimary = EnumSet.of(IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED);
+    // replication is also allowed while recovering, since we index also during recovery to replicas and rely on version checks to make sure its consistent
+    // a relocated shard can also be target of a replication if the relocation target has not been marked as active yet and is syncing it's changes back to the relocation source
+    private static final EnumSet<IndexShardState> writeAllowedStatesForReplica = EnumSet.of(IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED, IndexShardState.RELOCATED);
+
+    private final IndexSearcherWrapper searcherWrapper;
+
+    /**
+     * True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
+     * IndexingMemoryController}).
+     */
+    private final AtomicBoolean active = new AtomicBoolean();
+    /**
+     * Allows for the registration of listeners that are called when a change becomes visible for search.
+     */
+    private final RefreshListeners refreshListeners;
+
+    public IndexShard(
+            ShardRouting shardRouting,
+            IndexSettings indexSettings,
+            ShardPath path,
+            Store store,
+            Supplier<Sort> indexSortSupplier,
+            IndexCache indexCache,
+            MapperService mapperService,
+            SimilarityService similarityService,
+            @Nullable EngineFactory engineFactory,
+            IndexEventListener indexEventListener,
+            IndexSearcherWrapper indexSearcherWrapper,
+            ThreadPool threadPool,
+            BigArrays bigArrays,
+            Engine.Warmer warmer,
+            List<SearchOperationListener> searchOperationListener,
+            List<IndexingOperationListener> listeners,
+            Runnable globalCheckpointSyncer) throws IOException {
+        super(shardRouting.shardId(), indexSettings);
+        assert shardRouting.initializing();
+        this.shardRouting = shardRouting;
+        final Settings settings = indexSettings.getSettings();
+        this.codecService = new CodecService(mapperService, logger);
         this.warmer = warmer;
-        this.deletionPolicy = deletionPolicy;
         this.similarityService = similarityService;
-        this.mergePolicyProvider = mergePolicyProvider;
-        Preconditions.checkNotNull(store, "Store must be provided to the index shard");
-        Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
-        this.engineFactory = factory;
-        this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
-        this.indexSettingsService = indexSettingsService;
+        Objects.requireNonNull(store, "Store must be provided to the index shard");
+        this.engineFactory = engineFactory == null ? new InternalEngineFactory() : engineFactory;
         this.store = store;
-        this.mergeScheduler = mergeScheduler;
+        this.indexSortSupplier = indexSortSupplier;
+        this.indexEventListener = indexEventListener;
         this.threadPool = threadPool;
         this.mapperService = mapperService;
-        this.queryParserService = queryParserService;
         this.indexCache = indexCache;
-        this.indexAliasesService = indexAliasesService;
-        this.indexingService = indexingService;
-        this.getService = getService.setIndexShard(this);
-        this.termVectorsService = termVectorsService.setIndexShard(this);
-        this.searchService = searchService;
-        this.shardWarmerService = shardWarmerService;
-        this.shardFilterCache = shardFilterCache;
-        this.shardQueryCache = shardQueryCache;
-        this.shardFieldData = shardFieldData;
-        this.percolatorQueriesRegistry = percolatorQueriesRegistry;
-        this.shardPercolateService = shardPercolateService;
-        this.indexFieldDataService = indexFieldDataService;
-        this.indexService = indexService;
-        this.shardSuggestService = shardSuggestService;
-        this.shardBitsetFilterCache = shardBitsetFilterCache;
-        assert clusterService.localNode() != null : "Local node is null lifecycle state is: " + clusterService.lifecycleState();
-        this.localNode = clusterService.localNode();
+        this.internalIndexingStats = new InternalIndexingStats();
+        final List<IndexingOperationListener> listenersList = new ArrayList<>(listeners);
+        listenersList.add(internalIndexingStats);
+        this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
+        this.globalCheckpointSyncer = globalCheckpointSyncer;
+        final List<SearchOperationListener> searchListenersList = new ArrayList<>(searchOperationListener);
+        searchListenersList.add(searchStats);
+        this.searchOperationListener = new SearchOperationListener.CompositeListener(searchListenersList, logger);
+        this.getService = new ShardGetService(indexSettings, this, mapperService);
+        this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
+        this.requestCacheStats = new ShardRequestCache();
+        this.shardFieldData = new ShardFieldData();
+        this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         state = IndexShardState.CREATED;
-        this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
-        this.flushOnClose = indexSettings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
-        this.nodeEnv = nodeEnv;
-        indexSettingsService.addListener(applyRefreshSettings);
-        this.mapperAnalyzer = new MapperAnalyzer(mapperService);
         this.path = path;
         /* create engine config */
-
         logger.debug("state: [CREATED]");
 
-        this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");
-        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, getFromSettings(logger, indexSettings, Translog.Durabilty.REQUEST),
-                bigArrays, threadPool);
-        this.engineConfig = newEngineConfig(translogConfig);
+        this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
+        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
+        // the query cache is a node-level thing, however we want the most popular filters
+        // to be computed on a per-shard basis
+        if (IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.get(settings)) {
+            cachingPolicy = QueryCachingPolicy.ALWAYS_CACHE;
+        } else {
+            QueryCachingPolicy cachingPolicy = new UsageTrackingQueryCachingPolicy();
+            if (IndexModule.INDEX_QUERY_CACHE_TERM_QUERIES_SETTING.get(settings) == false) {
+                cachingPolicy = new ElasticsearchQueryCachingPolicy(cachingPolicy);
+            }
+            this.cachingPolicy = cachingPolicy;
+        }
+        indexShardOperationPermits = new IndexShardOperationPermits(shardId, logger, threadPool);
+        searcherWrapper = indexSearcherWrapper;
+        primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
+        refreshListeners = buildRefreshListeners();
+        persistMetadata(path, indexSettings, shardRouting, null, logger);
+    }
 
-        this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
+    public ThreadPool getThreadPool() {
+        return this.threadPool;
     }
 
     public Store store() {
         return this.store;
     }
 
-    /** returns true if this shard supports indexing (i.e., write) operations. */
+    /**
+     * Return the sort order of this index, or null if the index has no sort.
+     */
+    public Sort getIndexSort() {
+        return indexSortSupplier.get();
+    }
+    /**
+     * returns true if this shard supports indexing (i.e., write) operations.
+     */
     public boolean canIndex() {
         return true;
-    }
-
-    public ShardIndexingService indexingService() {
-        return this.indexingService;
     }
 
     public ShardGetService getService() {
         return this.getService;
     }
 
-    public ShardTermVectorsService termVectorsService() {
-        return termVectorsService;
-    }
-
-    public ShardSuggestService shardSuggestService() {
-        return shardSuggestService;
-    }
-
     public ShardBitsetFilterCache shardBitsetFilterCache() {
         return shardBitsetFilterCache;
-    }
-
-    public IndexFieldDataService indexFieldDataService() {
-        return indexFieldDataService;
     }
 
     public MapperService mapperService() {
         return mapperService;
     }
 
-    public IndexService indexService() {
-        return indexService;
-    }
-
-    public ShardSearchService searchService() {
-        return this.searchService;
+    public SearchOperationListener getSearchOperationListener() {
+        return this.searchOperationListener;
     }
 
     public ShardIndexWarmerService warmerService() {
         return this.shardWarmerService;
     }
 
-    public ShardFilterCache filterCache() {
-        return this.shardFilterCache;
-    }
-
-    public ShardQueryCache queryCache() {
-        return this.shardQueryCache;
+    public ShardRequestCache requestCache() {
+        return this.requestCacheStats;
     }
 
     public ShardFieldData fieldData() {
@@ -315,88 +360,185 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /**
-     * Returns the latest cluster routing entry received with this shard. Might be null if the
-     * shard was just created.
+     * Returns the primary term the index shard is on. See {@link org.elasticsearch.cluster.metadata.IndexMetaData#primaryTerm(int)}
      */
+    public long getPrimaryTerm() {
+        return this.primaryTerm;
+    }
+
+    /**
+     * Returns the latest cluster routing entry received with this shard.
+     */
+    @Override
     public ShardRouting routingEntry() {
         return this.shardRouting;
     }
 
-    /**
-     * Updates the shards routing entry. This mutate the shards internal state depending
-     * on the changes that get introduced by the new routing value. This method will persist shard level metadata
-     * unless explicitly disabled.
-     */
-    public void updateRoutingEntry(final ShardRouting newRouting, final boolean persistState) {
-        final ShardRouting currentRouting = this.shardRouting;
-        if (!newRouting.shardId().equals(shardId())) {
-            throw new IllegalArgumentException("Trying to set a routing entry with shardId [" + newRouting.shardId() + "] on a shard with shardId [" + shardId() + "]");
-        }
-        try {
-            if (currentRouting != null) {
-                assert newRouting.version() > currentRouting.version() : "expected: " + newRouting.version() + " > " + currentRouting.version();
-                if (!newRouting.primary() && currentRouting.primary()) {
-                    logger.warn("suspect illegal state: trying to move shard from primary mode to replica mode");
-                }
-                // if its the same routing, return
-                if (currentRouting.equals(newRouting)) {
-                    this.shardRouting = newRouting; // might have a new version
-                    return;
+    public QueryCachingPolicy getQueryCachingPolicy() {
+        return cachingPolicy;
+    }
+
+
+    @Override
+    public void updateShardState(final ShardRouting newRouting,
+                                 final long newPrimaryTerm,
+                                 final BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
+                                 final long applyingClusterStateVersion,
+                                 final Set<String> inSyncAllocationIds,
+                                 final IndexShardRoutingTable routingTable,
+                                 final Set<String> pre60AllocationIds) throws IOException {
+        final ShardRouting currentRouting;
+        synchronized (mutex) {
+            currentRouting = this.shardRouting;
+
+            if (!newRouting.shardId().equals(shardId())) {
+                throw new IllegalArgumentException("Trying to set a routing entry with shardId " + newRouting.shardId() + " on a shard with shardId " + shardId());
+            }
+            if ((currentRouting == null || newRouting.isSameAllocation(currentRouting)) == false) {
+                throw new IllegalArgumentException("Trying to set a routing entry with a different allocation. Current " + currentRouting + ", new " + newRouting);
+            }
+            if (currentRouting != null && currentRouting.primary() && newRouting.primary() == false) {
+                throw new IllegalArgumentException("illegal state: trying to move shard from primary mode to replica mode. Current "
+                    + currentRouting + ", new " + newRouting);
+            }
+
+            if (newRouting.primary()) {
+                final Engine engine = getEngineOrNull();
+                if (engine != null) {
+                    engine.seqNoService().updateAllocationIdsFromMaster(applyingClusterStateVersion, inSyncAllocationIds, routingTable, pre60AllocationIds);
                 }
             }
 
-            if (state == IndexShardState.POST_RECOVERY) {
-                // if the state is started or relocating (cause it might move right away from started to relocating)
-                // then move to STARTED
-                if (newRouting.state() == ShardRoutingState.STARTED || newRouting.state() == ShardRoutingState.RELOCATING) {
-                    // we want to refresh *before* we move to internal STARTED state
-                    try {
-                        engine().refresh("cluster_state_started");
-                    } catch (Throwable t) {
-                        logger.debug("failed to refresh due to move to cluster wide started", t);
-                    }
+            if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
+                assert currentRouting.active() == false : "we are in POST_RECOVERY, but our shard routing is active " + currentRouting;
+                // we want to refresh *before* we move to internal STARTED state
+                try {
+                    getEngine().refresh("cluster_state_started");
+                } catch (Exception e) {
+                    logger.debug("failed to refresh due to move to cluster wide started", e);
+                }
 
-                    boolean movedToStarted = false;
-                    synchronized (mutex) {
-                        // do the check under a mutex, so we make sure to only change to STARTED if in POST_RECOVERY
-                        if (state == IndexShardState.POST_RECOVERY) {
-                            changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
-                            movedToStarted = true;
-                        } else {
-                            logger.debug("state [{}] not changed, not in POST_RECOVERY, global state is [{}]", state, newRouting.state());
-                        }
-                    }
-                    if (movedToStarted) {
-                        indicesLifecycle.afterIndexShardStarted(this);
+                if (newRouting.primary()) {
+                    final DiscoveryNode recoverySourceNode = recoveryState.getSourceNode();
+                    if (currentRouting.isRelocationTarget() == false || recoverySourceNode.getVersion().before(Version.V_6_0_0_alpha1)) {
+                        // there was no primary context hand-off in < 6.0.0, need to manually activate the shard
+                        getEngine().seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
                     }
                 }
+
+                changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
+            } else if (state == IndexShardState.RELOCATED &&
+                (newRouting.relocating() == false || newRouting.equalsIgnoringMetaData(currentRouting) == false)) {
+                // if the shard is marked as RELOCATED we have to fail when any changes in shard routing occur (e.g. due to recovery
+                // failure / cancellation). The reason is that at the moment we cannot safely move back to STARTED without risking two
+                // active primaries.
+                throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
             }
+            assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.RELOCATED ||
+                state == IndexShardState.CLOSED :
+                "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
+            persistMetadata(path, indexSettings, newRouting, currentRouting, logger);
+            final CountDownLatch shardStateUpdated = new CountDownLatch(1);
+
+            if (newRouting.primary()) {
+                if (newPrimaryTerm != primaryTerm) {
+                    assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
+                    /* Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
+                     * in one state causing it's term to be incremented. Note that if both current shard state and new
+                     * shard state are initializing, we could replace the current shard and reinitialize it. It is however
+                     * possible that this shard is being started. This can happen if:
+                     * 1) Shard is post recovery and sends shard started to the master
+                     * 2) Node gets disconnected and rejoins
+                     * 3) Master assigns the shard back to the node
+                     * 4) Master processes the shard started and starts the shard
+                     * 5) The node process the cluster state where the shard is both started and primary term is incremented.
+                     *
+                     * We could fail the shard in that case, but this will cause it to be removed from the insync allocations list
+                     * potentially preventing re-allocation.
+                     */
+                    assert newRouting.initializing() == false :
+                        "a started primary shard should never update its term; "
+                            + "shard " + newRouting + ", "
+                            + "current term [" + primaryTerm + "], "
+                            + "new term [" + newPrimaryTerm + "]";
+                    assert newPrimaryTerm > primaryTerm :
+                        "primary terms can only go up; current term [" + primaryTerm + "], new term [" + newPrimaryTerm + "]";
+                    /*
+                     * Before this call returns, we are guaranteed that all future operations are delayed and so this happens before we
+                     * increment the primary term. The latch is needed to ensure that we do not unblock operations before the primary term is
+                     * incremented.
+                     */
+                    // to prevent primary relocation handoff while resync is not completed
+                    boolean resyncStarted = primaryReplicaResyncInProgress.compareAndSet(false, true);
+                    if (resyncStarted == false) {
+                        throw new IllegalStateException("cannot start resync while it's already in progress");
+                    }
+                    indexShardOperationPermits.asyncBlockOperations(
+                        30,
+                        TimeUnit.MINUTES,
+                        () -> {
+                            shardStateUpdated.await();
+                            try {
+                                /*
+                                 * If this shard was serving as a replica shard when another shard was promoted to primary then the state of
+                                 * its local checkpoint tracker was reset during the primary term transition. In particular, the local
+                                 * checkpoint on this shard was thrown back to the global checkpoint and the state of the local checkpoint
+                                 * tracker above the local checkpoint was destroyed. If the other shard that was promoted to primary
+                                 * subsequently fails before the primary/replica re-sync completes successfully and we are now being
+                                 * promoted, the local checkpoint tracker here could be left in a state where it would re-issue sequence
+                                 * numbers. To ensure that this is not the case, we restore the state of the local checkpoint tracker by
+                                 * replaying the translog and marking any operations there are completed.
+                                 */
+                                getEngine().restoreLocalCheckpointFromTranslog();
+                                getEngine().fillSeqNoGaps(newPrimaryTerm);
+                                getEngine().seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
+                                    getEngine().seqNoService().getLocalCheckpoint());
+                                primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
+                                    @Override
+                                    public void onResponse(ResyncTask resyncTask) {
+                                        logger.info("primary-replica resync completed with {} operations",
+                                            resyncTask.getResyncedOperations());
+                                        boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
+                                        assert resyncCompleted : "primary-replica resync finished but was not started";
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
+                                        assert resyncCompleted : "primary-replica resync finished but was not started";
+                                        if (state == IndexShardState.CLOSED) {
+                                            // ignore, shutting down
+                                        } else {
+                                            failShard("exception during primary-replica resync", e);
+                                        }
+                                    }
+                                });
+                            } catch (final AlreadyClosedException e) {
+                                // okay, the index was deleted
+                            }
+                        },
+                        e -> failShard("exception during primary term transition", e));
+                    getEngine().seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
+                    primaryTerm = newPrimaryTerm;
+                }
+            }
+            // set this last, once we finished updating all internal state.
             this.shardRouting = newRouting;
-            indicesLifecycle.shardRoutingChanged(this, currentRouting, newRouting);
-        } finally {
-            if (persistState) {
-                persistMetadata(newRouting, currentRouting);
-            }
+            shardStateUpdated.countDown();
+        }
+        if (currentRouting != null && currentRouting.active() == false && newRouting.active()) {
+            indexEventListener.afterIndexShardStarted(this);
+        }
+        if (newRouting.equals(currentRouting) == false) {
+            indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
         }
     }
 
     /**
-     * Marks the shard as recovering based on a remote or local node, fails with exception is recovering is not allowed to be set.
+     * Marks the shard as recovering based on a recovery state, fails with exception is recovering is not allowed to be set.
      */
-    public IndexShardState recovering(String reason, RecoveryState.Type type, DiscoveryNode sourceNode) throws IndexShardStartedException,
-            IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
-        return recovering(reason, new RecoveryState(shardId, shardRouting.primary(), type, sourceNode, localNode));
-    }
-
-    /**
-     * Marks the shard as recovering based on a restore, fails with exception is recovering is not allowed to be set.
-     */
-    public IndexShardState recovering(String reason, RecoveryState.Type type, RestoreSource restoreSource) throws IndexShardStartedException {
-        return recovering(reason, new RecoveryState(shardId, shardRouting.primary(), type, restoreSource, localNode));
-    }
-
-    private IndexShardState recovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
-            IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
+    public IndexShardState markAsRecovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
+        IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
@@ -418,16 +560,78 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    public IndexShard relocated(String reason) throws IndexShardNotStartedException {
-        synchronized (mutex) {
-            if (state != IndexShardState.STARTED) {
-                throw new IndexShardNotStartedException(shardId, state);
-            }
-            changeState(IndexShardState.RELOCATED, reason);
+    private final AtomicBoolean primaryReplicaResyncInProgress = new AtomicBoolean();
+
+    /**
+     * Completes the relocation. Operations are blocked and current operations are drained before changing state to relocated. The provided
+     * {@link Runnable} is executed after all operations are successfully blocked.
+     *
+     * @param reason    the reason for the relocation
+     * @param consumer a {@link Runnable} that is executed after operations are blocked
+     * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
+     * @throws InterruptedException            if blocking operations is interrupted
+     */
+    public void relocated(
+            final String reason, final Consumer<GlobalCheckpointTracker.PrimaryContext> consumer) throws IllegalIndexShardStateException, InterruptedException {
+        assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
+        try {
+            indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
+                // no shard operation permits are being held here, move state from started to relocated
+                assert indexShardOperationPermits.getActiveOperationsCount() == 0 :
+                        "in-flight operations in progress while moving shard state to relocated";
+                /*
+                 * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
+                 * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
+                 */
+                verifyRelocatingState();
+                final GlobalCheckpointTracker.PrimaryContext primaryContext = getEngine().seqNoService().startRelocationHandoff();
+                try {
+                    consumer.accept(primaryContext);
+                    synchronized (mutex) {
+                        verifyRelocatingState();
+                        changeState(IndexShardState.RELOCATED, reason);
+                    }
+                    getEngine().seqNoService().completeRelocationHandoff();
+                } catch (final Exception e) {
+                    try {
+                        getEngine().seqNoService().abortRelocationHandoff();
+                    } catch (final Exception inner) {
+                        e.addSuppressed(inner);
+                    }
+                    throw e;
+                }
+            });
+        } catch (TimeoutException e) {
+            logger.warn("timed out waiting for relocation hand-off to complete");
+            // This is really bad as ongoing replication operations are preventing this shard from completing relocation hand-off.
+            // Fail primary relocation source and target shards.
+            failShard("timed out waiting for relocation hand-off to complete", null);
+            throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
         }
-        return this;
     }
 
+    private void verifyRelocatingState() {
+        if (state != IndexShardState.STARTED) {
+            throw new IndexShardNotStartedException(shardId, state);
+        }
+        /*
+         * If the master cancelled recovery, the target will be removed and the recovery will be cancelled. However, it is still possible
+         * that we concurrently end up here and therefore have to protect that we do not mark the shard as relocated when its shard routing
+         * says otherwise.
+         */
+
+        if (shardRouting.relocating() == false) {
+            throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
+                ": shard is no longer relocating " + shardRouting);
+        }
+
+        if (primaryReplicaResyncInProgress.get()) {
+            throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
+                ": primary relocation is forbidden while primary-replica resync is in progress " + shardRouting);
+        }
+    }
+
+    @Override
     public IndexShardState state() {
         return state;
     }
@@ -440,128 +644,235 @@ public class IndexShard extends AbstractIndexShardComponent {
      * @return the previous shard state
      */
     private IndexShardState changeState(IndexShardState newState, String reason) {
+        assert Thread.holdsLock(mutex);
         logger.debug("state: [{}]->[{}], reason [{}]", state, newState, reason);
         IndexShardState previousState = state;
         state = newState;
-        this.indicesLifecycle.indexShardStateChanged(this, previousState, reason);
+        this.indexEventListener.indexShardStateChanged(this, previousState, newState, reason);
         return previousState;
     }
 
-    public Engine.Create prepareCreate(SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin, boolean canHaveDuplicates, boolean autoGeneratedId) {
+    public Engine.IndexResult applyIndexOperationOnPrimary(long version, VersionType versionType, SourceToParse sourceToParse,
+                                                           long autoGeneratedTimestamp, boolean isRetry,
+                                                           Consumer<Mapping> onMappingUpdate) throws IOException {
+        return applyIndexOperation(SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm, version, versionType, autoGeneratedTimestamp,
+            isRetry, Engine.Operation.Origin.PRIMARY, sourceToParse, onMappingUpdate);
+    }
+
+    public Engine.IndexResult applyIndexOperationOnReplica(long seqNo, long version, VersionType versionType,
+                                                           long autoGeneratedTimeStamp, boolean isRetry, SourceToParse sourceToParse,
+                                                           Consumer<Mapping> onMappingUpdate) throws IOException {
+        return applyIndexOperation(seqNo, primaryTerm, version, versionType, autoGeneratedTimeStamp, isRetry,
+            Engine.Operation.Origin.REPLICA, sourceToParse, onMappingUpdate);
+    }
+
+    private Engine.IndexResult applyIndexOperation(long seqNo, long opPrimaryTerm, long version, VersionType versionType,
+                                                   long autoGeneratedTimeStamp, boolean isRetry, Engine.Operation.Origin origin,
+                                                   SourceToParse sourceToParse, Consumer<Mapping> onMappingUpdate) throws IOException {
+        assert opPrimaryTerm <= this.primaryTerm : "op term [ " + opPrimaryTerm + " ] > shard term [" + this.primaryTerm + "]";
+        assert versionType.validateVersionForWrites(version);
+        ensureWriteAllowed(origin);
+        Engine.Index operation;
         try {
-            return prepareCreate(docMapper(source.type()), source, version, versionType, origin, state != IndexShardState.STARTED || canHaveDuplicates, autoGeneratedId);
-        } catch (Throwable t) {
-            verifyNotClosed(t);
-            throw t;
+            operation = prepareIndex(docMapper(sourceToParse.type()), indexSettings.getIndexVersionCreated(), sourceToParse, seqNo,
+                    opPrimaryTerm, version, versionType, origin,
+                autoGeneratedTimeStamp, isRetry);
+            Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
+            if (update != null) {
+                // wrap this in the outer catch block, as the master might also throw a MapperParsingException when updating the mapping
+                onMappingUpdate.accept(update);
+            }
+        } catch (MapperParsingException | IllegalArgumentException | TypeMissingException e) {
+            return new Engine.IndexResult(e, version, seqNo);
+        } catch (Exception e) {
+            verifyNotClosed(e);
+            throw e;
         }
+
+        return index(getEngine(), operation);
     }
 
-    static Engine.Create prepareCreate(Tuple<DocumentMapper, Mapping> docMapper, SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin, boolean canHaveDuplicates, boolean autoGeneratedId) {
+    public static Engine.Index prepareIndex(DocumentMapperForType docMapper, Version indexCreatedVersion, SourceToParse source, long seqNo,
+            long primaryTerm, long version, VersionType versionType, Engine.Operation.Origin origin, long autoGeneratedIdTimestamp,
+            boolean isRetry) {
         long startTime = System.nanoTime();
-        ParsedDocument doc = docMapper.v1().parse(source);
-        if (docMapper.v2() != null) {
-            doc.addDynamicMappingsUpdate(docMapper.v2());
+        ParsedDocument doc = docMapper.getDocumentMapper().parse(source);
+        if (docMapper.getMapping() != null) {
+            doc.addDynamicMappingsUpdate(docMapper.getMapping());
         }
-        return new Engine.Create(docMapper.v1(), docMapper.v1().uidMapper().term(doc.uid().stringValue()), doc, version, versionType, origin, startTime, canHaveDuplicates, autoGeneratedId);
+        Term uid;
+        if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_beta1)) {
+            uid = new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id()));
+        } else if (docMapper.getDocumentMapper().idFieldMapper().fieldType().indexOptions() != IndexOptions.NONE) {
+            uid = new Term(IdFieldMapper.NAME, doc.id());
+        } else {
+            uid = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(doc.type(), doc.id()));
+        }
+        return new Engine.Index(uid, doc, seqNo, primaryTerm, version, versionType, origin, startTime, autoGeneratedIdTimestamp, isRetry);
     }
 
-    public void create(Engine.Create create) {
-        writeAllowed(create.origin());
-        create = indexingService.preCreate(create);
-        mapperAnalyzer.setType(create.type());
+    private Engine.IndexResult index(Engine engine, Engine.Index index) throws IOException {
+        active.set(true);
+        final Engine.IndexResult result;
+        index = indexingOperationListeners.preIndex(shardId, index);
         try {
             if (logger.isTraceEnabled()) {
-                logger.trace("index [{}][{}]{}", create.type(), create.id(), create.docs());
+                // don't use index.source().utf8ToString() here source might not be valid UTF-8
+                logger.trace("index [{}][{}] (seq# [{}])",  index.type(), index.id(), index.seqNo());
             }
-            engine().create(create);
-            create.endTime(System.nanoTime());
-        } catch (Throwable ex) {
-            indexingService.postCreate(create, ex);
-            throw ex;
+            result = engine.index(index);
+        } catch (Exception e) {
+            indexingOperationListeners.postIndex(shardId, index, e);
+            throw e;
         }
-        indexingService.postCreate(create);
+        indexingOperationListeners.postIndex(shardId, index, result);
+        return result;
     }
 
-    public Engine.Index prepareIndex(SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin, boolean canHaveDuplicates) {
-        try {
-            return prepareIndex(docMapper(source.type()), source, version, versionType, origin, state != IndexShardState.STARTED || canHaveDuplicates);
-        } catch (Throwable t) {
-            verifyNotClosed(t);
-            throw t;
-        }
+    public Engine.NoOpResult markSeqNoAsNoop(long seqNo, String reason) throws IOException {
+        return markSeqNoAsNoop(seqNo, primaryTerm, reason, Engine.Operation.Origin.REPLICA);
     }
 
-    static Engine.Index prepareIndex(Tuple<DocumentMapper, Mapping> docMapper, SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin, boolean canHaveDuplicates) {
+    private Engine.NoOpResult markSeqNoAsNoop(long seqNo, long opPrimaryTerm, String reason,
+                                              Engine.Operation.Origin origin) throws IOException {
+        assert opPrimaryTerm <= this.primaryTerm : "op term [ " + opPrimaryTerm + " ] > shard term [" + this.primaryTerm + "]";
         long startTime = System.nanoTime();
-        ParsedDocument doc = docMapper.v1().parse(source);
-        if (docMapper.v2() != null) {
-            doc.addDynamicMappingsUpdate(docMapper.v2());
-        }
-        return new Engine.Index(docMapper.v1(), docMapper.v1().uidMapper().term(doc.uid().stringValue()), doc, version, versionType, origin, startTime, canHaveDuplicates);
+        ensureWriteAllowed(origin);
+        final Engine.NoOp noOp = new Engine.NoOp(seqNo, opPrimaryTerm, origin, startTime, reason);
+        return noOp(getEngine(), noOp);
     }
 
-    /**
-     * Index a document and return whether it was created, as opposed to just
-     * updated.
-     */
-    public boolean index(Engine.Index index) {
-        writeAllowed(index.origin());
-        index = indexingService.preIndex(index);
-        mapperAnalyzer.setType(index.type());
-        final boolean created;
+    private Engine.NoOpResult noOp(Engine engine, Engine.NoOp noOp) {
+        active.set(true);
+        if (logger.isTraceEnabled()) {
+            logger.trace("noop (seq# [{}])", noOp.seqNo());
+        }
+        return engine.noOp(noOp);
+    }
+
+    public Engine.DeleteResult applyDeleteOperationOnPrimary(long version, String type, String id, VersionType versionType,
+                                                             Consumer<Mapping> onMappingUpdate) throws IOException {
+        return applyDeleteOperation(SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm, version, type, id, versionType,
+            Engine.Operation.Origin.PRIMARY, onMappingUpdate);
+    }
+
+    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long version, String type, String id,
+                                                             VersionType versionType,
+                                                             Consumer<Mapping> onMappingUpdate) throws IOException {
+        return applyDeleteOperation(seqNo, primaryTerm, version, type, id, versionType, Engine.Operation.Origin.REPLICA, onMappingUpdate);
+    }
+
+    private Engine.DeleteResult applyDeleteOperation(long seqNo, long opPrimaryTerm, long version, String type, String id,
+                                                     VersionType versionType, Engine.Operation.Origin origin,
+                                                     Consumer<Mapping> onMappingUpdate) throws IOException {
+        assert opPrimaryTerm <= this.primaryTerm : "op term [ " + opPrimaryTerm + " ] > shard term [" + this.primaryTerm + "]";
+        assert versionType.validateVersionForWrites(version);
+        ensureWriteAllowed(origin);
+        if (indexSettings().isSingleType()) {
+            // When there is a single type, the unique identifier is only composed of the _id,
+            // so there is no way to differenciate foo#1 from bar#1. This is especially an issue
+            // if a user first deletes foo#1 and then indexes bar#1: since we do not encode the
+            // _type in the uid it might look like we are reindexing the same document, which
+            // would fail if bar#1 is indexed with a lower version than foo#1 was deleted with.
+            // In order to work around this issue, we make deletions create types. This way, we
+            // fail if index and delete operations do not use the same type.
+            try {
+                Mapping update = docMapper(type).getMapping();
+                if (update != null) {
+                    onMappingUpdate.accept(update);
+                }
+            } catch (MapperParsingException | IllegalArgumentException | TypeMissingException e) {
+                return new Engine.DeleteResult(e, version, seqNo, false);
+            }
+        }
+        final Term uid = extractUidForDelete(type, id);
+        final Engine.Delete delete = prepareDelete(type, id, uid, seqNo, opPrimaryTerm, version,
+            versionType, origin);
+        return delete(getEngine(), delete);
+    }
+
+    private static Engine.Delete prepareDelete(String type, String id, Term uid, long seqNo, long primaryTerm, long version,
+                                               VersionType versionType, Engine.Operation.Origin origin) {
+        long startTime = System.nanoTime();
+        return new Engine.Delete(type, id, uid, seqNo, primaryTerm, version, versionType, origin, startTime);
+    }
+
+    private Term extractUidForDelete(String type, String id) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
+            assert indexSettings.isSingleType();
+            // This is only correct because we create types dynamically on delete operations
+            // otherwise this could match the same _id from a different type
+            BytesRef idBytes = Uid.encodeId(id);
+            return new Term(IdFieldMapper.NAME, idBytes);
+        } else if (indexSettings.isSingleType()) {
+            // This is only correct because we create types dynamically on delete operations
+            // otherwise this could match the same _id from a different type
+            return new Term(IdFieldMapper.NAME, id);
+        } else {
+            return new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id));
+        }
+    }
+
+    private Engine.DeleteResult delete(Engine engine, Engine.Delete delete) throws IOException {
+        active.set(true);
+        final Engine.DeleteResult result;
+        delete = indexingOperationListeners.preDelete(shardId, delete);
         try {
             if (logger.isTraceEnabled()) {
-                logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
+                logger.trace("delete [{}] (seq no [{}])", delete.uid().text(), delete.seqNo());
             }
-            created = engine().index(index);
-            index.endTime(System.nanoTime());
-        } catch (Throwable ex) {
-            indexingService.postIndex(index, ex);
-            throw ex;
+            result = engine.delete(delete);
+        } catch (Exception e) {
+            indexingOperationListeners.postDelete(shardId, delete, e);
+            throw e;
         }
-        indexingService.postIndex(index);
-        return created;
-    }
-
-    public Engine.Delete prepareDelete(String type, String id, long version, VersionType versionType, Engine.Operation.Origin origin) {
-        long startTime = System.nanoTime();
-        final DocumentMapper documentMapper = docMapper(type).v1();
-        return new Engine.Delete(type, id, documentMapper.uidMapper().term(Uid.createUid(type, id)), version, versionType, origin, startTime, false);
-    }
-
-    public void delete(Engine.Delete delete) {
-        writeAllowed(delete.origin());
-        delete = indexingService.preDelete(delete);
-        try {
-            if (logger.isTraceEnabled()) {
-                logger.trace("delete [{}]", delete.uid().text());
-            }
-            engine().delete(delete);
-            delete.endTime(System.nanoTime());
-        } catch (Throwable ex) {
-            indexingService.postDelete(delete, ex);
-            throw ex;
-        }
-        indexingService.postDelete(delete);
+        indexingOperationListeners.postDelete(shardId, delete, result);
+        return result;
     }
 
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
-        return engine().get(get);
+        return getEngine().get(get, this::acquireSearcher);
     }
 
+    /**
+     * Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link AlreadyClosedException}.
+     */
     public void refresh(String source) {
         verifyNotClosed();
-        if (logger.isTraceEnabled()) {
-            logger.trace("refresh with source: {}", source);
+
+        if (canIndex()) {
+            long bytes = getEngine().getIndexBufferRAMBytesUsed();
+            writingBytes.addAndGet(bytes);
+            try {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(bytes));
+                }
+                getEngine().refresh(source);
+            } finally {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
+                }
+                writingBytes.addAndGet(-bytes);
+            }
+        } else {
+            if (logger.isTraceEnabled()) {
+                logger.trace("refresh with source [{}]", source);
+            }
+            getEngine().refresh(source);
         }
-        long time = System.nanoTime();
-        engine().refresh(source);
-        refreshMetric.inc(System.nanoTime() - time);
+    }
+
+    /**
+     * Returns how many bytes we are currently moving from heap to disk
+     */
+    public long getWritingBytes() {
+        return writingBytes.get();
     }
 
     public RefreshStats refreshStats() {
-        return new RefreshStats(refreshMetric.count(), TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()));
+        int listeners = refreshListeners.pendingCount();
+        return new RefreshStats(refreshMetric.count(), TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()), listeners);
     }
 
     public FlushStats flushStats() {
@@ -569,11 +880,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public DocsStats docStats() {
-        final Engine.Searcher searcher = acquireSearcher("doc_stats");
-        try {
+        try (Engine.Searcher searcher = acquireSearcher("doc_stats")) {
             return new DocsStats(searcher.reader().numDocs(), searcher.reader().numDeletedDocs());
-        } finally {
-            searcher.close();
         }
     }
 
@@ -582,16 +890,35 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     @Nullable
     public CommitStats commitStats() {
-        Engine engine = engineUnsafe();
+        Engine engine = getEngineOrNull();
         return engine == null ? null : engine.commitStats();
     }
 
+    /**
+     * @return {@link SeqNoStats} if engine is open, otherwise null
+     */
+    @Nullable
+    public SeqNoStats seqNoStats() {
+        Engine engine = getEngineOrNull();
+        return engine == null ? null : engine.seqNoService().stats();
+    }
+
     public IndexingStats indexingStats(String... types) {
-        return indexingService.stats(types);
+        Engine engine = getEngineOrNull();
+        final boolean throttled;
+        final long throttleTimeInMillis;
+        if (engine == null) {
+            throttled = false;
+            throttleTimeInMillis = 0;
+        } else {
+            throttled = engine.isThrottled();
+            throttleTimeInMillis = engine.getIndexThrottleTimeInMillis();
+        }
+        return internalIndexingStats.stats(throttled, throttleTimeInMillis, types);
     }
 
     public SearchStats searchStats(String... groups) {
-        return searchService.stats(groups);
+        return searchStats.stats(groups);
     }
 
     public GetStats getStats() {
@@ -609,11 +936,15 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public MergeStats mergeStats() {
-        return mergeScheduler.stats();
+        final Engine engine = getEngineOrNull();
+        if (engine == null) {
+            return new MergeStats();
+        }
+        return engine.getMergeStats();
     }
 
-    public SegmentsStats segmentStats() {
-        SegmentsStats segmentsStats = engine().segmentsStats();
+    public SegmentsStats segmentStats(boolean includeSegmentFileSizes) {
+        SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         return segmentsStats;
     }
@@ -622,93 +953,105 @@ public class IndexShard extends AbstractIndexShardComponent {
         return shardWarmerService.stats();
     }
 
-    public FilterCacheStats filterCacheStats() {
-        return shardFilterCache.stats();
-    }
-
     public FieldDataStats fieldDataStats(String... fields) {
         return shardFieldData.stats(fields);
     }
 
-    public PercolatorQueriesRegistry percolateRegistry() {
-        return percolatorQueriesRegistry;
-    }
-
-    public ShardPercolateService shardPercolateService() {
-        return shardPercolateService;
-    }
-
     public TranslogStats translogStats() {
-        return engine().getTranslog().stats();
-    }
-
-    public SuggestStats suggestStats() {
-        return shardSuggestService.stats();
+        return getEngine().getTranslog().stats();
     }
 
     public CompletionStats completionStats(String... fields) {
         CompletionStats completionStats = new CompletionStats();
-        final Engine.Searcher currentSearcher = acquireSearcher("completion_stats");
-        try {
-            PostingsFormat postingsFormat = PostingsFormat.forName(Completion090PostingsFormat.CODEC_NAME);
-            if (postingsFormat instanceof Completion090PostingsFormat) {
-                Completion090PostingsFormat completionPostingsFormat = (Completion090PostingsFormat) postingsFormat;
-                completionStats.add(completionPostingsFormat.completionStats(currentSearcher.reader(), fields));
-            }
-        } finally {
-            currentSearcher.close();
+        try (Engine.Searcher currentSearcher = acquireSearcher("completion_stats")) {
+            completionStats.add(CompletionFieldStats.completionStats(currentSearcher.reader(), fields));
         }
         return completionStats;
     }
 
     public Engine.SyncedFlushResult syncFlush(String syncId, Engine.CommitId expectedCommitId) {
-        verifyStartedOrRecovering();
+        verifyNotClosed();
         logger.trace("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
-        return engine().syncFlush(syncId, expectedCommitId);
+        Engine engine = getEngine();
+        if (engine.isRecovering()) {
+            throw new IllegalIndexShardStateException(shardId(), state, "syncFlush is only allowed if the engine is not recovery" +
+                " from translog");
+        }
+        return engine.syncFlush(syncId, expectedCommitId);
     }
 
-    public Engine.CommitId flush(FlushRequest request) throws ElasticsearchException {
-        boolean waitIfOngoing = request.waitIfOngoing();
-        boolean force = request.force();
-        if (logger.isTraceEnabled()) {
-            logger.trace("flush with {}", request);
+    /**
+     * Executes the given flush request against the engine.
+     *
+     * @param request the flush request
+     * @return the commit ID
+     */
+    public Engine.CommitId flush(FlushRequest request) {
+        final boolean waitIfOngoing = request.waitIfOngoing();
+        final boolean force = request.force();
+        logger.trace("flush with {}", request);
+        /*
+         * We allow flushes while recovery since we allow operations to happen while recovering and we want to keep the translog under
+         * control (up to deletes, which we do not GC). Yet, we do not use flush internally to clear deletes and flush the index writer
+         * since we use Engine#writeIndexingBuffer for this now.
+         */
+        verifyNotClosed();
+        final Engine engine = getEngine();
+        if (engine.isRecovering()) {
+            throw new IllegalIndexShardStateException(
+                    shardId(),
+                    state,
+                    "flush is only allowed if the engine is not recovery from translog");
         }
-        // we allows flush while recovering, since we allow for operations to happen
-        // while recovering, and we want to keep the translog at bay (up to deletes, which
-        // we don't gc).
-        verifyStartedOrRecovering();
-
-        long time = System.nanoTime();
-        Engine.CommitId commitId = engine().flush(force, waitIfOngoing);
+        final long time = System.nanoTime();
+        final Engine.CommitId commitId = engine.flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
         return commitId;
-
     }
 
-    public void optimize(OptimizeRequest optimize) {
-        verifyStarted();
+    /**
+     * checks and removes translog files that no longer need to be retained. See
+     * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
+     */
+    public void trimTranslog() {
+        verifyNotClosed();
+        final Engine engine = getEngine();
+        engine.trimTranslog();
+    }
+
+    /**
+     * Rolls the tranlog generation and cleans unneeded.
+     */
+    private void rollTranslogGeneration() {
+        final Engine engine = getEngine();
+        engine.rollTranslogGeneration();
+    }
+
+    public void forceMerge(ForceMergeRequest forceMerge) throws IOException {
+        verifyActive();
         if (logger.isTraceEnabled()) {
-            logger.trace("optimize with {}", optimize);
+            logger.trace("force merge with {}", forceMerge);
         }
-        engine().forceMerge(optimize.flush(), optimize.maxNumSegments(), optimize.onlyExpungeDeletes(), false, false);
+        getEngine().forceMerge(forceMerge.flush(), forceMerge.maxNumSegments(),
+            forceMerge.onlyExpungeDeletes(), false, false);
     }
 
     /**
      * Upgrades the shard to the current version of Lucene and returns the minimum segment version
      */
-    public org.apache.lucene.util.Version upgrade(UpgradeRequest upgrade) {
-        verifyStarted();
+    public org.apache.lucene.util.Version upgrade(UpgradeRequest upgrade) throws IOException {
+        verifyActive();
         if (logger.isTraceEnabled()) {
             logger.trace("upgrade with {}", upgrade);
         }
         org.apache.lucene.util.Version previousVersion = minimumCompatibleVersion();
-        // we just want to upgrade the segments, not actually optimize to a single segment
-        engine().forceMerge(true,  // we need to flush at the end to make sure the upgrade is durable
-                Integer.MAX_VALUE, // we just want to upgrade the segments, not actually optimize to a single segment
-                false, true, upgrade.upgradeOnlyAncientSegments());
+        // we just want to upgrade the segments, not actually forge merge to a single segment
+        getEngine().forceMerge(true,  // we need to flush at the end to make sure the upgrade is durable
+            Integer.MAX_VALUE, // we just want to upgrade the segments, not actually optimize to a single segment
+            false, true, upgrade.upgradeOnlyAncientSegments());
         org.apache.lucene.util.Version version = minimumCompatibleVersion();
         if (logger.isTraceEnabled()) {
-            logger.trace("upgraded segment {} from version {} to version {}", previousVersion, version);
+            logger.trace("upgraded segments for {} from version {} to version {}", shardId, previousVersion, version);
         }
 
         return version;
@@ -716,58 +1059,109 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public org.apache.lucene.util.Version minimumCompatibleVersion() {
         org.apache.lucene.util.Version luceneVersion = null;
-        for(Segment segment : engine().segments(false)) {
+        for (Segment segment : getEngine().segments(false)) {
             if (luceneVersion == null || luceneVersion.onOrAfter(segment.getVersion())) {
                 luceneVersion = segment.getVersion();
             }
         }
-        return luceneVersion == null ?  Version.indexCreated(indexSettings).luceneVersion : luceneVersion;
+        return luceneVersion == null ? indexSettings.getIndexVersionCreated().luceneVersion : luceneVersion;
     }
 
-    public SnapshotIndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
+    /**
+     * Creates a new {@link IndexCommit} snapshot form the currently running engine. All resources referenced by this
+     * commit won't be freed until the commit / snapshot is closed.
+     *
+     * @param flushFirst <code>true</code> if the index should first be flushed to disk / a low level lucene commit should be executed
+     */
+    public Engine.IndexCommitRef acquireIndexCommit(boolean flushFirst) throws EngineException {
         IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
-            return engine().snapshotIndex(flushFirst);
+            return getEngine().acquireIndexCommit(flushFirst);
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
     }
 
-    public void failShard(String reason, Throwable e) {
+
+    /**
+     * gets a {@link Store.MetadataSnapshot} for the current directory. This method is safe to call in all lifecycle of the index shard,
+     * without having to worry about the current state of the engine and concurrent flushes.
+     *
+     * @throws org.apache.lucene.index.IndexNotFoundException     if no index is found in the current directory
+     * @throws org.apache.lucene.index.CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum
+     *                                                            mismatch or an unexpected exception when opening the index reading the
+     *                                                            segments file.
+     * @throws org.apache.lucene.index.IndexFormatTooOldException if the lucene index is too old to be opened.
+     * @throws org.apache.lucene.index.IndexFormatTooNewException if the lucene index is too new to be opened.
+     * @throws java.io.FileNotFoundException                      if one or more files referenced by a commit are not present.
+     * @throws java.nio.file.NoSuchFileException                  if one or more files referenced by a commit are not present.
+     */
+    public Store.MetadataSnapshot snapshotStoreMetadata() throws IOException {
+        Engine.IndexCommitRef indexCommit = null;
+        store.incRef();
+        try {
+            Engine engine;
+            synchronized (mutex) {
+                // if the engine is not running, we can access the store directly, but we need to make sure no one starts
+                // the engine on us. If the engine is running, we can get a snapshot via the deletion policy which is initialized.
+                // That can be done out of mutex, since the engine can be closed half way.
+                engine = getEngineOrNull();
+                if (engine == null) {
+                    return store.getMetadata(null, true);
+                }
+            }
+            indexCommit = engine.acquireIndexCommit(false);
+            return store.getMetadata(indexCommit.getIndexCommit());
+        } finally {
+            store.decRef();
+            IOUtils.close(indexCommit);
+        }
+    }
+
+    /**
+     * Fails the shard and marks the shard store as corrupted if
+     * <code>e</code> is caused by index corruption
+     */
+    public void failShard(String reason, @Nullable Exception e) {
         // fail the engine. This will cause this shard to also be removed from the node's index service.
-        engine().failEngine(reason, e);
+        getEngine().failEngine(reason, e);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
-        return acquireSearcher(source, false);
-    }
-
-    public Engine.Searcher acquireSearcher(String source, boolean searcherForWriteOperation) {
-        readAllowed(searcherForWriteOperation);
-        return engine().acquireSearcher(source);
+        readAllowed();
+        final Engine engine = getEngine();
+        final Engine.Searcher searcher = engine.acquireSearcher(source);
+        boolean success = false;
+        try {
+            final Engine.Searcher wrappedSearcher = searcherWrapper == null ? searcher : searcherWrapper.wrap(searcher);
+            assert wrappedSearcher != null;
+            success = true;
+            return wrappedSearcher;
+        } catch (IOException ex) {
+            throw new ElasticsearchException("failed to wrap searcher", ex);
+        } finally {
+            if (success == false) {
+                Releasables.close(success, searcher);
+            }
+        }
     }
 
     public void close(String reason, boolean flushEngine) throws IOException {
         synchronized (mutex) {
             try {
-                indexSettingsService.removeListener(applyRefreshSettings);
-                if (state != IndexShardState.CLOSED) {
-                    FutureUtils.cancel(refreshScheduledFuture);
-                    refreshScheduledFuture = null;
-                    FutureUtils.cancel(mergeScheduleFuture);
-                    mergeScheduleFuture = null;
-                }
                 changeState(IndexShardState.CLOSED, reason);
-                indexShardOperationCounter.decRef();
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
-                    if (engine != null && flushEngine && this.flushOnClose) {
+                    if (engine != null && flushEngine) {
                         engine.flushAndClose();
                     }
-                } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    IOUtils.close(engine);
+                } finally {
+                    // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                    // Also closing refreshListeners to prevent us from accumulating any more listeners
+                    IOUtils.close(engine, refreshListeners);
+                    indexShardOperationPermits.close();
                 }
             }
         }
@@ -784,10 +1178,13 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (state == IndexShardState.RELOCATED) {
                 throw new IndexShardRelocatedException(shardId);
             }
+            // we need to refresh again to expose all operations that were index until now. Otherwise
+            // we may not expose operations that were indexed with a refresh listener that was immediately
+            // responded to in addRefreshListener.
+            getEngine().refresh("post_recovery");
             recoveryState.setStage(RecoveryState.Stage.DONE);
             changeState(IndexShardState.POST_RECOVERY, reason);
         }
-        indicesLifecycle.afterIndexShardPostRecovery(this);
         return this;
     }
 
@@ -802,56 +1199,147 @@ public class IndexShard extends AbstractIndexShardComponent {
         assert currentEngineReference.get() == null;
     }
 
-    /**
-     * Applies all operations in the iterable to the current engine and returns the number of operations applied.
-     * This operation will stop applying operations once an operation failed to apply.
-     * Note: This method is typically used in peer recovery to replay remote transaction log entries.
-     */
-    public int performBatchRecovery(Iterable<Translog.Operation> operations) {
-        if (state != IndexShardState.RECOVERING) {
-            throw new IndexShardNotRecoveringException(shardId, state);
+    public Engine.Result applyTranslogOperation(Translog.Operation operation, Engine.Operation.Origin origin,
+                                                Consumer<Mapping> onMappingUpdate) throws IOException {
+        final Engine.Result result;
+        switch (operation.opType()) {
+            case INDEX:
+                final Translog.Index index = (Translog.Index) operation;
+                // we set canHaveDuplicates to true all the time such that we de-optimze the translog case and ensure that all
+                // autoGeneratedID docs that are coming from the primary are updated correctly.
+                result = applyIndexOperation(index.seqNo(), index.primaryTerm(), index.version(),
+                    index.versionType().versionTypeForReplicationAndRecovery(), index.getAutoGeneratedIdTimestamp(), true, origin,
+                    source(shardId.getIndexName(), index.type(), index.id(), index.source(), XContentFactory.xContentType(index.source()))
+                        .routing(index.routing()).parent(index.parent()), onMappingUpdate);
+                break;
+            case DELETE:
+                final Translog.Delete delete = (Translog.Delete) operation;
+                result = applyDeleteOperation(delete.seqNo(), delete.primaryTerm(), delete.version(), delete.type(), delete.id(),
+                    delete.versionType().versionTypeForReplicationAndRecovery(), origin, onMappingUpdate);
+                break;
+            case NO_OP:
+                final Translog.NoOp noOp = (Translog.NoOp) operation;
+                result = markSeqNoAsNoop(noOp.seqNo(), noOp.primaryTerm(), noOp.reason(), origin);
+                break;
+            default:
+                throw new IllegalStateException("No operation defined for [" + operation + "]");
         }
-        return engineConfig.getTranslogRecoveryPerformer().performBatchRecovery(engine(), operations);
+        return result;
+    }
+
+    // package-private for testing
+    int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot) throws IOException {
+        recoveryState.getTranslog().totalOperations(snapshot.totalOperations());
+        recoveryState.getTranslog().totalOperationsOnStart(snapshot.totalOperations());
+        int opsRecovered = 0;
+        Translog.Operation operation;
+        while ((operation = snapshot.next()) != null) {
+            try {
+                logger.trace("[translog] recover op {}", operation);
+                Engine.Result result = applyTranslogOperation(operation, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY, update -> {
+                    throw new IllegalArgumentException("unexpected mapping update: " + update);
+                });
+                ExceptionsHelper.reThrowIfNotNull(result.getFailure());
+                opsRecovered++;
+                recoveryState.getTranslog().incrementRecoveredOperations();
+            } catch (Exception e) {
+                if (ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
+                    // mainly for MapperParsingException and Failure to detect xcontent
+                    logger.info("ignoring recovery of a corrupt translog entry", e);
+                } else {
+                    throw e;
+                }
+            }
+        }
+        return opsRecovered;
     }
 
     /**
      * After the store has been recovered, we need to start the engine in order to apply operations
      */
-    public Map<String, Mapping> performTranslogRecovery() {
-        final Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(false);
+    public void performTranslogRecovery(boolean indexExists) throws IOException {
+        if (indexExists == false) {
+            // note: these are set when recovering from the translog
+            final RecoveryState.Translog translogStats = recoveryState().getTranslog();
+            translogStats.totalOperations(0);
+            translogStats.totalOperationsOnStart(0);
+        }
+        internalPerformTranslogRecovery(false, indexExists);
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
-        return recoveredTypes;
-
     }
 
-    private Map<String, Mapping> internalPerformTranslogRecovery(boolean skipTranslogRecovery) {
+    private void internalPerformTranslogRecovery(boolean skipTranslogRecovery, boolean indexExists) throws IOException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         // also check here, before we apply the translog
-        if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
-            checkIndex();
+        if (Booleans.isTrue(checkIndexOnStartup)) {
+            try {
+                checkIndex();
+            } catch (IOException ex) {
+                throw new RecoveryFailedException(recoveryState, "check index failed", ex);
+            }
         }
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+        final EngineConfig.OpenMode openMode;
+        /* by default we recover and index and replay the translog but if the index
+         * doesn't exist we create everything from the scratch. Yet, if the index
+         * doesn't exist we don't need to worry about the skipTranslogRecovery since
+         * there is no translog on a non-existing index.
+         * The skipTranslogRecovery invariant is used if we do remote recovery since
+         * there the translog isn't local but on the remote host, hence we can skip it.
+         */
+        if (indexExists == false) {
+            openMode = EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG;
+        } else if (skipTranslogRecovery) {
+            openMode = EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG;
+        } else {
+            openMode = EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
+        }
+
+        assert indexExists == false || assertMaxUnsafeAutoIdInCommit();
+
+        final EngineConfig config = newEngineConfig(openMode);
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
-        engineConfig.setEnableGcDeletes(false);
-        createNewEngine(skipTranslogRecovery, engineConfig);
-        return engineConfig.getTranslogRecoveryPerformer().getRecoveredTypes();
+        config.setEnableGcDeletes(false);
+        Engine newEngine = createNewEngine(config);
+        verifyNotClosed();
+        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
+            // we still give sync'd flush a chance to run:
+            active.set(true);
+            newEngine.recoverFromTranslog();
+        }
+    }
+
+    private boolean assertMaxUnsafeAutoIdInCommit() throws IOException {
+        final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0) &&
+            // TODO: LOCAL_SHARDS need to transfer this information
+            recoveryState().getRecoverySource().getType() != RecoverySource.Type.LOCAL_SHARDS) {
+            // as of 5.5.0, the engine stores the maxUnsafeAutoIdTimestamp in the commit point.
+            // This should have baked into the commit by the primary we recover from, regardless of the index age.
+            assert userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
+                "opening index which was created post 5.5.0 but " + InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
+                    + " is not found in commit";
+        }
+        return true;
+    }
+
+    protected void onNewEngine(Engine newEngine) {
+        refreshListeners.setTranslog(newEngine.getTranslog());
     }
 
     /**
      * After the store has been recovered, we need to start the engine. This method starts a new engine but skips
      * the replay of the transaction log which is required in cases where we restore a previous index or recover from
      * a remote peer.
-     *
-     * @param wipeTranslogs if set to <code>true</code> all skipped / uncommitted translogs are removed.
      */
-    public void skipTranslogRecovery(boolean wipeTranslogs) throws IOException {
-        assert engineUnsafe() == null : "engine was already created";
-        Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(true);
-        assert recoveredTypes.isEmpty();
+    public void skipTranslogRecovery() throws IOException {
+        assert getEngineOrNull() == null : "engine was already created";
+        internalPerformTranslogRecovery(true, true);
         assert recoveryState.getTranslog().recoveredOperations() == 0;
     }
 
@@ -863,6 +1351,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (state != IndexShardState.RECOVERING) {
                 throw new IndexShardNotRecoveringException(shardId, state);
             }
+            assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
             final Engine engine = this.currentEngineReference.getAndSet(null);
             IOUtils.close(engine);
             recoveryState().setStage(RecoveryState.Stage.INIT);
@@ -880,6 +1369,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Returns the current {@link RecoveryState} if this shard is recovering or has been recovering.
      * Returns null if the recovery has not yet started or shard was not recovered (created via an API).
      */
+    @Override
     public RecoveryState recoveryState() {
         return this.recoveryState;
     }
@@ -890,9 +1380,9 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public void finalizeRecovery() {
         recoveryState().setStage(RecoveryState.Stage.FINALIZE);
-        engine().refresh("recovery_finalization");
-        startScheduledTasksIfNeeded();
-        engineConfig.setEnableGcDeletes(true);
+        Engine engine = getEngine();
+        engine.refresh("recovery_finalization");
+        engine.config().setEnableGcDeletes(true);
     }
 
     /**
@@ -901,49 +1391,54 @@ public class IndexShard extends AbstractIndexShardComponent {
     public boolean ignoreRecoveryAttempt() {
         IndexShardState state = state(); // one time volatile read
         return state == IndexShardState.POST_RECOVERY || state == IndexShardState.RECOVERING || state == IndexShardState.STARTED ||
-                state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED;
+            state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED;
     }
 
     public void readAllowed() throws IllegalIndexShardStateException {
-        readAllowed(false);
-    }
-
-
-    private void readAllowed(boolean writeOperation) throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
-        if (writeOperation) {
-            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
-                throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when started/relocated");
-            }
-        } else {
-            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
-                throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when started/relocated");
-            }
+        if (readAllowedStates.contains(state) == false) {
+            throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when shard state is one of " + readAllowedStates.toString());
         }
     }
 
-    private void writeAllowed(Engine.Operation.Origin origin) throws IllegalIndexShardStateException {
+    /** returns true if the {@link IndexShardState} allows reading */
+    public boolean isReadAllowed() {
+        return readAllowedStates.contains(state);
+    }
+
+    private void ensureWriteAllowed(Engine.Operation.Origin origin) throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
 
         if (origin == Engine.Operation.Origin.PRIMARY) {
-            // for primaries, we only allow to write when actually started (so the cluster has decided we started)
-            // otherwise, we need to retry, we also want to still allow to index if we are relocated in case it fails
-            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
-                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering, origin [" + origin + "]");
+            verifyPrimary();
+            if (writeAllowedStatesForPrimary.contains(state) == false) {
+                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard state is one of " + writeAllowedStatesForPrimary + ", origin [" + origin + "]");
+            }
+        } else if (origin.isRecovery()) {
+            if (state != IndexShardState.RECOVERING) {
+                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when recovering, origin [" + origin + "]");
             }
         } else {
-            // for replicas, we allow to write also while recovering, since we index also during recovery to replicas
-            // and rely on version checks to make sure its consistent
-            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
-                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering, origin [" + origin + "]");
+            assert origin == Engine.Operation.Origin.REPLICA;
+            verifyReplicationTarget();
+            if (writeAllowedStatesForReplica.contains(state) == false) {
+                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard state is one of " + writeAllowedStatesForReplica + ", origin [" + origin + "]");
             }
         }
     }
 
-    protected final void verifyStartedOrRecovering() throws IllegalIndexShardStateException {
-        IndexShardState state = this.state; // one time volatile read
-        if (state != IndexShardState.STARTED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
-            throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering");
+    private void verifyPrimary() {
+        if (shardRouting.primary() == false) {
+            throw new IllegalStateException("shard " + shardRouting + " is not a primary");
+        }
+    }
+
+    private void verifyReplicationTarget() {
+        final IndexShardState state = state();
+        if (shardRouting.primary() && shardRouting.active() && state != IndexShardState.RELOCATED) {
+            // must use exception that is not ignored by replication logic. See TransportActions.isShardNotAvailableException
+            throw new IllegalStateException("active primary shard " + shardRouting + " cannot be a replication target before " +
+                "relocation hand off, state is [" + state + "]");
         }
     }
 
@@ -951,10 +1446,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         verifyNotClosed(null);
     }
 
-    private void verifyNotClosed(Throwable suppressed) throws IllegalIndexShardStateException {
+    private void verifyNotClosed(Exception suppressed) throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (state == IndexShardState.CLOSED) {
-            final IllegalIndexShardStateException exc = new IllegalIndexShardStateException(shardId, state, "operation only allowed when not closed");
+            final IllegalIndexShardStateException exc = new IndexShardClosedException(shardId, "operation only allowed when not closed");
             if (suppressed != null) {
                 exc.addSuppressed(suppressed);
             }
@@ -962,222 +1457,448 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    protected final void verifyStarted() throws IllegalIndexShardStateException {
+    protected final void verifyActive() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
-        if (state != IndexShardState.STARTED) {
-            throw new IndexShardNotStartedException(shardId, state);
+        if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
+            throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard is active");
         }
-    }
-
-    private void startScheduledTasksIfNeeded() {
-        if (refreshInterval.millis() > 0) {
-            refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, new EngineRefresher());
-            logger.debug("scheduling refresher every {}", refreshInterval);
-        } else {
-            logger.debug("scheduled refresher disabled");
-        }
-    }
-
-    public static final String INDEX_REFRESH_INTERVAL = "index.refresh_interval";
-
-    public void addFailedEngineListener(Engine.FailedEngineListener failedEngineListener) {
-        this.failedEngineListener.delegates.add(failedEngineListener);
-    }
-
-    public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
-        final EngineConfig config = engineConfig;
-        final ByteSizeValue preValue = config.getIndexingBufferSize();
-        config.setIndexingBufferSize(shardIndexingBufferSize);
-        // update engine if it is already started.
-        if (preValue.bytes() != shardIndexingBufferSize.bytes() && engineUnsafe() != null) {
-            // its inactive, make sure we do a refresh / full IW flush in this case, since the memory
-            // changes only after a "data" change has happened to the writer
-            // the index writer lazily allocates memory and a refresh will clean it all up.
-            if (shardIndexingBufferSize == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER && preValue != EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER) {
-                logger.debug("updating index_buffer_size from [{}] to (inactive) [{}]", preValue, shardIndexingBufferSize);
-                try {
-                    refresh("update index buffer");
-                } catch (Throwable e) {
-                    logger.warn("failed to refresh after setting shard to inactive", e);
-                }
-            } else {
-                logger.debug("updating index_buffer_size from [{}] to [{}]", preValue, shardIndexingBufferSize);
-            }
-        }
-        Engine engine = engineUnsafe();
-        if (engine != null) {
-            engine.getTranslog().updateBuffer(shardTranslogBufferSize);
-        }
-    }
-
-    public void markAsInactive() {
-        updateBufferSize(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER, TranslogConfig.INACTIVE_SHARD_TRANSLOG_BUFFER);
-        indicesLifecycle.onShardInactive(this);
-    }
-
-    public final boolean isFlushOnClose() {
-        return flushOnClose;
     }
 
     /**
-     * Deletes the shards metadata state. This method can only be executed if the shard is not active.
-     *
-     * @throws IOException if the delete fails
+     * Returns number of heap bytes used by the indexing buffer for this shard, or 0 if the shard is closed
      */
-    public void deleteShardState() throws IOException {
-        if (this.routingEntry() != null && this.routingEntry().active()) {
-            throw new IllegalStateException("Can't delete shard state on an active shard");
+    public long getIndexBufferRAMBytesUsed() {
+        Engine engine = getEngineOrNull();
+        if (engine == null) {
+            return 0;
         }
-        MetaDataStateFormat.deleteMetaState(shardPath().getDataPath());
+        try {
+            return engine.getIndexBufferRAMBytesUsed();
+        } catch (AlreadyClosedException ex) {
+            return 0;
+        }
+    }
+
+    public void addShardFailureCallback(Consumer<ShardFailure> onShardFailure) {
+        this.shardEventListener.delegates.add(onShardFailure);
+    }
+
+    /**
+     * Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
+     * indexing operation, and notify listeners that we are now inactive so e.g. sync'd flush can happen.
+     */
+    public void checkIdle(long inactiveTimeNS) {
+        Engine engineOrNull = getEngineOrNull();
+        if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
+            boolean wasActive = active.getAndSet(false);
+            if (wasActive) {
+                logger.debug("shard is now inactive");
+                try {
+                    indexEventListener.onShardInactive(this);
+                } catch (Exception e) {
+                    logger.warn("failed to notify index event listener", e);
+                }
+            }
+        }
+    }
+
+    public boolean isActive() {
+        return active.get();
     }
 
     public ShardPath shardPath() {
         return path;
     }
 
-    private class ApplyRefreshSettings implements IndexSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            boolean change = false;
-            synchronized (mutex) {
-                if (state() == IndexShardState.CLOSED) { // no need to update anything if we are closed
-                    return;
-                }
-                final EngineConfig config = engineConfig;
-                final boolean flushOnClose = settings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, IndexShard.this.flushOnClose);
-                if (flushOnClose != IndexShard.this.flushOnClose) {
-                    logger.info("updating {} from [{}] to [{}]", INDEX_FLUSH_ON_CLOSE, IndexShard.this.flushOnClose, flushOnClose);
-                    IndexShard.this.flushOnClose = flushOnClose;
-                }
+    public boolean recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer, List<IndexShard> localShards) throws IOException {
+        assert shardRouting.primary() : "recover from local shards only makes sense if the shard is a primary shard";
+        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS : "invalid recovery type: " + recoveryState.getRecoverySource();
+        final List<LocalShardSnapshot> snapshots = new ArrayList<>();
+        try {
+            for (IndexShard shard : localShards) {
+                snapshots.add(new LocalShardSnapshot(shard));
+            }
 
-                TranslogWriter.Type type = TranslogWriter.Type.fromString(settings.get(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, translogConfig.getType().name()));
-                if (type != translogConfig.getType()) {
-                    logger.info("updating type from [{}] to [{}]", translogConfig.getType(), type);
-                    translogConfig.setType(type);
-                }
+            // we are the first primary, recover from the gateway
+            // if its post api allocation, the index should exists
+            assert shardRouting.primary() : "recover from local shards only makes sense if the shard is a primary shard";
+            StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
+            return storeRecovery.recoverFromLocalShards(mappingUpdateConsumer, this, snapshots);
+        } finally {
+            IOUtils.close(snapshots);
+        }
+    }
 
-                final Translog.Durabilty durabilty = getFromSettings(logger, settings, translogConfig.getDurabilty());
-                if (durabilty != translogConfig.getDurabilty()) {
-                    logger.info("updating durability from [{}] to [{}]", translogConfig.getDurabilty(), durabilty);
-                    translogConfig.setDurabilty(durabilty);
-                }
+    public boolean recoverFromStore() {
+        // we are the first primary, recover from the gateway
+        // if its post api allocation, the index should exists
+        assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
+        assert shardRouting.initializing() : "can only start recovery on initializing shard";
+        StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
+        return storeRecovery.recoverFromStore(this);
+    }
 
-                TimeValue refreshInterval = settings.getAsTime(INDEX_REFRESH_INTERVAL, IndexShard.this.refreshInterval);
-                if (!refreshInterval.equals(IndexShard.this.refreshInterval)) {
-                    logger.info("updating refresh_interval from [{}] to [{}]", IndexShard.this.refreshInterval, refreshInterval);
-                    if (refreshScheduledFuture != null) {
-                        // NOTE: we pass false here so we do NOT attempt Thread.interrupt if EngineRefresher.run is currently running.  This is
-                        // very important, because doing so can cause files to suddenly be closed if they were doing IO when the interrupt
-                        // hit.  See https://issues.apache.org/jira/browse/LUCENE-2239
-                        FutureUtils.cancel(refreshScheduledFuture);
-                        refreshScheduledFuture = null;
-                    }
-                    IndexShard.this.refreshInterval = refreshInterval;
-                    if (refreshInterval.millis() > 0) {
-                        refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, new EngineRefresher());
-                    }
-                }
+    public boolean restoreFromRepository(Repository repository) {
+        assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
+        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT : "invalid recovery type: " + recoveryState.getRecoverySource();
+        StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
+        return storeRecovery.recoverFromRepository(this, repository);
+    }
 
-                long gcDeletesInMillis = settings.getAsTime(EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis())).millis();
-                if (gcDeletesInMillis != config.getGcDeletesInMillis()) {
-                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis()), TimeValue.timeValueMillis(gcDeletesInMillis));
-                    config.setGcDeletesInMillis(gcDeletesInMillis);
-                    change = true;
-                }
+    /**
+     * Tests whether or not the translog should be flushed. This test is based on the current size of the translog comparted to the
+     * configured flush threshold size.
+     *
+     * @return {@code true} if the translog should be flushed
+     */
+    boolean shouldFlush() {
+        final Engine engine = getEngineOrNull();
+        if (engine != null) {
+            try {
+                final Translog translog = engine.getTranslog();
+                return translog.shouldFlush();
+            } catch (final AlreadyClosedException e) {
+                // we are already closed, no need to flush or roll
+            }
+        }
+        return false;
+    }
 
-                final boolean compoundOnFlush = settings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush());
-                if (compoundOnFlush != config.isCompoundOnFlush()) {
-                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush(), compoundOnFlush);
-                    config.setCompoundOnFlush(compoundOnFlush);
-                    change = true;
-                }
-                final String versionMapSize = settings.get(EngineConfig.INDEX_VERSION_MAP_SIZE, config.getVersionMapSizeSetting());
-                if (config.getVersionMapSizeSetting().equals(versionMapSize) == false) {
-                    config.setVersionMapSizeSetting(versionMapSize);
+    /**
+     * Tests whether or not the translog generation should be rolled to a new generation. This test is based on the size of the current
+     * generation compared to the configured generation threshold size.
+     *
+     * @return {@code true} if the current generation should be rolled to a new generation
+     */
+    boolean shouldRollTranslogGeneration() {
+        final Engine engine = getEngineOrNull();
+        if (engine != null) {
+            try {
+                final Translog translog = engine.getTranslog();
+                return translog.shouldRollGeneration();
+            } catch (final AlreadyClosedException e) {
+                // we are already closed, no need to flush or roll
+            }
+        }
+        return false;
+    }
+
+    public void onSettingsChanged() {
+        Engine engineOrNull = getEngineOrNull();
+        if (engineOrNull != null) {
+            engineOrNull.onSettingsChanged();
+        }
+    }
+
+    public Closeable acquireTranslogRetentionLock() {
+        Engine engine = getEngine();
+        return engine.getTranslog().acquireRetentionLock();
+    }
+
+    public List<Segment> segments(boolean verbose) {
+        return getEngine().segments(verbose);
+    }
+
+    public void flushAndCloseEngine() throws IOException {
+        getEngine().flushAndClose();
+    }
+
+    public Translog getTranslog() {
+        return getEngine().getTranslog();
+    }
+
+    public String getHistoryUUID() {
+        return getEngine().getHistoryUUID();
+    }
+
+    public IndexEventListener getIndexEventListener() {
+        return indexEventListener;
+    }
+
+    public void activateThrottling() {
+        try {
+            getEngine().activateThrottling();
+        } catch (AlreadyClosedException ex) {
+            // ignore
+        }
+    }
+
+    public void deactivateThrottling() {
+        try {
+            getEngine().deactivateThrottling();
+        } catch (AlreadyClosedException ex) {
+            // ignore
+        }
+    }
+
+    private void handleRefreshException(Exception e) {
+        if (e instanceof AlreadyClosedException) {
+            // ignore
+        } else if (e instanceof RefreshFailedEngineException) {
+            RefreshFailedEngineException rfee = (RefreshFailedEngineException) e;
+            if (rfee.getCause() instanceof InterruptedException) {
+                // ignore, we are being shutdown
+            } else if (rfee.getCause() instanceof ClosedByInterruptException) {
+                // ignore, we are being shutdown
+            } else if (rfee.getCause() instanceof ThreadInterruptedException) {
+                // ignore, we are being shutdown
+            } else {
+                if (state != IndexShardState.CLOSED) {
+                    logger.warn("Failed to perform engine refresh", e);
                 }
             }
-            if (change) {
-                refresh("apply settings");
+        } else {
+            if (state != IndexShardState.CLOSED) {
+                logger.warn("Failed to perform engine refresh", e);
             }
         }
     }
 
-    class EngineRefresher implements Runnable {
-        @Override
-        public void run() {
-            // we check before if a refresh is needed, if not, we reschedule, otherwise, we fork, refresh, and then reschedule
-            if (!engine().refreshNeeded()) {
-                reschedule();
-                return;
-            }
-            threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        if (engine().refreshNeeded()) {
-                            refresh("schedule");
-                        }
-                    } catch (EngineClosedException e) {
-                        // we are being closed, ignore
-                    } catch (RefreshFailedEngineException e) {
-                        if (e.getCause() instanceof InterruptedException) {
-                            // ignore, we are being shutdown
-                        } else if (e.getCause() instanceof ClosedByInterruptException) {
-                            // ignore, we are being shutdown
-                        } else if (e.getCause() instanceof ThreadInterruptedException) {
-                            // ignore, we are being shutdown
-                        } else {
-                            if (state != IndexShardState.CLOSED) {
-                                logger.warn("Failed to perform scheduled engine refresh", e);
-                            }
-                        }
-                    } catch (Exception e) {
-                        if (state != IndexShardState.CLOSED) {
-                            logger.warn("Failed to perform scheduled engine refresh", e);
-                        }
-                    }
-
-                    reschedule();
-                }
-            });
+    /**
+     * Called when our shard is using too much heap and should move buffered indexed/deleted documents to disk.
+     */
+    public void writeIndexingBuffer() {
+        if (canIndex() == false) {
+            throw new UnsupportedOperationException();
         }
+        try {
+            Engine engine = getEngine();
+            long bytes = engine.getIndexBufferRAMBytesUsed();
 
-        /**
-         * Schedules another (future) refresh, if refresh_interval is still enabled.
+            // NOTE: this can be an overestimate by up to 20%, if engine uses IW.flush not refresh, because version map
+            // memory is low enough, but this is fine because after the writes finish, IMC will poll again and see that
+            // there's still up to the 20% being used and continue writing if necessary:
+            logger.debug("add [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
+            writingBytes.addAndGet(bytes);
+            try {
+                engine.writeIndexingBuffer();
+            } finally {
+                writingBytes.addAndGet(-bytes);
+                logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
+            }
+        } catch (Exception e) {
+            handleRefreshException(e);
+        }
+    }
+
+    /**
+     * Notifies the service to update the local checkpoint for the shard with the provided allocation ID. See
+     * {@link org.elasticsearch.index.seqno.GlobalCheckpointTracker#updateLocalCheckpoint(String, long)} for
+     * details.
+     *
+     * @param allocationId the allocation ID of the shard to update the local checkpoint for
+     * @param checkpoint   the local checkpoint for the shard
+     */
+    public void updateLocalCheckpointForShard(final String allocationId, final long checkpoint) {
+        verifyPrimary();
+        verifyNotClosed();
+        getEngine().seqNoService().updateLocalCheckpointForShard(allocationId, checkpoint);
+    }
+
+    /**
+     * Update the local knowledge of the global checkpoint for the specified allocation ID.
+     *
+     * @param allocationId     the allocation ID to update the global checkpoint for
+     * @param globalCheckpoint the global checkpoint
+     */
+    public void updateGlobalCheckpointForShard(final String allocationId, final long globalCheckpoint) {
+        verifyPrimary();
+        verifyNotClosed();
+        getEngine().seqNoService().updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
+    }
+
+    /**
+     * Waits for all operations up to the provided sequence number to complete.
+     *
+     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
+     * @throws InterruptedException if the thread was interrupted while blocking on the condition
+     */
+    public void waitForOpsToComplete(final long seqNo) throws InterruptedException {
+        getEngine().seqNoService().waitForOpsToComplete(seqNo);
+    }
+
+    /**
+     * Called when the recovery process for a shard is ready to open the engine on the target shard.
+     * See {@link GlobalCheckpointTracker#initiateTracking(String)} for details.
+     *
+     * @param allocationId  the allocation ID of the shard for which recovery was initiated
+     */
+    public void initiateTracking(final String allocationId) {
+        verifyPrimary();
+        getEngine().seqNoService().initiateTracking(allocationId);
+        /*
+         * We could have blocked so long waiting for the replica to catch up that we fell idle and there will not be a background sync to
+         * the replica; mark our self as active to force a future background sync.
          */
-        private void reschedule() {
-            synchronized (mutex) {
-                if (state != IndexShardState.CLOSED && refreshInterval.millis() > 0) {
-                    refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
-                }
+        active.compareAndSet(false, true);
+    }
+
+    /**
+     * Marks the shard with the provided allocation ID as in-sync with the primary shard. See
+     * {@link org.elasticsearch.index.seqno.GlobalCheckpointTracker#markAllocationIdAsInSync(String, long)}
+     * for additional details.
+     *
+     * @param allocationId    the allocation ID of the shard to mark as in-sync
+     * @param localCheckpoint the current local checkpoint on the shard
+     */
+    public void markAllocationIdAsInSync(final String allocationId, final long localCheckpoint) throws InterruptedException {
+        verifyPrimary();
+        getEngine().seqNoService().markAllocationIdAsInSync(allocationId, localCheckpoint);
+    }
+
+    /**
+     * Returns the local checkpoint for the shard.
+     *
+     * @return the local checkpoint
+     */
+    public long getLocalCheckpoint() {
+        return getEngine().seqNoService().getLocalCheckpoint();
+    }
+
+    /**
+     * Returns the global checkpoint for the shard.
+     *
+     * @return the global checkpoint
+     */
+    public long getGlobalCheckpoint() {
+        return getEngine().seqNoService().getGlobalCheckpoint();
+    }
+
+    /**
+     * Get the local knowledge of the global checkpoints for all in-sync allocation IDs.
+     *
+     * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
+     */
+    public ObjectLongMap<String> getInSyncGlobalCheckpoints() {
+        verifyPrimary();
+        verifyNotClosed();
+        return getEngine().seqNoService().getInSyncGlobalCheckpoints();
+    }
+
+    /**
+     * Syncs the global checkpoint to the replicas if the global checkpoint on at least one replica is behind the global checkpoint on the
+     * primary.
+     */
+    public void maybeSyncGlobalCheckpoint(final String reason) {
+        verifyPrimary();
+        verifyNotClosed();
+        if (state == IndexShardState.RELOCATED) {
+            return;
+        }
+        // only sync if there are not operations in flight
+        final SeqNoStats stats = getEngine().seqNoService().stats();
+        if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint()) {
+            final ObjectLongMap<String> globalCheckpoints = getInSyncGlobalCheckpoints();
+            final String allocationId = routingEntry().allocationId().getId();
+            assert globalCheckpoints.containsKey(allocationId);
+            final long globalCheckpoint = globalCheckpoints.get(allocationId);
+            final boolean syncNeeded =
+                    StreamSupport
+                            .stream(globalCheckpoints.values().spliterator(), false)
+                            .anyMatch(v -> v.value < globalCheckpoint);
+            // only sync if there is a shard lagging the primary
+            if (syncNeeded) {
+                logger.trace("syncing global checkpoint for [{}]", reason);
+                globalCheckpointSyncer.run();
             }
         }
     }
 
-    private void checkIndex() throws IndexShardException {
+    /**
+     * Returns the current replication group for the shard.
+     *
+     * @return the replication group
+     */
+    public ReplicationGroup getReplicationGroup() {
+        verifyPrimary();
+        verifyNotClosed();
+        return getEngine().seqNoService().getReplicationGroup();
+    }
+
+    /**
+     * Updates the global checkpoint on a replica shard after it has been updated by the primary.
+     *
+     * @param globalCheckpoint the global checkpoint
+     * @param reason           the reason the global checkpoint was updated
+     */
+    public void updateGlobalCheckpointOnReplica(final long globalCheckpoint, final String reason) {
+        verifyReplicationTarget();
+        final SequenceNumbersService seqNoService = getEngine().seqNoService();
+        final long localCheckpoint = seqNoService.getLocalCheckpoint();
+        if (globalCheckpoint > localCheckpoint) {
+            /*
+             * This can happen during recovery when the shard has started its engine but recovery is not finalized and is receiving global
+             * checkpoint updates. However, since this shard is not yet contributing to calculating the global checkpoint, it can be the
+             * case that the global checkpoint update from the primary is ahead of the local checkpoint on this shard. In this case, we
+             * ignore the global checkpoint update. This can happen if we are in the translog stage of recovery. Prior to this, the engine
+             * is not opened and this shard will not receive global checkpoint updates, and after this the shard will be contributing to
+             * calculations of the global checkpoint. However, we can not assert that we are in the translog stage of recovery here as
+             * while the global checkpoint update may have emanated from the primary when we were in that state, we could subsequently move
+             * to recovery finalization, or even finished recovery before the update arrives here.
+             */
+            assert state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED && state() != IndexShardState.RELOCATED :
+                "supposedly in-sync shard copy received a global checkpoint [" + globalCheckpoint + "] " +
+                    "that is higher than its local checkpoint [" + localCheckpoint + "]";
+            return;
+        }
+        seqNoService.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
+    }
+
+    /**
+     * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
+     *
+     * @param primaryContext the sequence number context
+     */
+    public void activateWithPrimaryContext(final GlobalCheckpointTracker.PrimaryContext primaryContext) {
+        verifyPrimary();
+        assert shardRouting.isRelocationTarget() : "only relocation target can update allocation IDs from primary context: " + shardRouting;
+        assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) &&
+            getEngine().seqNoService().getLocalCheckpoint() ==
+                primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
+        getEngine().seqNoService().activateWithPrimaryContext(primaryContext);
+    }
+
+    /**
+     * Check if there are any recoveries pending in-sync.
+     *
+     * @return {@code true} if there is at least one shard pending in-sync, otherwise false
+     */
+    public boolean pendingInSync() {
+        verifyPrimary();
+        return getEngine().seqNoService().pendingInSync();
+    }
+
+    /**
+     * Should be called for each no-op update operation to increment relevant statistics.
+     *
+     * @param type the doc type of the update
+     */
+    public void noopUpdate(String type) {
+        internalIndexingStats.noopUpdate(type);
+    }
+
+    private void checkIndex() throws IOException {
         if (store.tryIncRef()) {
             try {
                 doCheckIndex();
-            } catch (IOException e) {
-                throw new IndexShardException(shardId, "exception during checkindex", e);
             } finally {
                 store.decRef();
             }
         }
     }
 
-    private void doCheckIndex() throws IndexShardException, IOException {
+    private void doCheckIndex() throws IOException {
         long timeNS = System.nanoTime();
         if (!Lucene.indexExists(store.directory())) {
             return;
         }
         BytesStreamOutput os = new BytesStreamOutput();
-        PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
+        PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
 
-        if ("checksum".equalsIgnoreCase(checkIndexOnStartup)) {
+        if ("checksum".equals(checkIndexOnStartup)) {
             // physical verification only: verify all checksums for the latest commit
-            boolean corrupt = false;
-            MetadataSnapshot metadata = store.getMetadata();
+            IOException corrupt = null;
+            MetadataSnapshot metadata = snapshotStoreMetadata();
             for (Map.Entry<String, StoreFileMetaData> entry : metadata.asMap().entrySet()) {
                 try {
                     Store.checkIntegrity(entry.getValue(), store.directory());
@@ -1185,13 +1906,13 @@ public class IndexShard extends AbstractIndexShardComponent {
                 } catch (IOException exc) {
                     out.println("checksum failed: " + entry.getKey());
                     exc.printStackTrace(out);
-                    corrupt = true;
+                    corrupt = exc;
                 }
             }
             out.flush();
-            if (corrupt) {
-                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
-                throw new IndexShardException(shardId, "index check failure");
+            if (corrupt != null) {
+                logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
+                throw corrupt;
             }
         } else {
             // full checkindex
@@ -1205,8 +1926,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                         // ignore if closed....
                         return;
                     }
-                    logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
-                    if ("fix".equalsIgnoreCase(checkIndexOnStartup)) {
+                    logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
+                    if ("fix".equals(checkIndexOnStartup)) {
                         if (logger.isDebugEnabled()) {
                             logger.debug("fixing index, writing new segments file ...");
                         }
@@ -1216,190 +1937,572 @@ public class IndexShard extends AbstractIndexShardComponent {
                         }
                     } else {
                         // only throw a failure if we are not going to fix the index
-                        throw new IndexShardException(shardId, "index check failure");
+                        throw new IllegalStateException("index check failure but can't fix it");
                     }
                 }
             }
         }
 
         if (logger.isDebugEnabled()) {
-            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+            logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
         }
 
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
     }
 
-    public Engine engine() {
-        Engine engine = engineUnsafe();
+    Engine getEngine() {
+        Engine engine = getEngineOrNull();
         if (engine == null) {
-            throw new EngineClosedException(shardId);
+            throw new AlreadyClosedException("engine is closed");
         }
         return engine;
     }
 
-    protected Engine engineUnsafe() {
+    /**
+     * NOTE: returns null if engine is not yet started (e.g. recovery phase 1, copying over index files, is still running), or if engine is
+     * closed.
+     */
+    protected Engine getEngineOrNull() {
         return this.currentEngineReference.get();
     }
 
-    class ShardEngineFailListener implements Engine.FailedEngineListener {
-        private final CopyOnWriteArrayList<Engine.FailedEngineListener> delegates = new CopyOnWriteArrayList<>();
+    public void startRecovery(RecoveryState recoveryState, PeerRecoveryTargetService recoveryTargetService,
+                              PeerRecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
+                              BiConsumer<String, MappingMetaData> mappingUpdateConsumer,
+                              IndicesService indicesService) {
+        // TODO: Create a proper object to encapsulate the recovery context
+        // all of the current methods here follow a pattern of:
+        // resolve context which isn't really dependent on the local shards and then async
+        // call some external method with this pointer.
+        // with a proper recovery context object we can simply change this to:
+        // startRecovery(RecoveryState recoveryState, ShardRecoverySource source ) {
+        //     markAsRecovery("from " + source.getShortDescription(), recoveryState);
+        //     threadPool.generic().execute()  {
+        //           onFailure () { listener.failure() };
+        //           doRun() {
+        //                if (source.recover(this)) {
+        //                  recoveryListener.onRecoveryDone(recoveryState);
+        //                }
+        //           }
+        //     }}
+        // }
+        assert recoveryState.getRecoverySource().equals(shardRouting.recoverySource());
+        switch (recoveryState.getRecoverySource().getType()) {
+            case EMPTY_STORE:
+            case EXISTING_STORE:
+                markAsRecovering("from store", recoveryState); // mark the shard as recovering on the cluster state thread
+                threadPool.generic().execute(() -> {
+                    try {
+                        if (recoverFromStore()) {
+                            recoveryListener.onRecoveryDone(recoveryState);
+                        }
+                    } catch (Exception e) {
+                        recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
+                    }
+                });
+                break;
+            case PEER:
+                try {
+                    markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
+                    recoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), recoveryListener);
+                } catch (Exception e) {
+                    failShard("corrupted preexisting index", e);
+                    recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
+                }
+                break;
+            case SNAPSHOT:
+                markAsRecovering("from snapshot", recoveryState); // mark the shard as recovering on the cluster state thread
+                SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) recoveryState.getRecoverySource();
+                threadPool.generic().execute(() -> {
+                    try {
+                        final Repository repository = repositoriesService.repository(recoverySource.snapshot().getRepository());
+                        if (restoreFromRepository(repository)) {
+                            recoveryListener.onRecoveryDone(recoveryState);
+                        }
+                    } catch (Exception e) {
+                        recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
+                    }
+                });
+                break;
+            case LOCAL_SHARDS:
+                final IndexMetaData indexMetaData = indexSettings().getIndexMetaData();
+                final Index mergeSourceIndex = indexMetaData.getMergeSourceIndex();
+                final List<IndexShard> startedShards = new ArrayList<>();
+                final IndexService sourceIndexService = indicesService.indexService(mergeSourceIndex);
+                final int numShards = sourceIndexService != null ? sourceIndexService.getIndexSettings().getNumberOfShards() : -1;
+                if (sourceIndexService != null) {
+                    for (IndexShard shard : sourceIndexService) {
+                        if (shard.state() == IndexShardState.STARTED) {
+                            startedShards.add(shard);
+                        }
+                    }
+                }
+                if (numShards == startedShards.size()) {
+                    markAsRecovering("from local shards", recoveryState); // mark the shard as recovering on the cluster state thread
+                    threadPool.generic().execute(() -> {
+                        try {
+                            final Set<ShardId> shards = IndexMetaData.selectShrinkShards(shardId().id(), sourceIndexService.getMetaData(),
+                                +indexMetaData.getNumberOfShards());
+                            if (recoverFromLocalShards(mappingUpdateConsumer, startedShards.stream()
+                                .filter((s) -> shards.contains(s.shardId())).collect(Collectors.toList()))) {
+                                recoveryListener.onRecoveryDone(recoveryState);
+                            }
+                        } catch (Exception e) {
+                            recoveryListener.onRecoveryFailure(recoveryState,
+                                new RecoveryFailedException(recoveryState, null, e), true);
+                        }
+                    });
+                } else {
+                    final RuntimeException e;
+                    if (numShards == -1) {
+                        e = new IndexNotFoundException(mergeSourceIndex);
+                    } else {
+                        e = new IllegalStateException("not all shards from index " + mergeSourceIndex
+                            + " are started yet, expected " + numShards + " found " + startedShards.size() + " can't recover shard "
+                            + shardId());
+                    }
+                    throw e;
+                }
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown recovery source " + recoveryState.getRecoverySource());
+        }
+    }
+
+    class ShardEventListener implements Engine.EventListener {
+        private final CopyOnWriteArrayList<Consumer<ShardFailure>> delegates = new CopyOnWriteArrayList<>();
 
         // called by the current engine
         @Override
-        public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable failure) {
-            try {
-                // delete the shard state so this folder will not be reused
-                MetaDataStateFormat.deleteMetaState(nodeEnv.availableShardPaths(shardId));
-            } catch (IOException e) {
-                logger.warn("failed to delete shard state", e);
-            } finally {
-                for (Engine.FailedEngineListener listener : delegates) {
-                    try {
-                        listener.onFailedEngine(shardId, reason, failure);
-                    } catch (Exception e) {
-                        logger.warn("exception while notifying engine failure", e);
-                    }
+        public void onFailedEngine(String reason, @Nullable Exception failure) {
+            final ShardFailure shardFailure = new ShardFailure(shardRouting, reason, failure);
+            for (Consumer<ShardFailure> listener : delegates) {
+                try {
+                    listener.accept(shardFailure);
+                } catch (Exception inner) {
+                    inner.addSuppressed(failure);
+                    logger.warn("exception while notifying engine failure", inner);
                 }
             }
         }
     }
 
-    private void createNewEngine(boolean skipTranslogRecovery, EngineConfig config) {
+    private Engine createNewEngine(EngineConfig config) {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
-                throw new EngineClosedException(shardId);
+                throw new AlreadyClosedException(shardId + " can't create engine - shard is closed");
             }
             assert this.currentEngineReference.get() == null;
-            this.currentEngineReference.set(newEngine(skipTranslogRecovery, config));
+            Engine engine = newEngine(config);
+            onNewEngine(engine); // call this before we pass the memory barrier otherwise actions that happen
+            // inside the callback are not visible. This one enforces happens-before
+            this.currentEngineReference.set(engine);
         }
+
+        // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during which
+        // settings changes could possibly have happened, so here we forcefully push any config changes to the new engine:
+        Engine engine = getEngineOrNull();
+
+        // engine could perhaps be null if we were e.g. concurrently closed:
+        if (engine != null) {
+            engine.onSettingsChanged();
+        }
+        return engine;
     }
 
-    protected Engine newEngine(boolean skipTranslogRecovery, EngineConfig config) {
-        return engineFactory.newReadWriteEngine(config, skipTranslogRecovery);
+    protected Engine newEngine(EngineConfig config) {
+        return engineFactory.newReadWriteEngine(config);
     }
 
-    /**
-     * Returns <code>true</code> iff this shard allows primary promotion, otherwise <code>false</code>
-     */
-    public boolean allowsPrimaryPromotion() {
-        return true;
-    }
-
-    // pkg private for testing
-    void persistMetadata(ShardRouting newRouting, ShardRouting currentRouting) {
+    private static void persistMetadata(
+            final ShardPath shardPath,
+            final IndexSettings indexSettings,
+            final ShardRouting newRouting,
+            final @Nullable ShardRouting currentRouting,
+            final Logger logger) throws IOException {
         assert newRouting != null : "newRouting must not be null";
-        if (newRouting.active()) {
-            try {
-                final String writeReason;
-                if (currentRouting == null) {
-                    writeReason = "freshly started, version [" + newRouting.version() + "]";
-                } else if (currentRouting.version() < newRouting.version()) {
-                    writeReason = "version changed from [" + currentRouting.version() + "] to [" + newRouting.version() + "]";
-                } else if (currentRouting.equals(newRouting) == false) {
-                    writeReason = "routing changed from " + currentRouting + " to " + newRouting;
-                } else {
-                    logger.trace("skip writing shard state, has been written before; previous version:  [" +
-                            currentRouting.version() + "] current version [" + newRouting.version() + "]");
-                    assert currentRouting.version() <= newRouting.version() : "version should not go backwards for shardID: " + shardId +
-                            " previous version:  [" + currentRouting.version() + "] current version [" + newRouting.version() + "]";
-                    return;
-                }
-                final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.version(), newRouting.primary(), getIndexUUID());
-                logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
-                ShardStateMetaData.FORMAT.write(newShardStateMetadata, newShardStateMetadata.version, shardPath().getShardStatePath());
-            } catch (IOException e) { // this is how we used to handle it.... :(
-                logger.warn("failed to write shard state", e);
-                // we failed to write the shard state, we will try and write
-                // it next time...
+
+        // only persist metadata if routing information that is persisted in shard state metadata actually changed
+        final ShardId shardId = newRouting.shardId();
+        if (currentRouting == null
+            || currentRouting.primary() != newRouting.primary()
+            || currentRouting.allocationId().equals(newRouting.allocationId()) == false) {
+            assert currentRouting == null || currentRouting.isSameAllocation(newRouting);
+            final String writeReason;
+            if (currentRouting == null) {
+                writeReason = "initial state with allocation id [" + newRouting.allocationId() + "]";
+            } else {
+                writeReason = "routing changed from " + currentRouting + " to " + newRouting;
             }
+            logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
+            final ShardStateMetaData newShardStateMetadata =
+                    new ShardStateMetaData(newRouting.primary(), indexSettings.getUUID(), newRouting.allocationId());
+            ShardStateMetaData.FORMAT.write(newShardStateMetadata, shardPath.getShardStatePath());
+        } else {
+            logger.trace("{} skip writing shard state, has been written before", shardId);
         }
     }
 
-    private String getIndexUUID() {
-        assert indexSettings.get(IndexMetaData.SETTING_UUID) != null
-                || indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).before(Version.V_0_90_6) :
-                "version: " + indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) + " uuid: " + indexSettings.get(IndexMetaData.SETTING_UUID);
-        return indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
-    }
-
-    private Tuple<DocumentMapper, Mapping> docMapper(String type) {
+    private DocumentMapperForType docMapper(String type) {
         return mapperService.documentMapperWithAutoCreate(type);
     }
 
-    private final EngineConfig newEngineConfig(TranslogConfig translogConfig) {
-        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(mapperService, mapperAnalyzer, queryParserService, indexAliasesService, indexCache) {
-            @Override
-            protected void operationProcessed() {
-                assert recoveryState != null;
-                recoveryState.getTranslog().incrementRecoveredOperations();
-            }
-        };
-        return new EngineConfig(shardId,
-                threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, mergePolicyProvider, mergeScheduler,
-                mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.filter(), indexCache.filterPolicy(), translogConfig);
-    }
-
-    private static class IndexShardOperationCounter extends AbstractRefCounted {
-        final private ESLogger logger;
-        private final ShardId shardId;
-
-        public IndexShardOperationCounter(ESLogger logger, ShardId shardId) {
-            super("index-shard-operations-counter");
-            this.logger = logger;
-            this.shardId = shardId;
+    private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode) {
+        Sort indexSort = indexSortSupplier.get();
+        final boolean forceNewHistoryUUID;
+        switch (shardRouting.recoverySource().getType()) {
+            case EXISTING_STORE:
+            case PEER:
+                forceNewHistoryUUID = false;
+                break;
+            case EMPTY_STORE:
+            case SNAPSHOT:
+            case LOCAL_SHARDS:
+                forceNewHistoryUUID = true;
+                break;
+            default:
+                throw new AssertionError("unknown recovery type: [" + shardRouting.recoverySource().getType() + "]");
         }
-
-        @Override
-        protected void closeInternal() {
-            logger.debug("operations counter reached 0, will not accept any further writes");
-        }
-
-        @Override
-        protected void alreadyClosed() {
-            throw new IndexShardClosedException(shardId, "could not increment operation counter. shard is closed.");
-        }
-    }
-
-    public void incrementOperationCounter() {
-        indexShardOperationCounter.incRef();
-    }
-
-    public void decrementOperationCounter() {
-        indexShardOperationCounter.decRef();
-    }
-
-    public int getOperationsCount() {
-        return Math.max(0, indexShardOperationCounter.refCount() - 1); // refCount is incremented on creation and decremented on close
+        return new EngineConfig(openMode, shardId, shardRouting.allocationId().getId(),
+            threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
+            mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,
+            indexCache.query(), cachingPolicy, forceNewHistoryUUID, translogConfig,
+            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
+            Arrays.asList(refreshListeners, new RefreshMetricUpdater(refreshMetric)), indexSort,
+            this::runTranslogRecovery);
     }
 
     /**
-     * Syncs the given location with the underlying storage unless already synced.
+     * Acquire a primary operation permit whenever the shard is ready for indexing. If a permit is directly available, the provided
+     * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided
+     * ActionListener will then be called using the provided executor.
      */
-    public void sync(Translog.Location location) {
-        final Engine engine = engine();
-        try {
-            engine.getTranslog().ensureSynced(location);
-        } catch (IOException ex) { // if this fails we are in deep shit - fail the request
-            logger.debug("failed to sync translog", ex);
-            throw new ElasticsearchException("failed to sync translog", ex);
+    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay) {
+        verifyNotClosed();
+        verifyPrimary();
+
+        indexShardOperationPermits.acquire(onPermitAcquired, executorOnDelay, false);
+    }
+
+    private final Object primaryTermMutex = new Object();
+
+    /**
+     * Acquire a replica operation permit whenever the shard is ready for indexing (see
+     * {@link #acquirePrimaryOperationPermit(ActionListener, String)}). If the given primary term is lower than then one in
+     * {@link #shardRouting}, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with an
+     * {@link IllegalStateException}. If permit acquisition is delayed, the listener will be invoked on the executor with the specified
+     * name.
+     *
+     * @param operationPrimaryTerm the operation primary term
+     * @param globalCheckpoint     the global checkpoint associated with the request
+     * @param onPermitAcquired     the listener for permit acquisition
+     * @param executorOnDelay      the name of the executor to invoke the listener on if permit acquisition is delayed
+     */
+    public void acquireReplicaOperationPermit(final long operationPrimaryTerm, final long globalCheckpoint,
+                                              final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay) {
+        verifyNotClosed();
+        verifyReplicationTarget();
+        final boolean globalCheckpointUpdated;
+        if (operationPrimaryTerm > primaryTerm) {
+            synchronized (primaryTermMutex) {
+                if (operationPrimaryTerm > primaryTerm) {
+                    IndexShardState shardState = state();
+                    // only roll translog and update primary term if shard has made it past recovery
+                    // Having a new primary term here means that the old primary failed and that there is a new primary, which again
+                    // means that the master will fail this shard as all initializing shards are failed when a primary is selected
+                    // We abort early here to prevent an ongoing recovery from the failed primary to mess with the global / local checkpoint
+                    if (shardState != IndexShardState.POST_RECOVERY &&
+                        shardState != IndexShardState.STARTED &&
+                        shardState != IndexShardState.RELOCATED) {
+                        throw new IndexShardNotStartedException(shardId, shardState);
+                    }
+                    try {
+                        indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
+                            assert operationPrimaryTerm > primaryTerm :
+                                "shard term already update.  op term [" + operationPrimaryTerm + "], shardTerm [" + primaryTerm + "]";
+                            primaryTerm = operationPrimaryTerm;
+                            updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
+                            final long currentGlobalCheckpoint = getGlobalCheckpoint();
+                            final long localCheckpoint;
+                            if (currentGlobalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                                localCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+                            } else {
+                                localCheckpoint = currentGlobalCheckpoint;
+                            }
+                            logger.trace(
+                                    "detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
+                                    operationPrimaryTerm,
+                                    getLocalCheckpoint(),
+                                    localCheckpoint);
+                            getEngine().seqNoService().resetLocalCheckpoint(localCheckpoint);
+                            getEngine().getTranslog().rollGeneration();
+                        });
+                        globalCheckpointUpdated = true;
+                    } catch (final Exception e) {
+                        onPermitAcquired.onFailure(e);
+                        return;
+                    }
+                } else {
+                    globalCheckpointUpdated = false;
+                }
+            }
+        } else {
+            globalCheckpointUpdated = false;
         }
+
+        assert operationPrimaryTerm <= primaryTerm
+                : "operation primary term [" + operationPrimaryTerm + "] should be at most [" + primaryTerm + "]";
+        indexShardOperationPermits.acquire(
+                new ActionListener<Releasable>() {
+                    @Override
+                    public void onResponse(final Releasable releasable) {
+                        if (operationPrimaryTerm < primaryTerm) {
+                            releasable.close();
+                            final String message = String.format(
+                                    Locale.ROOT,
+                                    "%s operation primary term [%d] is too old (current [%d])",
+                                    shardId,
+                                    operationPrimaryTerm,
+                                    primaryTerm);
+                            onPermitAcquired.onFailure(new IllegalStateException(message));
+                        } else {
+                            if (globalCheckpointUpdated == false) {
+                                try {
+                                    updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
+                                } catch (Exception e) {
+                                    releasable.close();
+                                    onPermitAcquired.onFailure(e);
+                                    return;
+                                }
+                            }
+                            onPermitAcquired.onResponse(releasable);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(final Exception e) {
+                        onPermitAcquired.onFailure(e);
+                    }
+                },
+                executorOnDelay,
+                true);
+    }
+
+    public int getActiveOperationsCount() {
+        return indexShardOperationPermits.getActiveOperationsCount(); // refCount is incremented on successful acquire and decremented on close
+    }
+
+    private final AsyncIOProcessor<Translog.Location> translogSyncProcessor = new AsyncIOProcessor<Translog.Location>(logger, 1024) {
+        @Override
+        protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
+            try {
+                final Engine engine = getEngine();
+                engine.getTranslog().ensureSynced(candidates.stream().map(Tuple::v1));
+            } catch (AlreadyClosedException ex) {
+                // that's fine since we already synced everything on engine close - this also is conform with the methods
+                // documentation
+            } catch (IOException ex) { // if this fails we are in deep shit - fail the request
+                logger.debug("failed to sync translog", ex);
+                throw ex;
+            }
+        }
+    };
+
+    /**
+     * Syncs the given location with the underlying storage unless already synced. This method might return immediately without
+     * actually fsyncing the location until the sync listener is called. Yet, unless there is already another thread fsyncing
+     * the transaction log the caller thread will be hijacked to run the fsync for all pending fsync operations.
+     * This method allows indexing threads to continue indexing without blocking on fsync calls. We ensure that there is only
+     * one thread blocking on the sync an all others can continue indexing.
+     * NOTE: if the syncListener throws an exception when it's processed the exception will only be logged. Users should make sure that the
+     * listener handles all exception cases internally.
+     */
+    public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
+        verifyNotClosed();
+        translogSyncProcessor.put(location, syncListener);
+    }
+
+    public final void sync() throws IOException {
+        verifyNotClosed();
+        getEngine().getTranslog().sync();
     }
 
     /**
      * Returns the current translog durability mode
      */
-    public Translog.Durabilty getTranslogDurability() {
-        return translogConfig.getDurabilty();
+    public Translog.Durability getTranslogDurability() {
+        return indexSettings.getTranslogDurability();
     }
 
-    private static Translog.Durabilty getFromSettings(ESLogger logger, Settings settings, Translog.Durabilty defaultValue) {
-        final String value = settings.get(TranslogConfig.INDEX_TRANSLOG_DURABILITY, defaultValue.name());
-        try {
-            return Translog.Durabilty.valueOf(value.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            logger.warn("Can't apply {} illegal value: {} using {} instead, use one of: {}", TranslogConfig.INDEX_TRANSLOG_DURABILITY, value, defaultValue, Arrays.toString(Translog.Durabilty.values()));
-            return defaultValue;
+    // we can not protect with a lock since we "release" on a different thread
+    private final AtomicBoolean flushOrRollRunning = new AtomicBoolean();
+
+    /**
+     * Schedules a flush or translog generation roll if needed but will not schedule more than one concurrently. The operation will be
+     * executed asynchronously on the flush thread pool.
+     */
+    public void afterWriteOperation() {
+        if (shouldFlush() || shouldRollTranslogGeneration()) {
+            if (flushOrRollRunning.compareAndSet(false, true)) {
+                /*
+                 * We have to check again since otherwise there is a race when a thread passes the first check next to another thread which
+                 * performs the operation quickly enough to  finish before the current thread could flip the flag. In that situation, we
+                 * have an extra operation.
+                 *
+                 * Additionally, a flush implicitly executes a translog generation roll so if we execute a flush then we do not need to
+                 * check if we should roll the translog generation.
+                 */
+                if (shouldFlush()) {
+                    logger.debug("submitting async flush request");
+                    final AbstractRunnable flush = new AbstractRunnable() {
+                        @Override
+                        public void onFailure(final Exception e) {
+                            if (state != IndexShardState.CLOSED) {
+                                logger.warn("failed to flush index", e);
+                            }
+                        }
+
+                        @Override
+                        protected void doRun() throws IOException {
+                            flush(new FlushRequest());
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            flushOrRollRunning.compareAndSet(true, false);
+                            afterWriteOperation();
+                        }
+                    };
+                    threadPool.executor(ThreadPool.Names.FLUSH).execute(flush);
+                } else if (shouldRollTranslogGeneration()) {
+                    logger.debug("submitting async roll translog generation request");
+                    final AbstractRunnable roll = new AbstractRunnable() {
+                        @Override
+                        public void onFailure(final Exception e) {
+                            if (state != IndexShardState.CLOSED) {
+                                logger.warn("failed to roll translog generation", e);
+                            }
+                        }
+
+                        @Override
+                        protected void doRun() throws Exception {
+                            rollTranslogGeneration();
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            flushOrRollRunning.compareAndSet(true, false);
+                            afterWriteOperation();
+                        }
+                    };
+                    threadPool.executor(ThreadPool.Names.FLUSH).execute(roll);
+                } else {
+                    flushOrRollRunning.compareAndSet(true, false);
+                }
+            }
         }
     }
 
+    /**
+     * Build {@linkplain RefreshListeners} for this shard.
+     */
+    private RefreshListeners buildRefreshListeners() {
+        return new RefreshListeners(
+            indexSettings::getMaxRefreshListeners,
+            () -> refresh("too_many_listeners"),
+            threadPool.executor(ThreadPool.Names.LISTENER)::execute,
+            logger);
+    }
+
+    /**
+     * Simple struct encapsulating a shard failure
+     *
+     * @see IndexShard#addShardFailureCallback(Consumer)
+     */
+    public static final class ShardFailure {
+        public final ShardRouting routing;
+        public final String reason;
+        @Nullable
+        public final Exception cause;
+
+        public ShardFailure(ShardRouting routing, String reason, @Nullable Exception cause) {
+            this.routing = routing;
+            this.reason = reason;
+            this.cause = cause;
+        }
+    }
+
+    EngineFactory getEngineFactory() {
+        return engineFactory;
+    }
+
+    /**
+     * Returns <code>true</code> iff one or more changes to the engine are not visible to via the current searcher *or* there are pending
+     * refresh listeners.
+     * Otherwise <code>false</code>.
+     *
+     * @throws AlreadyClosedException if the engine or internal indexwriter in the engine is already closed
+     */
+    public boolean isRefreshNeeded() {
+        return getEngine().refreshNeeded() || (refreshListeners != null && refreshListeners.refreshNeeded());
+    }
+
+    /**
+     * Add a listener for refreshes.
+     *
+     * @param location the location to listen for
+     * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
+     *        false otherwise.
+     */
+    public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
+        final boolean readAllowed;
+        if (isReadAllowed()) {
+            readAllowed = true;
+        } else {
+            // check again under mutex. this is important to create a happens before relationship
+            // between the switch to POST_RECOVERY + associated refresh. Otherwise we may respond
+            // to a listener before a refresh actually happened that contained that operation.
+            synchronized (mutex) {
+                readAllowed = isReadAllowed();
+            }
+        }
+        if (readAllowed) {
+            refreshListeners.addOrNotify(location, listener);
+        } else {
+            // we're not yet ready fo ready for reads, just ignore refresh cycles
+            listener.accept(false);
+        }
+    }
+
+    private static class RefreshMetricUpdater implements ReferenceManager.RefreshListener {
+
+        private final MeanMetric refreshMetric;
+        private long currentRefreshStartTime;
+        private Thread callingThread = null;
+
+        private RefreshMetricUpdater(MeanMetric refreshMetric) {
+            this.refreshMetric = refreshMetric;
+        }
+
+        @Override
+        public void beforeRefresh() throws IOException {
+            if (Assertions.ENABLED) {
+                assert callingThread == null : "beforeRefresh was called by " + callingThread.getName() +
+                    " without a corresponding call to afterRefresh";
+                callingThread = Thread.currentThread();
+            }
+            currentRefreshStartTime = System.nanoTime();
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) throws IOException {
+            if (Assertions.ENABLED) {
+                assert callingThread != null : "afterRefresh called but not beforeRefresh";
+                assert callingThread == Thread.currentThread() : "beforeRefreshed called by a different thread. current ["
+                    + Thread.currentThread().getName() + "], thread that called beforeRefresh [" + callingThread.getName() + "]";
+                callingThread = null;
+            }
+            refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
+        }
+    }
 }

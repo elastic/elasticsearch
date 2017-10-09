@@ -1,5 +1,0 @@
-{
-    "query_string": {
-        "query": "*:*"
-    }
-}

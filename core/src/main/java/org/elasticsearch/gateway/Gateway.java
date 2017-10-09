@@ -20,94 +20,61 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.lucene.util.IOUtils;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.discovery.zen.ElectMasterService;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.IndicesService;
 
+import java.util.Arrays;
+import java.util.Map;
 
-import java.nio.file.Path;
-
-/**
- *
- */
-public class Gateway extends AbstractComponent implements ClusterStateListener {
+public class Gateway extends AbstractComponent {
 
     private final ClusterService clusterService;
 
-    private final NodeEnvironment nodeEnv;
-
-    private final GatewayMetaState metaState;
-
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
-    private final String initialMeta;
-    private final ClusterName clusterName;
+    private final int minimumMasterNodes;
+    private final IndicesService indicesService;
 
-    @Inject
-    public Gateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, GatewayMetaState metaState,
-                   TransportNodesListGatewayMetaState listGatewayMetaState, ClusterName clusterName) {
+    public Gateway(Settings settings, ClusterService clusterService,
+                   TransportNodesListGatewayMetaState listGatewayMetaState,
+                   IndicesService indicesService) {
         super(settings);
+        this.indicesService = indicesService;
         this.clusterService = clusterService;
-        this.nodeEnv = nodeEnv;
-        this.metaState = metaState;
         this.listGatewayMetaState = listGatewayMetaState;
-        this.clusterName = clusterName;
-
-        clusterService.addLast(this);
-
-        // we define what is our minimum "master" nodes, use that to allow for recovery
-        this.initialMeta = settings.get("gateway.initial_meta", settings.get("gateway.local.initial_meta", settings.get("discovery.zen.minimum_master_nodes", "1")));
+        this.minimumMasterNodes = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
-        ObjectHashSet<String> nodesIds = new ObjectHashSet<>(clusterService.state().nodes().masterNodes().keys());
-        logger.trace("performing state recovery from {}", nodesIds);
-        TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds.toArray(String.class), null).actionGet();
+        String[] nodesIds = clusterService.state().nodes().getMasterNodes().keys().toArray(String.class);
+        logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
+        TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 
 
-        int requiredAllocation = 1;
-        try {
-            if ("quorum".equals(initialMeta)) {
-                if (nodesIds.size() > 2) {
-                    requiredAllocation = (nodesIds.size() / 2) + 1;
-                }
-            } else if ("quorum-1".equals(initialMeta) || "half".equals(initialMeta)) {
-                if (nodesIds.size() > 2) {
-                    requiredAllocation = ((1 + nodesIds.size()) / 2);
-                }
-            } else if ("one".equals(initialMeta)) {
-                requiredAllocation = 1;
-            } else if ("full".equals(initialMeta) || "all".equals(initialMeta)) {
-                requiredAllocation = nodesIds.size();
-            } else if ("full-1".equals(initialMeta) || "all-1".equals(initialMeta)) {
-                if (nodesIds.size() > 1) {
-                    requiredAllocation = nodesIds.size() - 1;
-                }
-            } else {
-                requiredAllocation = Integer.parseInt(initialMeta);
-            }
-        } catch (Exception e) {
-            logger.warn("failed to derived initial_meta from value {}", initialMeta);
-        }
+        int requiredAllocation = Math.max(1, minimumMasterNodes);
 
-        if (nodesState.failures().length > 0) {
+
+        if (nodesState.hasFailures()) {
             for (FailedNodeException failedNodeException : nodesState.failures()) {
                 logger.warn("failed to fetch state from node", failedNodeException);
             }
         }
 
-        ObjectFloatHashMap<String> indices = new ObjectFloatHashMap<>();
+        ObjectFloatHashMap<Index> indices = new ObjectFloatHashMap<>();
         MetaData electedGlobalState = null;
         int found = 0;
-        for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState) {
+        for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState.getNodes()) {
             if (nodeState.metaData() == null) {
                 continue;
             }
@@ -118,7 +85,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                 electedGlobalState = nodeState.metaData();
             }
             for (ObjectCursor<IndexMetaData> cursor : nodeState.metaData().indices().values()) {
-                indices.addTo(cursor.value.index(), 1);
+                indices.addTo(cursor.value.getIndex(), 1);
             }
         }
         if (found < requiredAllocation) {
@@ -132,10 +99,10 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         final Object[] keys = indices.keys;
         for (int i = 0; i < keys.length; i++) {
             if (keys[i] != null) {
-                String index = (String) keys[i];
+                Index index = (Index) keys[i];
                 IndexMetaData electedIndexMetaData = null;
                 int indexMetaDataCount = 0;
-                for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState) {
+                for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState.getNodes()) {
                     if (nodeState.metaData() == null) {
                         continue;
                     }
@@ -145,7 +112,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                     }
                     if (electedIndexMetaData == null) {
                         electedIndexMetaData = indexMetaData;
-                    } else if (indexMetaData.version() > electedIndexMetaData.version()) {
+                    } else if (indexMetaData.getVersion() > electedIndexMetaData.getVersion()) {
                         electedIndexMetaData = indexMetaData;
                     }
                     indexMetaDataCount++;
@@ -153,31 +120,52 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                 if (electedIndexMetaData != null) {
                     if (indexMetaDataCount < requiredAllocation) {
                         logger.debug("[{}] found [{}], required [{}], not adding", index, indexMetaDataCount, requiredAllocation);
+                    } // TODO if this logging statement is correct then we are missing an else here
+                    try {
+                        if (electedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
+                            // verify that we can actually create this index - if not we recover it as closed with lots of warn logs
+                            indicesService.verifyIndexMetadata(electedIndexMetaData, electedIndexMetaData);
+                        }
+                    } catch (Exception e) {
+                        final Index electedIndex = electedIndexMetaData.getIndex();
+                        logger.warn(
+                            (org.apache.logging.log4j.util.Supplier<?>)
+                                () -> new ParameterizedMessage("recovering index {} failed - recovering as closed", electedIndex), e);
+                        electedIndexMetaData = IndexMetaData.builder(electedIndexMetaData).state(IndexMetaData.State.CLOSE).build();
                     }
+
                     metaDataBuilder.put(electedIndexMetaData, false);
                 }
             }
         }
-        ClusterState.Builder builder = ClusterState.builder(clusterName);
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        metaDataBuilder.persistentSettings(
+            clusterSettings.archiveUnknownOrInvalidSettings(
+                metaDataBuilder.persistentSettings(),
+                e -> logUnknownSetting("persistent", e),
+                (e, ex) -> logInvalidSetting("persistent", e, ex)));
+        metaDataBuilder.transientSettings(
+            clusterSettings.archiveUnknownOrInvalidSettings(
+                metaDataBuilder.transientSettings(),
+                e -> logUnknownSetting("transient", e),
+                (e, ex) -> logInvalidSetting("transient", e, ex)));
+        ClusterState.Builder builder = clusterService.newClusterStateBuilder();
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
     }
 
-    public void reset() throws Exception {
-        try {
-            Path[] dataPaths = nodeEnv.nodeDataPaths();
-            logger.trace("removing node data paths: [{}]", dataPaths);
-            IOUtils.rm(dataPaths);
-        } catch (Exception ex) {
-            logger.debug("failed to delete shard locations", ex);
-        }
+    private void logUnknownSetting(String settingType, Map.Entry<String, String> e) {
+        logger.warn("ignoring unknown {} setting: [{}] with value [{}]; archiving", settingType, e.getKey(), e.getValue());
     }
 
-    @Override
-    public void clusterChanged(final ClusterChangedEvent event) {
-        // order is important, first metaState, and then shardsState
-        // so dangling indices will be recorded
-        metaState.clusterChanged(event);
+    private void logInvalidSetting(String settingType, Map.Entry<String, String> e, IllegalArgumentException ex) {
+        logger.warn(
+            (org.apache.logging.log4j.util.Supplier<?>)
+                () -> new ParameterizedMessage("ignoring invalid {} setting: [{}] with value [{}]; archiving",
+                    settingType,
+                    e.getKey(),
+                    e.getValue()),
+            ex);
     }
 
     public interface GatewayStateRecoveredListener {

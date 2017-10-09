@@ -30,9 +30,9 @@ public enum  Preference {
     SHARDS("_shards"),
 
     /**
-     * Route to preferred node, if possible
+     * Route to preferred nodes, if possible
      */
-    PREFER_NODE("_prefer_node"),
+    PREFER_NODES("_prefer_nodes"),
 
     /**
      * Route to local node, if possible
@@ -40,24 +40,14 @@ public enum  Preference {
     LOCAL("_local"),
 
     /**
-     * Route to primary shards
-     */
-    PRIMARY("_primary"),
-
-    /**
-     * Route to primary shards first
-     */
-    PRIMARY_FIRST("_primary_first"),
-
-    /**
      * Route to the local shard only
      */
     ONLY_LOCAL("_only_local"),
 
     /**
-     * Route to specific node only
+     * Route to only node with attribute
      */
-    ONLY_NODE("_only_node");
+    ONLY_NODES("_only_nodes");
 
     private final String type;
 
@@ -83,24 +73,20 @@ public enum  Preference {
         switch (preferenceType) {
             case "_shards":
                 return SHARDS;
-            case "_prefer_node":
-                return PREFER_NODE;
-            case "_only_node":
-                return ONLY_NODE;
+            case "_prefer_nodes":
+                return PREFER_NODES;
             case "_local":
                 return LOCAL;
-            case "_primary":
-                return PRIMARY;
-            case "_primary_first":
-            case "_primaryFirst":
-                return PRIMARY_FIRST;
             case "_only_local":
             case "_onlyLocal":
                 return ONLY_LOCAL;
+            case "_only_nodes":
+                return ONLY_NODES;
             default:
                 throw new IllegalArgumentException("no Preference for [" + preferenceType + "]");
         }
     }
+
 }
 
 

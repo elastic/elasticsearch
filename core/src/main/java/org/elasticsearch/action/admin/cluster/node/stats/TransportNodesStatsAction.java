@@ -19,50 +19,43 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import com.google.common.collect.Lists;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
-/**
- *
- */
-public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRequest, NodesStatsResponse, TransportNodesStatsAction.NodeStatsRequest, NodeStats> {
+public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRequest,
+                                                                    NodesStatsResponse,
+                                                                    TransportNodesStatsAction.NodeStatsRequest,
+                                                                    NodeStats> {
 
     private final NodeService nodeService;
 
     @Inject
-    public TransportNodesStatsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportNodesStatsAction(Settings settings, ThreadPool threadPool,
                                      ClusterService clusterService, TransportService transportService,
-                                     NodeService nodeService, ActionFilters actionFilters) {
-        super(settings, NodesStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                NodesStatsRequest.class, NodeStatsRequest.class, ThreadPool.Names.MANAGEMENT);
+                                     NodeService nodeService, ActionFilters actionFilters,
+                                     IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, NodesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+              indexNameExpressionResolver, NodesStatsRequest::new, NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT, NodeStats.class);
         this.nodeService = nodeService;
     }
 
     @Override
-    protected NodesStatsResponse newResponse(NodesStatsRequest nodesInfoRequest, AtomicReferenceArray responses) {
-        final List<NodeStats> nodeStats = Lists.newArrayList();
-        for (int i = 0; i < responses.length(); i++) {
-            Object resp = responses.get(i);
-            if (resp instanceof NodeStats) {
-                nodeStats.add((NodeStats) resp);
-            }
-        }
-        return new NodesStatsResponse(clusterName, nodeStats.toArray(new NodeStats[nodeStats.size()]));
+    protected NodesStatsResponse newResponse(NodesStatsRequest request, List<NodeStats> responses, List<FailedNodeException> failures) {
+        return new NodesStatsResponse(clusterService.getClusterName(), responses, failures);
     }
 
     @Override
@@ -78,24 +71,20 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     @Override
     protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest) {
         NodesStatsRequest request = nodeStatsRequest.request;
-        return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.threadPool(), request.network(),
-                request.fs(), request.transport(), request.http(), request.breaker());
+        return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.threadPool(),
+                request.fs(), request.transport(), request.http(), request.breaker(), request.script(), request.discovery(),
+                request.ingest());
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return false;
-    }
-
-    static class NodeStatsRequest extends BaseNodeRequest {
+    public static class NodeStatsRequest extends BaseNodeRequest {
 
         NodesStatsRequest request;
 
-        NodeStatsRequest() {
+        public NodeStatsRequest() {
         }
 
         NodeStatsRequest(String nodeId, NodesStatsRequest request) {
-            super(request, nodeId);
+            super(nodeId);
             this.request = request;
         }
 

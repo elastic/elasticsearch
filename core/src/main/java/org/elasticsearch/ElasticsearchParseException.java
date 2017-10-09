@@ -19,21 +19,27 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
+
 /**
- *
+ * Unchecked exception that is translated into a {@code 400 BAD REQUEST} error when it bubbles out over HTTP.
  */
 public class ElasticsearchParseException extends ElasticsearchException {
 
-    public ElasticsearchParseException(String msg) {
-        super(msg);
+    public ElasticsearchParseException(String msg, Object... args) {
+        super(msg, args);
     }
 
-    public ElasticsearchParseException(String msg, Throwable cause) {
-        super(msg, cause);
+    public ElasticsearchParseException(String msg, Throwable cause, Object... args) {
+        super(msg, cause, args);
     }
 
+    public ElasticsearchParseException(StreamInput in) throws IOException {
+        super(in);
+    }
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;

@@ -19,11 +19,12 @@
 
 package org.elasticsearch.search.lookup;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.index.LeafReaderContext;
 
+import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Per-segment version of {@link SearchLookup}.
@@ -34,37 +35,29 @@ public class LeafSearchLookup {
     final LeafDocLookup docMap;
     final SourceLookup sourceLookup;
     final LeafFieldsLookup fieldsLookup;
-    final LeafIndexLookup indexLookup;
-    final ImmutableMap<String, Object> asMap;
+    final Map<String, Object> asMap;
 
     public LeafSearchLookup(LeafReaderContext ctx, LeafDocLookup docMap, SourceLookup sourceLookup,
-            LeafFieldsLookup fieldsLookup, LeafIndexLookup indexLookup, Map<String, Object> topLevelMap) {
+            LeafFieldsLookup fieldsLookup) {
         this.ctx = ctx;
         this.docMap = docMap;
         this.sourceLookup = sourceLookup;
         this.fieldsLookup = fieldsLookup;
-        this.indexLookup = indexLookup;
 
-        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
-        builder.putAll(topLevelMap);
-        builder.put("doc", docMap);
-        builder.put("_doc", docMap);
-        builder.put("_source", sourceLookup);
-        builder.put("_fields", fieldsLookup);
-        builder.put("_index", indexLookup);
-        asMap = builder.build();
+        Map<String, Object> asMap = new HashMap<>(4);
+        asMap.put("doc", docMap);
+        asMap.put("_doc", docMap);
+        asMap.put("_source", sourceLookup);
+        asMap.put("_fields", fieldsLookup);
+        this.asMap = unmodifiableMap(asMap);
     }
 
-    public ImmutableMap<String, Object> asMap() {
+    public Map<String, Object> asMap() {
         return this.asMap;
     }
 
     public SourceLookup source() {
         return this.sourceLookup;
-    }
-
-    public LeafIndexLookup indexLookup() {
-        return this.indexLookup;
     }
 
     public LeafFieldsLookup fields() {
@@ -79,6 +72,5 @@ public class LeafSearchLookup {
         docMap.setDocument(docId);
         sourceLookup.setSegmentAndDocument(ctx, docId);
         fieldsLookup.setDocument(docId);
-        indexLookup.setDocument(docId);
     }
 }

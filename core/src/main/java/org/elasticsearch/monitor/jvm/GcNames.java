@@ -19,8 +19,6 @@
 
 package org.elasticsearch.monitor.jvm;
 
-/**
- */
 public class GcNames {
 
     public static final String YOUNG = "young";

@@ -20,10 +20,11 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
-/**
- *
- */
+import java.io.IOException;
+
 public class FailedNodeException extends ElasticsearchException {
 
     private final String nodeId;
@@ -35,5 +36,16 @@ public class FailedNodeException extends ElasticsearchException {
 
     public String nodeId() {
         return this.nodeId;
+    }
+
+    public FailedNodeException(StreamInput in) throws IOException {
+        super(in);
+        nodeId = in.readOptionalString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(nodeId);
     }
 }

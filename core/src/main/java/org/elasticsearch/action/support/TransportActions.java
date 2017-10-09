@@ -19,40 +19,31 @@
 
 package org.elasticsearch.action.support;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.index.IndexShardMissingException;
+import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 
-/**
- */
 public class TransportActions {
 
-    public static boolean isShardNotAvailableException(Throwable t) {
-        Throwable actual = ExceptionsHelper.unwrapCause(t);
-        if (actual instanceof IllegalIndexShardStateException) {
-            return true;
-        }
-        if (actual instanceof IndexMissingException) {
-            return true;
-        }
-        if (actual instanceof IndexShardMissingException) {
-            return true;
-        }
-        if (actual instanceof NoShardAvailableActionException) {
-            return true;
-        }
-        return false;
+    public static boolean isShardNotAvailableException(final Throwable e) {
+        final Throwable actual = ExceptionsHelper.unwrapCause(e);
+        return (actual instanceof ShardNotFoundException ||
+                actual instanceof IndexNotFoundException ||
+                actual instanceof IllegalIndexShardStateException ||
+                actual instanceof NoShardAvailableActionException ||
+                actual instanceof UnavailableShardsException ||
+                actual instanceof AlreadyClosedException);
     }
 
     /**
      * If a failure is already present, should this failure override it or not for read operations.
      */
-    public static boolean isReadOverrideException(Throwable t) {
-        if (isShardNotAvailableException(t)) {
-            return false;
-        }
-        return true;
+    public static boolean isReadOverrideException(Exception e) {
+        return !isShardNotAvailableException(e);
     }
+
 }

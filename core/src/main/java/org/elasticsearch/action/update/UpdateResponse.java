@@ -19,22 +19,24 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- */
-public class UpdateResponse extends ActionWriteResponse {
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-    private String index;
-    private String id;
-    private String type;
-    private long version;
-    private boolean created;
+public class UpdateResponse extends DocWriteResponse {
+
+    private static final String GET = "get";
+
     private GetResult getResult;
 
     public UpdateResponse() {
@@ -44,45 +46,14 @@ public class UpdateResponse extends ActionWriteResponse {
      * Constructor to be used when a update didn't translate in a write.
      * For example: update script with operation set to none
      */
-    public UpdateResponse(String index, String type, String id, long version, boolean created) {
-        this(new ShardInfo(0, 0), index, type, id, version, created);
+    public UpdateResponse(ShardId shardId, String type, String id, long version, Result result) {
+        this(new ShardInfo(0, 0), shardId, type, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, result);
     }
 
-    public UpdateResponse(ShardInfo shardInfo, String index, String type, String id, long version, boolean created) {
+    public UpdateResponse(
+            ShardInfo shardInfo, ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
+        super(shardId, type, id, seqNo, primaryTerm, version, result);
         setShardInfo(shardInfo);
-        this.index = index;
-        this.id = id;
-        this.type = type;
-        this.version = version;
-        this.created = created;
-    }
-
-    /**
-     * The index the document was indexed into.
-     */
-    public String getIndex() {
-        return this.index;
-    }
-
-    /**
-     * The type of the document indexed.
-     */
-    public String getType() {
-        return this.type;
-    }
-
-    /**
-     * The id of the document indexed.
-     */
-    public String getId() {
-        return this.id;
-    }
-
-    /**
-     * Returns the current version of the doc indexed.
-     */
-    public long getVersion() {
-        return this.version;
     }
 
     public void setGetResult(GetResult getResult) {
@@ -93,22 +64,14 @@ public class UpdateResponse extends ActionWriteResponse {
         return this.getResult;
     }
 
-    /**
-     * Returns true if document was created due to an UPSERT operation
-     */
-    public boolean isCreated() {
-        return this.created;
-
+    @Override
+    public RestStatus status() {
+        return this.result == Result.CREATED ? RestStatus.CREATED : super.status();
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
-        type = in.readString();
-        id = in.readString();
-        version = in.readLong();
-        created = in.readBoolean();
         if (in.readBoolean()) {
             getResult = GetResult.readGetResult(in);
         }
@@ -117,16 +80,93 @@ public class UpdateResponse extends ActionWriteResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
-        out.writeString(type);
-        out.writeString(id);
-        out.writeLong(version);
-        out.writeBoolean(created);
         if (getResult == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
             getResult.writeTo(out);
+        }
+    }
+
+    @Override
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        super.innerToXContent(builder, params);
+        if (getGetResult() != null) {
+            builder.startObject(GET);
+            getGetResult().toXContentEmbedded(builder, params);
+            builder.endObject();
+        }
+        return builder;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("UpdateResponse[");
+        builder.append("index=").append(getIndex());
+        builder.append(",type=").append(getType());
+        builder.append(",id=").append(getId());
+        builder.append(",version=").append(getVersion());
+        builder.append(",seqNo=").append(getSeqNo());
+        builder.append(",primaryTerm=").append(getPrimaryTerm());
+        builder.append(",result=").append(getResult().getLowercase());
+        builder.append(",shards=").append(getShardInfo());
+        return builder.append("]").toString();
+    }
+
+    public static UpdateResponse fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+
+        Builder context = new Builder();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            parseXContentFields(parser, context);
+        }
+        return context.build();
+    }
+
+    /**
+     * Parse the current token and update the parsing context appropriately.
+     */
+    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = parser.currentName();
+
+        if (GET.equals(currentFieldName)) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                context.setGetResult(GetResult.fromXContentEmbedded(parser));
+            }
+        } else {
+            DocWriteResponse.parseInnerToXContent(parser, context);
+        }
+    }
+
+    /**
+     * Builder class for {@link UpdateResponse}. This builder is usually used during xcontent parsing to
+     * temporarily store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
+     * instantiate the {@link UpdateResponse}.
+     */
+    public static class Builder extends DocWriteResponse.Builder {
+
+        private GetResult getResult = null;
+
+        public void setGetResult(GetResult getResult) {
+            this.getResult = getResult;
+        }
+
+        @Override
+        public UpdateResponse build() {
+            UpdateResponse update;
+            if (shardInfo != null && seqNo != null) {
+                update = new UpdateResponse(shardInfo, shardId, type, id, seqNo, primaryTerm, version, result);
+            } else {
+                update = new UpdateResponse(shardId, type, id, version, result);
+            }
+            if (getResult != null) {
+                update.setGetResult(new GetResult(update.getIndex(), update.getType(), update.getId(), update.getVersion(),
+                        getResult.isExists(),getResult.internalSourceRef(), getResult.getFields()));
+            }
+            update.setForcedRefresh(forcedRefresh);
+            return update;
         }
     }
 }

@@ -37,12 +37,25 @@ public class IndicesExistsRequest extends MasterNodeReadRequest<IndicesExistsReq
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
 
     // for serialization
-    IndicesExistsRequest() {
+    public IndicesExistsRequest() {
 
     }
 
     public IndicesExistsRequest(String... indices) {
         this.indices = indices;
+    }
+
+    public IndicesExistsRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override
@@ -51,7 +64,7 @@ public class IndicesExistsRequest extends MasterNodeReadRequest<IndicesExistsReq
     }
 
     @Override
-    public IndicesExistsRequest indices(String[] indices) {
+    public IndicesExistsRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }
@@ -61,8 +74,15 @@ public class IndicesExistsRequest extends MasterNodeReadRequest<IndicesExistsReq
         return indicesOptions;
     }
 
-    public IndicesExistsRequest indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = indicesOptions;
+    public IndicesExistsRequest expandWilcardsOpen(boolean expandWildcardsOpen) {
+        this.indicesOptions = IndicesOptions.fromOptions(indicesOptions.ignoreUnavailable(), indicesOptions.allowNoIndices(),
+                expandWildcardsOpen, indicesOptions.expandWildcardsClosed());
+        return this;
+    }
+
+    public IndicesExistsRequest expandWilcardsClosed(boolean expandWildcardsClosed) {
+        this.indicesOptions = IndicesOptions.fromOptions(indicesOptions.ignoreUnavailable(), indicesOptions.allowNoIndices(),
+                indicesOptions.expandWildcardsOpen(), expandWildcardsClosed);
         return this;
     }
 
@@ -77,15 +97,6 @@ public class IndicesExistsRequest extends MasterNodeReadRequest<IndicesExistsReq
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

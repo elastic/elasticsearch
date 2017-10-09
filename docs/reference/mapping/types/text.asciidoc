@@ -1,0 +1,130 @@
+[[text]]
+=== Text datatype
+
+A field to index full-text values, such as the body of an email or the
+description of a product. These fields are `analyzed`, that is they are passed through an
+<<analysis,analyzer>> to convert the string into a list of individual terms
+before being indexed. The analysis process allows Elasticsearch to search for
+individual words _within_  each full text field.  Text fields are not
+used for sorting and seldom used for aggregations (although the
+<<search-aggregations-bucket-significanttext-aggregation,significant text aggregation>>
+is a notable exception).
+
+If you need to index structured content such as email addresses, hostnames, status
+codes, or tags, it is likely that you should rather use a <<keyword,`keyword`>> field.
+
+Below is an example of a mapping for a text field:
+
+[source,js]
+--------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "full_name": {
+          "type":  "text"
+        }
+      }
+    }
+  }
+}
+--------------------------------
+// CONSOLE
+
+Sometimes it is useful to have both a full text (`text`) and a keyword
+(`keyword`) version of the same field: one for full text search and the
+other for aggregations and sorting. This can be achieved with
+<<multi-fields,multi-fields>>.
+
+[[text-params]]
+==== Parameters for text fields
+
+The following parameters are accepted by `text` fields:
+
+[horizontal]
+
+<<analyzer,`analyzer`>>::
+
+    The <<analysis,analyzer>> which should be used for
+    <<mapping-index,`analyzed`>> string fields, both at index-time and at
+    search-time (unless overridden by the  <<search-analyzer,`search_analyzer`>>).
+    Defaults to the default index analyzer, or the
+    <<analysis-standard-analyzer,`standard` analyzer>>.
+
+<<mapping-boost,`boost`>>::
+
+    Mapping field-level query time boosting. Accepts a floating point number, defaults
+    to `1.0`.
+
+<<eager-global-ordinals,`eager_global_ordinals`>>::
+
+    Should global ordinals be loaded eagerly on refresh? Accepts `true` or `false`
+    (default). Enabling this is a good idea on fields that are frequently used for
+    (significant) terms aggregations.
+
+<<fielddata,`fielddata`>>::
+
+    Can the field use in-memory fielddata for sorting, aggregations,
+    or scripting? Accepts `true` or `false` (default).
+
+<<field-data-filtering,`fielddata_frequency_filter`>>::
+
+    Expert settings which allow to decide which values to load in memory when `fielddata`
+    is enabled. By default all values are loaded.
+
+<<multi-fields,`fields`>>::
+
+    Multi-fields allow the same string value to be indexed in multiple ways for
+    different purposes, such as one field for search and a multi-field for
+    sorting and aggregations, or the same string value analyzed by different
+    analyzers.
+
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `true` (default) or `false`.
+
+<<index-options,`index_options`>>::
+
+    What information should be stored in the index, for search and highlighting purposes.
+    Defaults to `positions`.
+
+<<norms,`norms`>>::
+
+    Whether field-length should be taken into account when scoring queries.
+    Accepts `true` (default) or `false`.
+
+<<position-increment-gap,`position_increment_gap`>>::
+
+    The number of fake term position which should be inserted between each
+    element of an array of strings. Defaults to the `position_increment_gap`
+    configured on the analyzer which defaults to `100`. `100` was chosen because it
+    prevents phrase queries with reasonably large slops (less than 100) from
+    matching terms across field values.
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).
+
+<<search-analyzer,`search_analyzer`>>::
+
+    The <<analyzer,`analyzer`>> that should be used at search time on
+    <<mapping-index,`analyzed`>> fields. Defaults to the `analyzer` setting.
+
+<<search-quote-analyzer,`search_quote_analyzer`>>::
+
+    The <<analyzer,`analyzer`>> that should be used at search time when a
+    phrase is encountered. Defaults to the `search_analyzer` setting.
+
+<<similarity,`similarity`>>::
+
+    Which scoring algorithm or _similarity_ should be used. Defaults
+    to `BM25`.
+
+<<term-vector,`term_vector`>>::
+
+    Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
+    field. Defaults to `no`.
+

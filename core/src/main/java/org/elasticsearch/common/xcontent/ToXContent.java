@@ -26,10 +26,12 @@ import java.util.Map;
 
 /**
  * An interface allowing to transfer an object to "XContent" using an {@link XContentBuilder}.
+ * The output may or may not be a value object. Objects implementing {@link ToXContentObject} output a valid value
+ * but those that don't may or may not require emitting a startObject and an endObject.
  */
 public interface ToXContent {
 
-    public static interface Params {
+    interface Params {
         String param(String key);
 
         String param(String key, String defaultValue);
@@ -37,16 +39,9 @@ public interface ToXContent {
         boolean paramAsBoolean(String key, boolean defaultValue);
 
         Boolean paramAsBoolean(String key, Boolean defaultValue);
-
-        /**
-         * @deprecated since 1.0.0
-         * use {@link ToXContent.Params#paramAsBoolean(String, Boolean)} instead
-         */
-        @Deprecated
-        Boolean paramAsBooleanOptional(String key, Boolean defaultValue);
     }
 
-    public static final Params EMPTY_PARAMS = new Params() {
+    Params EMPTY_PARAMS = new Params() {
         @Override
         public String param(String key) {
             return null;
@@ -67,13 +62,9 @@ public interface ToXContent {
             return defaultValue;
         }
 
-        @Override @Deprecated
-        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
-            return paramAsBoolean(key, defaultValue);
-        }
     };
 
-    public static class MapParams implements Params {
+    class MapParams implements Params {
 
         private final Map<String, String> params;
 
@@ -104,14 +95,9 @@ public interface ToXContent {
         public Boolean paramAsBoolean(String key, Boolean defaultValue) {
             return Booleans.parseBoolean(param(key), defaultValue);
         }
-
-        @Override @Deprecated
-        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
-            return paramAsBoolean(key, defaultValue);
-        }
     }
 
-    public static class DelegatingMapParams extends MapParams {
+    class DelegatingMapParams extends MapParams {
 
         private final Params delegate;
 
@@ -139,12 +125,11 @@ public interface ToXContent {
         public Boolean paramAsBoolean(String key, Boolean defaultValue) {
             return super.paramAsBoolean(key, delegate.paramAsBoolean(key, defaultValue));
         }
-
-        @Override @Deprecated
-        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
-            return super.paramAsBooleanOptional(key, delegate.paramAsBooleanOptional(key, defaultValue));
-        }
     }
 
     XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
+
+    default boolean isFragment() {
+        return true;
+    }
 }

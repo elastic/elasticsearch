@@ -26,9 +26,6 @@ import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
-/**
- *
- */
 public abstract class BroadcastShardResponse extends TransportResponse {
 
     ShardId shardId;
@@ -42,11 +39,11 @@ public abstract class BroadcastShardResponse extends TransportResponse {
     }
 
     public String getIndex() {
-        return this.shardId.getIndex();
+        return this.shardId.getIndexName();
     }
 
-    public int getShardId() {
-        return this.shardId.id();
+    public ShardId getShardId() {
+        return this.shardId;
     }
 
     @Override

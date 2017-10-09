@@ -29,8 +29,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/**
- */
 public class TypesExistsRequest extends MasterNodeReadRequest<TypesExistsRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
@@ -38,12 +36,27 @@ public class TypesExistsRequest extends MasterNodeReadRequest<TypesExistsRequest
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-    TypesExistsRequest() {
+    public TypesExistsRequest() {
     }
 
     public TypesExistsRequest(String[] indices, String... types) {
         this.indices = indices;
         this.types = types;
+    }
+
+    public TypesExistsRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        types = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(indices);
+        out.writeStringArray(types);
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override
@@ -52,7 +65,7 @@ public class TypesExistsRequest extends MasterNodeReadRequest<TypesExistsRequest
     }
 
     @Override
-    public TypesExistsRequest indices(String[] indices) {
+    public TypesExistsRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }
@@ -89,18 +102,7 @@ public class TypesExistsRequest extends MasterNodeReadRequest<TypesExistsRequest
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        out.writeStringArray(types);
-        indicesOptions.writeIndicesOptions(out);
-    }
-
-    @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        types = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

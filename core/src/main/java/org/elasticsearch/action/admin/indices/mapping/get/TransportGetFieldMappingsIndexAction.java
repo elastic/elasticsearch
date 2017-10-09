@@ -19,19 +19,16 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.Collections2;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -51,13 +48,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static java.util.Collections.singletonMap;
 
 /**
  * Transport action used to retrieve the mappings related to fields that belong to a specific index
  */
-public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomOperationAction<GetFieldMappingsIndexRequest, GetFieldMappingsResponse> {
+public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAction<GetFieldMappingsIndexRequest, GetFieldMappingsResponse> {
 
     private static final String ACTION_NAME = GetFieldMappingsAction.NAME + "[index]";
 
@@ -65,11 +66,10 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
     private final IndicesService indicesService;
 
     @Inject
-    public TransportGetFieldMappingsIndexAction(Settings settings, ClusterService clusterService,
-                                                TransportService transportService,
-                                                IndicesService indicesService,
-                                                ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, GetFieldMappingsIndexRequest.class, ThreadPool.Names.MANAGEMENT);
+    public TransportGetFieldMappingsIndexAction(Settings settings, ClusterService clusterService, TransportService transportService,
+                                                IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
+                                                IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, GetFieldMappingsIndexRequest::new, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
@@ -95,29 +95,25 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
             typeIntersection = indexService.mapperService().types();
 
         } else {
-            typeIntersection = Collections2.filter(indexService.mapperService().types(), new Predicate<String>() {
-
-                @Override
-                public boolean apply(String type) {
-                    return Regex.simpleMatch(request.types(), type);
-                }
-
-            });
+            typeIntersection = indexService.mapperService().types()
+                    .stream()
+                    .filter(type -> Regex.simpleMatch(request.types(), type))
+                    .collect(Collectors.toCollection(ArrayList::new));
             if (typeIntersection.isEmpty()) {
-                throw new TypeMissingException(shardId.index(), request.types());
+                throw new TypeMissingException(shardId.getIndex(), request.types());
             }
         }
 
-        MapBuilder<String, ImmutableMap<String, FieldMappingMetaData>> typeMappings = new MapBuilder<>();
+        MapBuilder<String, Map<String, FieldMappingMetaData>> typeMappings = new MapBuilder<>();
         for (String type : typeIntersection) {
             DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-            ImmutableMap<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(documentMapper, request);
+            Map<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(documentMapper, request);
             if (!fieldMapping.isEmpty()) {
                 typeMappings.put(type, fieldMapping);
             }
         }
 
-        return new GetFieldMappingsResponse(ImmutableMap.of(shardId.getIndex(), typeMappings.immutableMap()));
+        return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), typeMappings.immutableMap()));
     }
 
     @Override
@@ -132,7 +128,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
 
     private static final ToXContent.Params includeDefaultsParams = new ToXContent.Params() {
 
-        final static String INCLUDE_DEFAULTS = "include_defaults";
+        static final String INCLUDE_DEFAULTS = "include_defaults";
 
         @Override
         public String param(String key) {
@@ -165,48 +161,23 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
             }
             return defaultValue;
         }
-
-        @Override
-        @Deprecated
-        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
-            return paramAsBoolean(key, defaultValue);
-        }
     };
 
-    private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) {
+    private Map<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) {
         MapBuilder<String, FieldMappingMetaData> fieldMappings = new MapBuilder<>();
         final DocumentFieldMappers allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
                 for (FieldMapper fieldMapper : allFieldMappers) {
-                    addFieldMapper(fieldMapper.fieldType().names().fullName(), fieldMapper, fieldMappings, request.includeDefaults());
+                    addFieldMapper(fieldMapper.fieldType().name(), fieldMapper, fieldMappings, request.includeDefaults());
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
-                // go through the field mappers 3 times, to make sure we give preference to the resolve order: full name, index name, name.
-                // also make sure we only store each mapper once.
-                Collection<FieldMapper> remainingFieldMappers = Lists.newLinkedList(allFieldMappers);
-                for (Iterator<FieldMapper> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
-                    final FieldMapper fieldMapper = it.next();
-                    if (Regex.simpleMatch(field, fieldMapper.fieldType().names().fullName())) {
-                        addFieldMapper(fieldMapper.fieldType().names().fullName(), fieldMapper, fieldMappings, request.includeDefaults());
-                        it.remove();
+                for (FieldMapper fieldMapper : allFieldMappers) {
+                    if (Regex.simpleMatch(field, fieldMapper.fieldType().name())) {
+                        addFieldMapper(fieldMapper.fieldType().name(), fieldMapper, fieldMappings,
+                            request.includeDefaults());
                     }
                 }
-                for (Iterator<FieldMapper> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
-                    final FieldMapper fieldMapper = it.next();
-                    if (Regex.simpleMatch(field, fieldMapper.fieldType().names().indexName())) {
-                        addFieldMapper(fieldMapper.fieldType().names().indexName(), fieldMapper, fieldMappings, request.includeDefaults());
-                        it.remove();
-                    }
-                }
-                for (Iterator<FieldMapper> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
-                    final FieldMapper fieldMapper = it.next();
-                    if (Regex.simpleMatch(field, fieldMapper.fieldType().names().shortName())) {
-                        addFieldMapper(fieldMapper.fieldType().names().shortName(), fieldMapper, fieldMappings, request.includeDefaults());
-                        it.remove();
-                    }
-                }
-
             } else {
                 // not a pattern
                 FieldMapper fieldMapper = allFieldMappers.smartNameFieldMapper(field);
@@ -229,7 +200,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
             builder.startObject();
             fieldMapper.toXContent(builder, includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.fieldType().names().fullName(), builder.bytes()));
+            fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.fieldType().name(), builder.bytes()));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to serialize XContent of field [" + field + "]", e);
         }

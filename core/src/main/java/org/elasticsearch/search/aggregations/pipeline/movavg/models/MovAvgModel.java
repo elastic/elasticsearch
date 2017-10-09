@@ -19,31 +19,49 @@
 
 package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 
-import com.google.common.collect.EvictingQueue;
-
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
-public abstract class MovAvgModel {
+public abstract class MovAvgModel implements NamedWriteable, ToXContentFragment {
+
+    /**
+     * Should this model be fit to the data via a cost minimizing algorithm by default?
+     */
+    public boolean minimizeByDefault() {
+        return false;
+    }
+
+    /**
+     * Returns if the model can be cost minimized.  Not all models have parameters
+     * which can be tuned / optimized.
+     */
+    public abstract boolean canBeMinimized();
+
+    /**
+     * Generates a "neighboring" model, where one of the tunable parameters has been
+     * randomly mutated within the allowed range.  Used for minimization
+     */
+    public abstract MovAvgModel neighboringModel();
 
     /**
      * Checks to see this model can produce a new value, without actually running the algo.
      * This can be used for models that have certain preconditions that need to be met in order
      * to short-circuit execution
      *
-     * @param windowLength  Length of current window
-     * @return              Returns `true` if calling next() will produce a value, `false` otherwise
+     * @param valuesAvailable Number of values in the current window of values
+     * @return                Returns `true` if calling next() will produce a value, `false` otherwise
      */
-    public boolean hasValue(int windowLength) {
+    public boolean hasValue(int valuesAvailable) {
         // Default implementation can always provide a next() value
-        return true;
+        return valuesAvailable > 0;
     }
 
     /**
@@ -56,9 +74,7 @@ public abstract class MovAvgModel {
     public abstract <T extends Number> double next(Collection<T> values);
 
     /**
-     * Predicts the next `n` values in the series, using the smoothing model to generate new values.
-     * Default prediction mode is to simply continuing calling <code>next()</code> and adding the
-     * predicted value back into the windowed buffer.
+     * Predicts the next `n` values in the series.
      *
      * @param values            Collection of numerics to movingAvg, usually windowed
      * @param numPredictions    Number of newly generated predictions to return
@@ -66,34 +82,30 @@ public abstract class MovAvgModel {
      * @return                  Returns an array of doubles, since most smoothing methods operate on floating points
      */
     public <T extends Number> double[] predict(Collection<T> values, int numPredictions) {
-        double[] predictions = new double[numPredictions];
+        assert(numPredictions >= 1);
 
         // If there are no values, we can't do anything.  Return an array of NaNs.
-        if (values.size() == 0) {
+        if (values.isEmpty()) {
             return emptyPredictions(numPredictions);
         }
 
-        // special case for one prediction, avoids allocation
-        if (numPredictions < 1) {
-            throw new IllegalArgumentException("numPredictions may not be less than 1.");
-        } else if (numPredictions == 1){
-            predictions[0] = next(values);
-            return predictions;
-        }
-
-        Collection<Number> predictionBuffer = EvictingQueue.create(values.size());
-        predictionBuffer.addAll(values);
-
-        for (int i = 0; i < numPredictions; i++) {
-            predictions[i] = next(predictionBuffer);
-
-            // Add the last value to the buffer, so we can keep predicting
-            predictionBuffer.add(predictions[i]);
-        }
-
-        return predictions;
+        return doPredict(values, numPredictions);
     }
 
+    /**
+     * Calls to the model-specific implementation which actually generates the predictions
+     *
+     * @param values            Collection of numerics to movingAvg, usually windowed
+     * @param numPredictions    Number of newly generated predictions to return
+     * @param <T>               Type of numeric
+     * @return                  Returns an array of doubles, since most smoothing methods operate on floating points
+     */
+    protected abstract <T extends Number> double[] doPredict(Collection<T> values, int numPredictions);
+
+    /**
+     * Returns an empty set of predictions, filled with NaNs
+     * @param numPredictions Number of empty predictions to generate
+     */
     protected double[] emptyPredictions(int numPredictions) {
         double[] predictions = new double[numPredictions];
         Arrays.fill(predictions, Double.NaN);
@@ -104,47 +116,47 @@ public abstract class MovAvgModel {
      * Write the model to the output stream
      *
      * @param out   Output stream
-     * @throws IOException
      */
+    @Override
     public abstract void writeTo(StreamOutput out) throws IOException;
+
+    /**
+     * Clone the model, returning an exact copy
+     */
+    @Override
+    public abstract MovAvgModel clone();
+
+    @Override
+    public abstract int hashCode();
+
+    @Override
+    public abstract boolean equals(Object obj);
 
     /**
      * Abstract class which also provides some concrete parsing functionality.
      */
     public abstract static class AbstractModelParser {
-
-        /**
-         * Returns the name of the model
-         *
-         * @return The model's name
-         */
-        public abstract String getName();
-
         /**
          * Parse a settings hash that is specific to this model
          *
-         * @param settings      Map of settings, extracted from the request
-         * @param pipelineName   Name of the parent pipeline agg
-         * @param context       The parser context that we are in
-         * @param windowSize    Size of the window for this moving avg
-         * @return              A fully built moving average model
+         * @param settings           Map of settings, extracted from the request
+         * @param pipelineName       Name of the parent pipeline agg
+         * @param windowSize         Size of the window for this moving avg
+         * @return                   A fully built moving average model
          */
-        public abstract MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, SearchContext context, int windowSize);
+        public abstract MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName,
+                                          int windowSize) throws ParseException;
 
 
         /**
          * Extracts a 0-1 inclusive double from the settings map, otherwise throws an exception
          *
-         * @param context       Search query context
          * @param settings      Map of settings provided to this model
          * @param name          Name of parameter we are attempting to extract
          * @param defaultValue  Default value to be used if value does not exist in map
-         *
-         * @throws SearchParseException
-         *
          * @return Double value extracted from settings map
          */
-        protected double parseDoubleParam(SearchContext context, @Nullable Map<String, Object> settings, String name, double defaultValue) {
+        protected double parseDoubleParam(@Nullable Map<String, Object> settings, String name, double defaultValue) throws ParseException {
             if (settings == null) {
                 return defaultValue;
             }
@@ -152,33 +164,30 @@ public abstract class MovAvgModel {
             Object value = settings.get(name);
             if (value == null) {
                 return defaultValue;
-            } else if (value instanceof Double) {
-                double v = (Double)value;
+            } else if (value instanceof Number) {
+                double v = ((Number) value).doubleValue();
                 if (v >= 0 && v <= 1) {
+                    settings.remove(name);
                     return v;
                 }
 
-                throw new SearchParseException(context, "Parameter [" + name + "] must be between 0-1 inclusive.  Provided"
-                        + "value was [" + v + "]", null);
+                throw new ParseException("Parameter [" + name + "] must be between 0-1 inclusive.  Provided"
+                        + "value was [" + v + "]", 0);
             }
 
-            throw new SearchParseException(context, "Parameter [" + name + "] must be a double, type `"
-                    + value.getClass().getSimpleName() + "` provided instead", null);
+            throw new ParseException("Parameter [" + name + "] must be a double, type `"
+                    + value.getClass().getSimpleName() + "` provided instead", 0);
         }
 
         /**
          * Extracts an integer from the settings map, otherwise throws an exception
          *
-         * @param context       Search query context
          * @param settings      Map of settings provided to this model
          * @param name          Name of parameter we are attempting to extract
          * @param defaultValue  Default value to be used if value does not exist in map
-         *
-         * @throws SearchParseException
-         *
          * @return Integer value extracted from settings map
          */
-        protected int parseIntegerParam(SearchContext context, @Nullable Map<String, Object> settings, String name, int defaultValue) {
+        protected int parseIntegerParam(@Nullable Map<String, Object> settings, String name, int defaultValue) throws ParseException {
             if (settings == null) {
                 return defaultValue;
             }
@@ -186,27 +195,24 @@ public abstract class MovAvgModel {
             Object value = settings.get(name);
             if (value == null) {
                 return defaultValue;
-            } else if (value instanceof Integer) {
-                return (Integer)value;
+            } else if (value instanceof Number) {
+                settings.remove(name);
+                return ((Number) value).intValue();
             }
 
-            throw new SearchParseException(context, "Parameter [" + name + "] must be an integer, type `"
-                    + value.getClass().getSimpleName() + "` provided instead", null);
+            throw new ParseException("Parameter [" + name + "] must be an integer, type `"
+                    + value.getClass().getSimpleName() + "` provided instead", 0);
         }
 
         /**
          * Extracts a boolean from the settings map, otherwise throws an exception
          *
-         * @param context       Search query context
          * @param settings      Map of settings provided to this model
          * @param name          Name of parameter we are attempting to extract
          * @param defaultValue  Default value to be used if value does not exist in map
-         *
-         * @throws SearchParseException
-         *
          * @return Boolean value extracted from settings map
          */
-        protected boolean parseBoolParam(SearchContext context, @Nullable Map<String, Object> settings, String name, boolean defaultValue) {
+        protected boolean parseBoolParam(@Nullable Map<String, Object> settings, String name, boolean defaultValue) throws ParseException {
             if (settings == null) {
                 return defaultValue;
             }
@@ -215,11 +221,18 @@ public abstract class MovAvgModel {
             if (value == null) {
                 return defaultValue;
             } else if (value instanceof Boolean) {
+                settings.remove(name);
                 return (Boolean)value;
             }
 
-            throw new SearchParseException(context, "Parameter [" + name + "] must be a boolean, type `"
-                    + value.getClass().getSimpleName() + "` provided instead", null);
+            throw new ParseException("Parameter [" + name + "] must be a boolean, type `"
+                    + value.getClass().getSimpleName() + "` provided instead", 0);
+        }
+
+        protected void checkUnrecognizedParams(@Nullable Map<String, Object> settings) throws ParseException {
+            if (settings != null && settings.size() > 0) {
+                throw new ParseException("Unrecognized parameter(s): [" + settings.keySet() + "]", 0);
+            }
         }
     }
 

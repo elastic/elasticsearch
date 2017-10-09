@@ -24,15 +24,16 @@ import com.carrotsearch.hppc.IntArrayList;
 
 import java.util.StringTokenizer;
 
-/**
- *
- */
 public class PortsRange {
 
     private final String portRange;
 
     public PortsRange(String portRange) {
         this.portRange = portRange;
+    }
+
+    public String getPortRangeString() {
+        return portRange;
     }
 
     public int[] ports() throws NumberFormatException {
@@ -76,7 +77,14 @@ public class PortsRange {
         return success;
     }
 
-    public static interface PortCallback {
+    public interface PortCallback {
         boolean onPortNumber(int portNumber);
+    }
+
+    @Override
+    public String toString() {
+        return "PortsRange{" +
+            "portRange='" + portRange + '\'' +
+            '}';
     }
 }

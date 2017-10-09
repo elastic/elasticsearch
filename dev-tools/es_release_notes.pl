@@ -27,21 +27,25 @@ my $Base_URL   = "https://${Github_Key}api.github.com/repos/";
 my $User_Repo  = 'elastic/elasticsearch/';
 my $Issue_URL  = "http://github.com/${User_Repo}issues/";
 
-my @Groups = qw(
-    breaking    deprecation feature
-    enhancement bug regression doc test
+my @Groups = (
+    "breaking", "breaking-java", "deprecation", "feature",
+    "enhancement", "bug", "regression", "upgrade", "non-issue", "build",
+    "docs",        "test"
 );
 my %Group_Labels = (
-    breaking    => 'Breaking changes',
-    build       => 'Build',
-    deprecation => 'Deprecations',
-    doc         => 'Docs',
-    feature     => 'New features',
-    enhancement => 'Enhancements',
-    bug         => 'Bug fixes',
-    regression  => 'Regression',
-    test        => 'Tests',
-    other       => 'Not classified',
+    breaking        => 'Breaking changes',
+    'breaking-java' => 'Breaking Java changes',
+    build           => 'Build',
+    deprecation     => 'Deprecations',
+    docs            => 'Docs',
+    feature         => 'New features',
+    enhancement     => 'Enhancements',
+    bug             => 'Bug fixes',
+    regression      => 'Regressions',
+    test            => 'Tests',
+    upgrade         => 'Upgrades',
+    "non-issue"     => 'Non-issue',
+    other           => 'NOT CLASSIFIED',
 );
 
 use JSON();
@@ -71,27 +75,27 @@ sub dump_issues {
     $month++;
     $year += 1900;
 
-    print <<"HTML";
-<html>
-<head>
-  <meta charset="UTF-8">
-</head>
-<body>
-HTML
+    print <<"ASCIIDOC";
+:issue: https://github.com/${User_Repo}issues/
+:pull:  https://github.com/${User_Repo}pull/
+
+[[release-notes-$version]]
+== $version Release Notes
+
+ASCIIDOC
 
     for my $group ( @Groups, 'other' ) {
         my $group_issues = $issues->{$group} or next;
-        print "<h2>$Group_Labels{$group}</h2>\n\n<ul>\n";
+        print "[[$group-$version]]\n"
+            . "[float]\n"
+            . "=== $Group_Labels{$group}\n\n";
 
         for my $header ( sort keys %$group_issues ) {
             my $header_issues = $group_issues->{$header};
-            my $prefix        = "<li>";
-            if ($header) {
-                print "<li>$header:<ul>";
-            }
+            print( $header || 'HEADER MISSING', "::\n" );
+
             for my $issue (@$header_issues) {
                 my $title = $issue->{title};
-                $title =~ s{`([^`]+)`}{<code>$1</code>}g;
 
                 if ( $issue->{state} eq 'open' ) {
                     $title .= " [OPEN]";
@@ -101,30 +105,23 @@ HTML
                 }
                 my $number = $issue->{number};
 
-                print encode_utf8( $prefix
-                        . $title
-                        . qq[ <a href="${Issue_URL}${number}">#${number}</a>] );
+                print encode_utf8("* $title {pull}${number}[#${number}]");
 
                 if ( my $related = $issue->{related_issues} ) {
                     my %uniq = map { $_ => 1 } @$related;
                     print keys %uniq > 1
                         ? " (issues: "
                         : " (issue: ";
-                    print join ", ",
-                        map {qq[<a href="${Issue_URL}${_}">#${_}</a>]}
+                    print join ", ", map {"{issue}${_}[#${_}]"}
                         sort keys %uniq;
                     print ")";
                 }
-                print "</li>\n";
+                print "\n";
             }
-            if ($header) {
-                print "</ul></li>\n";
-            }
+            print "\n";
         }
-        print "</ul>";
         print "\n\n";
     }
-    print "</body></html>\n";
 }
 
 #===================================
@@ -163,8 +160,11 @@ sub fetch_issues {
 ISSUE:
     for my $issue (@issues) {
         next if $seen{ $issue->{number} } && !$issue->{pull_request};
+
+        # uncomment for including/excluding PRs already issued in other versions
+        # next if grep {$_->{name}=~/^v2/} @{$issue->{labels}};
         my %labels = map { $_->{name} => 1 } @{ $issue->{labels} };
-        my ($header) = map { substr( $_, 1 ) } grep {/^:/} keys %labels;
+        my ($header) = map { substr( $_, 1 ) } grep {/^:/} sort keys %labels;
         $header ||= 'NOT CLASSIFIED';
         for (@Groups) {
             if ( $labels{$_} ) {

@@ -19,8 +19,10 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
+import org.apache.lucene.analysis.bn.BengaliAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
 import org.apache.lucene.analysis.ca.CatalanAnalyzer;
 import org.apache.lucene.analysis.cjk.CJKAnalyzer;
@@ -46,6 +48,7 @@ import org.apache.lucene.analysis.hu.HungarianAnalyzer;
 import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
 import org.apache.lucene.analysis.id.IndonesianAnalyzer;
 import org.apache.lucene.analysis.it.ItalianAnalyzer;
+import org.apache.lucene.analysis.lt.LithuanianAnalyzer;
 import org.apache.lucene.analysis.lv.LatvianAnalyzer;
 import org.apache.lucene.analysis.nl.DutchAnalyzer;
 import org.apache.lucene.analysis.no.NorwegianAnalyzer;
@@ -57,32 +60,23 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.PatternAnalyzer;
-import org.elasticsearch.index.analysis.StandardHtmlStripAnalyzer;
 import org.elasticsearch.index.analysis.SnowballAnalyzer;
+import org.elasticsearch.index.analysis.StandardHtmlStripAnalyzer;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.util.Locale;
 
-/**
- *
- */
 public enum PreBuiltAnalyzers {
 
-    STANDARD(CachingStrategy.ELASTICSEARCH) { // we don't do stopwords anymore from 1.0Beta on
+    STANDARD(CachingStrategy.ELASTICSEARCH) {
         @Override
         protected Analyzer create(Version version) {
-            final Analyzer a;
-            if (version.onOrAfter(Version.V_1_0_0_Beta1)) {
-                a = new StandardAnalyzer(CharArraySet.EMPTY_SET);
-            } else {
-                a = new StandardAnalyzer();
-            }
+            final Analyzer a = new StandardAnalyzer(CharArraySet.EMPTY_SET);
             a.setVersion(version.luceneVersion);
-            return a;        
+            return a;
         }
     },
 
@@ -150,22 +144,14 @@ public enum PreBuiltAnalyzers {
     PATTERN(CachingStrategy.ELASTICSEARCH) {
         @Override
         protected Analyzer create(Version version) {
-            if (version.onOrAfter(Version.V_1_0_0_RC1)) {
-                return new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET);
-            }
-            return new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+            return new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET);
         }
     },
 
     STANDARD_HTML_STRIP(CachingStrategy.ELASTICSEARCH) {
         @Override
         protected Analyzer create(Version version) {
-            final Analyzer analyzer;
-            if (version.onOrAfter(Version.V_1_0_0_RC1)) {
-                analyzer = new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET);
-            } else {
-                analyzer = new StandardHtmlStripAnalyzer();
-            }
+            final Analyzer analyzer = new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET);
             analyzer.setVersion(version.luceneVersion);
             return analyzer;
         }
@@ -193,6 +179,15 @@ public enum PreBuiltAnalyzers {
         @Override
         protected Analyzer create(Version version) {
             Analyzer a = new BasqueAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }
+    },
+
+    BENGALI {
+        @Override
+        protected Analyzer create(Version version) {
+            Analyzer a = new BengaliAnalyzer();
             a.setVersion(version.luceneVersion);
             return a;
         }
@@ -378,6 +373,15 @@ public enum PreBuiltAnalyzers {
         }
     },
 
+    LITHUANIAN {
+        @Override
+        protected Analyzer create(Version version) {
+            Analyzer a = new LithuanianAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }
+    },
+
     NORWEGIAN {
         @Override
         protected Analyzer create(Version version) {
@@ -422,7 +426,7 @@ public enum PreBuiltAnalyzers {
             return a;
         }
     },
-    
+
     SORANI {
         @Override
         protected Analyzer create(Version version) {
@@ -468,7 +472,7 @@ public enum PreBuiltAnalyzers {
         }
     };
 
-    abstract protected Analyzer create(Version version);
+    protected abstract  Analyzer create(Version version);
 
     protected final PreBuiltCacheFactory.PreBuiltCache<Analyzer> cache;
 

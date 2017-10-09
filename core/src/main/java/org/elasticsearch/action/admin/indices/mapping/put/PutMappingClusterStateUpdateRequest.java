@@ -30,7 +30,9 @@ public class PutMappingClusterStateUpdateRequest extends IndicesClusterStateUpda
 
     private String source;
 
-    PutMappingClusterStateUpdateRequest() {
+    private boolean updateAllTypes = false;
+
+    public PutMappingClusterStateUpdateRequest() {
 
     }
 
@@ -49,6 +51,15 @@ public class PutMappingClusterStateUpdateRequest extends IndicesClusterStateUpda
 
     public PutMappingClusterStateUpdateRequest source(String source) {
         this.source = source;
+        return this;
+    }
+
+    public boolean updateAllTypes() {
+        return updateAllTypes;
+    }
+
+    public PutMappingClusterStateUpdateRequest updateAllTypes(boolean updateAllTypes) {
+        this.updateAllTypes = updateAllTypes;
         return this;
     }
 }

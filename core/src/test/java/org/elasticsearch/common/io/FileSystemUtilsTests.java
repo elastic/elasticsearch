@@ -19,33 +19,31 @@
 
 package org.elasticsearch.common.io;
 
-import com.google.common.base.Charsets;
-
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
-import org.junit.Assert;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
+import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.channels.ByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.is;
+import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 
 /**
  * Unit tests for {@link org.elasticsearch.common.io.FileSystemUtils}.
  */
 @SuppressFileSystems("WindowsFS") // tries to move away open file handles
-public class FileSystemUtilsTests extends ElasticsearchTestCase {
+public class FileSystemUtilsTests extends ESTestCase {
 
     private Path src;
     private Path dst;
+    private Path txtFile;
+    private byte[] expectedBytes;
 
     @Before
     public void copySourceFilesToTarget() throws IOException, URISyntaxException {
@@ -53,116 +51,17 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
         dst = createTempDir();
         Files.createDirectories(src);
         Files.createDirectories(dst);
+        txtFile = src.resolve("text-file.txt");
 
-        // We first copy sources test files from src/test/resources
-        // Because after when the test runs, src files are moved to their destination
-        final Path path = getDataPath("/org/elasticsearch/common/io/copyappend");
-        FileSystemUtils.copyDirectoryRecursively(path, src);
-    }
-
-    @Test
-    public void testMoveOverExistingFileAndAppend() throws IOException {
-
-        FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v1"), dst, ".new");
-        assertFileContent(dst, "file1.txt", "version1");
-        assertFileContent(dst, "dir/file2.txt", "version1");
-
-        FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v2"), dst, ".new");
-        assertFileContent(dst, "file1.txt", "version1");
-        assertFileContent(dst, "dir/file2.txt", "version1");
-        assertFileContent(dst, "file1.txt.new", "version2");
-        assertFileContent(dst, "dir/file2.txt.new", "version2");
-        assertFileContent(dst, "file3.txt", "version1");
-        assertFileContent(dst, "dir/subdir/file4.txt", "version1");
-
-        FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v3"), dst, ".new");
-        assertFileContent(dst, "file1.txt", "version1");
-        assertFileContent(dst, "dir/file2.txt", "version1");
-        assertFileContent(dst, "file1.txt.new", "version3");
-        assertFileContent(dst, "dir/file2.txt.new", "version3");
-        assertFileContent(dst, "file3.txt", "version1");
-        assertFileContent(dst, "dir/subdir/file4.txt", "version1");
-        assertFileContent(dst, "file3.txt.new", "version2");
-        assertFileContent(dst, "dir/subdir/file4.txt.new", "version2");
-        assertFileContent(dst, "dir/subdir/file5.txt", "version1");
-    }
-
-    @Test
-    public void testMoveOverExistingFileAndIgnore() throws IOException {
-        Path dest = createTempDir();
-
-        FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v1"), dest, null);
-        assertFileContent(dest, "file1.txt", "version1");
-        assertFileContent(dest, "dir/file2.txt", "version1");
-
-        FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v2"), dest, null);
-        assertFileContent(dest, "file1.txt", "version1");
-        assertFileContent(dest, "dir/file2.txt", "version1");
-        assertFileContent(dest, "file1.txt.new", null);
-        assertFileContent(dest, "dir/file2.txt.new", null);
-        assertFileContent(dest, "file3.txt", "version1");
-        assertFileContent(dest, "dir/subdir/file4.txt", "version1");
-
-        FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v3"), dest, null);
-        assertFileContent(dest, "file1.txt", "version1");
-        assertFileContent(dest, "dir/file2.txt", "version1");
-        assertFileContent(dest, "file1.txt.new", null);
-        assertFileContent(dest, "dir/file2.txt.new", null);
-        assertFileContent(dest, "file3.txt", "version1");
-        assertFileContent(dest, "dir/subdir/file4.txt", "version1");
-        assertFileContent(dest, "file3.txt.new", null);
-        assertFileContent(dest, "dir/subdir/file4.txt.new", null);
-        assertFileContent(dest, "dir/subdir/file5.txt", "version1");
-    }
-
-    @Test
-    public void testMoveFilesDoesNotCreateSameFileWithSuffix() throws Exception {
-        Path[] dirs = new Path[] { createTempDir(), createTempDir(), createTempDir()};
-        for (Path dir : dirs) {
-            Files.write(dir.resolve("file1.txt"), "file1".getBytes(Charsets.UTF_8));
-            Files.createDirectory(dir.resolve("dir"));
-            Files.write(dir.resolve("dir").resolve("file2.txt"), "file2".getBytes(Charsets.UTF_8));
-        }
-
-        FileSystemUtils.moveFilesWithoutOverwriting(dirs[0], dst, ".new");
-        assertFileContent(dst, "file1.txt", "file1");
-        assertFileContent(dst, "dir/file2.txt", "file2");
-
-        // do the same operation again, make sure, no .new files have been added
-        FileSystemUtils.moveFilesWithoutOverwriting(dirs[1], dst, ".new");
-        assertFileContent(dst, "file1.txt", "file1");
-        assertFileContent(dst, "dir/file2.txt", "file2");
-        assertFileNotExists(dst.resolve("file1.txt.new"));
-        assertFileNotExists(dst.resolve("dir").resolve("file2.txt.new"));
-
-        // change file content, make sure it gets updated
-        Files.write(dirs[2].resolve("dir").resolve("file2.txt"), "UPDATED".getBytes(Charsets.UTF_8));
-        FileSystemUtils.moveFilesWithoutOverwriting(dirs[2], dst, ".new");
-        assertFileContent(dst, "file1.txt", "file1");
-        assertFileContent(dst, "dir/file2.txt", "file2");
-        assertFileContent(dst, "dir/file2.txt.new", "UPDATED");
-    }
-
-    /**
-     * Check that a file contains a given String
-     * @param dir root dir for file
-     * @param filename relative path from root dir to file
-     * @param expected expected content (if null, we don't expect any file)
-     */
-    public static void assertFileContent(Path dir, String filename, String expected) throws IOException {
-        Assert.assertThat(Files.exists(dir), is(true));
-        Path file = dir.resolve(filename);
-        if (expected == null) {
-            Assert.assertThat("file [" + file + "] should not exist.", Files.exists(file), is(false));
-        } else {
-            assertFileExists(file);
-            String fileContent = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
-            // trim the string content to prevent different handling on windows vs. unix and CR chars...
-            Assert.assertThat(fileContent.trim(), equalTo(expected.trim()));
+        try (ByteChannel byteChannel = Files.newByteChannel(txtFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            expectedBytes = new byte[3];
+            expectedBytes[0] = randomByte();
+            expectedBytes[1] = randomByte();
+            expectedBytes[2] = randomByte();
+            byteChannel.write(ByteBuffer.wrap(expectedBytes));
         }
     }
 
-    @Test
     public void testAppend() {
         assertEquals(FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 0),
             PathUtils.get("/foo/bar/hello/world/this_is/awesome"));
@@ -172,5 +71,70 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
         assertEquals(FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 1),
                 PathUtils.get("/foo/bar/world/this_is/awesome"));
+    }
+
+    public void testIsHidden() {
+        for (String p : Arrays.asList(
+                "/",
+                "foo",
+                "/foo",
+                "foo.bar",
+                "/foo.bar",
+                "foo/bar",
+                "foo/./bar",
+                "foo/../bar",
+                "/foo/./bar",
+                "/foo/../bar"
+                )) {
+            Path path = PathUtils.get(p);
+            assertFalse(FileSystemUtils.isHidden(path));
+        }
+        for (String p : Arrays.asList(
+                ".hidden",
+                ".hidden.ext",
+                "/.hidden",
+                "/.hidden.ext",
+                "foo/.hidden",
+                "foo/.hidden.ext",
+                "/foo/.hidden",
+                "/foo/.hidden.ext",
+                ".",
+                "..",
+                "foo/.",
+                "foo/.."
+                )) {
+            Path path = PathUtils.get(p);
+            assertTrue(FileSystemUtils.isHidden(path));
+        }
+    }
+
+    public void testOpenFileURLStream() throws IOException {
+        URL urlWithWrongProtocol = new URL("http://www.google.com");
+        try (InputStream is = FileSystemUtils.openFileURLStream(urlWithWrongProtocol)) {
+            fail("Should throw IllegalArgumentException due to invalid protocol");
+        } catch (IllegalArgumentException e) {
+            assertEquals("Invalid protocol [http], must be [file] or [jar]", e.getMessage());
+        }
+
+        URL urlWithHost = new URL("file", "localhost", txtFile.toString());
+        try (InputStream is = FileSystemUtils.openFileURLStream(urlWithHost)) {
+            fail("Should throw IllegalArgumentException due to host");
+        } catch (IllegalArgumentException e) {
+            assertEquals("URL cannot have host. Found: [localhost]", e.getMessage());
+        }
+
+        URL urlWithPort = new URL("file", "", 80, txtFile.toString());
+        try (InputStream is = FileSystemUtils.openFileURLStream(urlWithPort)) {
+            fail("Should throw IllegalArgumentException due to port");
+        } catch (IllegalArgumentException e) {
+            assertEquals("URL cannot have port. Found: [80]", e.getMessage());
+        }
+
+        URL validUrl = txtFile.toUri().toURL();
+        try (InputStream is = FileSystemUtils.openFileURLStream(validUrl)) {
+            byte[] actualBytes = new byte[3];
+            is.read(actualBytes);
+            assertArrayEquals(expectedBytes, actualBytes);
+        }
     }
 }

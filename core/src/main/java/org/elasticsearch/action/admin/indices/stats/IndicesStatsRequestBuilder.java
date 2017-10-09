@@ -24,11 +24,11 @@ import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.
- * <p/>
- * <p>By default, the {@link #setDocs(boolean)}, {@link #setStore(boolean)}, {@link #setIndexing(boolean)}
+ * <p>
+ * By default, the {@link #setDocs(boolean)}, {@link #setStore(boolean)}, {@link #setIndexing(boolean)}
  * are enabled. Other stats can be enabled as well.
- * <p/>
- * <p>All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
+ * <p>
+ * All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
  * stats can be enabled.
  */
 public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder> {
@@ -112,8 +112,8 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
-    public IndicesStatsRequestBuilder setFilterCache(boolean filterCache) {
-        request.filterCache(filterCache);
+    public IndicesStatsRequestBuilder setQueryCache(boolean queryCache) {
+        request.queryCache(queryCache);
         return this;
     }
 
@@ -124,11 +124,6 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
 
     public IndicesStatsRequestBuilder setFieldDataFields(String... fields) {
         request.fieldDataFields(fields);
-        return this;
-    }
-
-    public IndicesStatsRequestBuilder setPercolate(boolean percolate) {
-        request.percolate(percolate);
         return this;
     }
 
@@ -152,18 +147,18 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
-    public IndicesStatsRequestBuilder setSuggest(boolean suggest) {
-        request.suggest(suggest);
-        return this;
-    }
-
-    public IndicesStatsRequestBuilder setQueryCache(boolean queryCache) {
-        request.queryCache(queryCache);
+    public IndicesStatsRequestBuilder setRequestCache(boolean requestCache) {
+        request.requestCache(requestCache);
         return this;
     }
 
     public IndicesStatsRequestBuilder setRecovery(boolean recovery) {
         request.recovery(recovery);
+        return this;
+    }
+
+    public IndicesStatsRequestBuilder setIncludeSegmentFileSizes(boolean includeSegmentFileSizes) {
+        request.includeSegmentFileSizes(includeSegmentFileSizes);
         return this;
     }
 }

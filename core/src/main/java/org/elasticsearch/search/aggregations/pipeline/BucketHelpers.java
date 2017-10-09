@@ -20,17 +20,16 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativeParser;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,17 +51,17 @@ public class BucketHelpers {
      * "insert_zeros": empty buckets will be filled with zeros for all metrics
      * "ignore": empty buckets will simply be ignored
      */
-    public static enum GapPolicy {
+    public enum GapPolicy {
         INSERT_ZEROS((byte) 0, "insert_zeros"), SKIP((byte) 1, "skip");
 
         /**
          * Parse a string GapPolicy into the byte enum
          *
-         * @param context SearchContext this is taking place in
-         * @param text    GapPolicy in string format (e.g. "ignore")
-         * @return        GapPolicy enum
+         * @param text
+         *            GapPolicy in string format (e.g. "ignore")
+         * @return GapPolicy enum
          */
-        public static GapPolicy parse(SearchContext context, String text, XContentLocation tokenLocation) {
+        public static GapPolicy parse(String text, XContentLocation tokenLocation) {
             GapPolicy result = null;
             for (GapPolicy policy : values()) {
                 if (policy.parseField.match(text)) {
@@ -79,7 +78,7 @@ public class BucketHelpers {
                 for (GapPolicy policy : values()) {
                     validNames.add(policy.getName());
                 }
-                throw new SearchParseException(context, "Invalid gap policy: [" + text + "], accepted values: " + validNames, tokenLocation);
+                throw new ParsingException(tokenLocation, "Invalid gap policy: [" + text + "], accepted values: " + validNames);
             }
             return result;
         }
@@ -87,16 +86,13 @@ public class BucketHelpers {
         private final byte id;
         private final ParseField parseField;
 
-        private GapPolicy(byte id, String name) {
+        GapPolicy(byte id, String name) {
             this.id = id;
             this.parseField = new ParseField(name);
         }
 
         /**
          * Serialize the GapPolicy to the output stream
-         *
-         * @param out
-         * @throws IOException
          */
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(id);
@@ -105,9 +101,7 @@ public class BucketHelpers {
         /**
          * Deserialize the GapPolicy from the input stream
          *
-         * @param in
          * @return    GapPolicy Enum
-         * @throws IOException
          */
         public static GapPolicy readFrom(StreamInput in) throws IOException {
             byte id = in.readByte();
@@ -136,7 +130,7 @@ public class BucketHelpers {
      * bucket). If the bucket is empty, the configured GapPolicy is invoked to
      * resolve the missing bucket
      *
-     * @param histo
+     * @param agg
      *            A series of agg buckets in the form of a histogram
      * @param bucket
      *            A specific bucket that a value needs to be extracted from.
@@ -151,18 +145,18 @@ public class BucketHelpers {
      * @return The value extracted from <code>bucket</code> found at
      *         <code>aggPath</code>
      */
-    public static Double resolveBucketValue(InternalMultiBucketAggregation<?, ? extends InternalMultiBucketAggregation.Bucket> agg,
-            InternalMultiBucketAggregation.Bucket bucket, String aggPath, GapPolicy gapPolicy) {
+    public static Double resolveBucketValue(MultiBucketsAggregation agg,
+            InternalMultiBucketAggregation.InternalBucket bucket, String aggPath, GapPolicy gapPolicy) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         return resolveBucketValue(agg, bucket, aggPathsList, gapPolicy);
     }
 
-    public static Double resolveBucketValue(InternalMultiBucketAggregation<?, ? extends InternalMultiBucketAggregation.Bucket> agg,
-            InternalMultiBucketAggregation.Bucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
+    public static Double resolveBucketValue(MultiBucketsAggregation agg,
+            InternalMultiBucketAggregation.InternalBucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
         try {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
             if (propertyValue == null) {
-                throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
+                throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                         + " must reference either a number value or a single value numeric metric aggregation");
             } else {
                 double value;
@@ -171,8 +165,9 @@ public class BucketHelpers {
                 } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
                     value = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
                 } else {
-                    throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
-                            + " must reference either a number value or a single value numeric metric aggregation");
+                    throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                            + " must reference either a number value or a single value numeric metric aggregation, got: "
+                            + propertyValue.getClass().getCanonicalName());
                 }
                 // doc count never has missing values so gap policy doesn't apply here
                 boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));

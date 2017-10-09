@@ -1,0 +1,100 @@
+[[disk-allocator]]
+=== Disk-based Shard Allocation
+
+Elasticsearch factors in the available disk space on a node before deciding
+whether to allocate new shards to that node or to actively relocate shards
+away from that node.
+
+Below are the settings that can be configured in the `elasticsearch.yml` config
+file or updated dynamically on a live cluster with the
+<<cluster-update-settings,cluster-update-settings>> API:
+
+`cluster.routing.allocation.disk.threshold_enabled`::
+
+    Defaults to `true`.  Set to `false` to disable the disk allocation decider.
+
+`cluster.routing.allocation.disk.watermark.low`::
+
+    Controls the low watermark for disk usage. It defaults to 85%, meaning ES will
+    not allocate new shards to nodes once they have more than 85% disk used. It
+    can also be set to an absolute byte value (like 500mb) to prevent ES from
+    allocating shards if less than the configured amount of space is available.
+
+`cluster.routing.allocation.disk.watermark.high`::
+
+    Controls the high watermark. It defaults to 90%, meaning ES will attempt to
+    relocate shards to another node if the node disk usage rises above 90%. It can
+    also be set to an absolute byte value (similar to the low watermark) to
+    relocate shards once less than the configured amount of space is available on
+    the node.
+
+`cluster.routing.allocation.disk.watermark.flood_stage`::
++
+--
+Controls the flood stage watermark. It defaults to 95%, meaning ES enforces
+a read-only index block (`index.blocks.read_only_allow_delete`) on every
+index that has one or more shards allocated on the node that has at least
+one disk exceeding the flood stage.  This is a last resort to prevent nodes
+from running out of disk space.  The index block must be released manually
+once there is enough disk space available to allow indexing operations to
+continue.
+
+NOTE: You can not mix the usage of percentage values and byte values within
+these settings. Either all are set to percentage values, or all are set to byte
+values. This is so that we can we validate that the settings are internally
+consistent (that is, the low disk threshold is not more than the high disk
+threshold, and the high disk threshold is not more than the flood stage
+threshold).
+
+An example of resetting the read-only index block on the `twitter` index:
+
+[source,js]
+--------------------------------------------------
+PUT /twitter/_settings
+{
+  "index.blocks.read_only_allow_delete": null
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+--
+
+`cluster.info.update.interval`::
+
+    How often Elasticsearch should check on disk usage for each node in the
+    cluster. Defaults to `30s`.
+
+`cluster.routing.allocation.disk.include_relocations`::
+
+    Defaults to +true+, which means that Elasticsearch will take into account
+    shards that are currently being relocated to the target node when computing a
+    node's disk usage. Taking relocating shards' sizes into account may, however,
+    mean that the disk usage for a node is incorrectly estimated on the high side,
+    since the relocation could be 90% complete and a recently retrieved disk usage
+    would include the total size of the relocating shard as well as the space
+    already used by the running relocation.
+
+
+NOTE: Percentage values refer to used disk space, while byte values refer to
+free disk space. This can be confusing, since it flips the meaning of high and
+low. For example, it makes sense to set the low watermark to 10gb and the high
+watermark to 5gb, but not the other way around.
+
+An example of updating the low watermark to at least 100 gigabytes free, a high
+watermark of at least 50 gigabytes free, and a flood stage watermark of 10
+gigabytes free, and updating the information about the cluster every minute:
+
+[source,js]
+--------------------------------------------------
+PUT _cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.disk.watermark.low": "100gb",
+    "cluster.routing.allocation.disk.watermark.high": "50gb",
+    "cluster.routing.allocation.disk.watermark.flood_stage": "10gb",
+    "cluster.info.update.interval": "1m"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+

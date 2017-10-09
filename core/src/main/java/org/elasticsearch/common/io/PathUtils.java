@@ -43,8 +43,8 @@ public final class PathUtils {
     /** the actual JDK default */
     static final FileSystem ACTUAL_DEFAULT = FileSystems.getDefault();
     
-    /** can be changed by tests (via reflection) */
-    private static volatile FileSystem DEFAULT = ACTUAL_DEFAULT;
+    /** can be changed by tests */
+    static volatile FileSystem DEFAULT = ACTUAL_DEFAULT;
     
     /** 
      * Returns a {@code Path} from name components.
@@ -90,6 +90,15 @@ public final class PathUtils {
             }
         }
         return null;
+    }
+
+    /**
+     * Tries to resolve the given file uri against the list of available roots.
+     *
+     * If uri starts with one of the listed roots, it returned back by this method, otherwise null is returned.
+     */
+    public static Path get(Path[] roots, URI uri) {
+        return get(roots, PathUtils.get(uri).normalize().toString());
     }
 
     /**

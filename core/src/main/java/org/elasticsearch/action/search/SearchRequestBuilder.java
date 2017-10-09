@@ -19,37 +19,32 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.Template;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
-import org.elasticsearch.search.highlight.HighlightBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
-import java.util.Map;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * A search action request builder.
  */
 public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, SearchRequestBuilder> {
-
-    private SearchSourceBuilder sourceBuilder;
 
     public SearchRequestBuilder(ElasticsearchClient client, SearchAction action) {
         super(client, action, new SearchRequest());
@@ -123,14 +118,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * An optional timeout to control how long search is allowed to take.
-     */
-    public SearchRequestBuilder setTimeout(String timeout) {
-        sourceBuilder().timeout(timeout);
-        return this;
-    }
-
-    /**
      * An optional document count, upon collecting which the search
      * query will early terminate
      */
@@ -157,8 +144,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
-     * a custom value, which guarantees that the same order will be used across different requests.
+     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * will be used across different requests.
      */
     public SearchRequestBuilder setPreference(String preference) {
         request.preference(preference);
@@ -167,7 +154,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     * <p/>
+     * <p>
      * For example indices that don't exist.
      */
     public SearchRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
@@ -186,112 +173,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Constructs a new search source builder with a raw search query.
-     */
-    public SearchRequestBuilder setQuery(String query) {
-        sourceBuilder().query(query);
-        return this;
-    }
-
-    /**
-     * Constructs a new search source builder with a raw search query.
-     */
-    public SearchRequestBuilder setQuery(BytesReference queryBinary) {
-        sourceBuilder().query(queryBinary);
-        return this;
-    }
-
-    /**
-     * Constructs a new search source builder with a raw search query.
-     */
-    public SearchRequestBuilder setQuery(byte[] queryBinary) {
-        sourceBuilder().query(queryBinary);
-        return this;
-    }
-
-    /**
-     * Constructs a new search source builder with a raw search query.
-     */
-    public SearchRequestBuilder setQuery(byte[] queryBinary, int queryBinaryOffset, int queryBinaryLength) {
-        sourceBuilder().query(queryBinary, queryBinaryOffset, queryBinaryLength);
-        return this;
-    }
-
-    /**
-     * Constructs a new search source builder with a raw search query.
-     */
-    public SearchRequestBuilder setQuery(XContentBuilder query) {
-        sourceBuilder().query(query);
-        return this;
-    }
-
-    /**
-     * Constructs a new search source builder with a raw search query.
-     */
-    public SearchRequestBuilder setQuery(Map query) {
-        sourceBuilder().query(query);
-        return this;
-    }
-
-    /**
      * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
      * (not aggregations). This filter is always executed as last filtering mechanism.
      */
     public SearchRequestBuilder setPostFilter(QueryBuilder postFilter) {
-        sourceBuilder().postFilter(postFilter);
-        return this;
-    }
-
-    /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not aggs for example).
-     */
-    public SearchRequestBuilder setPostFilter(String postFilter) {
-        sourceBuilder().postFilter(postFilter);
-        return this;
-    }
-
-    /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not aggs for example).
-     */
-    public SearchRequestBuilder setPostFilter(BytesReference postFilter) {
-        sourceBuilder().postFilter(postFilter);
-        return this;
-    }
-
-    /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not aggs for example).
-     */
-    public SearchRequestBuilder setPostFilter(byte[] postFilter) {
-        sourceBuilder().postFilter(postFilter);
-        return this;
-    }
-
-    /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not aggs for example).
-     */
-    public SearchRequestBuilder setPostFilter(byte[] postFilter, int postFilterOffset, int postFilterLength) {
-        sourceBuilder().postFilter(postFilter, postFilterOffset, postFilterLength);
-        return this;
-    }
-
-    /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not aggs for example).
-     */
-    public SearchRequestBuilder setPostFilter(XContentBuilder postFilter) {
-        sourceBuilder().postFilter(postFilter);
-        return this;
-    }
-
-    /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not aggs for example).
-     */
-    public SearchRequestBuilder setPostFilter(Map postFilter) {
         sourceBuilder().postFilter(postFilter);
         return this;
     }
@@ -339,7 +224,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets the boost a specific index will receive when the query is executeed against it.
+     * Sets the boost a specific index will receive when the query is executed against it.
      *
      * @param index      The index to apply the boost against
      * @param indexBoost The boost to apply to the index
@@ -353,15 +238,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * The stats groups this request will be aggregated under.
      */
     public SearchRequestBuilder setStats(String... statsGroups) {
-        sourceBuilder().stats(statsGroups);
+        sourceBuilder().stats(Arrays.asList(statsGroups));
         return this;
     }
 
     /**
-     * Sets no fields to be loaded, resulting in only id and type to be returned per field.
+     * The stats groups this request will be aggregated under.
      */
-    public SearchRequestBuilder setNoFields() {
-        sourceBuilder().noFields();
+    public SearchRequestBuilder setStats(List<String> statsGroups) {
+        sourceBuilder().stats(statsGroups);
         return this;
     }
 
@@ -397,24 +282,22 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-
     /**
-     * Adds a field to load and return (note, it must be stored) as part of the search request.
-     * If none are specified, the source of the document will be return.
+     * Adds a docvalue based field to load and return. The field does not have to be stored,
+     * but its recommended to use non analyzed or numeric fields.
+     *
+     * @param name The field to get from the docvalue
      */
-    public SearchRequestBuilder addField(String field) {
-        sourceBuilder().field(field);
+    public SearchRequestBuilder addDocValueField(String name) {
+        sourceBuilder().docValueField(name);
         return this;
     }
 
     /**
-     * Adds a field data based field to load and return. The field does not have to be stored,
-     * but its recommended to use non analyzed or numeric fields.
-     *
-     * @param name The field to get from the field data cache
+     * Adds a stored field to load and return (note, it must be stored) as part of the search request.
      */
-    public SearchRequestBuilder addFieldDataField(String name) {
-        sourceBuilder().fieldDataField(name);
+    public SearchRequestBuilder addStoredField(String field) {
+        sourceBuilder().storedField(field);
         return this;
     }
 
@@ -427,60 +310,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder addScriptField(String name, Script script) {
         sourceBuilder().scriptField(name, script);
-        return this;
-    }
-
-    /**
-     * Adds a script based field to load and return. The field does not have to
-     * be stored, but its recommended to use non analyzed or numeric fields.
-     *
-     * @param name
-     *            The name that will represent this value in the return hit
-     * @param script
-     *            The script to use
-     * @deprecated Use {@link #addScriptField(String, Script)} instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder addScriptField(String name, String script) {
-        sourceBuilder().scriptField(name, script);
-        return this;
-    }
-
-    /**
-     * Adds a script based field to load and return. The field does not have to
-     * be stored, but its recommended to use non analyzed or numeric fields.
-     *
-     * @param name
-     *            The name that will represent this value in the return hit
-     * @param script
-     *            The script to use
-     * @param params
-     *            Parameters that the script can use.
-     * @deprecated Use {@link #addScriptField(String, Script)} instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder addScriptField(String name, String script, Map<String, Object> params) {
-        sourceBuilder().scriptField(name, script, params);
-        return this;
-    }
-
-    /**
-     * Adds a script based field to load and return. The field does not have to
-     * be stored, but its recommended to use non analyzed or numeric fields.
-     *
-     * @param name
-     *            The name that will represent this value in the return hit
-     * @param lang
-     *            The language of the script
-     * @param script
-     *            The script to use
-     * @param params
-     *            Parameters that the script can use (can be <tt>null</tt>).
-     * @deprecated Use {@link #addScriptField(String, Script)} instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder addScriptField(String name, String lang, String script, Map<String, Object> params) {
-        sourceBuilder().scriptField(name, lang, script, params);
         return this;
     }
 
@@ -506,8 +335,21 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Applies when sorting, and controls if scores will be tracked as well. Defaults to
-     * <tt>false</tt>.
+     * Set the sort values that indicates which docs this request should "search after".
+     *
+     */
+    public SearchRequestBuilder searchAfter(Object[] values) {
+        sourceBuilder().searchAfter(values);
+        return this;
+    }
+
+    public SearchRequestBuilder slice(SliceBuilder builder) {
+        sourceBuilder().slice(builder);
+        return this;
+    }
+
+    /**
+     * Applies when sorting, and controls if scores will be tracked as well. Defaults to <tt>false</tt>.
      */
     public SearchRequestBuilder setTrackScores(boolean trackScores) {
         sourceBuilder().trackScores(trackScores);
@@ -515,304 +357,85 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Adds the fields to load and return as part of the search request. If none are specified,
-     * the source of the document will be returned.
+     * Indicates if the total hit count for the query should be tracked. Defaults to <tt>true</tt>
      */
-    public SearchRequestBuilder addFields(String... fields) {
-        sourceBuilder().fields(fields);
+    public SearchRequestBuilder setTrackTotalHits(boolean trackTotalHits) {
+        sourceBuilder().trackTotalHits(trackTotalHits);
         return this;
     }
 
     /**
-     * Adds an get to the search operation.
+     * Adds stored fields to load and return (note, it must be stored) as part of the search request.
+     * To disable the stored fields entirely (source and metadata fields) use {@code storedField("_none_")}.
+     * @deprecated Use {@link SearchRequestBuilder#storedFields(String...)} instead.
      */
-    public SearchRequestBuilder addAggregation(AbstractAggregationBuilder aggregation) {
+    @Deprecated
+    public SearchRequestBuilder fields(String... fields) {
+        sourceBuilder().storedFields(Arrays.asList(fields));
+        return this;
+    }
+
+    /**
+     * Adds stored fields to load and return (note, it must be stored) as part of the search request.
+     * To disable the stored fields entirely (source and metadata fields) use {@code storedField("_none_")}.
+     */
+    public SearchRequestBuilder storedFields(String... fields) {
+        sourceBuilder().storedFields(Arrays.asList(fields));
+        return this;
+    }
+
+    /**
+     * Adds an aggregation to the search operation.
+     */
+    public SearchRequestBuilder addAggregation(AggregationBuilder aggregation) {
         sourceBuilder().aggregation(aggregation);
         return this;
     }
 
     /**
-     * Sets a raw (xcontent) binary representation of addAggregation to use.
+     * Adds an aggregation to the search operation.
      */
-    public SearchRequestBuilder setAggregations(BytesReference aggregations) {
-        sourceBuilder().aggregations(aggregations);
+    public SearchRequestBuilder addAggregation(PipelineAggregationBuilder aggregation) {
+        sourceBuilder().aggregation(aggregation);
+        return this;
+    }
+
+    public SearchRequestBuilder highlighter(HighlightBuilder highlightBuilder) {
+        sourceBuilder().highlighter(highlightBuilder);
         return this;
     }
 
     /**
-     * Sets a raw (xcontent) binary representation of addAggregation to use.
+     * Delegates to {@link SearchSourceBuilder#suggest(SuggestBuilder)}
      */
-    public SearchRequestBuilder setAggregations(byte[] aggregations) {
-        sourceBuilder().aggregations(aggregations);
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent) binary representation of addAggregation to use.
-     */
-    public SearchRequestBuilder setAggregations(byte[] aggregations, int aggregationsOffset, int aggregationsLength) {
-        sourceBuilder().aggregations(aggregations, aggregationsOffset, aggregationsLength);
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent) binary representation of addAggregation to use.
-     */
-    public SearchRequestBuilder setAggregations(XContentBuilder aggregations) {
-        sourceBuilder().aggregations(aggregations);
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent) binary representation of addAggregation to use.
-     */
-    public SearchRequestBuilder setAggregations(Map aggregations) {
-        sourceBuilder().aggregations(aggregations);
-        return this;
-    }
-
-    /**
-     * Adds a field to be highlighted with default fragment size of 100 characters, and
-     * default number of fragments of 5.
-     *
-     * @param name The field to highlight
-     */
-    public SearchRequestBuilder addHighlightedField(String name) {
-        highlightBuilder().field(name);
-        return this;
-    }
-
-
-    /**
-     * Adds a field to be highlighted with a provided fragment size (in characters), and
-     * default number of fragments of 5.
-     *
-     * @param name         The field to highlight
-     * @param fragmentSize The size of a fragment in characters
-     */
-    public SearchRequestBuilder addHighlightedField(String name, int fragmentSize) {
-        highlightBuilder().field(name, fragmentSize);
-        return this;
-    }
-
-    /**
-     * Adds a field to be highlighted with a provided fragment size (in characters), and
-     * a provided (maximum) number of fragments.
-     *
-     * @param name              The field to highlight
-     * @param fragmentSize      The size of a fragment in characters
-     * @param numberOfFragments The (maximum) number of fragments
-     */
-    public SearchRequestBuilder addHighlightedField(String name, int fragmentSize, int numberOfFragments) {
-        highlightBuilder().field(name, fragmentSize, numberOfFragments);
-        return this;
-    }
-
-    /**
-     * Adds a field to be highlighted with a provided fragment size (in characters),
-     * a provided (maximum) number of fragments and an offset for the highlight.
-     *
-     * @param name              The field to highlight
-     * @param fragmentSize      The size of a fragment in characters
-     * @param numberOfFragments The (maximum) number of fragments
-     */
-    public SearchRequestBuilder addHighlightedField(String name, int fragmentSize, int numberOfFragments,
-                                                    int fragmentOffset) {
-        highlightBuilder().field(name, fragmentSize, numberOfFragments, fragmentOffset);
-        return this;
-    }
-
-    /**
-     * Adds a highlighted field.
-     */
-    public SearchRequestBuilder addHighlightedField(HighlightBuilder.Field field) {
-        highlightBuilder().field(field);
-        return this;
-    }
-
-    /**
-     * Set a tag scheme that encapsulates a built in pre and post tags. The allows schemes
-     * are <tt>styled</tt> and <tt>default</tt>.
-     *
-     * @param schemaName The tag scheme name
-     */
-    public SearchRequestBuilder setHighlighterTagsSchema(String schemaName) {
-        highlightBuilder().tagsSchema(schemaName);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterFragmentSize(Integer fragmentSize) {
-        highlightBuilder().fragmentSize(fragmentSize);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterNumOfFragments(Integer numOfFragments) {
-        highlightBuilder().numOfFragments(numOfFragments);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterFilter(Boolean highlightFilter) {
-        highlightBuilder().highlightFilter(highlightFilter);
-        return this;
-    }
-
-    /**
-     * The encoder to set for highlighting
-     */
-    public SearchRequestBuilder setHighlighterEncoder(String encoder) {
-        highlightBuilder().encoder(encoder);
-        return this;
-    }
-
-    /**
-     * Explicitly set the pre tags that will be used for highlighting.
-     */
-    public SearchRequestBuilder setHighlighterPreTags(String... preTags) {
-        highlightBuilder().preTags(preTags);
-        return this;
-    }
-
-    /**
-     * Explicitly set the post tags that will be used for highlighting.
-     */
-    public SearchRequestBuilder setHighlighterPostTags(String... postTags) {
-        highlightBuilder().postTags(postTags);
-        return this;
-    }
-
-    /**
-     * The order of fragments per field. By default, ordered by the order in the
-     * highlighted text. Can be <tt>score</tt>, which then it will be ordered
-     * by score of the fragments.
-     */
-    public SearchRequestBuilder setHighlighterOrder(String order) {
-        highlightBuilder().order(order);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterRequireFieldMatch(boolean requireFieldMatch) {
-        highlightBuilder().requireFieldMatch(requireFieldMatch);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterBoundaryMaxScan(Integer boundaryMaxScan) {
-        highlightBuilder().boundaryMaxScan(boundaryMaxScan);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterBoundaryChars(char[] boundaryChars) {
-        highlightBuilder().boundaryChars(boundaryChars);
-        return this;
-    }
-
-    /**
-     * The highlighter type to use.
-     */
-    public SearchRequestBuilder setHighlighterType(String type) {
-        highlightBuilder().highlighterType(type);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterFragmenter(String fragmenter) {
-        highlightBuilder().fragmenter(fragmenter);
-        return this;
-    }
-
-    /**
-     * Sets a query to be used for highlighting all fields instead of the search query.
-     */
-    public SearchRequestBuilder setHighlighterQuery(QueryBuilder highlightQuery) {
-        highlightBuilder().highlightQuery(highlightQuery);
-        return this;
-    }
-
-    /**
-     * Sets the size of the fragment to return from the beginning of the field if there are no matches to
-     * highlight and the field doesn't also define noMatchSize.
-     *
-     * @param noMatchSize integer to set or null to leave out of request.  default is null.
-     * @return this builder for chaining
-     */
-    public SearchRequestBuilder setHighlighterNoMatchSize(Integer noMatchSize) {
-        highlightBuilder().noMatchSize(noMatchSize);
-        return this;
-    }
-
-    /**
-     * Sets the maximum number of phrases the fvh will consider if the field doesn't also define phraseLimit.
-     */
-    public SearchRequestBuilder setHighlighterPhraseLimit(Integer phraseLimit) {
-        highlightBuilder().phraseLimit(phraseLimit);
-        return this;
-    }
-
-    public SearchRequestBuilder setHighlighterOptions(Map<String, Object> options) {
-        highlightBuilder().options(options);
-        return this;
-    }
-
-    /**
-     * Forces to highlight fields based on the source even if fields are stored separately.
-     */
-    public SearchRequestBuilder setHighlighterForceSource(Boolean forceSource) {
-        highlightBuilder().forceSource(forceSource);
-        return this;
-    }
-
-    /**
-     * Send the fields to be highlighted using a syntax that is specific about the order in which they should be highlighted.
-     *
-     * @return this for chaining
-     */
-    public SearchRequestBuilder setHighlighterExplicitFieldOrder(boolean explicitFieldOrder) {
-        highlightBuilder().useExplicitFieldOrder(explicitFieldOrder);
-        return this;
-    }
-
-    public SearchRequestBuilder addInnerHit(String name, InnerHitsBuilder.InnerHit innerHit) {
-        innerHitsBuilder().addInnerHit(name, innerHit);
-        return this;
-    }
-
-    /**
-     * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#setText(String)}.
-     */
-    public SearchRequestBuilder setSuggestText(String globalText) {
-        suggestBuilder().setText(globalText);
-        return this;
-    }
-
-    /**
-     * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#addSuggestion(org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder)}.
-     */
-    public SearchRequestBuilder addSuggestion(SuggestBuilder.SuggestionBuilder<?> suggestion) {
-        suggestBuilder().addSuggestion(suggestion);
+    public SearchRequestBuilder suggest(SuggestBuilder suggestBuilder) {
+        sourceBuilder().suggest(suggestBuilder);
         return this;
     }
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder.Rescorer, int)}.
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescorerBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
-    public SearchRequestBuilder setRescorer(RescoreBuilder.Rescorer rescorer) {
+    public SearchRequestBuilder setRescorer(RescorerBuilder<?> rescorer) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer);
     }
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder.Rescorer, int)}.
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescorerBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @param window   rescore window
      * @return this for chaining
      */
-    public SearchRequestBuilder setRescorer(RescoreBuilder.Rescorer rescorer, int window) {
+    public SearchRequestBuilder setRescorer(RescorerBuilder rescorer, int window) {
         sourceBuilder().clearRescorers();
-        return addRescorer(rescorer, window);
+        return addRescorer(rescorer.windowSize(window));
     }
 
     /**
@@ -821,8 +444,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
-    public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer) {
-        sourceBuilder().addRescorer(new RescoreBuilder().rescorer(rescorer));
+    public SearchRequestBuilder addRescorer(RescorerBuilder<?> rescorer) {
+        sourceBuilder().addRescorer(rescorer);
         return this;
     }
 
@@ -833,8 +456,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param window   rescore window
      * @return this for chaining
      */
-    public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer, int window) {
-        sourceBuilder().addRescorer(new RescoreBuilder().rescorer(rescorer).windowSize(window));
+    public SearchRequestBuilder addRescorer(RescorerBuilder<?> rescorer, int window) {
+        sourceBuilder().addRescorer(rescorer.windowSize(window));
         return this;
     }
 
@@ -849,241 +472,78 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets the rescore window for all rescorers that don't specify a window when added.
-     *
-     * @param window rescore window
-     * @return this for chaining
+     * Sets the source of the request as a SearchSourceBuilder.
      */
-    public SearchRequestBuilder setRescoreWindow(int window) {
-        sourceBuilder().defaultRescoreWindowSize(window);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Note, settings anything other
-     * than the search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(String)}.
-     */
-    public SearchRequestBuilder setSource(String source) {
+    public SearchRequestBuilder setSource(SearchSourceBuilder source) {
         request.source(source);
         return this;
     }
 
     /**
-     * Sets the source of the request as a json string. Allows to set other parameters.
-     */
-    public SearchRequestBuilder setExtraSource(String source) {
-        request.extraSource(source);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Note, settings anything other
-     * than the search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(BytesReference)}.
-     */
-    public SearchRequestBuilder setSource(BytesReference source) {
-        request.source(source);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Note, settings anything other
-     * than the search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(byte[])}.
-     */
-    public SearchRequestBuilder setSource(byte[] source) {
-        request.source(source);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Allows to set other parameters.
-     */
-    public SearchRequestBuilder setExtraSource(BytesReference source) {
-        request.extraSource(source);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Allows to set other parameters.
-     */
-    public SearchRequestBuilder setExtraSource(byte[] source) {
-        request.extraSource(source);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Note, settings anything other
-     * than the search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(byte[])}.
-     */
-    public SearchRequestBuilder setSource(byte[] source, int offset, int length) {
-        request.source(source, offset, length);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Allows to set other parameters.
-     */
-    public SearchRequestBuilder setExtraSource(byte[] source, int offset, int length) {
-        request.extraSource(source, offset, length);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Note, settings anything other
-     * than the search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(byte[])}.
-     */
-    public SearchRequestBuilder setSource(XContentBuilder builder) {
-        request.source(builder);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Allows to set other parameters.
-     */
-    public SearchRequestBuilder setExtraSource(XContentBuilder builder) {
-        request.extraSource(builder);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a map. Note, setting anything other than the
-     * search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(java.util.Map)}.
-     */
-    public SearchRequestBuilder setSource(Map source) {
-        request.source(source);
-        return this;
-    }
-
-    public SearchRequestBuilder setExtraSource(Map source) {
-        request.extraSource(source);
-        return this;
-    }
-
-    /**
-     * template stuff
-     */
-
-    public SearchRequestBuilder setTemplate(Template template) {
-        request.template(template);
-        return this;
-    }
-
-    /**
-     * @deprecated Use {@link #setTemplate(Template)} instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder setTemplateName(String templateName) {
-        request.templateName(templateName);
-        return this;
-    }
-
-    /**
-     * @deprecated Use {@link #setTemplate(Template)} instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder setTemplateType(ScriptService.ScriptType templateType) {
-        request.templateType(templateType);
-        return this;
-    }
-
-    /**
-     * @deprecated Use {@link #setTemplate(Template)} instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder setTemplateParams(Map<String, Object> templateParams) {
-        request.templateParams(templateParams);
-        return this;
-    }
-
-    public SearchRequestBuilder setTemplateSource(String source) {
-        request.templateSource(source);
-        return this;
-    }
-
-    public SearchRequestBuilder setTemplateSource(BytesReference source) {
-        request.templateSource(source);
-        return this;
-    }
-
-    /**
-     * Sets if this request should use the query cache or not, assuming that it can (for
+     * Sets if this request should use the request cache or not, assuming that it can (for
      * example, if "now" is used, it will never be cached). By default (not set, or null,
-     * will default to the index level setting if query cache is enabled or not).
+     * will default to the index level setting if request cache is enabled or not).
      */
-    public SearchRequestBuilder setQueryCache(Boolean queryCache) {
-        request.queryCache(queryCache);
+    public SearchRequestBuilder setRequestCache(Boolean requestCache) {
+        request.requestCache(requestCache);
         return this;
     }
 
     /**
-     * Sets the source builder to be used with this request. Note, any operations done
-     * on this require builder before are discarded as this internal builder replaces
-     * what has been built up until this point.
+     * Should the query be profiled. Defaults to <code>false</code>
      */
-    public SearchRequestBuilder internalBuilder(SearchSourceBuilder sourceBuilder) {
-        this.sourceBuilder = sourceBuilder;
+    public SearchRequestBuilder setProfile(boolean profile) {
+        sourceBuilder().profile(profile);
         return this;
     }
 
-    /**
-     * Returns the internal search source builder used to construct the request.
-     */
-    public SearchSourceBuilder internalBuilder() {
-        return sourceBuilder();
+    public SearchRequestBuilder setCollapse(CollapseBuilder collapse) {
+        sourceBuilder().collapse(collapse);
+        return this;
     }
 
     @Override
     public String toString() {
-        if (sourceBuilder != null) {
-            return sourceBuilder.toString();
-        }
         if (request.source() != null) {
-            try {
-                return XContentHelper.convertToJson(request.source().toBytesArray(), false, true);
-            } catch (Exception e) {
-                return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
-            }
+            return request.source().toString();
         }
         return new SearchSourceBuilder().toString();
     }
 
-    @Override
-    public SearchRequest request() {
-        if (sourceBuilder != null) {
-            request.source(sourceBuilder());
-        }
-        return request;
-    }
-
-    @Override
-    protected SearchRequest beforeExecute(SearchRequest request) {
-        if (sourceBuilder != null) {
-            request.source(sourceBuilder());
-        }
-        return request;
-    }
-
     private SearchSourceBuilder sourceBuilder() {
-        if (sourceBuilder == null) {
-            sourceBuilder = new SearchSourceBuilder();
+        if (request.source() == null) {
+            request.source(new SearchSourceBuilder());
         }
-        return sourceBuilder;
+        return request.source();
     }
 
-    private HighlightBuilder highlightBuilder() {
-        return sourceBuilder().highlighter();
+    /**
+     * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
+     * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
+     */
+    public SearchRequestBuilder setBatchedReduceSize(int batchedReduceSize) {
+        this.request.setBatchedReduceSize(batchedReduceSize);
+        return this;
     }
 
-    private InnerHitsBuilder innerHitsBuilder() {
-        return sourceBuilder().innerHitsBuilder();
+    /**
+     * Sets the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
+     * reduce the number of shard requests fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
+     */
+    public SearchRequestBuilder setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        this.request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+        return this;
     }
 
-    private SuggestBuilder suggestBuilder() {
-        return sourceBuilder().suggest();
+    /**
+     * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public SearchRequestBuilder setPreFilterShardSize(int preFilterShardSize) {
+        this.request.setPreFilterShardSize(preFilterShardSize);
+        return this;
     }
 }

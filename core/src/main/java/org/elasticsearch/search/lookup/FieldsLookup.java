@@ -22,9 +22,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
 
-/**
- *
- */
 public class FieldsLookup {
 
     private final MapperService mapperService;

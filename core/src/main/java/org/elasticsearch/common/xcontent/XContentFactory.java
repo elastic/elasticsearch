@@ -21,10 +21,10 @@ package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
@@ -33,14 +33,13 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Arrays;
 
 /**
  * A one stop to use {@link org.elasticsearch.common.xcontent.XContent} and {@link XContentBuilder}.
  */
 public class XContentFactory {
 
-    private static int GUESS_HEADER_LENGTH = 20;
+    private static final int GUESS_HEADER_LENGTH = 20;
 
     /**
      * Returns a content builder using JSON format ({@link org.elasticsearch.common.xcontent.XContentType#JSON}.
@@ -134,12 +133,20 @@ public class XContentFactory {
      * Returns the {@link org.elasticsearch.common.xcontent.XContent} for the provided content type.
      */
     public static XContent xContent(XContentType type) {
+        if (type == null) {
+            throw new IllegalArgumentException("Cannot get xcontent for unknown type");
+        }
         return type.xContent();
     }
 
     /**
      * Guesses the content type based on the provided char sequence.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
      */
+    @Deprecated
     public static XContentType xContentType(CharSequence content) {
         int length = content.length() < GUESS_HEADER_LENGTH ? content.length() : GUESS_HEADER_LENGTH;
         if (length == 0) {
@@ -172,109 +179,77 @@ public class XContentFactory {
     }
 
     /**
-     * Guesses the content (type) based on the provided char sequence.
+     * Guesses the content (type) based on the provided char sequence and returns the corresponding {@link XContent}
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
      */
+    @Deprecated
     public static XContent xContent(CharSequence content) {
         XContentType type = xContentType(content);
         if (type == null) {
-            throw new ElasticsearchParseException("Failed to derive xcontent from " + content);
+            throw new ElasticsearchParseException("Failed to derive xcontent");
         }
         return xContent(type);
     }
 
     /**
-     * Guesses the content type based on the provided bytes.
+     * Guesses the content type based on the provided bytes and returns the corresponding {@link XContent}
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
      */
+    @Deprecated
     public static XContent xContent(byte[] data) {
         return xContent(data, 0, data.length);
     }
 
     /**
-     * Guesses the content type based on the provided bytes.
+     * Guesses the content type based on the provided bytes and returns the corresponding {@link XContent}
+     *
+     * @deprecated guessing the content type should not be needed ideally. We should rather know the content type upfront or read it
+     * from headers. Till we fixed the REST layer to read the Content-Type header, that should be the only place where guessing is needed.
      */
+    @Deprecated
     public static XContent xContent(byte[] data, int offset, int length) {
         XContentType type = xContentType(data, offset, length);
         if (type == null) {
-            throw new ElasticsearchParseException("Failed to derive xcontent from (offset=" + offset + ", length=" + length + "): " + Arrays.toString(data));
+            throw new ElasticsearchParseException("Failed to derive xcontent");
         }
         return xContent(type);
     }
 
     /**
      * Guesses the content type based on the provided bytes.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
      */
+    @Deprecated
     public static XContentType xContentType(byte[] data) {
         return xContentType(data, 0, data.length);
     }
 
     /**
      * Guesses the content type based on the provided input stream without consuming it.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
      */
+    @Deprecated
     public static XContentType xContentType(InputStream si) throws IOException {
         if (si.markSupported() == false) {
             throw new IllegalArgumentException("Cannot guess the xcontent type without mark/reset support on " + si.getClass());
         }
         si.mark(GUESS_HEADER_LENGTH);
         try {
-            final int firstInt = si.read(); // this must be an int since we need to respect the method contract
-            if (firstInt == -1) {
-                return null;
-            }
-
-            final int secondInt = si.read(); // this must be an int since we need to respect the method contract
-            if (secondInt == -1) {
-               return null;
-            }
-            final byte first = (byte) (0xff & firstInt);
-            final byte second = (byte) (0xff & secondInt);
-            if (first == SmileConstants.HEADER_BYTE_1 && second == SmileConstants.HEADER_BYTE_2) {
-                int third = si.read();
-                if (third == SmileConstants.HEADER_BYTE_3) {
-                    return XContentType.SMILE;
-                }
-            }
-            if (first == '{' || second == '{') {
-                return XContentType.JSON;
-            }
-            if (first == '-' && second == '-') {
-                int third = si.read();
-                if (third == '-') {
-                    return XContentType.YAML;
-                }
-            }
-            // CBOR logic similar to CBORFactory#hasCBORFormat
-            if (first == CBORConstants.BYTE_OBJECT_INDEFINITE){
-                return XContentType.CBOR;
-            }
-            if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_TAG, first)) {
-                // Actually, specific "self-describe tag" is a very good indicator
-                int third = si.read();
-                if (third == -1) {
-                    return null;
-                }
-                if (first == (byte) 0xD9 && second == (byte) 0xD9 && third == (byte) 0xF7) {
-                    return XContentType.CBOR;
-                }
-            }
-            // for small objects, some encoders just encode as major type object, we can safely
-            // say its CBOR since it doesn't contradict SMILE or JSON, and its a last resort
-            if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, first)) {
-                return XContentType.CBOR;
-            }
-
-            for (int i = 2; i < GUESS_HEADER_LENGTH; i++) {
-                int val = si.read();
-                if (val == -1) {
-                    return null;
-                }
-                if (val == '{') {
-                    return XContentType.JSON;
-                }
-                if (Character.isWhitespace(val) == false) {
-                    break;
-                }
-            }
-            return null;
+            final byte[] firstBytes = new byte[GUESS_HEADER_LENGTH];
+            final int read = Streams.readFully(si, firstBytes);
+            return xContentType(new BytesArray(firstBytes, 0, read));
         } finally {
             si.reset();
         }
@@ -282,22 +257,40 @@ public class XContentFactory {
 
     /**
      * Guesses the content type based on the provided bytes.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
      */
+    @Deprecated
     public static XContentType xContentType(byte[] data, int offset, int length) {
         return xContentType(new BytesArray(data, offset, length));
     }
 
+    /**
+     * Guesses the content type based on the provided bytes and returns the corresponding {@link XContent}
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     */
+    @Deprecated
     public static XContent xContent(BytesReference bytes) {
         XContentType type = xContentType(bytes);
         if (type == null) {
-            throw new ElasticsearchParseException("Failed to derive xcontent from " + bytes);
+            throw new ElasticsearchParseException("Failed to derive xcontent");
         }
         return xContent(type);
     }
 
     /**
      * Guesses the content type based on the provided bytes.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
      */
+    @Deprecated
     public static XContentType xContentType(BytesReference bytes) {
         int length = bytes.length();
         if (length == 0) {
@@ -329,8 +322,14 @@ public class XContentFactory {
             return XContentType.CBOR;
         }
 
+        int jsonStart = 0;
+        // JSON may be preceded by UTF-8 BOM
+        if (length > 3 && first == (byte) 0xEF && bytes.get(1) == (byte) 0xBB && bytes.get(2) == (byte) 0xBF) {
+            jsonStart = 3;
+        }
+
         // a last chance for JSON
-        for (int i = 0; i < length; i++) {
+        for (int i = jsonStart; i < length; i++) {
             byte b = bytes.get(i);
             if (b == '{') {
                 return XContentType.JSON;

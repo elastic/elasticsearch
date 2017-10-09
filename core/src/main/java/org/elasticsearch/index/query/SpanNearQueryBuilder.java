@@ -19,86 +19,218 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
-public class SpanNearQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<SpanNearQueryBuilder> {
+/**
+ * Matches spans which are near one another. One can specify slop, the maximum number
+ * of intervening unmatched positions, as well as whether matches are required to be in-order.
+ * The span near query maps to Lucene {@link SpanNearQuery}.
+ */
+public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder {
+    public static final String NAME = "span_near";
 
-    private ArrayList<SpanQueryBuilder> clauses = new ArrayList<>();
+    /** Default for flag controlling whether matches are required to be in-order */
+    public static boolean DEFAULT_IN_ORDER = true;
+    /** Default slop value, this is the same that lucene {@link SpanNearQuery} uses if no slop is provided */
+    public static int DEFAULT_SLOP = 0;
 
-    private Integer slop = null;
+    private static final ParseField SLOP_FIELD = new ParseField("slop");
+    private static final ParseField CLAUSES_FIELD = new ParseField("clauses");
+    private static final ParseField IN_ORDER_FIELD = new ParseField("in_order");
 
-    private Boolean inOrder;
+    private final List<SpanQueryBuilder> clauses = new ArrayList<>();
 
-    private Boolean collectPayloads;
+    private final int slop;
 
-    private float boost = -1;
+    private boolean inOrder = DEFAULT_IN_ORDER;
 
-    private String queryName;
+    /**
+     * @param initialClause an initial span query clause
+     * @param slop controls the maximum number of intervening unmatched positions permitted
+     */
+    public SpanNearQueryBuilder(SpanQueryBuilder initialClause, int slop) {
+        if (initialClause == null) {
+            throw new IllegalArgumentException("[" + NAME + "] must include at least one clause");
+        }
+        this.clauses.add(initialClause);
+        this.slop = slop;
+    }
 
-    public SpanNearQueryBuilder clause(SpanQueryBuilder clause) {
+    /**
+     * Read from a stream.
+     */
+    public SpanNearQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        for (QueryBuilder clause : readQueries(in)) {
+            this.clauses.add((SpanQueryBuilder) clause);
+        }
+        slop = in.readVInt();
+        inOrder = in.readBoolean();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        writeQueries(out, clauses);
+        out.writeVInt(slop);
+        out.writeBoolean(inOrder);
+    }
+
+    /**
+     * @return the maximum number of intervening unmatched positions permitted
+     */
+    public int slop() {
+        return this.slop;
+    }
+
+    /**
+     * Add a span clause to the current list of clauses
+     */
+    public SpanNearQueryBuilder addClause(SpanQueryBuilder clause) {
+        if (clause == null) {
+            throw new IllegalArgumentException("[" + NAME + "]  clauses cannot be null");
+        }
         clauses.add(clause);
         return this;
     }
 
-    public SpanNearQueryBuilder slop(int slop) {
-        this.slop = slop;
-        return this;
+    /**
+     * @return the {@link SpanQueryBuilder} clauses that were set for this query
+     */
+    public List<SpanQueryBuilder> clauses() {
+        return Collections.unmodifiableList(this.clauses);
     }
 
+    /**
+     * When <code>inOrder</code> is true, the spans from each clause
+     * must be in the same order as in <code>clauses</code> and must be non-overlapping.
+     * Defaults to <code>true</code>
+     */
     public SpanNearQueryBuilder inOrder(boolean inOrder) {
         this.inOrder = inOrder;
         return this;
     }
 
-    public SpanNearQueryBuilder collectPayloads(boolean collectPayloads) {
-        this.collectPayloads = collectPayloads;
-        return this;
-    }
-
-    @Override
-    public SpanNearQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
     /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     * @see SpanNearQueryBuilder#inOrder(boolean)
      */
-    public SpanNearQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    public boolean inOrder() {
+        return this.inOrder;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        if (clauses.isEmpty()) {
-            throw new IllegalArgumentException("Must have at least one clause when building a spanNear query");
-        }
-        if (slop == null) {
-            throw new IllegalArgumentException("Must set the slop when building a spanNear query");
-        }
-        builder.startObject(SpanNearQueryParser.NAME);
-        builder.startArray("clauses");
+        builder.startObject(NAME);
+        builder.startArray(CLAUSES_FIELD.getPreferredName());
         for (SpanQueryBuilder clause : clauses) {
             clause.toXContent(builder, params);
         }
         builder.endArray();
-        builder.field("slop", slop.intValue());
-        if (inOrder != null) {
-            builder.field("in_order", inOrder);
-        }
-        if (collectPayloads != null) {
-            builder.field("collect_payloads", collectPayloads);
-        }
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        builder.field(SLOP_FIELD.getPreferredName(), slop);
+        builder.field(IN_ORDER_FIELD.getPreferredName(), inOrder);
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    public static SpanNearQueryBuilder fromXContent(XContentParser parser) throws IOException {
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        int slop = DEFAULT_SLOP;
+        boolean inOrder = DEFAULT_IN_ORDER;
+        String queryName = null;
+
+        List<SpanQueryBuilder> clauses = new ArrayList<>();
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (CLAUSES_FIELD.match(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        QueryBuilder query = parseInnerQueryBuilder(parser);
+                        if (query instanceof SpanQueryBuilder == false) {
+                            throw new ParsingException(parser.getTokenLocation(), "spanNear [clauses] must be of type span query");
+                        }
+                        clauses.add((SpanQueryBuilder) query);
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
+                }
+            } else if (token.isValue()) {
+                if (IN_ORDER_FIELD.match(currentFieldName)) {
+                    inOrder = parser.booleanValue();
+                } else if (SLOP_FIELD.match(currentFieldName)) {
+                    slop = parser.intValue();
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                    boost = parser.floatValue();
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                    queryName = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
+            }
+        }
+
+        if (clauses.isEmpty()) {
+            throw new ParsingException(parser.getTokenLocation(), "span_near must include [clauses]");
+        }
+
+        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(clauses.get(0), slop);
+        for (int i = 1; i < clauses.size(); i++) {
+            queryBuilder.addClause(clauses.get(i));
+        }
+        queryBuilder.inOrder(inOrder);
+        queryBuilder.boost(boost);
+        queryBuilder.queryName(queryName);
+        return queryBuilder;
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (clauses.size() == 1) {
+            Query query = clauses.get(0).toQuery(context);
+            assert query instanceof SpanQuery;
+            return query;
+        }
+        SpanQuery[] spanQueries = new SpanQuery[clauses.size()];
+        for (int i = 0; i < clauses.size(); i++) {
+            Query query = clauses.get(i).toQuery(context);
+            assert query instanceof SpanQuery;
+            spanQueries[i] = (SpanQuery) query;
+        }
+        return new SpanNearQuery(spanQueries, slop, inOrder);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(clauses, slop, inOrder);
+    }
+
+    @Override
+    protected boolean doEquals(SpanNearQueryBuilder other) {
+        return Objects.equals(clauses, other.clauses) &&
+               Objects.equals(slop, other.slop) &&
+               Objects.equals(inOrder, other.inOrder);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

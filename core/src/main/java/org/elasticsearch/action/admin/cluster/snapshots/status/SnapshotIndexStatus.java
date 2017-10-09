@@ -19,20 +19,22 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Represents snapshot status of all shards in the index
  */
-public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, ToXContent {
+public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, ToXContentFragment {
 
     private final String index;
 
@@ -45,14 +47,14 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
     SnapshotIndexStatus(String index, Collection<SnapshotIndexShardStatus> shards) {
         this.index = index;
 
-        ImmutableMap.Builder<Integer, SnapshotIndexShardStatus> builder = ImmutableMap.builder();
+        Map<Integer, SnapshotIndexShardStatus> indexShards = new HashMap<>();
         stats = new SnapshotStats();
         for (SnapshotIndexShardStatus shard : shards) {
-            builder.put(shard.getShardId(), shard);
+            indexShards.put(shard.getShardId().getId(), shard);
             stats.add(shard.getStats());
         }
         shardsStats = new SnapshotShardsStats(shards);
-        indexShards = builder.build();
+        this.indexShards = unmodifiableMap(indexShards);
     }
 
     /**
@@ -89,12 +91,12 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
     }
 
     static final class Fields {
-        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
+        static final String SHARDS = "shards";
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.startObject(getIndex());
         shardsStats.toXContent(builder, params);
         stats.toXContent(builder, params);
         builder.startObject(Fields.SHARDS);

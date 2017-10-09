@@ -18,14 +18,17 @@
  */
 package org.elasticsearch.action.admin.indices.template.delete;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,8 +43,9 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeActio
 
     @Inject
     public TransportDeleteIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                              ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService, ActionFilters actionFilters) {
-        super(settings, DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteIndexTemplateRequest.class);
+                                              ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
+                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteIndexTemplateRequest::new);
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -70,9 +74,9 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeActio
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                logger.debug("failed to delete templates [{}]", t, request.name());
-                listener.onFailure(t);
+            public void onFailure(Exception e) {
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to delete templates [{}]", request.name()), e);
+                listener.onFailure(e);
             }
         });
     }

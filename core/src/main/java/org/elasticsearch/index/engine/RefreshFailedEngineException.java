@@ -19,14 +19,18 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 
-/**
- *
- */
+import java.io.IOException;
+
 public class RefreshFailedEngineException extends EngineException {
 
     public RefreshFailedEngineException(ShardId shardId, Throwable t) {
         super(shardId, "Refresh failed", t);
+    }
+
+    public RefreshFailedEngineException(StreamInput in) throws IOException{
+        super(in);
     }
 }

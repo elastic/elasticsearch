@@ -19,9 +19,10 @@
 
 package org.elasticsearch.http;
 
-/**
- *
- */
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+
 public class BindHttpException extends HttpException {
 
     public BindHttpException(String message) {
@@ -30,5 +31,9 @@ public class BindHttpException extends HttpException {
 
     public BindHttpException(String message, Throwable cause) {
         super(message, cause);
+    }
+
+    public BindHttpException(StreamInput in) throws IOException {
+        super(in);
     }
 }

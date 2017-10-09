@@ -19,97 +19,57 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentParser;
+import java.util.Objects;
 
-/**
- *
- */
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
+
 public class SourceToParse {
 
-    public static SourceToParse source(XContentParser parser) {
-        return new SourceToParse(Origin.PRIMARY, parser);
+    public static SourceToParse source(String index, String type, String id, BytesReference source,
+                                       XContentType contentType) {
+        return new SourceToParse(index, type, id, source, contentType);
     }
-
-    public static SourceToParse source(BytesReference source) {
-        return new SourceToParse(Origin.PRIMARY, source);
-    }
-
-    public static SourceToParse source(Origin origin, BytesReference source) {
-        return new SourceToParse(origin, source);
-    }
-
-    private final Origin origin;
 
     private final BytesReference source;
 
-    private final XContentParser parser;
+    private final String index;
 
-    private boolean flyweight = false;
+    private final String type;
 
-    private String type;
-
-    private String id;
+    private final String id;
 
     private String routing;
 
     private String parentId;
 
-    private long timestamp;
+    private XContentType xContentType;
 
-    private long ttl;
-
-    public SourceToParse(Origin origin, XContentParser parser) {
-        this.origin = origin;
-        this.parser = parser;
-        this.source = null;
-    }
-
-    public SourceToParse(Origin origin, BytesReference source) {
-        this.origin = origin;
+    private SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType) {
+        this.index = Objects.requireNonNull(index);
+        this.type = Objects.requireNonNull(type);
+        this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
-        this.source = source.toBytesArray();
-        this.parser = null;
-    }
-
-    public Origin origin() {
-        return origin;
-    }
-
-    public XContentParser parser() {
-        return this.parser;
+        this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
+        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
     public BytesReference source() {
         return this.source;
     }
 
+    public String index() {
+        return this.index;
+    }
+
     public String type() {
         return this.type;
     }
 
-    public SourceToParse type(String type) {
-        this.type = type;
-        return this;
-    }
-
-    public SourceToParse flyweight(boolean flyweight) {
-        this.flyweight = flyweight;
-        return this;
-    }
-
-    public boolean flyweight() {
-        return this.flyweight;
-    }
-
     public String id() {
         return this.id;
-    }
-
-    public SourceToParse id(String id) {
-        this.id = id;
-        return this;
     }
 
     public String parent() {
@@ -125,39 +85,17 @@ public class SourceToParse {
         return this.routing;
     }
 
+    public XContentType getXContentType() {
+        return this.xContentType;
+    }
+
     public SourceToParse routing(String routing) {
         this.routing = routing;
         return this;
     }
 
-    public long timestamp() {
-        return this.timestamp;
-    }
-
-    public SourceToParse timestamp(String timestamp) {
-        this.timestamp = Long.parseLong(timestamp);
-        return this;
-    }
-
-    public SourceToParse timestamp(long timestamp) {
-        this.timestamp = timestamp;
-        return this;
-    }
-
-    public long ttl() {
-        return this.ttl;
-    }
-
-    public SourceToParse ttl(long ttl) {
-        this.ttl = ttl;
-        return this;
-    }
-
-    public static enum Origin {
-
+    public enum Origin {
         PRIMARY,
         REPLICA
-
     }
-
 }

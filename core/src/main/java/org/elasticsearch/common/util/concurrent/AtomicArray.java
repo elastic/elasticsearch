@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchGenerationException;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -31,16 +31,8 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * to get the concrete values as a list using {@link #asList()}.
  */
 public class AtomicArray<E> {
-
-    private static final AtomicArray EMPTY = new AtomicArray(0);
-
-    @SuppressWarnings("unchecked")
-    public static <E> E empty() {
-        return (E) EMPTY;
-    }
-
     private final AtomicReferenceArray<E> array;
-    private volatile List<Entry<E>> nonNullList;
+    private volatile List<E> nonNullList;
 
     public AtomicArray(int size) {
         array = new AtomicReferenceArray<>(size);
@@ -53,7 +45,6 @@ public class AtomicArray<E> {
         return array.length();
     }
 
-
     /**
      * Sets the element at position {@code i} to the given value.
      *
@@ -62,6 +53,15 @@ public class AtomicArray<E> {
      */
     public void set(int i, E value) {
         array.set(i, value);
+        if (nonNullList != null) { // read first, lighter, and most times it will be null...
+            nonNullList = null;
+        }
+    }
+
+    public final void setOnce(int i, E value) {
+        if (array.compareAndSet(i, null, value) == false) {
+            throw new IllegalStateException("index [" + i + "] has already been set");
+        }
         if (nonNullList != null) { // read first, lighter, and most times it will be null...
             nonNullList = null;
         }
@@ -78,19 +78,18 @@ public class AtomicArray<E> {
     }
 
     /**
-     * Returns the it as a non null list, with an Entry wrapping each value allowing to
-     * retain its index.
+     * Returns the it as a non null list.
      */
-    public List<Entry<E>> asList() {
+    public List<E> asList() {
         if (nonNullList == null) {
             if (array == null || array.length() == 0) {
-                nonNullList = ImmutableList.of();
+                nonNullList = Collections.emptyList();
             } else {
-                List<Entry<E>> list = new ArrayList<>(array.length());
+                List<E> list = new ArrayList<>(array.length());
                 for (int i = 0; i < array.length(); i++) {
                     E e = array.get(i);
                     if (e != null) {
-                        list.add(new Entry<>(i, e));
+                        list.add(e);
                     }
                 }
                 nonNullList = list;
@@ -110,24 +109,5 @@ public class AtomicArray<E> {
             a[i] = array.get(i);
         }
         return a;
-    }
-
-    /**
-     * An entry within the array.
-     */
-    public static class Entry<E> {
-        /**
-         * The original index of the value within the array.
-         */
-        public final int index;
-        /**
-         * The value.
-         */
-        public final E value;
-
-        public Entry(int index, E value) {
-            this.index = index;
-            this.value = value;
-        }
     }
 }

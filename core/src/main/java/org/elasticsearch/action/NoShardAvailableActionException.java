@@ -19,29 +19,34 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.index.shard.IndexShardException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
-/**
- *
- */
-public class NoShardAvailableActionException extends IndexShardException {
+import java.io.IOException;
+
+public class NoShardAvailableActionException extends ElasticsearchException {
 
     public NoShardAvailableActionException(ShardId shardId) {
-        super(shardId, null);
+        this(shardId, null);
     }
 
     public NoShardAvailableActionException(ShardId shardId, String msg) {
-        super(shardId, msg);
+        this(shardId, msg, null);
     }
 
     public NoShardAvailableActionException(ShardId shardId, String msg, Throwable cause) {
-        super(shardId, msg, cause);
+        super(msg, cause);
+        setShard(shardId);
     }
 
     @Override
     public RestStatus status() {
         return RestStatus.SERVICE_UNAVAILABLE;
+    }
+
+    public NoShardAvailableActionException(StreamInput in) throws IOException{
+        super(in);
     }
 }

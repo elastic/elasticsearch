@@ -28,10 +28,10 @@ import java.io.IOException;
 
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.
- * <p/>
- * <p>By default, all statistics are enabled.
- * <p/>
- * <p>All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
+ * <p>
+ * By default, all statistics are enabled.
+ * <p>
+ * All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
  * stats can be enabled.
  */
 public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
@@ -166,13 +166,13 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return flags.isSet(Flag.Warmer);
     }
 
-    public IndicesStatsRequest filterCache(boolean filterCache) {
-        flags.set(Flag.FilterCache, filterCache);
+    public IndicesStatsRequest queryCache(boolean queryCache) {
+        flags.set(Flag.QueryCache, queryCache);
         return this;
     }
 
-    public boolean filterCache() {
-        return flags.isSet(Flag.FilterCache);
+    public boolean queryCache() {
+        return flags.isSet(Flag.QueryCache);
     }
 
     public IndicesStatsRequest fieldData(boolean fieldData) {
@@ -182,15 +182,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     public boolean fieldData() {
         return flags.isSet(Flag.FieldData);
-    }
-
-    public IndicesStatsRequest percolate(boolean percolate) {
-        flags.set(Flag.Percolate, percolate);
-        return this;
-    }
-
-    public boolean percolate() {
-        return flags.isSet(Flag.Percolate);
     }
 
     public IndicesStatsRequest segments(boolean segments) {
@@ -247,13 +238,13 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return flags.isSet(Flag.Suggest);
     }
 
-    public IndicesStatsRequest queryCache(boolean queryCache) {
-        flags.set(Flag.QueryCache, queryCache);
+    public IndicesStatsRequest requestCache(boolean requestCache) {
+        flags.set(Flag.RequestCache, requestCache);
         return this;
     }
 
-    public boolean queryCache() {
-        return flags.isSet(Flag.QueryCache);
+    public boolean requestCache() {
+        return flags.isSet(Flag.RequestCache);
     }
 
     public IndicesStatsRequest recovery(boolean recovery) {
@@ -265,6 +256,15 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return flags.isSet(Flag.Recovery);
     }
 
+    public boolean includeSegmentFileSizes() {
+        return flags.includeSegmentFileSizes();
+    }
+
+    public IndicesStatsRequest includeSegmentFileSizes(boolean includeSegmentFileSizes) {
+        flags.includeSegmentFileSizes(includeSegmentFileSizes);
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -274,6 +274,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        flags = CommonStatsFlags.readCommonStatsFlags(in);
+        flags = new CommonStatsFlags(in);
     }
 }

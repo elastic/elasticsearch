@@ -1,0 +1,114 @@
+---
+"cluster health basic test":
+  - do:
+      cluster.health: {}
+
+  - is_true:   cluster_name
+  - is_false:  timed_out
+  - gte:       { number_of_nodes:         1 }
+  - gte:       { number_of_data_nodes:    1 }
+  - match:     { active_primary_shards:   0 }
+  - match:     { active_shards:           0 }
+  - match:     { relocating_shards:       0 }
+  - match:     { initializing_shards:     0 }
+  - match:     { unassigned_shards:       0 }
+  - gte:       { number_of_pending_tasks: 0 }
+
+---
+"cluster health basic test, one index":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        wait_for_no_relocating_shards: true
+
+  - is_true:   cluster_name
+  - is_false:  timed_out
+  - gte:       { number_of_nodes:         1 }
+  - gte:       { number_of_data_nodes:    1 }
+  - gt:        { active_primary_shards:   0 }
+  - gt:        { active_shards:           0 }
+  - gte:       { relocating_shards:       0 }
+  - match:     { initializing_shards:     0 }
+  - match:     { unassigned_shards:       0 }
+  - gte:       { number_of_pending_tasks: 0 }
+
+---
+"cluster health basic test, one index with wait for active shards":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_active_shards: 1
+        wait_for_no_relocating_shards: true
+
+  - is_true:   cluster_name
+  - is_false:  timed_out
+  - gte:       { number_of_nodes:         1 }
+  - gte:       { number_of_data_nodes:    1 }
+  - gt:        { active_primary_shards:   0 }
+  - gt:        { active_shards:           0 }
+  - gte:       { relocating_shards:       0 }
+  - match:     { initializing_shards:     0 }
+  - match:     { unassigned_shards:       0 }
+  - gte:       { number_of_pending_tasks: 0 }
+
+---
+"cluster health basic test, one index with wait for all active shards":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_active_shards: all
+        wait_for_no_relocating_shards: true
+
+  - is_true:   cluster_name
+  - is_false:  timed_out
+  - gte:       { number_of_nodes:         1 }
+  - gte:       { number_of_data_nodes:    1 }
+  - gt:        { active_primary_shards:   0 }
+  - gt:        { active_shards:           0 }
+  - gte:       { relocating_shards:       0 }
+  - match:     { initializing_shards:     0 }
+  - match:     { unassigned_shards:       0 }
+  - gte:       { number_of_pending_tasks: 0 }
+
+---
+"cluster health levels":
+  - do:
+      indices.create:
+        index: test_index
+  - do:
+      cluster.health:
+        level: indices
+
+  - is_true: indices
+  - is_false: indices.test_index.shards
+
+  - do:
+        cluster.health:
+          level: shards
+
+  - is_true: indices
+  - is_true: indices.test_index.shards
+
+

@@ -19,10 +19,8 @@
 
 package org.elasticsearch.common.metrics;
 
-import jsr166e.LongAdder;
+import java.util.concurrent.atomic.LongAdder;
 
-/**
- */
 public class MeanMetric implements Metric {
 
     private final LongAdder counter = new LongAdder();

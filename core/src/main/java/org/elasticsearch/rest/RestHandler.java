@@ -19,10 +19,32 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.XContent;
+
 /**
  * Handler for REST requests
  */
 public interface RestHandler {
 
-    void handleRequest(RestRequest request, RestChannel channel) throws Exception;
+    /**
+     * Handles a rest request.
+     * @param request The request to handle
+     * @param channel The channel to write the request response to
+     * @param client A client to use to make internal requests on behalf of the original request
+     */
+    void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception;
+
+    default boolean canTripCircuitBreaker() {
+        return true;
+    }
+
+    /**
+     * Indicates if the RestHandler supports content as a stream. A stream would be multiple objects delineated by
+     * {@link XContent#streamSeparator()}. If a handler returns true this will affect the types of content that can be sent to
+     * this endpoint.
+     */
+    default boolean supportsContentStream() {
+        return false;
+    }
 }

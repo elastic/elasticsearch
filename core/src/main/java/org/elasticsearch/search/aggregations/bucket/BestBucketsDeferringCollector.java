@@ -20,16 +20,18 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,7 +49,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         final PackedLongValues docDeltas;
         final PackedLongValues buckets;
 
-        public Entry(LeafReaderContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
+        Entry(LeafReaderContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
             this.context = context;
             this.docDeltas = docDeltas;
             this.buckets = buckets;
@@ -56,6 +58,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     final List<Entry> entries = new ArrayList<>();
     BucketCollector collector;
+    final SearchContext searchContext;
     LeafReaderContext context;
     PackedLongValues.Builder docDeltas;
     PackedLongValues.Builder buckets;
@@ -64,7 +67,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     LongHash selectedBuckets;
 
     /** Sole constructor. */
-    public BestBucketsDeferringCollector() {
+    public BestBucketsDeferringCollector(SearchContext context) {
+        this.searchContext = context;
     }
 
     @Override
@@ -76,6 +80,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     }
 
     /** Set the deferred collectors. */
+    @Override
     public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
         this.collector = BucketCollector.wrap(deferredCollectors);
     }
@@ -112,6 +117,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     @Override
     public void preCollection() throws IOException {
+        collector.preCollection();
     }
 
     @Override
@@ -138,15 +144,22 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         }
         this.selectedBuckets = hash;
 
-        collector.preCollection();
-        if (collector.needsScores()) {
-            throw new IllegalStateException("Cannot defer if scores are needed");
+        boolean needsScores = collector.needsScores();
+        Weight weight = null;
+        if (needsScores) {
+            weight = searchContext.searcher()
+                        .createNormalizedWeight(searchContext.query(), true);
         }
-
         for (Entry entry : entries) {
             final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);
-            leafCollector.setScorer(Lucene.illegalScorer("A limitation of the " + SubAggCollectionMode.BREADTH_FIRST
-                    + " collection mode is that scores cannot be buffered along with document IDs"));
+            DocIdSetIterator docIt = null;
+            if (needsScores && entry.docDeltas.size() > 0) {
+                Scorer scorer = weight.scorer(entry.context);
+                // We don't need to check if the scorer is null
+                // since we are sure that there are documents to replay (entry.docDeltas it not empty).
+                docIt = scorer.iterator();
+                leafCollector.setScorer(scorer);
+            }
             final PackedLongValues.Iterator docDeltaIterator = entry.docDeltas.iterator();
             final PackedLongValues.Iterator buckets = entry.buckets.iterator();
             int doc = 0;
@@ -155,6 +168,13 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 final long bucket = buckets.next();
                 final long rebasedBucket = hash.find(bucket);
                 if (rebasedBucket != -1) {
+                    if (needsScores) {
+                        if (docIt.docID() < doc) {
+                            docIt.advance(doc);
+                        }
+                        // aggregations should only be replayed on matching documents
+                        assert docIt.docID() == doc;
+                    }
                     leafCollector.collect(doc, rebasedBucket);
                 }
             }

@@ -1,0 +1,13 @@
+   =========================================================================
+   ==      NOTICE file for use with the Apache License, Version 2.0,      ==
+   =========================================================================
+   
+   Apache JAMES Mime4j
+   Copyright 2004-2010 The Apache Software Foundation
+   
+   This product includes software developed at
+   The Apache Software Foundation (http://www.apache.org/).
+
+   This product test suite includes data (mimetools-testmsgs folder) developed 
+   by Eryq and ZeeGee Software Inc as part of the "MIME-tools" Perl5 toolkit
+   and licensed under the Artistic License

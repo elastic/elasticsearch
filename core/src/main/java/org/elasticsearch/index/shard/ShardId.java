@@ -19,18 +19,18 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  * Allows for shard level components to be injected with the shard id.
  */
-public class ShardId implements Serializable, Streamable, Comparable<ShardId> {
+public class ShardId implements Streamable, Comparable<ShardId> {
 
     private Index index;
 
@@ -41,22 +41,22 @@ public class ShardId implements Serializable, Streamable, Comparable<ShardId> {
     private ShardId() {
     }
 
-    public ShardId(String index, int shardId) {
-        this(new Index(index), shardId);
-    }
-
     public ShardId(Index index, int shardId) {
         this.index = index;
         this.shardId = shardId;
         this.hashCode = computeHashCode();
     }
 
-    public Index index() {
-        return this.index;
+    public ShardId(String index, String indexUUID, int shardId) {
+        this(new Index(index, indexUUID), shardId);
     }
 
-    public String getIndex() {
-        return index().name();
+    public Index getIndex() {
+        return index;
+    }
+
+    public String getIndexName() {
+        return index.getName();
     }
 
     public int id() {
@@ -69,7 +69,23 @@ public class ShardId implements Serializable, Streamable, Comparable<ShardId> {
 
     @Override
     public String toString() {
-        return "[" + index.name() + "][" + shardId + "]";
+        return "[" + index.getName() + "][" + shardId + "]";
+    }
+
+    /**
+     * Parse the string representation of this shardId back to an object.
+     * We lose index uuid information here, but since we use toString in
+     * rest responses, this is the best we can do to reconstruct the object
+     * on the client side.
+     */
+    public static ShardId fromString(String shardIdString) {
+        int splitPosition = shardIdString.indexOf("][");
+        if (splitPosition <= 0 || shardIdString.charAt(0) != '[' || shardIdString.charAt(shardIdString.length() - 1) != ']') {
+            throw new IllegalArgumentException("Unexpected shardId string format, expected [indexName][shardId] but got " + shardIdString);
+        }
+        String indexName = shardIdString.substring(1, splitPosition);
+        int shardId = Integer.parseInt(shardIdString.substring(splitPosition + 2, shardIdString.length() - 1));
+        return new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId);
     }
 
     @Override
@@ -77,7 +93,7 @@ public class ShardId implements Serializable, Streamable, Comparable<ShardId> {
         if (this == o) return true;
         if (o == null) return false;
         ShardId shardId1 = (ShardId) o;
-        return shardId == shardId1.shardId && index.name().equals(shardId1.index.name());
+        return shardId == shardId1.shardId && index.equals(shardId1.index);
     }
 
     @Override
@@ -99,7 +115,7 @@ public class ShardId implements Serializable, Streamable, Comparable<ShardId> {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = Index.readIndexName(in);
+        index = new Index(in);
         shardId = in.readVInt();
         hashCode = computeHashCode();
     }
@@ -113,7 +129,11 @@ public class ShardId implements Serializable, Streamable, Comparable<ShardId> {
     @Override
     public int compareTo(ShardId o) {
         if (o.getId() == shardId) {
-            return index.name().compareTo(o.getIndex());
+            int compare = index.getName().compareTo(o.getIndex().getName());
+            if (compare != 0) {
+                return compare;
+            }
+            return index.getUUID().compareTo(o.getIndex().getUUID());
         }
         return Integer.compare(shardId, o.getId());
     }

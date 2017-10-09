@@ -19,102 +19,76 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.multibindings.MapBinder;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.expression.ExpressionScriptEngineService;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
-
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.ScriptPlugin;
 
 /**
- * An {@link org.elasticsearch.common.inject.Module} which manages {@link ScriptEngineService}s, as well
- * as named script
+ * Manages building {@link ScriptService}.
  */
-public class ScriptModule extends AbstractModule {
+public class ScriptModule {
 
-    private final Settings settings;
-
-    private final List<Class<? extends ScriptEngineService>> scriptEngines = Lists.newArrayList();
-
-    private final Map<String, Class<? extends NativeScriptFactory>> scripts = Maps.newHashMap();
-
-    private final List<ScriptContext.Plugin> customScriptContexts = Lists.newArrayList();
-
-    public ScriptModule(Settings settings) {
-        this.settings = settings;
+    public static final Map<String, ScriptContext<?>> CORE_CONTEXTS;
+    static {
+        CORE_CONTEXTS = Stream.of(
+            SearchScript.CONTEXT,
+            SearchScript.AGGS_CONTEXT,
+            ExecutableScript.CONTEXT,
+            ExecutableScript.AGGS_CONTEXT,
+            ExecutableScript.UPDATE_CONTEXT,
+            ExecutableScript.INGEST_CONTEXT,
+            FilterScript.CONTEXT,
+            SimilarityScript.CONTEXT,
+            SimilarityWeightScript.CONTEXT,
+            TemplateScript.CONTEXT
+        ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 
-    public void addScriptEngine(Class<? extends ScriptEngineService> scriptEngine) {
-        scriptEngines.add(scriptEngine);
-    }
+    private final ScriptService scriptService;
 
-    public void registerScript(String name, Class<? extends NativeScriptFactory> script) {
-        scripts.put(name, script);
+    public ScriptModule(Settings settings, List<ScriptPlugin> scriptPlugins) {
+        Map<String, ScriptEngine> engines = new HashMap<>();
+        Map<String, ScriptContext<?>> contexts = new HashMap<>(CORE_CONTEXTS);
+        for (ScriptPlugin plugin : scriptPlugins) {
+            for (ScriptContext context : plugin.getContexts()) {
+                ScriptContext oldContext = contexts.put(context.name, context);
+                if (oldContext != null) {
+                    throw new IllegalArgumentException("Context name [" + context.name + "] defined twice");
+                }
+            }
+        }
+        for (ScriptPlugin plugin : scriptPlugins) {
+            ScriptEngine engine = plugin.getScriptEngine(settings, contexts.values());
+            if (engine != null) {
+                ScriptEngine existing = engines.put(engine.getType(), engine);
+                if (existing != null) {
+                    throw new IllegalArgumentException("scripting language [" + engine.getType() + "] defined for engine [" +
+                        existing.getClass().getName() + "] and [" + engine.getClass().getName());
+                }
+            }
+        }
+        scriptService = new ScriptService(settings, Collections.unmodifiableMap(engines), Collections.unmodifiableMap(contexts));
     }
 
     /**
-     * Registers a custom script context that can be used by plugins to categorize the different operations that they use scripts for.
-     * Fine-grained settings allow to enable/disable scripts per context.
+     * Service responsible for managing scripts.
      */
-    public void registerScriptContext(ScriptContext.Plugin scriptContext) {
-        customScriptContexts.add(scriptContext);
+    public ScriptService getScriptService() {
+        return scriptService;
     }
 
-    @Override
-    protected void configure() {
-        MapBinder<String, NativeScriptFactory> scriptsBinder
-                = MapBinder.newMapBinder(binder(), String.class, NativeScriptFactory.class);
-        for (Map.Entry<String, Class<? extends NativeScriptFactory>> entry : scripts.entrySet()) {
-            scriptsBinder.addBinding(entry.getKey()).to(entry.getValue()).asEagerSingleton();
-        }
-
-        // now, check for config based ones
-        Map<String, Settings> nativeSettings = settings.getGroups("script.native");
-        for (Map.Entry<String, Settings> entry : nativeSettings.entrySet()) {
-            String name = entry.getKey();
-            Class<? extends NativeScriptFactory> type = entry.getValue().getAsClass("type", NativeScriptFactory.class);
-            if (type == NativeScriptFactory.class) {
-                throw new IllegalArgumentException("type is missing for native script [" + name + "]");
-            }
-            scriptsBinder.addBinding(name).to(type).asEagerSingleton();
-        }
-
-        Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
-        multibinder.addBinding().to(NativeScriptEngineService.class);
-
-        try {
-            settings.getClassLoader().loadClass("groovy.lang.GroovyClassLoader");
-            multibinder.addBinding().to(GroovyScriptEngineService.class).asEagerSingleton();
-        } catch (Throwable t) {
-            Loggers.getLogger(ScriptService.class, settings).debug("failed to load groovy", t);
-        }
-        
-        try {
-            settings.getClassLoader().loadClass("com.github.mustachejava.Mustache");
-            multibinder.addBinding().to(MustacheScriptEngineService.class).asEagerSingleton();
-        } catch (Throwable t) {
-            Loggers.getLogger(ScriptService.class, settings).debug("failed to load mustache", t);
-        }
-
-        try {
-            settings.getClassLoader().loadClass("org.apache.lucene.expressions.Expression");
-            multibinder.addBinding().to(ExpressionScriptEngineService.class).asEagerSingleton();
-        } catch (Throwable t) {
-            Loggers.getLogger(ScriptService.class, settings).debug("failed to load lucene expressions", t);
-        }
-
-        for (Class<? extends ScriptEngineService> scriptEngine : scriptEngines) {
-            multibinder.addBinding().to(scriptEngine).asEagerSingleton();
-        }
-
-        bind(ScriptContextRegistry.class).toInstance(new ScriptContextRegistry(customScriptContexts));
-        bind(ScriptService.class).asEagerSingleton();
+    /**
+     * Allow the script service to register any settings update handlers on the cluster settings
+     */
+    public void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
+        scriptService.registerClusterSettingsListeners(clusterSettings);
     }
 }

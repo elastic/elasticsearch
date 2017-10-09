@@ -19,12 +19,19 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
+import java.util.Locale;
+
 /**
  * A sorting order.
  *
  *
  */
-public enum SortOrder {
+public enum SortOrder implements Writeable {
     /**
      * Ascending order.
      */
@@ -42,5 +49,18 @@ public enum SortOrder {
         public String toString() {
             return "desc";
         }
+    };
+
+    static SortOrder readFromStream(StreamInput in) throws IOException {
+        return in.readEnum(SortOrder.class);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeEnum(this);
+    }
+
+    public static SortOrder fromString(String op) {
+        return valueOf(op.toUpperCase(Locale.ROOT));
     }
 }

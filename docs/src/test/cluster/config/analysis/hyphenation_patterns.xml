@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE hyphenation-info SYSTEM "hyphenation.dtd">
+
+<!-- Example hyphenation patterns file. -->
+
+<hyphenation-info>
+
+<hyphen-char value="-"/>
+<hyphen-min before="2" after="2"/>
+
+<classes>
+aA
+</classes>
+
+<exceptions>
+</exceptions>
+
+<patterns>
+.a2
+</patterns>
+</hyphenation-info>

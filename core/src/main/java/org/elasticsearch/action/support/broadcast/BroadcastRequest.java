@@ -28,20 +28,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- *
- */
-public abstract class BroadcastRequest<T extends BroadcastRequest> extends ActionRequest<T> implements IndicesRequest.Replaceable {
+public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends ActionRequest implements IndicesRequest.Replaceable {
 
     protected String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
 
-    protected BroadcastRequest() {
-
-    }
-
-    protected BroadcastRequest(ActionRequest originalRequest) {
-        super(originalRequest);
+    public BroadcastRequest() {
     }
 
     protected BroadcastRequest(String[] indices) {
@@ -55,9 +47,9 @@ public abstract class BroadcastRequest<T extends BroadcastRequest> extends Actio
 
     @SuppressWarnings("unchecked")
     @Override
-    public final T indices(String... indices) {
+    public final Request indices(String... indices) {
         this.indices = indices;
-        return (T) this;
+        return (Request) this;
     }
 
     @Override
@@ -71,9 +63,9 @@ public abstract class BroadcastRequest<T extends BroadcastRequest> extends Actio
     }
 
     @SuppressWarnings("unchecked")
-    public final T indicesOptions(IndicesOptions indicesOptions) {
+    public final Request indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
-        return (T) this;
+        return (Request) this;
     }
 
     @Override

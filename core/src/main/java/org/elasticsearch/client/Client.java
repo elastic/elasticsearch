@@ -24,56 +24,60 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.count.CountRequest;
-import org.elasticsearch.action.count.CountRequestBuilder;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.exists.ExistsRequest;
-import org.elasticsearch.action.exists.ExistsRequestBuilder;
-import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.action.fieldstats.FieldStatsRequest;
-import org.elasticsearch.action.fieldstats.FieldStatsRequestBuilder;
-import org.elasticsearch.action.fieldstats.FieldStatsResponse;
-import org.elasticsearch.action.get.*;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetRequestBuilder;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetRequestBuilder;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequest;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequestBuilder;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptResponse;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequestBuilder;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequestBuilder;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
-import org.elasticsearch.action.percolate.*;
-import org.elasticsearch.action.search.*;
-import org.elasticsearch.action.suggest.SuggestRequest;
-import org.elasticsearch.action.suggest.SuggestRequestBuilder;
-import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.action.termvectors.*;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollRequestBuilder;
+import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequestBuilder;
+import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsRequestBuilder;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.Map;
 
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.
- * <p/>
- * <p>All operations performed are asynchronous by nature. Each action/operation has two flavors, the first
+ * <p>
+ * All operations performed are asynchronous by nature. Each action/operation has two flavors, the first
  * simply returns an {@link org.elasticsearch.action.ActionFuture}, while the second accepts an
  * {@link org.elasticsearch.action.ActionListener}.
- * <p/>
- * <p>A client can either be retrieved from a {@link org.elasticsearch.node.Node} started, or connected remotely
+ * <p>
+ * A client can either be retrieved from a {@link org.elasticsearch.node.Node} started, or connected remotely
  * to one or more nodes using {@link org.elasticsearch.client.transport.TransportClient}.
  *
  * @see org.elasticsearch.node.Node#client()
@@ -81,7 +85,15 @@ import org.elasticsearch.common.settings.Settings;
  */
 public interface Client extends ElasticsearchClient, Releasable {
 
-    String CLIENT_TYPE_SETTING = "client.type";
+    Setting<String> CLIENT_TYPE_SETTING_S = new Setting<>("client.type", "node", (s) -> {
+        switch (s) {
+            case "node":
+            case "transport":
+                return s;
+            default:
+                throw new IllegalArgumentException("Can't parse [client.type] must be one of [node, transport]");
+        }
+    }, Property.NodeScope);
 
     /**
      * The admin client that can be used to perform administrative operations.
@@ -91,8 +103,8 @@ public interface Client extends ElasticsearchClient, Releasable {
 
     /**
      * Index a JSON source associated with a given index and type.
-     * <p/>
-     * <p>The id is optional, if it is not provided, one will be generated automatically.
+     * <p>
+     * The id is optional, if it is not provided, one will be generated automatically.
      *
      * @param request The index request
      * @return The result future
@@ -102,8 +114,8 @@ public interface Client extends ElasticsearchClient, Releasable {
 
     /**
      * Index a document associated with a given index and type.
-     * <p/>
-     * <p>The id is optional, if it is not provided, one will be generated automatically.
+     * <p>
+     * The id is optional, if it is not provided, one will be generated automatically.
      *
      * @param request  The index request
      * @param listener A listener to be notified with a result
@@ -113,8 +125,8 @@ public interface Client extends ElasticsearchClient, Releasable {
 
     /**
      * Index a document associated with a given index and type.
-     * <p/>
-     * <p>The id is optional, if it is not provided, one will be generated automatically.
+     * <p>
+     * The id is optional, if it is not provided, one will be generated automatically.
      */
     IndexRequestBuilder prepareIndex();
 
@@ -146,8 +158,8 @@ public interface Client extends ElasticsearchClient, Releasable {
 
     /**
      * Index a document associated with a given index and type.
-     * <p/>
-     * <p>The id is optional, if it is not provided, one will be generated automatically.
+     * <p>
+     * The id is optional, if it is not provided, one will be generated automatically.
      *
      * @param index The index to index the document to
      * @param type  The type to index the document to
@@ -156,8 +168,8 @@ public interface Client extends ElasticsearchClient, Releasable {
 
     /**
      * Index a document associated with a given index and type.
-     * <p/>
-     * <p>The id is optional, if it is not provided, one will be generated automatically.
+     * <p>
+     * The id is optional, if it is not provided, one will be generated automatically.
      *
      * @param index The index to index the document to
      * @param type  The type to index the document to
@@ -248,80 +260,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      */
     GetRequestBuilder prepareGet(String index, @Nullable String type, String id);
 
-
-    /**
-     * Put an indexed script
-     */
-    PutIndexedScriptRequestBuilder preparePutIndexedScript();
-
-    /**
-     * Put the indexed script
-     */
-    PutIndexedScriptRequestBuilder preparePutIndexedScript(@Nullable String scriptLang, String id, String source);
-
-    /**
-     * delete an indexed script
-     */
-    void deleteIndexedScript(DeleteIndexedScriptRequest request, ActionListener<DeleteIndexedScriptResponse> listener);
-
-    /**
-     * Delete an indexed script
-     *
-     * @param request The put request
-     * @return The result future
-     */
-    ActionFuture<DeleteIndexedScriptResponse> deleteIndexedScript(DeleteIndexedScriptRequest request);
-
-
-    /**
-     * Delete an indexed script
-     */
-    DeleteIndexedScriptRequestBuilder prepareDeleteIndexedScript();
-
-    /**
-     * Delete an indexed script
-     */
-    DeleteIndexedScriptRequestBuilder prepareDeleteIndexedScript(@Nullable String scriptLang, String id);
-
-    /**
-     * Put an indexed script
-     */
-    void putIndexedScript(PutIndexedScriptRequest request, ActionListener<PutIndexedScriptResponse> listener);
-
-    /**
-     * Put an indexed script
-     *
-     * @param request The put request
-     * @return The result future
-     */
-    ActionFuture<PutIndexedScriptResponse> putIndexedScript(PutIndexedScriptRequest request);
-
-
-    /**
-     * Get an indexed script
-     */
-    GetIndexedScriptRequestBuilder prepareGetIndexedScript();
-
-    /**
-     * Get the indexed script
-     */
-    GetIndexedScriptRequestBuilder prepareGetIndexedScript(@Nullable String scriptLang, String id);
-
-    /**
-     * Get an indexed script
-     */
-    void getIndexedScript(GetIndexedScriptRequest request, ActionListener<GetIndexedScriptResponse> listener);
-
-    /**
-     * Gets the document that was indexed from an index with a type and id.
-     *
-     * @param request The get request
-     * @return The result future
-     * @see Requests#getRequest(String)
-     */
-    ActionFuture<GetIndexedScriptResponse> getIndexedScript(GetIndexedScriptRequest request);
-
-
     /**
      * Multi get documents.
      */
@@ -336,75 +274,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      * Multi get documents.
      */
     MultiGetRequestBuilder prepareMultiGet();
-
-    /**
-     * A count of all the documents matching a specific query.
-     *
-     * @param request The count request
-     * @return The result future
-     * @see Requests#countRequest(String...)
-     */
-    ActionFuture<CountResponse> count(CountRequest request);
-
-    /**
-     * A count of all the documents matching a specific query.
-     *
-     * @param request  The count request
-     * @param listener A listener to be notified of the result
-     * @see Requests#countRequest(String...)
-     */
-    void count(CountRequest request, ActionListener<CountResponse> listener);
-
-    /**
-     * A count of all the documents matching a specific query.
-     */
-    CountRequestBuilder prepareCount(String... indices);
-
-    /**
-     * Checks existence of any documents matching a specific query.
-     *
-     * @param request The exists request
-     * @return The result future
-     * @see Requests#existsRequest(String...)
-     */
-    ActionFuture<ExistsResponse> exists(ExistsRequest request);
-
-    /**
-     * Checks existence of any documents matching a specific query.
-     *
-     * @param request The exists request
-     * @param listener A listener to be notified of the result
-     * @see Requests#existsRequest(String...)
-     */
-    void exists(ExistsRequest request, ActionListener<ExistsResponse> listener);
-
-    /**
-     * Checks existence of any documents matching a specific query.
-     */
-    ExistsRequestBuilder prepareExists(String... indices);
-
-    /**
-     * Suggestion matching a specific phrase.
-     *
-     * @param request The suggest request
-     * @return The result future
-     * @see Requests#suggestRequest(String...)
-     */
-    ActionFuture<SuggestResponse> suggest(SuggestRequest request);
-
-    /**
-     * Suggestions matching a specific phrase.
-     *
-     * @param request  The suggest request
-     * @param listener A listener to be notified of the result
-     * @see Requests#suggestRequest(String...)
-     */
-    void suggest(SuggestRequest request, ActionListener<SuggestResponse> listener);
-
-    /**
-     * Suggestions matching a specific phrase.
-     */
-    SuggestRequestBuilder prepareSuggest(String... indices);
 
     /**
      * Search across one or more indices and one or more types with a query.
@@ -466,7 +335,7 @@ public interface Client extends ElasticsearchClient, Releasable {
      * Performs multiple search requests.
      */
     MultiSearchRequestBuilder prepareMultiSearch();
-    
+
     /**
      * An action that returns the term vectors for a specific document.
      *
@@ -479,7 +348,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      * An action that returns the term vectors for a specific document.
      *
      * @param request The term vector request
-     * @return The response future
      */
     void termVectors(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener);
 
@@ -510,7 +378,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      * An action that returns the term vectors for a specific document.
      *
      * @param request The term vector request
-     * @return The response future
      */
     @Deprecated
     void termVector(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener);
@@ -545,36 +412,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      * Multi get term vectors.
      */
     MultiTermVectorsRequestBuilder prepareMultiTermVectors();
-
-    /**
-     * Percolates a request returning the matches documents.
-     */
-    ActionFuture<PercolateResponse> percolate(PercolateRequest request);
-
-    /**
-     * Percolates a request returning the matches documents.
-     */
-    void percolate(PercolateRequest request, ActionListener<PercolateResponse> listener);
-
-    /**
-     * Percolates a request returning the matches documents.
-     */
-    PercolateRequestBuilder preparePercolate();
-
-    /**
-     * Performs multiple percolate requests.
-     */
-    ActionFuture<MultiPercolateResponse> multiPercolate(MultiPercolateRequest request);
-
-    /**
-     * Performs multiple percolate requests.
-     */
-    void multiPercolate(MultiPercolateRequest request, ActionListener<MultiPercolateResponse> listener);
-
-    /**
-     * Performs multiple percolate requests.
-     */
-    MultiPercolateRequestBuilder prepareMultiPercolate();
 
     /**
      * Computes a score explanation for the specified request.
@@ -615,16 +452,29 @@ public interface Client extends ElasticsearchClient, Releasable {
      */
     void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener);
 
-    FieldStatsRequestBuilder prepareFieldStats();
+    /**
+     * Builder for the field capabilities request.
+     */
+    FieldCapabilitiesRequestBuilder prepareFieldCaps();
 
-    ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request);
+    /**
+     * An action that returns the field capabilities from the provided request
+     */
+    ActionFuture<FieldCapabilitiesResponse> fieldCaps(FieldCapabilitiesRequest request);
 
-    void fieldStats(FieldStatsRequest request, ActionListener<FieldStatsResponse> listener);
+    /**
+     * An action that returns the field capabilities from the provided request
+     */
+    void fieldCaps(FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener);
 
     /**
      * Returns this clients settings
      */
     Settings settings();
 
-    Headers headers();
+    /**
+     * Returns a new lightweight Client that applies all given headers to each of the requests
+     * issued from it.
+     */
+    Client filterWithHeader(Map<String, String> headers);
 }

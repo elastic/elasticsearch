@@ -1,0 +1,39 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+esplugin {
+    description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
+    classname 'org.elasticsearch.ingest.common.IngestCommonPlugin'
+}
+
+dependencies {
+    compile 'org.jruby.joni:joni:2.1.6'
+    // joni dependencies:
+    compile 'org.jruby.jcodings:jcodings:1.0.12'
+}
+
+compileJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
+compileTestJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
+
+thirdPartyAudit.excludes = [
+        // joni has AsmCompilerSupport, but that isn't being used:
+        'org.objectweb.asm.ClassWriter',
+        'org.objectweb.asm.MethodVisitor',
+        'org.objectweb.asm.Opcodes',
+]

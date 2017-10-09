@@ -20,28 +20,37 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
+
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Puts mapping definition registered under a specific type into one or more indices. Best created with
  * {@link org.elasticsearch.client.Requests#putMappingRequest(String...)}.
- * <p/>
- * <p>If the mappings already exists, the new mappings will be merged with the new one. If there are elements
+ * <p>
+ * If the mappings already exists, the new mappings will be merged with the new one. If there are elements
  * that can't be merged are detected, the request will be rejected.
  *
  * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
@@ -52,7 +61,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private static ObjectHashSet<String> RESERVED_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_parent", "_routing", "_index",
-            "_size", "_timestamp", "_ttl"
+            "_size", "_timestamp", "_ttl", "_field_names"
     );
 
     private String[] indices;
@@ -63,7 +72,10 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private String source;
 
-    PutMappingRequest() {
+    private boolean updateAllTypes = false;
+    private Index concreteIndex;
+
+    public PutMappingRequest() {
     }
 
     /**
@@ -87,6 +99,10 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         } else if (source.isEmpty()) {
             validationException = addValidationError("mapping source is empty", validationException);
         }
+        if (concreteIndex != null && (indices != null && indices.length > 0)) {
+            validationException = addValidationError("either concrete index or unresolved indices can be set, concrete index: ["
+                + concreteIndex + "] and indices: " + Arrays.asList(indices) , validationException);
+        }
         return validationException;
     }
 
@@ -94,9 +110,25 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * Sets the indices this put mapping operation will execute on.
      */
     @Override
-    public PutMappingRequest indices(String[] indices) {
+    public PutMappingRequest indices(String... indices) {
         this.indices = indices;
         return this;
+    }
+
+    /**
+     * Sets a concrete index for this put mapping request.
+     */
+    public PutMappingRequest setConcreteIndex(Index index) {
+        Objects.requireNonNull(indices, "index must not be null");
+        this.concreteIndex = index;
+        return this;
+    }
+
+    /**
+     * Returns a concrete index for this mapping or <code>null</code> if no concrete index is defined
+     */
+    public Index getConcreteIndex() {
+        return concreteIndex;
     }
 
     /**
@@ -150,7 +182,17 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         return source(buildFromSimplifiedDef(type, source));
     }
 
+    /**
+     * @param type the mapping type
+     * @param source consisting of field/properties pairs (e.g. "field1",
+     *            "type=string,store=true"). If the number of arguments is not
+     *            divisible by two an {@link IllegalArgumentException} is thrown
+     * @return the mappings definition
+     */
     public static XContentBuilder buildFromSimplifiedDef(String type, Object... source) {
+        if (source.length % 2 != 0) {
+            throw new IllegalArgumentException("mapping source must be pairs of fieldnames and properties definition.");
+        }
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
@@ -208,7 +250,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      */
     public PutMappingRequest source(XContentBuilder mappingBuilder) {
         try {
-            return source(mappingBuilder.string());
+            return source(mappingBuilder.string(), mappingBuilder.contentType());
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to build json for mapping request", e);
         }
@@ -222,7 +264,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
-            return source(builder.string());
+            return source(builder.string(), XContentType.JSON);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
@@ -231,8 +273,31 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     /**
      * The mapping source definition.
      */
-    public PutMappingRequest source(String mappingSource) {
-        this.source = mappingSource;
+    public PutMappingRequest source(String mappingSource, XContentType xContentType) {
+        return source(new BytesArray(mappingSource), xContentType);
+    }
+
+    /**
+     * The mapping source definition.
+     */
+    public PutMappingRequest source(BytesReference mappingSource, XContentType xContentType) {
+        Objects.requireNonNull(xContentType);
+        try {
+            this.source = XContentHelper.convertToJson(mappingSource, false, false, xContentType);
+            return this;
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to convert source to json", e);
+        }
+    }
+
+    /** True if all fields that span multiple types should be updated, false otherwise */
+    public boolean updateAllTypes() {
+        return updateAllTypes;
+    }
+
+    /** See {@link #updateAllTypes()} */
+    public PutMappingRequest updateAllTypes(boolean updateAllTypes) {
+        this.updateAllTypes = updateAllTypes;
         return this;
     }
 
@@ -243,7 +308,12 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         type = in.readOptionalString();
         source = in.readString();
-        readTimeout(in);
+        if (in.getVersion().before(Version.V_5_3_0)) {
+            // we do not know the format from earlier versions so convert if necessary
+            source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
+        }
+        updateAllTypes = in.readBoolean();
+        concreteIndex = in.readOptionalWriteable(Index::new);
     }
 
     @Override
@@ -253,6 +323,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalString(type);
         out.writeString(source);
-        writeTimeout(out);
+        out.writeBoolean(updateAllTypes);
+        out.writeOptionalWriteable(concreteIndex);
     }
 }

@@ -20,13 +20,17 @@
 package org.elasticsearch.index.query.support;
 
 import org.apache.lucene.search.MultiTermQuery;
-
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 
-/**
- *
- */
 public final class QueryParsers {
+
+    public static final ParseField CONSTANT_SCORE = new ParseField("constant_score");
+    public static final ParseField SCORING_BOOLEAN = new ParseField("scoring_boolean");
+    public static final ParseField CONSTANT_SCORE_BOOLEAN = new ParseField("constant_score_boolean");
+    public static final ParseField TOP_TERMS = new ParseField("top_terms_");
+    public static final ParseField TOP_TERMS_BOOST = new ParseField("top_terms_boost_");
+    public static final ParseField TOP_TERMS_BLENDED_FREQS = new ParseField("top_terms_blended_freqs_");
 
     private QueryParsers() {
 
@@ -39,50 +43,48 @@ public final class QueryParsers {
         query.setRewriteMethod(rewriteMethod);
     }
 
-    public static void setRewriteMethod(MultiTermQuery query, @Nullable String rewriteMethod) {
-        if (rewriteMethod == null) {
-            return;
-        }
-        query.setRewriteMethod(parseRewriteMethod(rewriteMethod));
-    }
-
     public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod) {
-        return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_FILTER_REWRITE);
+        return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_REWRITE);
     }
 
-    public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod, @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod) {
+    public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod,
+                                                                  @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod) {
         if (rewriteMethod == null) {
             return defaultRewriteMethod;
         }
-        if ("constant_score_auto".equals(rewriteMethod) || "constant_score_auto".equals(rewriteMethod)) {
-            return MultiTermQuery.CONSTANT_SCORE_FILTER_REWRITE;
+        if (CONSTANT_SCORE.match(rewriteMethod)) {
+            return MultiTermQuery.CONSTANT_SCORE_REWRITE;
         }
-        if ("scoring_boolean".equals(rewriteMethod) || "scoringBoolean".equals(rewriteMethod)) {
-            return MultiTermQuery.SCORING_BOOLEAN_QUERY_REWRITE;
+        if (SCORING_BOOLEAN.match(rewriteMethod)) {
+            return MultiTermQuery.SCORING_BOOLEAN_REWRITE;
         }
-        if ("constant_score_boolean".equals(rewriteMethod) || "constantScoreBoolean".equals(rewriteMethod)) {
-            return MultiTermQuery.CONSTANT_SCORE_BOOLEAN_QUERY_REWRITE;
+        if (CONSTANT_SCORE_BOOLEAN.match(rewriteMethod)) {
+            return MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE;
         }
-        if ("constant_score_filter".equals(rewriteMethod) || "constantScoreFilter".equals(rewriteMethod)) {
-            return MultiTermQuery.CONSTANT_SCORE_FILTER_REWRITE;
+
+        int firstDigit = -1;
+        for (int i = 0; i < rewriteMethod.length(); ++i) {
+            if (Character.isDigit(rewriteMethod.charAt(i))) {
+                firstDigit = i;
+                break;
+            }
         }
-        if (rewriteMethod.startsWith("top_terms_boost_")) {
-            int size = Integer.parseInt(rewriteMethod.substring("top_terms_boost_".length()));
-            return new MultiTermQuery.TopTermsBoostOnlyBooleanQueryRewrite(size);
+
+        if (firstDigit >= 0) {
+            final int size = Integer.parseInt(rewriteMethod.substring(firstDigit));
+            String rewriteMethodName = rewriteMethod.substring(0, firstDigit);
+
+            if (TOP_TERMS.match(rewriteMethodName)) {
+                return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(size);
+            }
+            if (TOP_TERMS_BOOST.match(rewriteMethodName)) {
+                return new MultiTermQuery.TopTermsBoostOnlyBooleanQueryRewrite(size);
+            }
+            if (TOP_TERMS_BLENDED_FREQS.match(rewriteMethodName)) {
+                return new MultiTermQuery.TopTermsBlendedFreqScoringRewrite(size);
+            }
         }
-        if (rewriteMethod.startsWith("topTermsBoost")) {
-            int size = Integer.parseInt(rewriteMethod.substring("topTermsBoost".length()));
-            return new MultiTermQuery.TopTermsBoostOnlyBooleanQueryRewrite(size);
-        }
-        if (rewriteMethod.startsWith("top_terms_")) {
-            int size = Integer.parseInt(rewriteMethod.substring("top_terms_".length()));
-            return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(size);
-        }
-        if (rewriteMethod.startsWith("topTerms")) {
-            int size = Integer.parseInt(rewriteMethod.substring("topTerms".length()));
-            return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(size);
-        }
+
         throw new IllegalArgumentException("Failed to parse rewrite_method [" + rewriteMethod + "]");
     }
-    
 }

@@ -27,18 +27,16 @@ import java.io.IOException;
 /**
  * Base request for master based read operations that allows to read the cluster state from the local node if needed
  */
-public abstract class MasterNodeReadRequest<T extends MasterNodeReadRequest> extends MasterNodeRequest<T> {
+public abstract class MasterNodeReadRequest<Request extends MasterNodeReadRequest<Request>> extends MasterNodeRequest<Request> {
 
     protected boolean local = false;
 
-    @SuppressWarnings("unchecked")
-    public final T local(boolean local) {
-        this.local = local;
-        return (T) this;
+    protected MasterNodeReadRequest() {
     }
 
-    public final boolean local() {
-        return local;
+    protected MasterNodeReadRequest(StreamInput in) throws IOException {
+        super(in);
+        local = in.readBoolean();
     }
 
     @Override
@@ -47,9 +45,18 @@ public abstract class MasterNodeReadRequest<T extends MasterNodeReadRequest> ext
         out.writeBoolean(local);
     }
 
+    @SuppressWarnings("unchecked")
+    public final Request local(boolean local) {
+        this.local = local;
+        return (Request) this;
+    }
+
+    public final boolean local() {
+        return local;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        local = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

@@ -19,21 +19,19 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.*;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.Future;
-
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A {@link RoutingService} listens to clusters state. When this service
@@ -47,30 +45,20 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  * actions.
  * </p>
  */
-public class RoutingService extends AbstractLifecycleComponent<RoutingService> implements ClusterStateListener {
+public class RoutingService extends AbstractLifecycleComponent {
 
-    private static final String CLUSTER_UPDATE_TASK_SOURCE = "routing-table-updater";
-
-    private final ThreadPool threadPool;
+    private static final String CLUSTER_UPDATE_TASK_SOURCE = "cluster_reroute";
 
     private final ClusterService clusterService;
-
     private final AllocationService allocationService;
 
-    private final TimeValue schedule;
-
-    private volatile boolean routingTableDirty = false;
-
-    private volatile Future scheduledRoutingTableFuture;
+    private AtomicBoolean rerouting = new AtomicBoolean();
 
     @Inject
-    public RoutingService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService) {
+    public RoutingService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         super(settings);
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        this.schedule = settings.getAsTime("cluster.routing.schedule", timeValueSeconds(10));
-        clusterService.addFirst(this);
     }
 
     @Override
@@ -83,100 +71,54 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
     @Override
     protected void doClose() {
-        FutureUtils.cancel(scheduledRoutingTableFuture);
-        scheduledRoutingTableFuture = null;
-        clusterService.remove(this);
     }
 
-    /** make sure that a reroute will be done by the next scheduled check */
-    public void scheduleReroute() {
-        routingTableDirty = true;
+    /**
+     * Initiates a reroute.
+     */
+    public final void reroute(String reason) {
+        performReroute(reason);
     }
 
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (event.source().equals(CLUSTER_UPDATE_TASK_SOURCE)) {
-            // that's us, ignore this event
-            return;
-        }
-        if (event.state().nodes().localNodeMaster()) {
-            // we are master, schedule the routing table updater
-            if (scheduledRoutingTableFuture == null) {
-                // a new master (us), make sure we reroute shards
-                routingTableDirty = true;
-                scheduledRoutingTableFuture = threadPool.scheduleWithFixedDelay(new RoutingTableUpdater(), schedule);
-            }
-            if (event.nodesRemoved()) {
-                // if nodes were removed, we don't want to wait for the scheduled task
-                // since we want to get primary election as fast as possible
-                routingTableDirty = true;
-                reroute();
-                // Commented out since we make sure to reroute whenever shards changes state or metadata changes state
-//            } else if (event.routingTableChanged()) {
-//                routingTableDirty = true;
-//                reroute();
-            } else {
-                if (event.nodesAdded()) {
-                    for (DiscoveryNode node : event.nodesDelta().addedNodes()) {
-                        if (node.dataNode()) {
-                            routingTableDirty = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        } else {
-            FutureUtils.cancel(scheduledRoutingTableFuture);
-            scheduledRoutingTableFuture = null;
-        }
-    }
-
-    private void reroute() {
+    // visible for testing
+    protected void performReroute(String reason) {
         try {
-            if (!routingTableDirty) {
-                return;
-            }
             if (lifecycle.stopped()) {
                 return;
             }
-            clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE, Priority.HIGH, new ClusterStateUpdateTask() {
+            if (rerouting.compareAndSet(false, true) == false) {
+                logger.trace("already has pending reroute, ignoring {}", reason);
+                return;
+            }
+            logger.trace("rerouting {}", reason);
+            clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE + "(" + reason + ")", new ClusterStateUpdateTask(Priority.HIGH) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
-                    if (!routingResult.changed()) {
-                        // no state changed
-                        return currentState;
-                    }
-                    return ClusterState.builder(currentState).routingResult(routingResult).build();
+                    rerouting.set(false);
+                    return allocationService.reroute(currentState, reason);
                 }
 
                 @Override
                 public void onNoLongerMaster(String source) {
+                    rerouting.set(false);
                     // no biggie
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
+                public void onFailure(String source, Exception e) {
+                    rerouting.set(false);
                     ClusterState state = clusterService.state();
                     if (logger.isTraceEnabled()) {
-                        logger.error("unexpected failure during [{}], current state:\n{}", t, source, state.prettyPrint());
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state), e);
                     } else {
-                        logger.error("unexpected failure during [{}], current state version [{}]", t, source, state.version());
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}], current state version [{}]", source, state.version()), e);
                     }
                 }
             });
-            routingTableDirty = false;
         } catch (Exception e) {
+            rerouting.set(false);
             ClusterState state = clusterService.state();
-            logger.warn("Failed to reroute routing table, current state:\n{}", e, state.prettyPrint());
-        }
-    }
-
-    private class RoutingTableUpdater implements Runnable {
-
-        @Override
-        public void run() {
-            reroute();
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to reroute routing table, current state:\n{}", state), e);
         }
     }
 }

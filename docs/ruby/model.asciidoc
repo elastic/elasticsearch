@@ -62,5 +62,5 @@ response.results.first._source.title
 # => "Quick brown fox"
 ------------------------------------
 
-Please see the full https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-model[documentation]
+Please see the full https://github.com/elastic/elasticsearch-rails/tree/master/elasticsearch-model[documentation]
 for more information.

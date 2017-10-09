@@ -25,23 +25,27 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-/**
- *
- */
-public abstract class ActionRequest<T extends ActionRequest> extends TransportRequest {
+public abstract class ActionRequest extends TransportRequest {
 
-    protected ActionRequest() {
+    public ActionRequest() {
         super();
-    }
-
-    protected ActionRequest(ActionRequest request) {
-        super(request);
         // this does not set the listenerThreaded API, if needed, its up to the caller to set it
         // since most times, we actually want it to not be threaded...
-        //this.listenerThreaded = request.listenerThreaded();
+        // this.listenerThreaded = request.listenerThreaded();
+    }
+
+    public ActionRequest(StreamInput in) throws IOException {
+        super(in);
     }
 
     public abstract ActionRequestValidationException validate();
+
+    /**
+     * Should this task store its result after it has finished?
+     */
+    public boolean getShouldStoreResult() {
+        return false;
+    }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {

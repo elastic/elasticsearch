@@ -23,10 +23,11 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 
@@ -47,9 +48,17 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
      */
     protected final boolean includeNegatives;
 
-    public NXYSignificanceHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
+    protected NXYSignificanceHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
         this.includeNegatives = includeNegatives;
         this.backgroundIsSuperset = backgroundIsSuperset;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected NXYSignificanceHeuristic(StreamInput in) throws IOException {
+        includeNegatives = in.readBoolean();
+        backgroundIsSuperset = in.readBoolean();
     }
 
     @Override
@@ -134,10 +143,16 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
         }
     }
 
-    public static abstract class NXYParser implements SignificanceHeuristicParser {
+    protected void build(XContentBuilder builder) throws IOException {
+        builder.field(INCLUDE_NEGATIVES_FIELD.getPreferredName(), includeNegatives).field(BACKGROUND_IS_SUPERSET.getPreferredName(),
+                backgroundIsSuperset);
+    }
+
+    public abstract static class NXYParser implements SignificanceHeuristicParser {
 
         @Override
-        public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
+        public SignificanceHeuristic parse(XContentParser parser)
+                throws IOException, QueryShardException {
             String givenName = parser.currentName();
             boolean includeNegatives = false;
             boolean backgroundIsSuperset = true;
@@ -150,7 +165,7 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
                     parser.nextToken();
                     backgroundIsSuperset = parser.booleanValue();
                 } else {
-                    throw new ElasticsearchParseException("Field " + parser.currentName().toString() + " unknown for " + givenName);
+                    throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown field [{}]", givenName, parser.currentName());
                 }
                 token = parser.nextToken();
             }

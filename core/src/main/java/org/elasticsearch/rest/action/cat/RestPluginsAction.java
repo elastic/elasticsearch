@@ -22,43 +22,46 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActionListener;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.action.RestActionListener;
+import org.elasticsearch.rest.action.RestResponseListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestPluginsAction extends AbstractCatAction {
-
-    @Inject
-    public RestPluginsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestPluginsAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_cat/plugins", this);
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    public String getName() {
+        return "cat_plugins_action";
+    }
+
+    @Override
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/plugins\n");
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
-        client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) throws Exception {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
@@ -74,15 +77,13 @@ public class RestPluginsAction extends AbstractCatAction {
     }
 
     @Override
-    Table getTableWithHeader(final RestRequest request) {
+    protected Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
         table.addCell("id", "default:false;desc:unique node id");
         table.addCell("name", "alias:n;desc:node name");
         table.addCell("component", "alias:c;desc:component");
         table.addCell("version", "alias:v;desc:component version");
-        table.addCell("type", "alias:t;desc:type (j for JVM, s for Site)");
-        table.addCell("url", "alias:u;desc:url for site plugins");
         table.addCell("description", "alias:d;default:false;desc:plugin details");
         table.endHeaders();
         return table;
@@ -93,30 +94,14 @@ public class RestPluginsAction extends AbstractCatAction {
         Table table = getTableWithHeader(req);
 
         for (DiscoveryNode node : nodes) {
-            NodeInfo info = nodesInfo.getNodesMap().get(node.id());
+            NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
 
-            for (PluginInfo pluginInfo : info.getPlugins().getInfos()) {
+            for (PluginInfo pluginInfo : info.getPlugins().getPluginInfos()) {
                 table.startRow();
-                table.addCell(node.id());
-                table.addCell(node.name());
+                table.addCell(node.getId());
+                table.addCell(node.getName());
                 table.addCell(pluginInfo.getName());
                 table.addCell(pluginInfo.getVersion());
-                String type;
-                if (pluginInfo.isSite()) {
-                    if (pluginInfo.isJvm()) {
-                        type = "j/s";
-                    } else {
-                        type = "s";
-                    }
-                } else {
-                    if (pluginInfo.isJvm()) {
-                        type = "j";
-                    } else {
-                        type = "";
-                    }
-                }
-                table.addCell(type);
-                table.addCell(pluginInfo.getUrl());
                 table.addCell(pluginInfo.getDescription());
                 table.endRow();
             }

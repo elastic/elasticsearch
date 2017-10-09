@@ -19,16 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.common.util.ArrayUtils;
 
-/**
- */
 public abstract class BaseAliasesRequestBuilder<Response extends ActionResponse, Builder extends BaseAliasesRequestBuilder<Response, Builder>> extends MasterNodeReadOperationRequestBuilder<GetAliasesRequest, Response, Builder> {
 
     public BaseAliasesRequestBuilder(ElasticsearchClient client, Action<GetAliasesRequest, Response, Builder> action, String... aliases) {
@@ -43,7 +40,7 @@ public abstract class BaseAliasesRequestBuilder<Response extends ActionResponse,
 
     @SuppressWarnings("unchecked")
     public Builder addAliases(String... aliases) {
-        request.aliases(ObjectArrays.concat(request.aliases(), aliases, String.class));
+        request.aliases(ArrayUtils.concat(request.aliases(), aliases));
         return (Builder) this;
     }
 
@@ -55,7 +52,7 @@ public abstract class BaseAliasesRequestBuilder<Response extends ActionResponse,
 
     @SuppressWarnings("unchecked")
     public Builder addIndices(String... indices) {
-        request.indices(ObjectArrays.concat(request.indices(), indices, String.class));
+        request.indices(ArrayUtils.concat(request.indices(), indices));
         return (Builder) this;
     }
 

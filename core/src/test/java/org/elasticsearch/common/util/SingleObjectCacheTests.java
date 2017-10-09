@@ -20,13 +20,13 @@
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class SingleObjectCacheTests extends ElasticsearchTestCase {
+public class SingleObjectCacheTests extends ESTestCase {
 
   public void testRefresh() {
         final AtomicInteger count = new AtomicInteger(0);

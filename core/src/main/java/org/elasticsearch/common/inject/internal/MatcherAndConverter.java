@@ -20,7 +20,7 @@ import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.matcher.Matcher;
 import org.elasticsearch.common.inject.spi.TypeConverter;
 
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.Objects;
 
 /**
  * @author crazybob@google.com (Bob Lee)
@@ -33,8 +33,8 @@ public final class MatcherAndConverter {
 
     public MatcherAndConverter(Matcher<? super TypeLiteral<?>> typeMatcher,
                                TypeConverter typeConverter, Object source) {
-        this.typeMatcher = checkNotNull(typeMatcher, "type matcher");
-        this.typeConverter = checkNotNull(typeConverter, "converter");
+        this.typeMatcher = Objects.requireNonNull(typeMatcher, "type matcher");
+        this.typeConverter = Objects.requireNonNull(typeConverter, "converter");
         this.source = source;
     }
 

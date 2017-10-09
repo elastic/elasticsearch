@@ -22,60 +22,52 @@ import com.carrotsearch.hppc.LongIntHashMap;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
-import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
-public class ReverseNestedAggregator extends SingleBucketAggregator {
+public class ReverseNestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
-    private final BitDocIdSetFilter parentFilter;
+    static final ParseField PATH_FIELD = new ParseField("path");
+
+    private final Query parentFilter;
+    private final BitSetProducer parentBitsetProducer;
 
     public ReverseNestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper,
-            AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metaData);
         if (objectMapper == null) {
-            parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter());
+            parentFilter = Queries.newNonNestedFilter();
         } else {
-            parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(objectMapper.nestedTypeFilter());
+            parentFilter = objectMapper.nestedTypeFilter();
         }
-
+        parentBitsetProducer = context.bitsetFilterCache().getBitSetProducer(parentFilter);
     }
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         // In ES if parent is deleted, then also the children are deleted, so the child docs this agg receives
         // must belong to parent docs that is alive. For this reason acceptedDocs can be null here.
-        BitDocIdSet docIdSet = parentFilter.getDocIdSet(ctx);
-        final BitSet parentDocs;
-        if (Lucene.isEmpty(docIdSet)) {
+        final BitSet parentDocs = parentBitsetProducer.getBitSet(ctx);
+        if (parentDocs == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
-        } else {
-            parentDocs = docIdSet.bits();
         }
         final LongIntHashMap bucketOrdToLastCollectedParentDoc = new LongIntHashMap(32);
         return new LeafBucketCollectorBase(sub, null) {
@@ -84,8 +76,8 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
                 // fast forward to retrieve the parentDoc this childDoc belongs to
                 final int parentDoc = parentDocs.nextSetBit(childDoc);
                 assert childDoc <= parentDoc && parentDoc != DocIdSetIterator.NO_MORE_DOCS;
-                
-                int keySlot = bucketOrdToLastCollectedParentDoc.indexOf(bucket); 
+
+                int keySlot = bucketOrdToLastCollectedParentDoc.indexOf(bucket);
                 if (bucketOrdToLastCollectedParentDoc.indexExists(keySlot)) {
                     int lastCollectedParentDoc = bucketOrdToLastCollectedParentDoc.indexGet(keySlot);
                     if (parentDoc > lastCollectedParentDoc) {
@@ -100,15 +92,6 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
         };
     }
 
-    private static NestedAggregator findClosestNestedAggregator(Aggregator parent) {
-        for (; parent != null; parent = parent.parent()) {
-            if (parent instanceof NestedAggregator) {
-                return (NestedAggregator) parent;
-            }
-        }
-        return null;
-    }
-
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), pipelineAggregators(),
@@ -120,59 +103,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
         return new InternalReverseNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    Filter getParentFilter() {
+    Query getParentFilter() {
         return parentFilter;
-    }
-
-    public static class Factory extends AggregatorFactory {
-
-        private final String path;
-
-        public Factory(String name, String path) {
-            super(name, InternalReverseNested.TYPE.name());
-            this.path = path;
-        }
-
-        @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            // Early validation
-            NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parent);
-            if (closestNestedAggregator == null) {
-                throw new SearchParseException(context.searchContext(), "Reverse nested aggregation [" + name
-                        + "] can only be used inside a [nested] aggregation", null);
-            }
-
-            final ObjectMapper objectMapper;
-            if (path != null) {
-                MapperService.SmartNameObjectMapper mapper = context.searchContext().smartNameObjectMapper(path);
-                if (mapper == null) {
-                    return new Unmapped(name, context, parent, pipelineAggregators, metaData);
-                }
-                objectMapper = mapper.mapper();
-                if (objectMapper == null) {
-                    return new Unmapped(name, context, parent, pipelineAggregators, metaData);
-                }
-                if (!objectMapper.nested().isNested()) {
-                    throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
-                }
-            } else {
-                objectMapper = null;
-            }
-            return new ReverseNestedAggregator(name, factories, objectMapper, context, parent, pipelineAggregators, metaData);
-        }
-
-        private final static class Unmapped extends NonCollectingAggregator {
-
-            public Unmapped(String name, AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                    throws IOException {
-                super(name, context, parent, pipelineAggregators, metaData);
-            }
-
-            @Override
-            public InternalAggregation buildEmptyAggregation() {
-                return new InternalReverseNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
-            }
-        }
     }
 }

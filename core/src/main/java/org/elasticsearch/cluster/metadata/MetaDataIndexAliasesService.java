@@ -19,28 +19,37 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
  * Service responsible for submitting add and remove aliases requests
@@ -53,110 +62,115 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
 
     private final AliasValidator aliasValidator;
 
+    private final MetaDataDeleteIndexService deleteIndexService;
+
+    private final NamedXContentRegistry xContentRegistry;
+
     @Inject
-    public MetaDataIndexAliasesService(Settings settings, ClusterService clusterService, IndicesService indicesService, AliasValidator aliasValidator) {
+    public MetaDataIndexAliasesService(Settings settings, ClusterService clusterService, IndicesService indicesService,
+            AliasValidator aliasValidator, MetaDataDeleteIndexService deleteIndexService, NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.aliasValidator = aliasValidator;
+        this.deleteIndexService = deleteIndexService;
+        this.xContentRegistry = xContentRegistry;
     }
 
-    public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        clusterService.submitStateUpdateTask("index-aliases", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
+    public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request,
+                               final ActionListener<ClusterStateUpdateResponse> listener) {
+        clusterService.submitStateUpdateTask("index-aliases",
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+                @Override
+                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                    return new ClusterStateUpdateResponse(acknowledged);
+                }
 
-            @Override
-            public ClusterState execute(final ClusterState currentState) {
-                List<String> indicesToClose = Lists.newArrayList();
-                Map<String, IndexService> indices = Maps.newHashMap();
-                try {
-                    for (AliasAction aliasAction : request.actions()) {
-                        aliasValidator.validateAliasAction(aliasAction, currentState.metaData());
-                        if (!currentState.metaData().hasIndex(aliasAction.index())) {
-                            throw new IndexMissingException(new Index(aliasAction.index()));
-                        }
-                    }
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return innerExecute(currentState, request.actions());
+                }
+            });
+    }
 
-                    boolean changed = false;
-                    MetaData.Builder builder = MetaData.builder(currentState.metaData());
-                    for (AliasAction aliasAction : request.actions()) {
-                        IndexMetaData indexMetaData = builder.get(aliasAction.index());
-                        if (indexMetaData == null) {
-                            throw new IndexMissingException(new Index(aliasAction.index()));
-                        }
-                        // TODO: not copy (putAll)
-                        IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
-                        if (aliasAction.actionType() == AliasAction.Type.ADD) {
-                            String filter = aliasAction.filter();
-                            if (Strings.hasLength(filter)) {
-                                // parse the filter, in order to validate it
-                                IndexService indexService = indices.get(indexMetaData.index());
-                                if (indexService == null) {
-                                    indexService = indicesService.indexService(indexMetaData.index());
-                                    if (indexService == null) {
-                                        // temporarily create the index and add mappings so we can parse the filter
-                                        try {
-                                            indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), clusterService.localNode().id());
-                                            if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                                                indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.mappings().get(MapperService.DEFAULT_MAPPING).source(), false);
-                                            }
-                                            for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
-                                                MappingMetaData mappingMetaData = cursor.value;
-                                                indexService.mapperService().merge(mappingMetaData.type(), mappingMetaData.source(), false);
-                                            }
-                                        } catch (Exception e) {
-                                            logger.warn("[{}] failed to temporary create in order to apply alias action", e, indexMetaData.index());
-                                            continue;
-                                        }
-                                        indicesToClose.add(indexMetaData.index());
-                                    }
-                                    indices.put(indexMetaData.index(), indexService);
-                                }
-
-                                aliasValidator.validateAliasFilter(aliasAction.alias(), filter, indexService.queryParserService());
-                            }
-                            AliasMetaData newAliasMd = AliasMetaData.newAliasMetaDataBuilder(
-                                    aliasAction.alias())
-                                    .filter(filter)
-                                    .indexRouting(aliasAction.indexRouting())
-                                    .searchRouting(aliasAction.searchRouting())
-                                    .build();
-                            // Check if this alias already exists
-                            AliasMetaData aliasMd = indexMetaData.aliases().get(aliasAction.alias());
-                            if (aliasMd != null && aliasMd.equals(newAliasMd)) {
-                                // It's the same alias - ignore it
-                                continue;
-                            }
-                            indexMetaDataBuilder.putAlias(newAliasMd);
-                        } else if (aliasAction.actionType() == AliasAction.Type.REMOVE) {
-                            if (!indexMetaData.aliases().containsKey(aliasAction.alias())) {
-                                // This alias doesn't exist - ignore
-                                continue;
-                            }
-                            indexMetaDataBuilder.removeAlias(aliasAction.alias());
-                        }
-                        changed = true;
-                        builder.put(indexMetaDataBuilder);
+    ClusterState innerExecute(ClusterState currentState, Iterable<AliasAction> actions) {
+        List<Index> indicesToClose = new ArrayList<>();
+        Map<String, IndexService> indices = new HashMap<>();
+        try {
+            boolean changed = false;
+            // Gather all the indexes that must be removed first so:
+            // 1. We don't cause error when attempting to replace an index with a alias of the same name.
+            // 2. We don't allow removal of aliases from indexes that we're just going to delete anyway. That'd be silly.
+            Set<Index> indicesToDelete = new HashSet<>();
+            for (AliasAction action : actions) {
+                if (action.removeIndex()) {
+                    IndexMetaData index = currentState.metaData().getIndices().get(action.getIndex());
+                    if (index == null) {
+                        throw new IndexNotFoundException(action.getIndex());
                     }
-
-                    if (changed) {
-                        ClusterState updatedState = ClusterState.builder(currentState).metaData(builder).build();
-                        // even though changes happened, they resulted in 0 actual changes to metadata
-                        // i.e. remove and add the same alias to the same index
-                        if (!updatedState.metaData().aliases().equals(currentState.metaData().aliases())) {
-                            return updatedState;
-                        }
-                    }
-                    return currentState;
-                } finally {
-                    for (String index : indicesToClose) {
-                        indicesService.removeIndex(index, "created for alias processing");
-                    }
+                    indicesToDelete.add(index.getIndex());
+                    changed = true;
                 }
             }
-        });
+            // Remove the indexes if there are any to remove
+            if (changed) {
+                currentState = deleteIndexService.deleteIndices(currentState, indicesToDelete);
+            }
+            MetaData.Builder metadata = MetaData.builder(currentState.metaData());
+            // Run the remaining alias actions
+            for (AliasAction action : actions) {
+                if (action.removeIndex()) {
+                    // Handled above
+                    continue;
+                }
+                IndexMetaData index = metadata.get(action.getIndex());
+                if (index == null) {
+                    throw new IndexNotFoundException(action.getIndex());
+                }
+                NewAliasValidator newAliasValidator = (alias, indexRouting, filter) -> {
+                    /* It is important that we look up the index using the metadata builder we are modifying so we can remove an
+                     * index and replace it with an alias. */
+                    Function<String, IndexMetaData> indexLookup = name -> metadata.get(name);
+                    aliasValidator.validateAlias(alias, action.getIndex(), indexRouting, indexLookup);
+                    if (Strings.hasLength(filter)) {
+                        IndexService indexService = indices.get(index.getIndex());
+                        if (indexService == null) {
+                            indexService = indicesService.indexService(index.getIndex());
+                            if (indexService == null) {
+                                // temporarily create the index and add mappings so we can parse the filter
+                                try {
+                                    indexService = indicesService.createIndex(index, emptyList());
+                                    indicesToClose.add(index.getIndex());
+                                } catch (IOException e) {
+                                    throw new ElasticsearchException("Failed to create temporary index for parsing the alias", e);
+                                }
+                                indexService.mapperService().merge(index, MapperService.MergeReason.MAPPING_RECOVERY, false);
+                            }
+                            indices.put(action.getIndex(), indexService);
+                        }
+                        // the context is only used for validation so it's fine to pass fake values for the shard id and the current
+                        // timestamp
+                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null, () -> 0L, null),
+                                xContentRegistry);
+                    }
+                };
+                changed |= action.apply(newAliasValidator, metadata, index);
+            }
+
+            if (changed) {
+                ClusterState updatedState = ClusterState.builder(currentState).metaData(metadata).build();
+                // even though changes happened, they resulted in 0 actual changes to metadata
+                // i.e. remove and add the same alias to the same index
+                if (!updatedState.metaData().equalsAliases(currentState.metaData())) {
+                    return updatedState;
+                }
+            }
+            return currentState;
+        } finally {
+            for (Index index : indicesToClose) {
+                indicesService.removeIndex(index, NO_LONGER_ASSIGNED, "created for alias processing");
+            }
+        }
     }
+
 }

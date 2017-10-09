@@ -18,37 +18,32 @@
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
-public class MultiOrdinalsTests extends ElasticsearchTestCase {
+public class MultiOrdinalsTests extends ESTestCase {
 
-    protected final Ordinals creationMultiOrdinals(OrdinalsBuilder builder) {
-        return this.creationMultiOrdinals(builder, Settings.builder());
+    protected Ordinals creationMultiOrdinals(OrdinalsBuilder builder) {
+        return builder.build();
     }
 
-
-    protected Ordinals creationMultiOrdinals(OrdinalsBuilder builder, Settings.Builder settings) {
-        return builder.build(settings.build());
-    }
-
-
-    @Test
     public void testRandomValues() throws IOException {
-        Random random = getRandom();
+        Random random = random();
         int numDocs = 100 + random.nextInt(1000);
         int numOrdinals = 1 + random.nextInt(200);
         int numValues = 100 + random.nextInt(100000);
@@ -107,7 +102,7 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
             }
         });
         Ordinals ords = creationMultiOrdinals(builder);
-        RandomAccessOrds docs = ords.ordinals();
+        SortedSetDocValues docs = ords.ordinals();
         final SortedDocValues singleOrds = MultiValueMode.MIN.select(docs);
         int docId = ordsAndIds.get(0).id;
         List<Long> docOrds = new ArrayList<>();
@@ -116,22 +111,18 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
                 docOrds.add(ordAndId.ord);
             } else {
                 if (!docOrds.isEmpty()) {
-                    assertThat((long) singleOrds.getOrd(docId), equalTo(docOrds.get(0)));
+                    assertTrue(singleOrds.advanceExact(docId));
+                    assertThat((long) singleOrds.ordValue(), equalTo(docOrds.get(0)));
 
-                    docs.setDocument(docId);
-                    final int numOrds = docs.cardinality();
-                    assertThat(numOrds, equalTo(docOrds.size()));
-                    for (int i = 0; i < numOrds; i++) {
-                        assertThat(docs.nextOrd(), equalTo(docOrds.get(i)));
+                    assertTrue(docs.advanceExact(docId));
+                    for (Long ord : docOrds) {
+                        assertThat(docs.nextOrd(), equalTo(ord));
                     }
-                    final long[] array = new long[docOrds.size()];
-                    for (int i = 0; i < array.length; i++) {
-                        array[i] = docOrds.get(i);
-                    }
-                    assertIter(docs, docId, array);
+                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, docs.nextOrd());
                 }
                 for (int i = docId + 1; i < ordAndId.id; i++) {
-                    assertThat((long) singleOrds.getOrd(i), equalTo(RandomAccessOrds.NO_MORE_ORDS));
+                    assertFalse(singleOrds.advanceExact(i));
+                    assertFalse(docs.advanceExact(i));
                 }
                 docId = ordAndId.id;
                 docOrds.clear();
@@ -182,7 +173,6 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testOrdinals() throws Exception {
         int maxDoc = 7;
         long maxOrds = 32;
@@ -215,19 +205,10 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         };
 
         Ordinals ordinals = creationMultiOrdinals(builder);
-        RandomAccessOrds docs = ordinals.ordinals();
+        SortedSetDocValues docs = ordinals.ordinals();
         assertEquals(docs, ordinalPlan);
     }
 
-    protected static void assertIter(RandomAccessOrds docs, int docId, long... expectedOrdinals) {
-        docs.setDocument(docId);
-        assertThat(docs.cardinality(), equalTo(expectedOrdinals.length));
-        for (long expectedOrdinal : expectedOrdinals) {
-            assertThat(docs.nextOrd(), equalTo(expectedOrdinal));
-        }
-    }
-
-    @Test
     public void testMultiValuesDocsWithOverlappingStorageArrays() throws Exception {
         int maxDoc = 7;
         long maxOrds = 15;
@@ -268,11 +249,11 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         };
 
         Ordinals ordinals = new MultiOrdinals(builder, PackedInts.FASTEST);
-        RandomAccessOrds docs = ordinals.ordinals();
+        SortedSetDocValues docs = ordinals.ordinals();
         assertEquals(docs, ordinalPlan);
     }
 
-    private void assertEquals(RandomAccessOrds docs, long[][] ordinalPlan) {
+    private void assertEquals(SortedSetDocValues docs, long[][] ordinalPlan) throws IOException {
         long maxOrd = 0;
         for (int doc = 0; doc < ordinalPlan.length; ++doc) {
             if (ordinalPlan[doc].length > 0) {
@@ -283,10 +264,12 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         assertThat(FieldData.isMultiValued(docs), equalTo(true));
         for (int doc = 0; doc < ordinalPlan.length; ++doc) {
             long[] ords = ordinalPlan[doc];
-            docs.setDocument(doc);
-            assertThat(docs.cardinality(), equalTo(ords.length));
-            for (int i = 0; i < ords.length; ++i) {
-                assertThat(docs.ordAt(i), equalTo(ords[i]));
+            assertEquals(ords.length > 0, docs.advanceExact(doc));
+            if (ords.length > 0) {
+                for (long ord : ords) {
+                    assertThat(docs.nextOrd(), equalTo(ord));
+                }
+                assertThat(docs.nextOrd(), equalTo(SortedSetDocValues.NO_MORE_ORDS));
             }
         }
     }

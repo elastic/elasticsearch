@@ -19,54 +19,64 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.cluster.ack.OpenIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexException;
-import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Service responsible for submitting open/close index requests
  */
 public class MetaDataIndexStateService extends AbstractComponent {
 
-    public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE);
+    public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", false, false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE);
 
     private final ClusterService clusterService;
 
     private final AllocationService allocationService;
 
     private final MetaDataIndexUpgradeService metaDataIndexUpgradeService;
+    private final IndicesService indicesService;
+    private final ActiveShardsObserver activeShardsObserver;
 
     @Inject
-    public MetaDataIndexStateService(Settings settings, ClusterService clusterService, AllocationService allocationService, MetaDataIndexUpgradeService metaDataIndexUpgradeService) {
+    public MetaDataIndexStateService(Settings settings, ClusterService clusterService, AllocationService allocationService,
+                                     MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+                                     IndicesService indicesService, ThreadPool threadPool) {
         super(settings);
+        this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
+        this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
     }
 
     public void closeIndex(final CloseIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
@@ -75,7 +85,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
         }
 
         final String indicesAsString = Arrays.toString(request.indices());
-        clusterService.submitStateUpdateTask("close-indices " + indicesAsString, Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("close-indices " + indicesAsString, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                 return new ClusterStateUpdateResponse(acknowledged);
@@ -83,21 +93,11 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                List<String> indicesToClose = new ArrayList<>();
-                for (String index : request.indices()) {
-                    IndexMetaData indexMetaData = currentState.metaData().index(index);
-                    if (indexMetaData == null) {
-                        throw new IndexMissingException(new Index(index));
-                    }
-
-                    if (indexMetaData.state() != IndexMetaData.State.CLOSE) {
-                        IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
-                        for (IndexShardRoutingTable shard : indexRoutingTable) {
-                            if (!shard.primaryAllocatedPostApi()) {
-                                throw new IndexPrimaryShardNotAllocatedException(new Index(index));
-                            }
-                        }
-                        indicesToClose.add(index);
+                Set<IndexMetaData> indicesToClose = new HashSet<>();
+                for (Index index : request.indices()) {
+                    final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
+                    if (indexMetaData.getState() != IndexMetaData.State.CLOSE) {
+                        indicesToClose.add(indexMetaData);
                     }
                 }
 
@@ -105,37 +105,61 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     return currentState;
                 }
 
+                // Check if index closing conflicts with any running restores
+                RestoreService.checkIndexClosing(currentState, indicesToClose);
+                // Check if index closing conflicts with any running snapshots
+                SnapshotsService.checkIndexClosing(currentState, indicesToClose);
                 logger.info("closing indices [{}]", indicesAsString);
 
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
                         .blocks(currentState.blocks());
-                for (String index : indicesToClose) {
-                    mdBuilder.put(IndexMetaData.builder(currentState.metaData().index(index)).state(IndexMetaData.State.CLOSE));
-                    blocksBuilder.addIndexBlock(index, INDEX_CLOSED_BLOCK);
+                for (IndexMetaData openIndexMetadata : indicesToClose) {
+                    final String indexName = openIndexMetadata.getIndex().getName();
+                    mdBuilder.put(IndexMetaData.builder(openIndexMetadata).state(IndexMetaData.State.CLOSE));
+                    blocksBuilder.addIndexBlock(indexName, INDEX_CLOSED_BLOCK);
                 }
 
                 ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
 
                 RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
-                for (String index : indicesToClose) {
-                    rtBuilder.remove(index);
+                for (IndexMetaData index : indicesToClose) {
+                    rtBuilder.remove(index.getIndex().getName());
                 }
 
-                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());
                 //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
-                return ClusterState.builder(updatedState).routingResult(routingResult).build();
+                return  allocationService.reroute(
+                        ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build(),
+                        "indices closed [" + indicesAsString + "]");
             }
         });
     }
 
-    public void openIndex(final OpenIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void openIndex(final OpenIndexClusterStateUpdateRequest request, final ActionListener<OpenIndexClusterStateUpdateResponse> listener) {
+        onlyOpenIndex(request, ActionListener.wrap(response -> {
+            if (response.isAcknowledged()) {
+                String[] indexNames = Arrays.stream(request.indices()).map(Index::getName).toArray(String[]::new);
+                activeShardsObserver.waitForActiveShards(indexNames, request.waitForActiveShards(), request.ackTimeout(),
+                    shardsAcknowledged -> {
+                        if (shardsAcknowledged == false) {
+                            logger.debug("[{}] indices opened, but the operation timed out while waiting for " +
+                                "enough shards to be started.", Arrays.toString(indexNames));
+                        }
+                        listener.onResponse(new OpenIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcknowledged));
+                    }, listener::onFailure);
+            } else {
+                listener.onResponse(new OpenIndexClusterStateUpdateResponse(false, false));
+            }
+        }, listener::onFailure));
+    }
+
+    private void onlyOpenIndex(final OpenIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
 
         final String indicesAsString = Arrays.toString(request.indices());
-        clusterService.submitStateUpdateTask("open-indices " + indicesAsString, Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("open-indices " + indicesAsString, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                 return new ClusterStateUpdateResponse(acknowledged);
@@ -143,14 +167,11 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                List<String> indicesToOpen = new ArrayList<>();
-                for (String index : request.indices()) {
-                    IndexMetaData indexMetaData = currentState.metaData().index(index);
-                    if (indexMetaData == null) {
-                        throw new IndexMissingException(new Index(index));
-                    }
-                    if (indexMetaData.state() != IndexMetaData.State.OPEN) {
-                        indicesToOpen.add(index);
+                List<IndexMetaData> indicesToOpen = new ArrayList<>();
+                for (Index index : request.indices()) {
+                    final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
+                    if (indexMetaData.getState() != IndexMetaData.State.OPEN) {
+                        indicesToOpen.add(indexMetaData);
                     }
                 }
 
@@ -163,29 +184,35 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
                         .blocks(currentState.blocks());
-                for (String index : indicesToOpen) {
-                    IndexMetaData indexMetaData = IndexMetaData.builder(currentState.metaData().index(index)).state(IndexMetaData.State.OPEN).build();
+                final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion()
+                    .minimumIndexCompatibilityVersion();
+                for (IndexMetaData closedMetaData : indicesToOpen) {
+                    final String indexName = closedMetaData.getIndex().getName();
+                    IndexMetaData indexMetaData = IndexMetaData.builder(closedMetaData).state(IndexMetaData.State.OPEN).build();
                     // The index might be closed because we couldn't import it due to old incompatible version
                     // We need to check that this index can be upgraded to the current version
+                    indexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData, minIndexCompatibilityVersion);
                     try {
-                        indexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData);
-                    } catch (Exception ex) {
-                        throw new IndexException(new Index(index), "cannot open the index due to upgrade failure", ex);
+                        indicesService.verifyIndexMetadata(indexMetaData, indexMetaData);
+                    } catch (Exception e) {
+                        throw new ElasticsearchException("Failed to verify index " + indexMetaData.getIndex(), e);
                     }
+
                     mdBuilder.put(indexMetaData, true);
-                    blocksBuilder.removeIndexBlock(index, INDEX_CLOSED_BLOCK);
+                    blocksBuilder.removeIndexBlock(indexName, INDEX_CLOSED_BLOCK);
                 }
 
                 ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
 
                 RoutingTable.Builder rtBuilder = RoutingTable.builder(updatedState.routingTable());
-                for (String index : indicesToOpen) {
-                    rtBuilder.addAsRecovery(updatedState.metaData().index(index));
+                for (IndexMetaData index : indicesToOpen) {
+                    rtBuilder.addAsFromCloseToOpen(updatedState.metaData().getIndexSafe(index.getIndex()));
                 }
 
-                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());
                 //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
-                return ClusterState.builder(updatedState).routingResult(routingResult).build();
+                return allocationService.reroute(
+                        ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build(),
+                        "indices opened [" + indicesAsString + "]");
             }
         });
     }

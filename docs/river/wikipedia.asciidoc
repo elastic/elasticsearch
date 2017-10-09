@@ -1,8 +1,0 @@
-[[river-wikipedia]]
-== Wikipedia River
-
-A simple river to index http://en.wikipedia.org[Wikipedia].
-
-See
-https://github.com/elasticsearch/elasticsearch-river-wikipedia/blob/master/README.md[README
-file] for details.

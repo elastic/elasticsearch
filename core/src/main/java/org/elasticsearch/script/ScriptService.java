@@ -19,620 +19,541 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.base.Charsets;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequest;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.cache.RemovalListener;
+import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.TemplateQueryParser;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.watcher.FileChangesListener;
-import org.elasticsearch.watcher.FileWatcher;
-import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Locale;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
-/**
- *
- */
-public class ScriptService extends AbstractComponent implements Closeable {
+public class ScriptService extends AbstractComponent implements Closeable, ClusterStateListener {
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
-    public static final String DEFAULT_SCRIPTING_LANGUAGE_SETTING = "script.default_lang";
-    public static final String SCRIPT_CACHE_SIZE_SETTING = "script.cache.max_size";
-    public static final String SCRIPT_CACHE_EXPIRE_SETTING = "script.cache.expire";
-    public static final String SCRIPT_INDEX = ".scripts";
-    public static final String DEFAULT_LANG = GroovyScriptEngineService.NAME;
-    public static final String SCRIPT_AUTO_RELOAD_ENABLED_SETTING = "script.auto_reload_enabled";
+    // a parsing function that requires a non negative int and a timevalue as arguments split by a slash
+    // this allows you to easily define rates
+    static final Function<String, Tuple<Integer, TimeValue>> MAX_COMPILATION_RATE_FUNCTION =
+            (String value) -> {
+                if (value.contains("/") == false || value.startsWith("/") || value.endsWith("/")) {
+                    throw new IllegalArgumentException("parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [" +
+                            value + "]");
+                }
+                int idx = value.indexOf("/");
+                String count = value.substring(0, idx);
+                String time = value.substring(idx + 1);
+                try {
 
-    private final String defaultLang;
+                    int rate = Integer.parseInt(count);
+                    if (rate < 0) {
+                        throw new IllegalArgumentException("rate [" + rate + "] must be positive");
+                    }
+                    TimeValue timeValue = TimeValue.parseTimeValue(time, "script.max_compilations_rate");
+                    if (timeValue.nanos() <= 0) {
+                        throw new IllegalArgumentException("time value [" + time + "] must be positive");
+                    }
+                    // protect against a too hard to check limit, like less than a minute
+                    if (timeValue.seconds() < 60) {
+                        throw new IllegalArgumentException("time value [" + time + "] must be at least on a one minute resolution");
+                    }
+                    return Tuple.tuple(rate, timeValue);
+                } catch (NumberFormatException e) {
+                    // the number format exception message is so confusing, that it makes more sense to wrap it with a useful one
+                    throw new IllegalArgumentException("could not parse [" + count + "] as integer in value [" + value + "]", e);
+                }
+            };
 
-    private final Set<ScriptEngineService> scriptEngines;
-    private final ImmutableMap<String, ScriptEngineService> scriptEnginesByLang;
-    private final ImmutableMap<String, ScriptEngineService> scriptEnginesByExt;
+    public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING =
+        Setting.intSetting("script.cache.max_size", 100, 0, Property.NodeScope);
+    public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
+        Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
+    public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
+        Setting.intSetting("script.max_size_in_bytes", 65535, Property.NodeScope);
+    // public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
+    public static final Setting<Tuple<Integer, TimeValue>> SCRIPT_MAX_COMPILATIONS_RATE =
+            new Setting<>("script.max_compilations_rate", "75/5m", MAX_COMPILATION_RATE_FUNCTION, Property.Dynamic, Property.NodeScope);
 
-    private final ConcurrentMap<CacheKey, CompiledScript> staticCache = ConcurrentCollections.newConcurrentMap();
+    public static final String ALLOW_NONE = "none";
 
-    private final Cache<CacheKey, CompiledScript> cache;
-    private final Path scriptsDirectory;
+    public static final Setting<List<String>> TYPES_ALLOWED_SETTING =
+        Setting.listSetting("script.allowed_types", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
+    public static final Setting<List<String>> CONTEXTS_ALLOWED_SETTING =
+        Setting.listSetting("script.allowed_contexts", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
 
-    private final ScriptModes scriptModes;
-    private final ScriptContextRegistry scriptContextRegistry;
+    private final Set<String> typesAllowed;
+    private final Set<String> contextsAllowed;
 
-    private Client client = null;
+    private final Map<String, ScriptEngine> engines;
+    private final Map<String, ScriptContext<?>> contexts;
 
-    /**
-     * @deprecated Use {@link ScriptField} instead. This should be removed in
-     *             2.0
-     */
-    public static final ParseField SCRIPT_LANG = new ParseField("lang","script_lang");
-    /**
-     * @deprecated Use {@link ScriptType#getParseField()} instead. This should
-     *             be removed in 2.0
-     */
-    public static final ParseField SCRIPT_FILE = new ParseField("script_file");
-    /**
-     * @deprecated Use {@link ScriptType#getParseField()} instead. This should
-     *             be removed in 2.0
-     */
-    public static final ParseField SCRIPT_ID = new ParseField("script_id");
-    /**
-     * @deprecated Use {@link ScriptType#getParseField()} instead. This should
-     *             be removed in 2.0
-     */
-    public static final ParseField SCRIPT_INLINE = new ParseField("script");
+    private final Cache<CacheKey, Object> cache;
 
-    @Inject
-    public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
-                         ResourceWatcherService resourceWatcherService, ScriptContextRegistry scriptContextRegistry) throws IOException {
+    private final ScriptMetrics scriptMetrics = new ScriptMetrics();
+
+    private ClusterState clusterState;
+
+    private Tuple<Integer, TimeValue> rate;
+    private long lastInlineCompileTime;
+    private double scriptsPerTimeWindow;
+    private double compilesAllowedPerNano;
+
+    public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
         super(settings);
+
+        Objects.requireNonNull(settings);
+        this.engines = Objects.requireNonNull(engines);
+        this.contexts = Objects.requireNonNull(contexts);
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings. \n" +
-                    "Dynamic scripts can be enabled for all languages and all operations by replacing `script.disable_dynamic: false` with `script.inline: on` and `script.indexed: on` in elasticsearch.yml");
+                    "Dynamic scripts can be enabled for all languages and all operations not using `script.disable_dynamic: false` in elasticsearch.yml");
         }
 
-        this.scriptEngines = scriptEngines;
-        this.scriptContextRegistry = scriptContextRegistry;
-        int cacheMaxSize = settings.getAsInt(SCRIPT_CACHE_SIZE_SETTING, 100);
-        TimeValue cacheExpire = settings.getAsTime(SCRIPT_CACHE_EXPIRE_SETTING, null);
-        logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
+        this.typesAllowed = TYPES_ALLOWED_SETTING.exists(settings) ? new HashSet<>() : null;
 
-        this.defaultLang = settings.get(DEFAULT_SCRIPTING_LANGUAGE_SETTING, DEFAULT_LANG);
+        if (this.typesAllowed != null) {
+            List<String> typesAllowedList = TYPES_ALLOWED_SETTING.get(settings);
 
-        CacheBuilder cacheBuilder = CacheBuilder.newBuilder();
+            if (typesAllowedList.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "must specify at least one script type or none for setting [" + TYPES_ALLOWED_SETTING.getKey() + "].");
+            }
+
+            for (String settingType : typesAllowedList) {
+                if (ALLOW_NONE.equals(settingType)) {
+                    if (typesAllowedList.size() != 1) {
+                        throw new IllegalArgumentException("cannot specify both [" + ALLOW_NONE + "]" +
+                            " and other script types for setting [" + TYPES_ALLOWED_SETTING.getKey() + "].");
+                    } else {
+                        break;
+                    }
+                }
+
+                boolean found = false;
+
+                for (ScriptType scriptType : ScriptType.values()) {
+                    if (scriptType.getName().equals(settingType)) {
+                        found = true;
+                        this.typesAllowed.add(settingType);
+
+                        break;
+                    }
+                }
+
+                if (found == false) {
+                    throw new IllegalArgumentException(
+                        "unknown script type [" + settingType + "] found in setting [" + TYPES_ALLOWED_SETTING.getKey() + "].");
+                }
+            }
+        }
+
+        this.contextsAllowed = CONTEXTS_ALLOWED_SETTING.exists(settings) ? new HashSet<>() : null;
+
+        if (this.contextsAllowed != null) {
+            List<String> contextsAllowedList = CONTEXTS_ALLOWED_SETTING.get(settings);
+
+            if (contextsAllowedList.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "must specify at least one script context or none for setting [" + CONTEXTS_ALLOWED_SETTING.getKey() + "].");
+            }
+
+            for (String settingContext : contextsAllowedList) {
+                if (ALLOW_NONE.equals(settingContext)) {
+                    if (contextsAllowedList.size() != 1) {
+                        throw new IllegalArgumentException("cannot specify both [" + ALLOW_NONE + "]" +
+                            " and other script contexts for setting [" + CONTEXTS_ALLOWED_SETTING.getKey() + "].");
+                    } else {
+                        break;
+                    }
+                }
+
+                if (contexts.containsKey(settingContext)) {
+                    this.contextsAllowed.add(settingContext);
+                } else {
+                    throw new IllegalArgumentException(
+                        "unknown script context [" + settingContext + "] found in setting [" + CONTEXTS_ALLOWED_SETTING.getKey() + "].");
+                }
+            }
+        }
+
+        int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);
+
+        CacheBuilder<CacheKey, Object> cacheBuilder = CacheBuilder.builder();
         if (cacheMaxSize >= 0) {
-            cacheBuilder.maximumSize(cacheMaxSize);
+            cacheBuilder.setMaximumWeight(cacheMaxSize);
         }
-        if (cacheExpire != null) {
-            cacheBuilder.expireAfterAccess(cacheExpire.nanos(), TimeUnit.NANOSECONDS);
+
+        TimeValue cacheExpire = SCRIPT_CACHE_EXPIRE_SETTING.get(settings);
+        if (cacheExpire.getNanos() != 0) {
+            cacheBuilder.setExpireAfterAccess(cacheExpire);
         }
+
+        logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
-        ImmutableMap.Builder<String, ScriptEngineService> enginesByLangBuilder = ImmutableMap.builder();
-        ImmutableMap.Builder<String, ScriptEngineService> enginesByExtBuilder = ImmutableMap.builder();
-        for (ScriptEngineService scriptEngine : scriptEngines) {
-            for (String type : scriptEngine.types()) {
-                enginesByLangBuilder.put(type, scriptEngine);
-            }
-            for (String ext : scriptEngine.extensions()) {
-                enginesByExtBuilder.put(ext, scriptEngine);
-            }
-        }
-        this.scriptEnginesByLang = enginesByLangBuilder.build();
-        this.scriptEnginesByExt = enginesByExtBuilder.build();
-
-        this.scriptModes = new ScriptModes(this.scriptEnginesByLang, scriptContextRegistry, settings);
-
-        // add file watcher for static scripts
-        scriptsDirectory = env.configFile().resolve("scripts");
-        if (logger.isTraceEnabled()) {
-            logger.trace("Using scripts directory [{}] ", scriptsDirectory);
-        }
-        FileWatcher fileWatcher = new FileWatcher(scriptsDirectory);
-        fileWatcher.addListener(new ScriptChangesListener());
-
-        if (settings.getAsBoolean(SCRIPT_AUTO_RELOAD_ENABLED_SETTING, true)) {
-            // automatic reload is enabled - register scripts
-            resourceWatcherService.add(fileWatcher);
-        } else {
-            // automatic reload is disable just load scripts once
-            fileWatcher.init();
-        }
+        this.lastInlineCompileTime = System.nanoTime();
+        this.setMaxCompilationRate(SCRIPT_MAX_COMPILATIONS_RATE.get(settings));
     }
 
-    //This isn't set in the ctor because doing so creates a guice circular
-    @Inject(optional=true)
-    public void setClient(Client client) {
-        this.client = client;
+    void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
+        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_RATE, this::setMaxCompilationRate);
     }
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(scriptEngines);
+        IOUtils.close(engines.values());
     }
 
-    private ScriptEngineService getScriptEngineServiceForLang(String lang) {
-        ScriptEngineService scriptEngineService = scriptEnginesByLang.get(lang);
-        if (scriptEngineService == null) {
+    private ScriptEngine getEngine(String lang) {
+        ScriptEngine scriptEngine = engines.get(lang);
+        if (scriptEngine == null) {
             throw new IllegalArgumentException("script_lang not supported [" + lang + "]");
         }
-        return scriptEngineService;
-    }
-
-    private ScriptEngineService getScriptEngineServiceForFileExt(String fileExtension) {
-        ScriptEngineService scriptEngineService = scriptEnginesByExt.get(fileExtension);
-        if (scriptEngineService == null) {
-            throw new IllegalArgumentException("script file extension not supported [" + fileExtension + "]");
-        }
-        return scriptEngineService;
+        return scriptEngine;
     }
 
     /**
-     * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
+     * This configures the maximum script compilations per five minute window.
+     *
+     * @param newRate the new expected maximum number of compilations per five minute window
      */
-    public CompiledScript compile(Script script, ScriptContext scriptContext) {
-        if (script == null) {
-            throw new IllegalArgumentException("The parameter script (Script) must not be null.");
-        }
-        if (scriptContext == null) {
-            throw new IllegalArgumentException("The parameter scriptContext (ScriptContext) must not be null.");
-        }
-
-        String lang = script.getLang();
-
-        if (lang == null) {
-            lang = defaultLang;
-        }
-
-        ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-        if (canExecuteScript(lang, scriptEngineService, script.getType(), scriptContext) == false) {
-            throw new ScriptException("scripts of type [" + script.getType() + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
-        }
-        return compileInternal(script);
+    void setMaxCompilationRate(Tuple<Integer, TimeValue> newRate) {
+        this.rate = newRate;
+        // Reset the counter to allow new compilations
+        this.scriptsPerTimeWindow = rate.v1();
+        this.compilesAllowedPerNano = ((double) rate.v1()) / newRate.v2().nanos();
     }
 
     /**
-     * Compiles a script straight-away, or returns the previously compiled and cached script, without checking if it can be executed based on settings.
+     * Compiles a script using the given context.
+     *
+     * @return a compiled script which may be used to construct instances of a script for the given context
      */
-    public CompiledScript compileInternal(Script script) {
-        if (script == null) {
-            throw new IllegalArgumentException("The parameter script (Script) must not be null.");
-        }
+    public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+        Objects.requireNonNull(script);
+        Objects.requireNonNull(context);
 
+        ScriptType type = script.getType();
         String lang = script.getLang();
+        String idOrCode = script.getIdOrCode();
+        Map<String, String> options = script.getOptions();
 
-        if (lang == null) {
-            lang = defaultLang;
+        String id = idOrCode;
+
+        if (type == ScriptType.STORED) {
+            // * lang and options will both be null when looking up a stored script,
+            // so we must get the source to retrieve them before checking if the
+            // context is supported
+            // * a stored script must be pulled from the cluster state every time in case
+            // the script has been updated since the last compilation
+            StoredScriptSource source = getScriptFromClusterState(id);
+            lang = source.getLang();
+            idOrCode = source.getSource();
+            options = source.getOptions();
         }
+
+        // TODO: fix this through some API or something, that's wrong
+        // special exception to prevent expressions from compiling as update or mapping scripts
+        boolean expression = "expression".equals(lang);
+        boolean notSupported = context.name.equals(ExecutableScript.UPDATE_CONTEXT.name);
+        if (expression && notSupported) {
+            throw new UnsupportedOperationException("scripts of type [" + script.getType() + "]," +
+                " operation [" + context.name + "] and lang [" + lang + "] are not supported");
+        }
+
+        ScriptEngine scriptEngine = getEngine(lang);
+
+        if (isTypeEnabled(type) == false) {
+            throw new IllegalArgumentException("cannot execute [" + type + "] scripts");
+        }
+
+        if (contexts.containsKey(context.name) == false) {
+            throw new IllegalArgumentException("script context [" + context.name + "] not supported");
+        }
+
+        if (isContextEnabled(context) == false) {
+            throw new IllegalArgumentException("cannot execute scripts using [" + context.name + "] context");
+        }
+
         if (logger.isTraceEnabled()) {
-            logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, script.getType(), script.getScript());
+            logger.trace("compiling lang: [{}] type: [{}] script: {}", lang, type, idOrCode);
         }
 
-        ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-        CacheKey cacheKey = newCacheKey(scriptEngineService, script.getScript());
+        CacheKey cacheKey = new CacheKey(lang, idOrCode, context.name, options);
+        Object compiledScript = cache.get(cacheKey);
 
-        if (script.getType() == ScriptType.FILE) {
-            CompiledScript compiled = staticCache.get(cacheKey); //On disk scripts will be loaded into the staticCache by the listener
-            if (compiled == null) {
-                throw new IllegalArgumentException("Unable to find on disk script " + script.getScript());
-            }
-            return compiled;
+        if (compiledScript != null) {
+            return context.factoryClazz.cast(compiledScript);
         }
 
-        String code = script.getScript();
+        // Synchronize so we don't compile scripts many times during multiple shards all compiling a script
+        synchronized (this) {
+            // Retrieve it again in case it has been put by a different thread
+            compiledScript = cache.get(cacheKey);
 
-        if (script.getType() == ScriptType.INDEXED) {
-            final IndexedScript indexedScript = new IndexedScript(lang, script.getScript());
-            code = getScriptFromIndex(indexedScript.lang, indexedScript.id);
-            cacheKey = newCacheKey(scriptEngineService, code);
-        }
-
-        CompiledScript compiled = cache.getIfPresent(cacheKey);
-        if (compiled == null) {
-            //Either an un-cached inline script or an indexed script
-            compiled = new CompiledScript(lang, scriptEngineService.compile(code));
-            //Since the cache key is the script content itself we don't need to
-            //invalidate/check the cache if an indexed script changes.
-            cache.put(cacheKey, compiled);
-        }
-        return compiled;
-    }
-
-    public void queryScriptIndex(GetIndexedScriptRequest request, final ActionListener<GetResponse> listener) {
-        String scriptLang = validateScriptLanguage(request.scriptLang());
-        GetRequest getRequest = new GetRequest(request, SCRIPT_INDEX).type(scriptLang).id(request.id())
-                .version(request.version()).versionType(request.versionType())
-                .preference("_local"); //Set preference for no forking
-        client.get(getRequest, listener);
-    }
-
-    private String validateScriptLanguage(String scriptLang) {
-        if (scriptLang == null) {
-            scriptLang = defaultLang;
-        } else if (scriptEnginesByLang.containsKey(scriptLang) == false) {
-            throw new IllegalArgumentException("script_lang not supported [" + scriptLang + "]");
-        }
-        return scriptLang;
-    }
-
-    String getScriptFromIndex(String scriptLang, String id) {
-        if (client == null) {
-            throw new IllegalArgumentException("Got an indexed script with no Client registered.");
-        }
-        scriptLang = validateScriptLanguage(scriptLang);
-        GetRequest getRequest = new GetRequest(SCRIPT_INDEX, scriptLang, id);
-        getRequest.copyContextAndHeadersFrom(SearchContext.current());
-        GetResponse responseFields = client.get(getRequest).actionGet();
-        if (responseFields.isExists()) {
-            return getScriptFromResponse(responseFields);
-        }
-        throw new IllegalArgumentException("Unable to find script [" + SCRIPT_INDEX + "/"
-                + scriptLang + "/" + id + "]");
-    }
-
-    private void validate(BytesReference scriptBytes, String scriptLang) {
-        try {
-            XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
-            parser.nextToken();
-            Template template = TemplateQueryParser.parse(scriptLang, parser, "params", "script", "template");
-            if (Strings.hasLength(template.getScript())) {
-                //Just try and compile it
-                //This will have the benefit of also adding the script to the cache if it compiles
+            if (compiledScript == null) {
                 try {
-                    //we don't know yet what the script will be used for, but if all of the operations for this lang with
-                    //indexed scripts are disabled, it makes no sense to even compile it and cache it.
-                    if (isAnyScriptContextEnabled(scriptLang, getScriptEngineServiceForLang(scriptLang), ScriptType.INDEXED)) {
-                        CompiledScript compiledScript = compileInternal(template);
-                        if (compiledScript == null) {
-                            throw new IllegalArgumentException("Unable to parse [" + template.getScript() +
-                                    "] lang [" + scriptLang + "] (ScriptService.compile returned null)");
-                        }
-                    } else {
-                        logger.warn(
-                                "skipping compile of script [{}], lang [{}] as all scripted operations are disabled for indexed scripts",
-                                template.getScript(), scriptLang);
+                    // Either an un-cached inline script or indexed script
+                    // If the script type is inline the name will be the same as the code for identification in exceptions
+                    // but give the script engine the chance to be better, give it separate name + source code
+                    // for the inline case, then its anonymous: null.
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("compiling script, type: [{}], lang: [{}], options: [{}]", type, lang, options);
                     }
-                } catch (Exception e) {
-                    throw new IllegalArgumentException("Unable to parse [" + template.getScript() +
-                            "] lang [" + scriptLang + "]", e);
+                    // Check whether too many compilations have happened
+                    checkCompilationLimit();
+                    compiledScript = scriptEngine.compile(id, idOrCode, context, options);
+                } catch (ScriptException good) {
+                    // TODO: remove this try-catch completely, when all script engines have good exceptions!
+                    throw good; // its already good
+                } catch (Exception exception) {
+                    throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]", exception);
                 }
-            } else {
-                throw new IllegalArgumentException("Unable to find script in : " + scriptBytes.toUtf8());
+
+                // Since the cache key is the script content itself we don't need to
+                // invalidate/check the cache if an indexed script changes.
+                scriptMetrics.onCompilation();
+                cache.put(cacheKey, compiledScript);
             }
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to parse template script", e);
+
+            return context.factoryClazz.cast(compiledScript);
         }
     }
 
-    public void putScriptToIndex(PutIndexedScriptRequest request, ActionListener<IndexResponse> listener) {
-        String scriptLang = validateScriptLanguage(request.scriptLang());
-        //verify that the script compiles
-        validate(request.source(), scriptLang);
+    /**
+     * Check whether there have been too many compilations within the last minute, throwing a circuit breaking exception if so.
+     * This is a variant of the token bucket algorithm: https://en.wikipedia.org/wiki/Token_bucket
+     *
+     * It can be thought of as a bucket with water, every time the bucket is checked, water is added proportional to the amount of time that
+     * elapsed since the last time it was checked. If there is enough water, some is removed and the request is allowed. If there is not
+     * enough water the request is denied. Just like a normal bucket, if water is added that overflows the bucket, the extra water/capacity
+     * is discarded - there can never be more water in the bucket than the size of the bucket.
+     */
+    void checkCompilationLimit() {
+        long now = System.nanoTime();
+        long timePassed = now - lastInlineCompileTime;
+        lastInlineCompileTime = now;
 
-        IndexRequest indexRequest = new IndexRequest(request).index(SCRIPT_INDEX).type(scriptLang).id(request.id())
-                .version(request.version()).versionType(request.versionType())
-                .source(request.source()).opType(request.opType()).refresh(true); //Always refresh after indexing a template
-        client.index(indexRequest, listener);
-    }
+        scriptsPerTimeWindow += (timePassed) * compilesAllowedPerNano;
 
-    public void deleteScriptFromIndex(DeleteIndexedScriptRequest request, ActionListener<DeleteResponse> listener) {
-        String scriptLang = validateScriptLanguage(request.scriptLang());
-        DeleteRequest deleteRequest = new DeleteRequest(request).index(SCRIPT_INDEX).type(scriptLang).id(request.id())
-                .refresh(true).version(request.version()).versionType(request.versionType());
-        client.delete(deleteRequest, listener);
-    }
+        // It's been over the time limit anyway, readjust the bucket to be level
+        if (scriptsPerTimeWindow > rate.v1()) {
+            scriptsPerTimeWindow = rate.v1();
+        }
 
-    @SuppressWarnings("unchecked")
-    public static String getScriptFromResponse(GetResponse responseFields) {
-        Map<String, Object> source = responseFields.getSourceAsMap();
-        if (source.containsKey("template")) {
-            try {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                Object template = source.get("template");
-                if (template instanceof Map ){
-                    builder.map((Map<String, Object>)template);
-                    return builder.string();
-                } else {
-                    return template.toString();
-                }
-            } catch (IOException | ClassCastException e) {
-                throw new IllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
-            }
-        } else  if (source.containsKey("script")) {
-            return source.get("script").toString();
+        // If there is enough tokens in the bucket, allow the request and decrease the tokens by 1
+        if (scriptsPerTimeWindow >= 1) {
+            scriptsPerTimeWindow -= 1.0;
         } else {
-            try {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                builder.map(responseFields.getSource());
-                return builder.string();
-            } catch (IOException|ClassCastException e) {
-                throw new IllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
+            scriptMetrics.onCompilationLimit();
+            // Otherwise reject the request
+            throw new CircuitBreakingException("[script] Too many dynamic script compilations within, max: [" +
+                    rate.v1() + "/" + rate.v2() +"]; please use indexed, or scripts with parameters instead; " +
+                            "this limit can be changed by the [" + SCRIPT_MAX_COMPILATIONS_RATE.getKey() + "] setting");
+        }
+    }
+
+    public boolean isLangSupported(String lang) {
+        Objects.requireNonNull(lang);
+        return engines.containsKey(lang);
+    }
+
+    public boolean isTypeEnabled(ScriptType scriptType) {
+        return typesAllowed == null || typesAllowed.contains(scriptType.getName());
+    }
+
+    public boolean isContextEnabled(ScriptContext scriptContext) {
+        return contextsAllowed == null || contextsAllowed.contains(scriptContext.name);
+    }
+
+    public boolean isAnyContextEnabled() {
+        return contextsAllowed == null || contextsAllowed.isEmpty() == false;
+    }
+
+    StoredScriptSource getScriptFromClusterState(String id) {
+        ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
+
+        if (scriptMetadata == null) {
+            throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
+        }
+
+        StoredScriptSource source = scriptMetadata.getStoredScript(id);
+
+        if (source == null) {
+            throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
+        }
+
+        return source;
+    }
+
+    public void putStoredScript(ClusterService clusterService, PutStoredScriptRequest request,
+                                ActionListener<PutStoredScriptResponse> listener) {
+        int max = SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
+
+        if (request.content().length() > max) {
+            throw new IllegalArgumentException("exceeded max allowed stored script size in bytes [" + max + "] with size [" +
+                request.content().length() + "] for script [" + request.id() + "]");
+        }
+
+        StoredScriptSource source = request.source();
+
+        if (isLangSupported(source.getLang()) == false) {
+            throw new IllegalArgumentException("unable to put stored script with unsupported lang [" + source.getLang() + "]");
+        }
+
+        try {
+            ScriptEngine scriptEngine = getEngine(source.getLang());
+
+            if (isTypeEnabled(ScriptType.STORED) == false) {
+                throw new IllegalArgumentException(
+                    "cannot put [" + ScriptType.STORED + "] script, [" + ScriptType.STORED + "] scripts are not enabled");
+            } else if (isAnyContextEnabled() == false) {
+                throw new IllegalArgumentException(
+                    "cannot put [" + ScriptType.STORED + "] script, no script contexts are enabled");
+            } else if (request.context() != null) {
+                ScriptContext<?> context = contexts.get(request.context());
+                if (context == null) {
+                    throw new IllegalArgumentException("Unknown context [" + request.context() + "]");
+                }
+                scriptEngine.compile(request.id(), source.getSource(), context, Collections.emptyMap());
             }
+        } catch (ScriptException good) {
+            throw good;
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]", exception);
         }
-    }
 
-    /**
-     * Compiles (or retrieves from cache) and executes the provided script
-     */
-    public ExecutableScript executable(Script script, ScriptContext scriptContext) {
-        return executable(compile(script, scriptContext), script.getParams());
-    }
+        clusterService.submitStateUpdateTask("put-script-" + request.id(),
+            new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
 
-    /**
-     * Executes a previously compiled script provided as an argument
-     */
-    public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
-        return getScriptEngineServiceForLang(compiledScript.lang()).executable(compiledScript.compiled(), vars);
-    }
-
-    /**
-     * Compiles (or retrieves from cache) and executes the provided search script
-     */
-    public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext) {
-        CompiledScript compiledScript = compile(script, scriptContext);
-        return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript.compiled(), lookup, script.getParams());
-    }
-
-    private boolean isAnyScriptContextEnabled(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType) {
-        for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-            if (canExecuteScript(lang, scriptEngineService, scriptType, scriptContext)) {
-                return true;
+            @Override
+            protected PutStoredScriptResponse newResponse(boolean acknowledged) {
+                return new PutStoredScriptResponse(acknowledged);
             }
-        }
-        return false;
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
+                smd = ScriptMetaData.putStoredScript(smd, request.id(), source);
+                MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
+
+                return ClusterState.builder(currentState).metaData(mdb).build();
+            }
+        });
     }
 
-    private boolean canExecuteScript(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType, ScriptContext scriptContext) {
-        assert lang != null;
-        if (scriptContextRegistry.isSupportedContext(scriptContext) == false) {
-            throw new IllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
+    public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
+                                   ActionListener<DeleteStoredScriptResponse> listener) {
+        clusterService.submitStateUpdateTask("delete-script-" + request.id(),
+            new AckedClusterStateUpdateTask<DeleteStoredScriptResponse>(request, listener) {
+
+            @Override
+            protected DeleteStoredScriptResponse newResponse(boolean acknowledged) {
+                return new DeleteStoredScriptResponse(acknowledged);
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
+                smd = ScriptMetaData.deleteStoredScript(smd, request.id());
+                MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
+
+                return ClusterState.builder(currentState).metaData(mdb).build();
+            }
+        });
+    }
+
+    public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
+        ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
+
+        if (scriptMetadata != null) {
+            return scriptMetadata.getStoredScript(request.id());
+        } else {
+            return null;
         }
-        ScriptMode mode = scriptModes.getScriptMode(lang, scriptType, scriptContext);
-        switch (mode) {
-            case ON:
-                return true;
-            case OFF:
-                return false;
-            case SANDBOX:
-                return scriptEngineService.sandboxed();
-            default:
-                throw new IllegalArgumentException("script mode [" + mode + "] not supported");
-        }
+    }
+
+    public ScriptStats stats() {
+        return scriptMetrics.stats();
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        clusterState = event.state();
     }
 
     /**
      * A small listener for the script cache that calls each
-     * {@code ScriptEngineService}'s {@code scriptRemoved} method when the
+     * {@code ScriptEngine}'s {@code scriptRemoved} method when the
      * script has been removed from the cache
      */
-    private class ScriptCacheRemovalListener implements RemovalListener<CacheKey, CompiledScript> {
-
+    private class ScriptCacheRemovalListener implements RemovalListener<CacheKey, Object> {
         @Override
-        public void onRemoval(RemovalNotification<CacheKey, CompiledScript> notification) {
+        public void onRemoval(RemovalNotification<CacheKey, Object> notification) {
             if (logger.isDebugEnabled()) {
-                logger.debug("notifying script services of script removal due to: [{}]", notification.getCause());
+                logger.debug("removed {} from cache, reason: {}", notification.getValue(), notification.getRemovalReason());
             }
-            for (ScriptEngineService service : scriptEngines) {
-                try {
-                    service.scriptRemoved(notification.getValue());
-                } catch (Exception e) {
-                    logger.warn("exception calling script removal listener for script service", e);
-                    // We don't rethrow because Guava would just catch the
-                    // exception and log it, which we have already done
-                }
-            }
+            scriptMetrics.onCacheEviction();
         }
     }
 
-    private class ScriptChangesListener extends FileChangesListener {
+    private static final class CacheKey {
+        final String lang;
+        final String idOrCode;
+        final String context;
+        final Map<String, String> options;
 
-        private Tuple<String, String> scriptNameExt(Path file) {
-            Path scriptPath = scriptsDirectory.relativize(file);
-            int extIndex = scriptPath.toString().lastIndexOf('.');
-            if (extIndex != -1) {
-                String ext = scriptPath.toString().substring(extIndex + 1);
-                String scriptName = scriptPath.toString().substring(0, extIndex).replace(scriptPath.getFileSystem().getSeparator(), "_");
-                return new Tuple<>(scriptName, ext);
-            } else {
-                return null;
-            }
-        }
-
-        @Override
-        public void onFileInit(Path file) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("Loading script file : [{}]", file);
-            }
-            Tuple<String, String> scriptNameExt = scriptNameExt(file);
-            if (scriptNameExt != null) {
-                ScriptEngineService engineService = getScriptEngineServiceForFileExt(scriptNameExt.v2());
-                if (engineService == null) {
-                    logger.warn("no script engine found for [{}]", scriptNameExt.v2());
-                } else {
-                    try {
-                        //we don't know yet what the script will be used for, but if all of the operations for this lang
-                        // with file scripts are disabled, it makes no sense to even compile it and cache it.
-                        if (isAnyScriptContextEnabled(engineService.types()[0], engineService, ScriptType.FILE)) {
-                            logger.info("compiling script file [{}]", file.toAbsolutePath());
-                            try(InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), Charsets.UTF_8)) {
-                                String script = Streams.copyToString(reader);
-                                CacheKey cacheKey = newCacheKey(engineService, scriptNameExt.v1());
-                                staticCache.put(cacheKey, new CompiledScript(engineService.types()[0], engineService.compile(script)));
-                            }
-                        } else {
-                            logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts", file.toAbsolutePath());
-                        }
-                    } catch (Throwable e) {
-                        logger.warn("failed to load/compile script [{}]", e, scriptNameExt.v1());
-                    }
-                }
-            }
-        }
-
-        @Override
-        public void onFileCreated(Path file) {
-            onFileInit(file);
-        }
-
-        @Override
-        public void onFileDeleted(Path file) {
-            Tuple<String, String> scriptNameExt = scriptNameExt(file);
-            if (scriptNameExt != null) {
-                ScriptEngineService engineService = getScriptEngineServiceForFileExt(scriptNameExt.v2());
-                assert engineService != null;
-                logger.info("removing script file [{}]", file.toAbsolutePath());
-                staticCache.remove(newCacheKey(engineService, scriptNameExt.v1()));
-            }
-        }
-
-        @Override
-        public void onFileChanged(Path file) {
-            onFileInit(file);
-        }
-
-    }
-
-    /**
-     * The type of a script, more specifically where it gets loaded from:
-     * - provided dynamically at request time
-     * - loaded from an index
-     * - loaded from file
-     */
-    public static enum ScriptType {
-
-        INLINE(0, "inline"),
-        INDEXED(1, "id"),
-        FILE(2, "file");
-
-        private final int val;
-        private final ParseField parseField;
-
-        public static ScriptType readFrom(StreamInput in) throws IOException {
-            int scriptTypeVal = in.readVInt();
-            for (ScriptType type : values()) {
-                if (type.val == scriptTypeVal) {
-                    return type;
-                }
-            }
-            throw new IllegalArgumentException("Unexpected value read for ScriptType got [" + scriptTypeVal + "] expected one of ["
-                    + INLINE.val + "," + FILE.val + "," + INDEXED.val + "]");
-        }
-
-        public static void writeTo(ScriptType scriptType, StreamOutput out) throws IOException{
-            if (scriptType != null) {
-                out.writeVInt(scriptType.val);
-            } else {
-                out.writeVInt(INLINE.val); //Default to inline
-            }
-        }
-
-        private ScriptType(int val, String name) {
-            this.val = val;
-            this.parseField = new ParseField(name);
-        }
-
-        public ParseField getParseField() {
-            return parseField;
-        }
-
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
-    }
-
-    private static CacheKey newCacheKey(ScriptEngineService engineService, String script) {
-        return new CacheKey(engineService.types()[0], script);
-    }
-
-    private static class CacheKey {
-        public final String lang;
-        public final String script;
-
-        public CacheKey(String lang, String script) {
+        private CacheKey(String lang, String idOrCode, String context, Map<String, String> options) {
             this.lang = lang;
-            this.script = script;
+            this.idOrCode = idOrCode;
+            this.context = context;
+            this.options = options;
         }
 
         @Override
         public boolean equals(Object o) {
-            if (! (o instanceof  CacheKey)) {
-                return false;
-            }
-            CacheKey other = (CacheKey) o;
-            return lang.equals(other.lang) && script.equals(other.script);
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            CacheKey cacheKey = (CacheKey) o;
+            return Objects.equals(lang, cacheKey.lang) &&
+                Objects.equals(idOrCode, cacheKey.idOrCode) &&
+                Objects.equals(context, cacheKey.context) &&
+                Objects.equals(options, cacheKey.options);
         }
 
         @Override
         public int hashCode() {
-            return lang.hashCode() + 31 * script.hashCode();
-        }
-    }
-
-    private static class IndexedScript {
-        private final String lang;
-        private final String id;
-
-        IndexedScript(String lang, String script) {
-            this.lang = lang;
-            final String[] parts = script.split("/");
-            if (parts.length == 1) {
-                this.id = script;
-            } else {
-                if (parts.length != 3) {
-                    throw new IllegalArgumentException("Illegal index script format [" + script + "]" +
-                            " should be /lang/id");
-                } else {
-                    if (!parts[1].equals(this.lang)) {
-                        throw new IllegalStateException("Conflicting script language, found [" + parts[1] + "] expected + ["+ this.lang + "]");
-                    }
-                    this.id = parts[2];
-                }
-            }
+            return Objects.hash(lang, idOrCode, context, options);
         }
     }
 }

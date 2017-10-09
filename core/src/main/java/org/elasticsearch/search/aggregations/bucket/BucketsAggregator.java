@@ -28,22 +28,19 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public abstract class BucketsAggregator extends AggregatorBase {
 
     private final BigArrays bigArrays;
     private IntArray docCounts;
 
-    public BucketsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
+    public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         bigArrays = context.bigArrays();
@@ -73,7 +70,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * Same as {@link #collectBucket(int, long)}, but doesn't check if the docCounts needs to be re-sized.
+     * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
      */
     public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
         docCounts.increment(bucketOrd, 1);

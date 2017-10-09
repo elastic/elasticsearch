@@ -21,14 +21,14 @@ package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
 
 import java.io.IOException;
+import java.text.ParseException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
@@ -37,8 +37,51 @@ import java.util.Map;
  * linearly less important.  "Time" is determined by position in collection
  */
 public class LinearModel extends MovAvgModel {
+    public static final String NAME = "linear";
 
-    protected static final ParseField NAME_FIELD = new ParseField("linear");
+    public LinearModel() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public LinearModel(StreamInput in) {
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // No state to write
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public boolean canBeMinimized() {
+        return false;
+    }
+
+    @Override
+    public MovAvgModel neighboringModel() {
+        return new LinearModel();
+    }
+
+    @Override
+    public MovAvgModel clone() {
+        return new LinearModel();
+    }
+
+    @Override
+    protected  <T extends Number> double[] doPredict(Collection<T> values, int numPredictions) {
+        double[] predictions = new double[numPredictions];
+
+        // EWMA just emits the same final prediction repeatedly.
+        Arrays.fill(predictions, next(values));
+
+        return predictions;
+    }
 
     @Override
     public <T extends Number> double next(Collection<T> values) {
@@ -54,41 +97,46 @@ public class LinearModel extends MovAvgModel {
         return avg / totalWeight;
     }
 
-    public static final MovAvgModelStreams.Stream STREAM = new MovAvgModelStreams.Stream() {
-        @Override
-        public MovAvgModel readResult(StreamInput in) throws IOException {
-            return new LinearModel();
-        }
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
+        return builder;
+    }
 
+    public static final AbstractModelParser PARSER = new AbstractModelParser() {
         @Override
-        public String getName() {
-            return NAME_FIELD.getPreferredName();
+        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize) throws ParseException {
+            checkUnrecognizedParams(settings);
+            return new LinearModel();
         }
     };
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(STREAM.getName());
-    }
-
-    public static class LinearModelParser extends AbstractModelParser {
-
-        @Override
-        public String getName() {
-            return NAME_FIELD.getPreferredName();
-        }
-
-        @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName,  SearchContext context, int windowSize) {
-            return new LinearModel();
-        }
-    }
 
     public static class LinearModelBuilder implements MovAvgModelBuilder {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+            builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
             return builder;
         }
+
+        @Override
+        public MovAvgModel build() {
+            return new LinearModel();
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        return 0;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        return true;
     }
 }

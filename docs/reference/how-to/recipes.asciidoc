@@ -1,0 +1,11 @@
+[[recipes]]
+== Recipes
+
+This section includes a few recipes to help with common problems:
+
+* mixing-exact-search-with-stemming
+* consistent-scoring
+
+include::recipes/stemming.asciidoc[]
+include::recipes/scoring.asciidoc[]
+

@@ -18,85 +18,71 @@
  */
 package org.elasticsearch.common.unit;
 
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.CoreMatchers.*;
-import static org.hamcrest.number.IsCloseTo.closeTo;
+import static org.hamcrest.CoreMatchers.anyOf;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.sameInstance;
 
-public class FuzzinessTests extends ElasticsearchTestCase {
-
-    @Test
+public class FuzzinessTests extends ESTestCase {
     public void testNumerics() {
         String[] options = new String[]{"1.0", "1", "1.000000"};
-        assertThat(Fuzziness.build(randomFrom(options)).asByte(), equalTo((byte) 1));
-        assertThat(Fuzziness.build(randomFrom(options)).asInt(), equalTo(1));
         assertThat(Fuzziness.build(randomFrom(options)).asFloat(), equalTo(1f));
-        assertThat(Fuzziness.build(randomFrom(options)).asDouble(), equalTo(1d));
-        assertThat(Fuzziness.build(randomFrom(options)).asLong(), equalTo(1l));
-        assertThat(Fuzziness.build(randomFrom(options)).asShort(), equalTo((short) 1));
     }
 
-    @Test
     public void testParseFromXContent() throws IOException {
         final int iters = randomIntBetween(10, 50);
         for (int i = 0; i < iters; i++) {
             {
-                XContent xcontent = XContentType.JSON.xContent();
                 float floatValue = randomFloat();
-                String json = jsonBuilder().startObject()
+                XContentBuilder json = jsonBuilder().startObject()
                         .field(Fuzziness.X_FIELD_NAME, floatValue)
-                        .endObject().string();
-                XContentParser parser = xcontent.createParser(json);
+                        .endObject();
+                XContentParser parser = createParser(json);
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_NUMBER));
-                Fuzziness parse = Fuzziness.parse(parser);
-                assertThat(parse.asFloat(), equalTo(floatValue));
-                assertThat(parse.asDouble(), closeTo((double) floatValue, 0.000001));
+                Fuzziness fuzziness = Fuzziness.parse(parser);
+                assertThat(fuzziness.asFloat(), equalTo(floatValue));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
             }
             {
-                XContent xcontent = XContentType.JSON.xContent();
                 Integer intValue = frequently() ? randomIntBetween(0, 2) : randomIntBetween(0, 100);
                 Float floatRep = randomFloat();
                 Number value = intValue;
                 if (randomBoolean()) {
                     value = new Float(floatRep += intValue);
                 }
-                String json = jsonBuilder().startObject()
+                XContentBuilder json = jsonBuilder().startObject()
                         .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? value.toString() : value)
-                        .endObject().string();
-                XContentParser parser = xcontent.createParser(json);
+                        .endObject();
+                XContentParser parser = createParser(json);
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), anyOf(equalTo(XContentParser.Token.VALUE_NUMBER), equalTo(XContentParser.Token.VALUE_STRING)));
-                Fuzziness parse = Fuzziness.parse(parser);
-                assertThat(parse.asInt(), equalTo(value.intValue()));
-                assertThat((int) parse.asShort(), equalTo(value.intValue()));
-                assertThat((int) parse.asByte(), equalTo(value.intValue()));
-                assertThat(parse.asLong(), equalTo(value.longValue()));
+                Fuzziness fuzziness = Fuzziness.parse(parser);
                 if (value.intValue() >= 1) {
-                    assertThat(parse.asDistance(), equalTo(Math.min(2, value.intValue())));
+                    assertThat(fuzziness.asDistance(), equalTo(Math.min(2, value.intValue())));
                 }
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
                 if (intValue.equals(value)) {
                     switch (intValue) {
                         case 1:
-                            assertThat(parse, sameInstance(Fuzziness.ONE));
+                            assertThat(fuzziness, sameInstance(Fuzziness.ONE));
                             break;
                         case 2:
-                            assertThat(parse, sameInstance(Fuzziness.TWO));
+                            assertThat(fuzziness, sameInstance(Fuzziness.TWO));
                             break;
                         case 0:
-                            assertThat(parse, sameInstance(Fuzziness.ZERO));
+                            assertThat(fuzziness, sameInstance(Fuzziness.ZERO));
                             break;
                         default:
                             break;
@@ -104,66 +90,37 @@ public class FuzzinessTests extends ElasticsearchTestCase {
                 }
             }
             {
-                XContent xcontent = XContentType.JSON.xContent();
-                String json = jsonBuilder().startObject()
-                        .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? "AUTO" : "auto")
-                        .endObject().string();
-                if (randomBoolean()) {
-                    json = Fuzziness.AUTO.toXContent(jsonBuilder().startObject(), null).endObject().string();
+                XContentBuilder json;
+                boolean isDefaultAutoFuzzinessTested = randomBoolean();
+                if (isDefaultAutoFuzzinessTested) {
+                    json = Fuzziness.AUTO.toXContent(jsonBuilder().startObject(), null).endObject();
+                } else {
+                    String auto = randomBoolean() ? "AUTO" : "auto";
+                    if (randomBoolean()) {
+                        auto += ":" + randomIntBetween(1, 3) + "," + randomIntBetween(4, 10);
+                    }
+                    json = jsonBuilder().startObject()
+                        .field(Fuzziness.X_FIELD_NAME, auto)
+                        .endObject();
                 }
-                XContentParser parser = xcontent.createParser(json);
+                XContentParser parser = createParser(json);
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
-                Fuzziness parse = Fuzziness.parse(parser);
-                assertThat(parse, sameInstance(Fuzziness.AUTO));
-                assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
-            }
-
-            {
-                String[] values = new String[]{"d", "H", "ms", "s", "S", "w"};
-                String actual = randomIntBetween(1, 3) + randomFrom(values);
-                XContent xcontent = XContentType.JSON.xContent();
-                String json = jsonBuilder().startObject()
-                        .field(Fuzziness.X_FIELD_NAME, actual)
-                        .endObject().string();
-                XContentParser parser = xcontent.createParser(json);
-                assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-                assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-                assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
-                Fuzziness parse = Fuzziness.parse(parser);
-                assertThat(parse.asTimeValue(), equalTo(TimeValue.parseTimeValue(actual, null, "fuzziness")));
+                Fuzziness fuzziness = Fuzziness.parse(parser);
+                if (isDefaultAutoFuzzinessTested) {
+                    assertThat(fuzziness, sameInstance(Fuzziness.AUTO));
+                }
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
             }
         }
 
     }
 
-    @Test
     public void testAuto() {
-        final int codePoints = randomIntBetween(0, 10);
-        String string = randomRealisticUnicodeOfCodepointLength(codePoints);
-        if (codePoints <= 2) {
-            assertThat(Fuzziness.AUTO.asDistance(string), equalTo(0));
-            assertThat(Fuzziness.fromSimilarity(Fuzziness.AUTO.asSimilarity(string)).asDistance(string), equalTo(0));
-        } else if (codePoints > 5) {
-            assertThat(Fuzziness.AUTO.asDistance(string), equalTo(2));
-            assertThat(Fuzziness.fromSimilarity(Fuzziness.AUTO.asSimilarity(string)).asDistance(string), equalTo(2));
-        } else {
-            assertThat(Fuzziness.AUTO.asDistance(string), equalTo(1));
-            assertThat(Fuzziness.fromSimilarity(Fuzziness.AUTO.asSimilarity(string)).asDistance(string), equalTo(1));
-        }
-        assertThat(Fuzziness.AUTO.asByte(), equalTo((byte) 1));
-        assertThat(Fuzziness.AUTO.asInt(), equalTo(1));
         assertThat(Fuzziness.AUTO.asFloat(), equalTo(1f));
-        assertThat(Fuzziness.AUTO.asDouble(), equalTo(1d));
-        assertThat(Fuzziness.AUTO.asLong(), equalTo(1l));
-        assertThat(Fuzziness.AUTO.asShort(), equalTo((short) 1));
-        assertThat(Fuzziness.AUTO.asTimeValue(), equalTo(TimeValue.parseTimeValue("1ms", TimeValue.timeValueMillis(1), "fuzziness")));
-
     }
 
-    @Test
     public void testAsDistance() {
         final int iters = randomIntBetween(10, 50);
         for (int i = 0; i < iters; i++) {
@@ -173,28 +130,44 @@ public class FuzzinessTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10638")
-    public void testSimilarityToDistance() {
-        assertThat(Fuzziness.fromSimilarity(0.5f).asDistance("ab"), equalTo(1));
-        assertThat(Fuzziness.fromSimilarity(0.66f).asDistance("abcefg"), equalTo(2));
-        assertThat(Fuzziness.fromSimilarity(0.8f).asDistance("ab"), equalTo(0));
-        assertThat(Fuzziness.fromSimilarity(0.8f).asDistance("abcefg"), equalTo(1));
-        assertThat((double) Fuzziness.ONE.asSimilarity("abcefg"), closeTo(0.8f, 0.05));
-        assertThat((double) Fuzziness.TWO.asSimilarity("abcefg"), closeTo(0.66f, 0.05));
-        assertThat((double) Fuzziness.ONE.asSimilarity("ab"), closeTo(0.5f, 0.05));
+    public void testSerialization() throws IOException {
+        Fuzziness fuzziness = Fuzziness.AUTO;
+        Fuzziness deserializedFuzziness = doSerializeRoundtrip(fuzziness);
+        assertEquals(fuzziness, deserializedFuzziness);
 
-        int iters = randomIntBetween(100, 1000);
-        for (int i = 0; i < iters; i++) {
-            Fuzziness fuzziness = Fuzziness.fromEdits(between(1, 2));
-            String string = rarely() ? randomRealisticUnicodeOfLengthBetween(2, 4) :
-                    randomRealisticUnicodeOfLengthBetween(4, 10);
-            float similarity = fuzziness.asSimilarity(string);
-            if (similarity != 0.0f) {
-                Fuzziness similarityBased = Fuzziness.build(similarity);
-                assertThat((double) similarityBased.asSimilarity(string), closeTo(similarity, 0.05));
-                assertThat(similarityBased.asDistance(string), equalTo(Math.min(2, fuzziness.asDistance(string))));
-            }
-        }
+        fuzziness = Fuzziness.fromEdits(randomIntBetween(0, 2));
+        deserializedFuzziness = doSerializeRoundtrip(fuzziness);
+        assertEquals(fuzziness, deserializedFuzziness);
+    }
+
+    public void testSerializationDefaultAuto() throws IOException {
+        Fuzziness fuzziness = Fuzziness.AUTO;
+        Fuzziness deserializedFuzziness = doSerializeRoundtrip(fuzziness);
+        assertEquals(fuzziness, deserializedFuzziness);
+        assertEquals(fuzziness.asFloat(), deserializedFuzziness.asFloat(), 0f);
+    }
+
+    public void testSerializationCustomAuto() throws IOException {
+        String auto = "AUTO:4,7";
+        XContentBuilder json = jsonBuilder().startObject()
+            .field(Fuzziness.X_FIELD_NAME, auto)
+            .endObject();
+
+        XContentParser parser = createParser(json);
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
+        Fuzziness fuzziness = Fuzziness.parse(parser);
+
+        Fuzziness deserializedFuzziness = doSerializeRoundtrip(fuzziness);
+        assertEquals(fuzziness, deserializedFuzziness);
+        assertEquals(fuzziness.asString(), deserializedFuzziness.asString());
+    }
+
+    private static Fuzziness doSerializeRoundtrip(Fuzziness in) throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        in.writeTo(output);
+        StreamInput streamInput = output.bytes().streamInput();
+        return new Fuzziness(streamInput);
     }
 }

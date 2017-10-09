@@ -20,7 +20,10 @@
 package org.elasticsearch.client.transport;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  * An exception indicating no node is available to perform the operation.
@@ -33,6 +36,10 @@ public class NoNodeAvailableException extends ElasticsearchException {
 
     public NoNodeAvailableException(String message, Throwable t) {
         super(message, t);
+    }
+
+    public NoNodeAvailableException(StreamInput in) throws IOException{
+        super(in);
     }
 
     @Override

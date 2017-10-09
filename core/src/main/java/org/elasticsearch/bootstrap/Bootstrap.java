@@ -19,46 +19,59 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.lucene.util.StringHelper;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.ConsoleAppender;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.ExceptionsHelper;
+import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.log4j.LogConfigurator;
+import org.elasticsearch.common.network.IfConfig;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.monitor.process.JmxProcessProbe;
+import org.elasticsearch.monitor.os.OsProbe;
+import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.hyperic.sigar.Sigar;
+import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.node.InternalSettingsPreparer;
 
-import java.util.Locale;
-import java.util.Set;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
+import java.net.URISyntaxException;
+import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
+import java.util.List;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
-import static com.google.common.collect.Sets.newHashSet;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
-
 /**
- * A main entry point when starting from the command line.
+ * Internal startup code.
  */
-public class Bootstrap {
+final class Bootstrap {
 
     private static volatile Bootstrap INSTANCE;
-
     private volatile Node node;
     private final CountDownLatch keepAliveLatch = new CountDownLatch(1);
     private final Thread keepAliveThread;
+    private final Spawner spawner = new Spawner();
 
     /** creates a new instance */
     Bootstrap() {
@@ -81,20 +94,21 @@ public class Bootstrap {
             }
         });
     }
-    
+
     /** initialize native resources */
-    public static void initializeNatives(boolean mlockAll, boolean ctrlHandler, boolean loadSigar) {
-        final ESLogger logger = Loggers.getLogger(Bootstrap.class);
-        
+    public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean systemCallFilter, boolean ctrlHandler) {
+        final Logger logger = Loggers.getLogger(Bootstrap.class);
+
         // check if the user is running as root, and bail
         if (Natives.definitelyRunningAsRoot()) {
-            if (Boolean.parseBoolean(System.getProperty("es.insecure.allow.root"))) {
-                logger.warn("running as ROOT user. this is a bad idea!");
-            } else {
-                throw new RuntimeException("don't run elasticsearch as root.");
-            }
+            throw new RuntimeException("can not run elasticsearch as root");
         }
-        
+
+        // enable system call filter
+        if (systemCallFilter) {
+            Natives.tryInstallSystemCallFilter(tmpFile);
+        }
+
         // mlockall if requested
         if (mlockAll) {
             if (Constants.WINDOWS) {
@@ -111,7 +125,11 @@ public class Bootstrap {
                 public boolean handle(int code) {
                     if (CTRL_CLOSE_EVENT == code) {
                         logger.info("running graceful exit on windows");
-                        Bootstrap.INSTANCE.stop();
+                        try {
+                            Bootstrap.stop();
+                        } catch (IOException e) {
+                            throw new ElasticsearchException("failed to stop node", e);
+                        }
                         return true;
                     }
                     return false;
@@ -122,180 +140,241 @@ public class Bootstrap {
         // force remainder of JNA to be loaded (if available).
         try {
             JNAKernel32Library.getInstance();
-        } catch (Throwable ignored) {
+        } catch (Exception ignored) {
             // we've already logged this.
         }
 
-        if (loadSigar) {
-            // initialize sigar explicitly
-            try {
-                Sigar.load();
-                logger.trace("sigar libraries loaded successfully");
-            } catch (Throwable t) {
-                logger.trace("failed to load sigar libraries", t);
-            }
-        } else {
-            logger.trace("sigar not loaded, disabled via settings");
-        }
+        Natives.trySetMaxNumberOfThreads();
+        Natives.trySetMaxSizeVirtualMemory();
+        Natives.trySetMaxFileSize();
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
     }
 
-    public static boolean isMemoryLocked() {
-        return Natives.isMemoryLocked();
+    static void initializeProbes() {
+        // Force probes to be loaded
+        ProcessProbe.getInstance();
+        OsProbe.getInstance();
+        JvmInfo.jvmInfo();
     }
 
-    private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
-        initializeNatives(settings.getAsBoolean("bootstrap.mlockall", false), 
-                          settings.getAsBoolean("bootstrap.ctrlhandler", true),
-                          settings.getAsBoolean("bootstrap.sigar", true));
+    private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {
+        Settings settings = environment.settings();
+
+        try {
+            spawner.spawnNativePluginControllers(environment);
+        } catch (IOException e) {
+            throw new BootstrapException(e);
+        }
+
+        initializeNatives(
+                environment.tmpFile(),
+                BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
+                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
+                BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
+
+        // initialize probes before the security manager is installed
+        initializeProbes();
 
         if (addShutdownHook) {
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
-                    if (node != null) {
-                        node.close();
+                    try {
+                        IOUtils.close(node, spawner);
+                        LoggerContext context = (LoggerContext) LogManager.getContext(false);
+                        Configurator.shutdown(context);
+                    } catch (IOException ex) {
+                        throw new ElasticsearchException("failed to stop node", ex);
                     }
                 }
             });
         }
-        
-        // install SM after natives, shutdown hooks, etc.
-        setupSecurity(settings, environment);
 
-        // We do not need to reload system properties here as we have already applied them in building the settings and
-        // reloading could cause multiple prompts to the user for values if a system property was specified with a prompt
-        // placeholder
-        Settings nodeSettings = Settings.settingsBuilder()
-                .put(settings)
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
-                .build();
-
-        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(nodeSettings).loadConfigSettings(false);
-        node = nodeBuilder.build();
-    }
-    
-    /** 
-     * option for elasticsearch.yml etc to turn off our security manager completely,
-     * for example if you want to have your own configuration or just disable.
-     */
-    static final String SECURITY_SETTING = "security.manager.enabled";
-
-    private void setupSecurity(Settings settings, Environment environment) throws Exception {
-        if (settings.getAsBoolean(SECURITY_SETTING, true)) {
-            Security.configure(environment);
-        }
-    }
-
-    @SuppressForbidden(reason = "Exception#printStackTrace()")
-    private static void setupLogging(Settings settings, Environment environment) {
         try {
-            settings.getClassLoader().loadClass("org.apache.log4j.Logger");
-            LogConfigurator.configure(settings);
-        } catch (ClassNotFoundException e) {
-            // no log4j
-        } catch (NoClassDefFoundError e) {
-            // no log4j
-        } catch (Exception e) {
-            sysError("Failed to configure logging...", false);
-            e.printStackTrace();
+            // look for jar hell
+            JarHell.checkJarHell();
+        } catch (IOException | URISyntaxException e) {
+            throw new BootstrapException(e);
         }
+
+        // Log ifconfig output before SecurityManager is installed
+        IfConfig.logIfNecessary();
+
+        // install SM after natives, shutdown hooks, etc.
+        try {
+            Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
+        } catch (IOException | NoSuchAlgorithmException e) {
+            throw new BootstrapException(e);
+        }
+
+        node = new Node(environment) {
+            @Override
+            protected void validateNodeBeforeAcceptingRequests(
+                final BootstrapContext context,
+                final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
+                BootstrapChecks.check(context, boundTransportAddress, checks);
+            }
+        };
     }
 
-    private static Tuple<Settings, Environment> initialSettings(boolean foreground) {
+    static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
+        final KeyStoreWrapper keystore;
+        try {
+            keystore = KeyStoreWrapper.load(initialEnv.configFile());
+        } catch (IOException e) {
+            throw new BootstrapException(e);
+        }
+        if (keystore == null) {
+            return null; // no keystore
+        }
+
+        try {
+            keystore.decrypt(new char[0] /* TODO: read password from stdin */);
+            KeyStoreWrapper.upgrade(keystore, initialEnv.configFile());
+        } catch (Exception e) {
+            throw new BootstrapException(e);
+        }
+        return keystore;
+    }
+
+    private static Environment createEnvironment(
+            final boolean foreground,
+            final Path pidFile,
+            final SecureSettings secureSettings,
+            final Settings initialSettings,
+            final Path configPath) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
-        return InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true, terminal);
+        Settings.Builder builder = Settings.builder();
+        if (pidFile != null) {
+            builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
+        }
+        builder.put(initialSettings);
+        if (secureSettings != null) {
+            builder.setSecureSettings(secureSettings);
+        }
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, Collections.emptyMap(), configPath);
     }
 
-    private void start() {
+    private void start() throws NodeValidationException {
         node.start();
         keepAliveThread.start();
     }
 
-    private void stop() {
+    static void stop() throws IOException {
         try {
-            Releasables.close(node);
+            IOUtils.close(INSTANCE.node, INSTANCE.spawner);
         } finally {
-            keepAliveLatch.countDown();
+            INSTANCE.keepAliveLatch.countDown();
         }
     }
 
-    public static void main(String[] args) {
-        System.setProperty("es.logger.prefix", "");
+    /**
+     * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
+     */
+    static void init(
+            final boolean foreground,
+            final Path pidFile,
+            final boolean quiet,
+            final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
+        // force the class initializer for BootstrapInfo to run before
+        // the security manager is installed
+        BootstrapInfo.init();
+
         INSTANCE = new Bootstrap();
 
-        boolean foreground = System.getProperty("es.foreground", System.getProperty("es-foreground")) != null;
-        // handle the wrapper system property, if its a service, don't run as a service
-        if (System.getProperty("wrapper.service", "XXX").equalsIgnoreCase("true")) {
-            foreground = false;
-        }
-
-        String stage = "Settings";
-
-        Settings settings = null;
-        Environment environment = null;
+        final SecureSettings keystore = loadSecureSettings(initialEnv);
+        final Environment environment = createEnvironment(foreground, pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
         try {
-            Tuple<Settings, Environment> tuple = initialSettings(foreground);
-            settings = tuple.v1();
-            environment = tuple.v2();
-
-            if (environment.pidFile() != null) {
-                stage = "Pid";
+            LogConfigurator.configure(environment);
+        } catch (IOException e) {
+            throw new BootstrapException(e);
+        }
+        if (environment.pidFile() != null) {
+            try {
                 PidFile.create(environment.pidFile(), true);
+            } catch (IOException e) {
+                throw new BootstrapException(e);
             }
-
-            stage = "Logging";
-            setupLogging(settings, environment);
-        } catch (Exception e) {
-            String errorMessage = buildErrorMessage(stage, e);
-            sysError(errorMessage, true);
-            System.exit(3);
         }
 
-        if (System.getProperty("es.max-open-files", "false").equals("true")) {
-            ESLogger logger = Loggers.getLogger(Bootstrap.class);
-            logger.info("max_open_files [{}]", JmxProcessProbe.getMaxFileDescriptorCount());
-        }
-
-        // warn if running using the client VM
-        if (JvmInfo.jvmInfo().getVmName().toLowerCase(Locale.ROOT).contains("client")) {
-            ESLogger logger = Loggers.getLogger(Bootstrap.class);
-            logger.warn("jvm uses the client vm, make sure to run `java` with the server vm for best performance by adding `-server` to the command line");
-        }
-
-        stage = "Initialization";
+        final boolean closeStandardStreams = (foreground == false) || quiet;
         try {
-            if (!foreground) {
-                Loggers.disableConsoleLogging();
+            if (closeStandardStreams) {
+                final Logger rootLogger = ESLoggerFactory.getRootLogger();
+                final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
+                if (maybeConsoleAppender != null) {
+                    Loggers.removeAppender(rootLogger, maybeConsoleAppender);
+                }
                 closeSystOut();
             }
 
-            // fail if using broken version
-            JVMCheck.check();
+            // fail if somebody replaced the lucene jars
+            checkLucene();
 
-            INSTANCE.setup(true, settings, environment);
+            // install the default uncaught exception handler; must be done before security is
+            // initialized as we do not want to grant the runtime permission
+            // setDefaultUncaughtExceptionHandler
+            Thread.setDefaultUncaughtExceptionHandler(
+                new ElasticsearchUncaughtExceptionHandler(() -> Node.NODE_NAME_SETTING.get(environment.settings())));
 
-            stage = "Startup";
+            INSTANCE.setup(true, environment);
+
+            try {
+                // any secure settings must be read during node construction
+                IOUtils.close(keystore);
+            } catch (IOException e) {
+                throw new BootstrapException(e);
+            }
+
             INSTANCE.start();
 
-            if (!foreground) {
+            if (closeStandardStreams) {
                 closeSysError();
             }
-        } catch (Throwable e) {
-            ESLogger logger = Loggers.getLogger(Bootstrap.class);
+        } catch (NodeValidationException | RuntimeException e) {
+            // disable console logging, so user does not see the exception twice (jvm will show it already)
+            final Logger rootLogger = ESLoggerFactory.getRootLogger();
+            final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
+            if (foreground && maybeConsoleAppender != null) {
+                Loggers.removeAppender(rootLogger, maybeConsoleAppender);
+            }
+            Logger logger = Loggers.getLogger(Bootstrap.class);
             if (INSTANCE.node != null) {
-                logger = Loggers.getLogger(Bootstrap.class, INSTANCE.node.settings().get("name"));
+                logger = Loggers.getLogger(Bootstrap.class, Node.NODE_NAME_SETTING.get(INSTANCE.node.settings()));
             }
-            String errorMessage = buildErrorMessage(stage, e);
-            if (foreground) {
-                sysError(errorMessage, true);
-                Loggers.disableConsoleLogging();
+            // HACK, it sucks to do this, but we will run users out of disk space otherwise
+            if (e instanceof CreationException) {
+                // guice: log the shortened exc to the log file
+                ByteArrayOutputStream os = new ByteArrayOutputStream();
+                PrintStream ps = null;
+                try {
+                    ps = new PrintStream(os, false, "UTF-8");
+                } catch (UnsupportedEncodingException uee) {
+                    assert false;
+                    e.addSuppressed(uee);
+                }
+                new StartupException(e).printStackTrace(ps);
+                ps.flush();
+                try {
+                    logger.error("Guice Exception: {}", os.toString("UTF-8"));
+                } catch (UnsupportedEncodingException uee) {
+                    assert false;
+                    e.addSuppressed(uee);
+                }
+            } else if (e instanceof NodeValidationException) {
+                logger.error("node validation exception\n{}", e.getMessage());
+            } else {
+                // full exception
+                logger.error("Exception", e);
             }
-            logger.error("Exception", e);
-            
-            System.exit(3);
+            // re-enable it if appropriate, so they can see any logging during the shutdown process
+            if (foreground && maybeConsoleAppender != null) {
+                Loggers.addAppender(rootLogger, maybeConsoleAppender);
+            }
+
+            throw e;
         }
     }
 
@@ -309,43 +388,11 @@ public class Bootstrap {
         System.err.close();
     }
 
-    @SuppressForbidden(reason = "System#err")
-    private static void sysError(String line, boolean flush) {
-        System.err.println(line);
-        if (flush) {
-            System.err.flush();
+    private static void checkLucene() {
+        if (Version.CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) == false) {
+            throw new AssertionError("Lucene version mismatch this version of Elasticsearch requires lucene version ["
+                + Version.CURRENT.luceneVersion + "]  but the current lucene version is [" + org.apache.lucene.util.Version.LATEST + "]");
         }
     }
 
-    private static String buildErrorMessage(String stage, Throwable e) {
-        StringBuilder errorMessage = new StringBuilder("{").append(Version.CURRENT).append("}: ");
-        errorMessage.append(stage).append(" Failed ...\n");
-        if (e instanceof CreationException) {
-            CreationException createException = (CreationException) e;
-            Set<String> seenMessages = newHashSet();
-            int counter = 1;
-            for (Message message : createException.getErrorMessages()) {
-                String detailedMessage;
-                if (message.getCause() == null) {
-                    detailedMessage = message.getMessage();
-                } else {
-                    detailedMessage = ExceptionsHelper.detailedMessage(message.getCause(), true, 0);
-                }
-                if (detailedMessage == null) {
-                    detailedMessage = message.getMessage();
-                }
-                if (seenMessages.contains(detailedMessage)) {
-                    continue;
-                }
-                seenMessages.add(detailedMessage);
-                errorMessage.append("").append(counter++).append(") ").append(detailedMessage);
-            }
-        } else {
-            errorMessage.append("- ").append(ExceptionsHelper.detailedMessage(e, true, 0));
-        }
-        if (Loggers.getLogger(Bootstrap.class).isDebugEnabled()) {
-            errorMessage.append("\n").append(ExceptionsHelper.stackTrace(e));
-        }
-        return errorMessage.toString();
-    }
 }

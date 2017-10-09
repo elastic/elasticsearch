@@ -19,54 +19,40 @@
 
 package org.elasticsearch.index.translog;
 
-import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.lease.Releasables;
-
+import java.io.Closeable;
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Arrays;
 
 /**
  * A snapshot composed out of multiple snapshots
  */
 final class MultiSnapshot implements Translog.Snapshot {
 
-    private final Translog.Snapshot[] translogs;
-    private AtomicBoolean closed = new AtomicBoolean(false);
-    private final int estimatedTotalOperations;
+    private final TranslogSnapshot[] translogs;
+    private final int totalOperations;
+    private final Closeable onClose;
     private int index;
 
     /**
      * Creates a new point in time snapshot of the given snapshots. Those snapshots are always iterated in-order.
      */
-    MultiSnapshot(Translog.Snapshot[] translogs) {
+    MultiSnapshot(TranslogSnapshot[] translogs, Closeable onClose) {
         this.translogs = translogs;
-        int ops = 0;
-        for (Translog.Snapshot translog : translogs) {
-
-            final int tops = translog.estimatedTotalOperations();
-            if (tops == TranslogReader.UNKNOWN_OP_COUNT) {
-                ops = TranslogReader.UNKNOWN_OP_COUNT;
-                break;
-            }
-            assert tops >= 0 : "tops must be positive but was: " + tops;
-            ops += tops;
-        }
-        estimatedTotalOperations = ops;
+        totalOperations = Arrays.stream(translogs).mapToInt(TranslogSnapshot::totalOperations).sum();
+        this.onClose = onClose;
         index = 0;
     }
 
 
     @Override
-    public int estimatedTotalOperations() {
-        return estimatedTotalOperations;
+    public int totalOperations() {
+        return totalOperations;
     }
 
     @Override
     public Translog.Operation next() throws IOException {
-        ensureOpen();
         for (; index < translogs.length; index++) {
-            final Translog.Snapshot current = translogs[index];
+            final TranslogSnapshot current = translogs[index];
             Translog.Operation op = current.next();
             if (op != null) { // if we are null we move to the next snapshot
                 return op;
@@ -75,16 +61,8 @@ final class MultiSnapshot implements Translog.Snapshot {
         return null;
     }
 
-    protected void ensureOpen() {
-        if (closed.get()) {
-            throw new AlreadyClosedException("snapshot already closed");
-        }
-    }
-
     @Override
-    public void close() throws ElasticsearchException {
-        if (closed.compareAndSet(false, true)) {
-            Releasables.close(translogs);
-        }
+    public void close() throws IOException {
+        onClose.close();
     }
 }

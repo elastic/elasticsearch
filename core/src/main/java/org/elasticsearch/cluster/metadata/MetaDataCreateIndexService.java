@@ -21,153 +21,155 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Charsets;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import org.elasticsearch.cluster.metadata.IndexMetaData.Custom;
+import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.indices.*;
-import org.elasticsearch.river.RiverIndexName;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.indices.IndexCreationException;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
+import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUID;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 
 /**
  * Service responsible for submitting create index requests
  */
 public class MetaDataCreateIndexService extends AbstractComponent {
 
-    public final static int MAX_INDEX_NAME_BYTES = 255;
-    private static final DefaultIndexTemplateFilter DEFAULT_INDEX_TEMPLATE_FILTER = new DefaultIndexTemplateFilter();
+    public static final int MAX_INDEX_NAME_BYTES = 255;
 
-    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final AllocationService allocationService;
-    private final MetaDataService metaDataService;
-    private final Version version;
-    private final String riverIndexName;
     private final AliasValidator aliasValidator;
-    private final IndexTemplateFilter indexTemplateFilter;
-    private final NodeEnvironment nodeEnv;
+    private final Environment env;
+    private final IndexScopedSettings indexScopedSettings;
+    private final ActiveShardsObserver activeShardsObserver;
+    private final NamedXContentRegistry xContentRegistry;
+    private final ThreadPool threadPool;
 
     @Inject
-    public MetaDataCreateIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                      IndicesService indicesService, AllocationService allocationService, MetaDataService metaDataService,
-                                      Version version, @RiverIndexName String riverIndexName, AliasValidator aliasValidator,
-                                      Set<IndexTemplateFilter> indexTemplateFilters, NodeEnvironment nodeEnv) {
+    public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
+                                      IndicesService indicesService, AllocationService allocationService,
+                                      AliasValidator aliasValidator, Environment env,
+                                      IndexScopedSettings indexScopedSettings, ThreadPool threadPool,
+                                      NamedXContentRegistry xContentRegistry) {
         super(settings);
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.allocationService = allocationService;
-        this.metaDataService = metaDataService;
-        this.version = version;
-        this.riverIndexName = riverIndexName;
         this.aliasValidator = aliasValidator;
-        this.nodeEnv = nodeEnv;
-
-        if (indexTemplateFilters.isEmpty()) {
-            this.indexTemplateFilter = DEFAULT_INDEX_TEMPLATE_FILTER;
-        } else {
-            IndexTemplateFilter[] templateFilters = new IndexTemplateFilter[indexTemplateFilters.size() + 1];
-            templateFilters[0] = DEFAULT_INDEX_TEMPLATE_FILTER;
-            int i = 1;
-            for (IndexTemplateFilter indexTemplateFilter : indexTemplateFilters) {
-                templateFilters[i++] = indexTemplateFilter;
-            }
-            this.indexTemplateFilter = new IndexTemplateFilter.Compound(templateFilters);
-        }
+        this.env = env;
+        this.indexScopedSettings = indexScopedSettings;
+        this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
+        this.threadPool = threadPool;
+        this.xContentRegistry = xContentRegistry;
     }
 
-    public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-
-        // we lock here, and not within the cluster service callback since we don't want to
-        // block the whole cluster state handling
-        final Semaphore mdLock = metaDataService.indexMetaDataLock(request.index());
-
-        // quick check to see if we can acquire a lock, otherwise spawn to a thread pool
-        if (mdLock.tryAcquire()) {
-            createIndex(request, listener, mdLock);
-            return;
+    /**
+     * Validate the name for an index against some static rules and a cluster state.
+     */
+    public static void validateIndexName(String index, ClusterState state) {
+        validateIndexOrAliasName(index, InvalidIndexNameException::new);
+        if (!index.toLowerCase(Locale.ROOT).equals(index)) {
+            throw new InvalidIndexNameException(index, "must be lowercase");
         }
-        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new ActionRunnable(listener) {
-            @Override
-            public void doRun() throws InterruptedException {
-                if (!mdLock.tryAcquire(request.masterNodeTimeout().nanos(), TimeUnit.NANOSECONDS)) {
-                    listener.onFailure(new ProcessClusterEventTimeoutException(request.masterNodeTimeout(), "acquire index lock"));
-                    return;
-                }
-                createIndex(request, listener, mdLock);
-            }
-        });
-    }
-
-    public void validateIndexName(String index, ClusterState state) {
         if (state.routingTable().hasIndex(index)) {
-            throw new IndexAlreadyExistsException(new Index(index));
+            throw new ResourceAlreadyExistsException(state.routingTable().index(index).getIndex());
         }
         if (state.metaData().hasIndex(index)) {
-            throw new IndexAlreadyExistsException(new Index(index));
+            throw new ResourceAlreadyExistsException(state.metaData().index(index).getIndex());
         }
+        if (state.metaData().hasAlias(index)) {
+            throw new InvalidIndexNameException(index, "already exists as alias");
+        }
+    }
+
+    /**
+     * Validate the name for an index or alias against some static rules.
+     */
+    public static void validateIndexOrAliasName(String index, BiFunction<String, String, ? extends RuntimeException> exceptionCtor) {
         if (!Strings.validFileName(index)) {
-            throw new InvalidIndexNameException(new Index(index), index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+            throw exceptionCtor.apply(index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
         if (index.contains("#")) {
-            throw new InvalidIndexNameException(new Index(index), index, "must not contain '#'");
+            throw exceptionCtor.apply(index, "must not contain '#'");
         }
-        if (!index.equals(riverIndexName) && index.charAt(0) == '_') {
-            throw new InvalidIndexNameException(new Index(index), index, "must not start with '_'");
+        if (index.contains(":")) {
+            throw exceptionCtor.apply(index, "must not contain ':'");
         }
-        if (!index.toLowerCase(Locale.ROOT).equals(index)) {
-            throw new InvalidIndexNameException(new Index(index), index, "must be lowercase");
+        if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
+            throw exceptionCtor.apply(index, "must not start with '_', '-', or '+'");
         }
         int byteCount = 0;
         try {
@@ -177,86 +179,139 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             throw new ElasticsearchException("Unable to determine length of index name", e);
         }
         if (byteCount > MAX_INDEX_NAME_BYTES) {
-            throw new InvalidIndexNameException(new Index(index), index,
-                    "index name is too long, (" + byteCount +
-                    " > " + MAX_INDEX_NAME_BYTES + ")");
+            throw exceptionCtor.apply(index, "index name is too long, (" + byteCount + " > " + MAX_INDEX_NAME_BYTES + ")");
         }
-        if (state.metaData().aliases().containsKey(index)) {
-            throw new InvalidIndexNameException(new Index(index), index, "already exists as alias");
+        if (index.equals(".") || index.equals("..")) {
+            throw exceptionCtor.apply(index, "must not be '.' or '..'");
         }
     }
 
-    private void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener, final Semaphore mdLock) {
+    /**
+     * Creates an index in the cluster state and waits for the specified number of shard copies to
+     * become active (as specified in {@link CreateIndexClusterStateUpdateRequest#waitForActiveShards()})
+     * before sending the response on the listener. If the index creation was successfully applied on
+     * the cluster state, then {@link CreateIndexClusterStateUpdateResponse#isAcknowledged()} will return
+     * true, otherwise it will return false and no waiting will occur for started shards
+     * ({@link CreateIndexClusterStateUpdateResponse#isShardsAcked()} will also be false).  If the index
+     * creation in the cluster state was successful and the requisite shard copies were started before
+     * the timeout, then {@link CreateIndexClusterStateUpdateResponse#isShardsAcked()} will
+     * return true, otherwise if the operation timed out, then it will return false.
+     *
+     * @param request the index creation cluster state update request
+     * @param listener the listener on which to send the index creation cluster state update response
+     */
+    public void createIndex(final CreateIndexClusterStateUpdateRequest request,
+                            final ActionListener<CreateIndexClusterStateUpdateResponse> listener) {
+        onlyCreateIndex(request, ActionListener.wrap(response -> {
+            if (response.isAcknowledged()) {
+                activeShardsObserver.waitForActiveShards(new String[]{request.index()}, request.waitForActiveShards(), request.ackTimeout(),
+                    shardsAcked -> {
+                        if (shardsAcked == false) {
+                            logger.debug("[{}] index created, but the operation timed out while waiting for " +
+                                             "enough shards to be started.", request.index());
+                        }
+                        listener.onResponse(new CreateIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcked));
+                    }, listener::onFailure);
+            } else {
+                listener.onResponse(new CreateIndexClusterStateUpdateResponse(false, false));
+            }
+        }, listener::onFailure));
+    }
 
-        Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
+    private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request,
+                                 final ActionListener<ClusterStateUpdateResponse> listener) {
+        Settings.Builder updatedSettingsBuilder = Settings.builder();
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+        indexScopedSettings.validate(updatedSettingsBuilder);
         request.settings(updatedSettingsBuilder.build());
 
-        clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
+            new IndexCreationTask(logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, settings,
+                this::validate));
+    }
 
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
+    interface IndexValidator {
+        void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state);
+    }
 
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                mdLock.release();
-                super.onAllNodesAcked(t);
-            }
+    static class IndexCreationTask extends AckedClusterStateUpdateTask<ClusterStateUpdateResponse> {
 
-            @Override
-            public void onAckTimeout() {
-                mdLock.release();
-                super.onAckTimeout();
-            }
+        private final IndicesService indicesService;
+        private final AliasValidator aliasValidator;
+        private final NamedXContentRegistry xContentRegistry;
+        private final CreateIndexClusterStateUpdateRequest request;
+        private final Logger logger;
+        private final AllocationService allocationService;
+        private final Settings settings;
+        private final IndexValidator validator;
 
-            @Override
-            public void onFailure(String source, Throwable t) {
-                mdLock.release();
-                super.onFailure(source, t);
-            }
+        IndexCreationTask(Logger logger, AllocationService allocationService, CreateIndexClusterStateUpdateRequest request,
+                          ActionListener<ClusterStateUpdateResponse> listener, IndicesService indicesService,
+                          AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
+                          Settings settings, IndexValidator validator) {
+            super(Priority.URGENT, request, listener);
+            this.request = request;
+            this.logger = logger;
+            this.allocationService = allocationService;
+            this.indicesService = indicesService;
+            this.aliasValidator = aliasValidator;
+            this.xContentRegistry = xContentRegistry;
+            this.settings = settings;
+            this.validator = validator;
+        }
 
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                boolean indexCreated = false;
-                String removalReason = null;
-                try {
-                    validate(request, currentState);
+        @Override
+        protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+            return new ClusterStateUpdateResponse(acknowledged);
+        }
 
-                    for (Alias alias : request.aliases()) {
-                        aliasValidator.validateAlias(alias, request.index(), currentState.metaData());
-                    }
+        @Override
+        public ClusterState execute(ClusterState currentState) throws Exception {
+            Index createdIndex = null;
+            String removalExtraInfo = null;
+            IndexRemovalReason removalReason = IndexRemovalReason.FAILURE;
+            try {
+                validator.validate(request, currentState);
 
-                    // we only find a template when its an API call (a new index)
-                    // find templates, highest order are better matching
-                    List<IndexTemplateMetaData> templates = findTemplates(request, currentState, indexTemplateFilter);
+                for (Alias alias : request.aliases()) {
+                    aliasValidator.validateAlias(alias, request.index(), currentState.metaData());
+                }
 
-                    Map<String, Custom> customs = Maps.newHashMap();
+                // we only find a template when its an API call (a new index)
+                // find templates, highest order are better matching
+                List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
 
-                    // add the request mapping
-                    Map<String, Map<String, Object>> mappings = Maps.newHashMap();
+                Map<String, Custom> customs = new HashMap<>();
 
-                    Map<String, AliasMetaData> templatesAliases = Maps.newHashMap();
+                // add the request mapping
+                Map<String, Map<String, Object>> mappings = new HashMap<>();
 
-                    List<String> templateNames = Lists.newArrayList();
+                Map<String, AliasMetaData> templatesAliases = new HashMap<>();
 
-                    for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
-                        mappings.put(entry.getKey(), parseMapping(entry.getValue()));
-                    }
+                List<String> templateNames = new ArrayList<>();
 
-                    for (Map.Entry<String, Custom> entry : request.customs().entrySet()) {
-                        customs.put(entry.getKey(), entry.getValue());
-                    }
+                for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
+                    mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
+                }
 
+                for (Map.Entry<String, Custom> entry : request.customs().entrySet()) {
+                    customs.put(entry.getKey(), entry.getValue());
+                }
+
+                final Index shrinkFromIndex = request.shrinkFrom();
+
+                if (shrinkFromIndex == null) {
                     // apply templates, merging the mappings into the request mapping if exists
                     for (IndexTemplateMetaData template : templates) {
                         templateNames.add(template.getName());
                         for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
+                            String mappingString = cursor.value.string();
                             if (mappings.containsKey(cursor.key)) {
-                                XContentHelper.mergeDefaults(mappings.get(cursor.key), parseMapping(cursor.value.string()));
+                                XContentHelper.mergeDefaults(mappings.get(cursor.key),
+                                    MapperService.parseMapping(xContentRegistry, mappingString));
                             } else {
-                                mappings.put(cursor.key, parseMapping(cursor.value.string()));
+                                mappings.put(cursor.key,
+                                    MapperService.parseMapping(xContentRegistry, mappingString));
                             }
                         }
                         // handle custom
@@ -294,215 +349,226 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             templatesAliases.put(aliasMetaData.alias(), aliasMetaData);
                         }
                     }
-
-                    Settings.Builder indexSettingsBuilder = settingsBuilder();
+                }
+                Settings.Builder indexSettingsBuilder = Settings.builder();
+                if (shrinkFromIndex == null) {
                     // apply templates, here, in reverse order, since first ones are better matching
                     for (int i = templates.size() - 1; i >= 0; i--) {
                         indexSettingsBuilder.put(templates.get(i).settings());
                     }
-                    // now, put the request settings, so they override templates
-                    indexSettingsBuilder.put(request.settings());
-                    if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
-                        indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
-                    } else {
-                        if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                            if (request.index().equals(riverIndexName)) {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
-                            } else {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
-                            }
-                        }
-                    }
-                    if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
-                        indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 0));
-                        indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, "0-all");
-                    } else {
-                        if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                            if (request.index().equals(riverIndexName)) {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
-                            } else {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
-                            }
-                        }
-                    }
+                }
+                // now, put the request settings, so they override templates
+                indexSettingsBuilder.put(request.settings());
+                if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
+                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
+                }
+                if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
+                    indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                }
+                if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
+                    indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
+                }
 
-                    if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
-                        indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
-                    }
+                if (indexSettingsBuilder.get(SETTING_VERSION_CREATED) == null) {
+                    DiscoveryNodes nodes = currentState.nodes();
+                    final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
+                    indexSettingsBuilder.put(SETTING_VERSION_CREATED, createdVersion);
+                }
 
-                    if (indexSettingsBuilder.get(SETTING_VERSION_CREATED) == null) {
-                        DiscoveryNodes nodes = currentState.nodes();
-                        final Version createdVersion = Version.smallest(version, nodes.smallestNonClientNodeVersion());
-                        indexSettingsBuilder.put(SETTING_VERSION_CREATED, createdVersion);
-                    }
+                if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
+                    indexSettingsBuilder.put(SETTING_CREATION_DATE, new DateTime(DateTimeZone.UTC).getMillis());
+                }
+                indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
+                indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+                final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index());
 
-                    if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
-                        indexSettingsBuilder.put(SETTING_CREATION_DATE, System.currentTimeMillis());
-                    }
+                final int routingNumShards;
+                if (shrinkFromIndex == null) {
+                    routingNumShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettingsBuilder.build());
+                } else {
+                    final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(shrinkFromIndex);
+                    routingNumShards = sourceMetaData.getRoutingNumShards();
+                }
+                tmpImdBuilder.setRoutingNumShards(routingNumShards);
 
-                    indexSettingsBuilder.put(SETTING_UUID, Strings.randomBase64UUID());
+                if (shrinkFromIndex != null) {
+                    prepareShrinkIndexSettings(
+                        currentState, mappings.keySet(), indexSettingsBuilder, shrinkFromIndex, request.index());
+                }
+                final Settings actualIndexSettings = indexSettingsBuilder.build();
+                tmpImdBuilder.settings(actualIndexSettings);
 
-                    Settings actualIndexSettings = indexSettingsBuilder.build();
-
-                    // Set up everything, now locally create the index to see that things are ok, and apply
-
-                    // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                    indicesService.createIndex(request.index(), actualIndexSettings, clusterService.localNode().id());
-                    indexCreated = true;
-                    // now add the mappings
-                    IndexService indexService = indicesService.indexServiceSafe(request.index());
-                    MapperService mapperService = indexService.mapperService();
-                    // first, add the default mapping
-                    if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
-                        try {
-                            mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string()), false);
-                        } catch (Exception e) {
-                            removalReason = "failed on parsing default mapping on index creation";
-                            throw new MapperParsingException("mapping [" + MapperService.DEFAULT_MAPPING + "]", e);
-                        }
-                    }
-                    for (Map.Entry<String, Map<String, Object>> entry : mappings.entrySet()) {
-                        if (entry.getKey().equals(MapperService.DEFAULT_MAPPING)) {
-                            continue;
-                        }
-                        try {
-                            // apply the default here, its the first time we parse it
-                            mapperService.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), true);
-                        } catch (Exception e) {
-                            removalReason = "failed on parsing mappings on index creation";
-                            throw new MapperParsingException("mapping [" + entry.getKey() + "]", e);
-                        }
-                    }
-
-                    IndexQueryParserService indexQueryParserService = indexService.queryParserService();
-                    for (Alias alias : request.aliases()) {
-                        if (Strings.hasLength(alias.filter())) {
-                            aliasValidator.validateAliasFilter(alias.name(), alias.filter(), indexQueryParserService);
-                        }
-                    }
-                    for (AliasMetaData aliasMetaData : templatesAliases.values()) {
-                        if (aliasMetaData.filter() != null) {
-                            aliasValidator.validateAliasFilter(aliasMetaData.alias(), aliasMetaData.filter().uncompressed(), indexQueryParserService);
-                        }
-                    }
-
-                    // now, update the mappings with the actual source
-                    Map<String, MappingMetaData> mappingsMetaData = Maps.newHashMap();
-                    for (DocumentMapper mapper : mapperService.docMappers(true)) {
-                        MappingMetaData mappingMd = new MappingMetaData(mapper);
-                        mappingsMetaData.put(mapper.type(), mappingMd);
-                    }
-
-                    final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index()).settings(actualIndexSettings);
-                    for (MappingMetaData mappingMd : mappingsMetaData.values()) {
-                        indexMetaDataBuilder.putMapping(mappingMd);
-                    }
-
-                    for (AliasMetaData aliasMetaData : templatesAliases.values()) {
-                        indexMetaDataBuilder.putAlias(aliasMetaData);
-                    }
-                    for (Alias alias : request.aliases()) {
-                        AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
-                                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
-                        indexMetaDataBuilder.putAlias(aliasMetaData);
-                    }
-
-                    for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
-                        indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
-                    }
-
-                    indexMetaDataBuilder.state(request.state());
-
-                    final IndexMetaData indexMetaData;
-                    try {
-                        indexMetaData = indexMetaDataBuilder.build();
-                    } catch (Exception e) {
-                        removalReason = "failed to build index metadata";
-                        throw e;
-                    }
-
-                    indexService.indicesLifecycle().beforeIndexAddedToCluster(new Index(request.index()),
-                            indexMetaData.settings());
-
-                    MetaData newMetaData = MetaData.builder(currentState.metaData())
-                            .put(indexMetaData, false)
-                            .build();
-
-                    logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}", request.index(), request.cause(), templateNames, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), mappings.keySet());
-
-                    ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                    if (!request.blocks().isEmpty()) {
-                        for (ClusterBlock block : request.blocks()) {
-                            blocks.addIndexBlock(request.index(), block);
-                        }
-                    }
-                    if (request.state() == State.CLOSE) {
-                        blocks.addIndexBlock(request.index(), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
-                    }
-
-                    ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metaData(newMetaData).build();
-
-                    if (request.state() == State.OPEN) {
-                        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
-                                .addAsNew(updatedState.metaData().index(request.index()));
-                        RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
-                        updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
-                    }
-                    removalReason = "cleaning up after validating index on master";
-                    return updatedState;
-                } finally {
-                    if (indexCreated) {
-                        // Index was already partially created - need to clean up
-                        indicesService.removeIndex(request.index(), removalReason != null ? removalReason : "failed to create index");
+                if (shrinkFromIndex != null) {
+                    /*
+                     * We need to arrange that the primary term on all the shards in the shrunken index is at least as large as
+                     * the maximum primary term on all the shards in the source index. This ensures that we have correct
+                     * document-level semantics regarding sequence numbers in the shrunken index.
+                     */
+                    final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(shrinkFromIndex);
+                    final long primaryTerm =
+                        IntStream
+                            .range(0, sourceMetaData.getNumberOfShards())
+                            .mapToLong(sourceMetaData::primaryTerm)
+                            .max()
+                            .getAsLong();
+                    for (int shardId = 0; shardId < tmpImdBuilder.numberOfShards(); shardId++) {
+                        tmpImdBuilder.primaryTerm(shardId, primaryTerm);
                     }
                 }
-            }
-        });
-    }
 
-    private Map<String, Object> parseMapping(String mappingSource) throws Exception {
-        return XContentFactory.xContent(mappingSource).createParser(mappingSource).mapAndClose();
-    }
-
-    private void addMappings(Map<String, Map<String, Object>> mappings, Path mappingsDir) throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(mappingsDir)) {
-            for (Path mappingFile : stream) {
-                final String fileName = mappingFile.getFileName().toString();
-                if (Files.isHidden(mappingFile)) {
-                    continue;
+                // Set up everything, now locally create the index to see that things are ok, and apply
+                final IndexMetaData tmpImd = tmpImdBuilder.build();
+                ActiveShardCount waitForActiveShards = request.waitForActiveShards();
+                if (waitForActiveShards == ActiveShardCount.DEFAULT) {
+                    waitForActiveShards = tmpImd.getWaitForActiveShards();
                 }
-                int lastDotIndex = fileName.lastIndexOf('.');
-                String mappingType = lastDotIndex != -1 ? mappingFile.getFileName().toString().substring(0, lastDotIndex) : mappingFile.getFileName().toString();
-                try (BufferedReader reader = Files.newBufferedReader(mappingFile, Charsets.UTF_8)) {
-                    String mappingSource = Streams.copyToString(reader);
-                    if (mappings.containsKey(mappingType)) {
-                        XContentHelper.mergeDefaults(mappings.get(mappingType), parseMapping(mappingSource));
-                    } else {
-                        mappings.put(mappingType, parseMapping(mappingSource));
-                    }
+                if (waitForActiveShards.validate(tmpImd.getNumberOfReplicas()) == false) {
+                    throw new IllegalArgumentException("invalid wait_for_active_shards[" + request.waitForActiveShards() +
+                        "]: cannot be greater than number of shard copies [" +
+                        (tmpImd.getNumberOfReplicas() + 1) + "]");
+                }
+                // create the index here (on the master) to validate it can be created, as well as adding the mapping
+                final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList());
+                createdIndex = indexService.index();
+                // now add the mappings
+                MapperService mapperService = indexService.mapperService();
+                try {
+                    mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, request.updateAllTypes());
                 } catch (Exception e) {
-                    logger.warn("failed to read / parse mapping [" + mappingType + "] from location [" + mappingFile + "], ignoring...", e);
+                    removalExtraInfo = "failed on parsing default mapping/mappings on index creation";
+                    throw e;
+                }
+
+                if (request.shrinkFrom() == null) {
+                    // now that the mapping is merged we can validate the index sort.
+                    // we cannot validate for index shrinking since the mapping is empty
+                    // at this point. The validation will take place later in the process
+                    // (when all shards are copied in a single place).
+                    indexService.getIndexSortSupplier().get();
+                }
+
+                // the context is only used for validation so it's fine to pass fake values for the shard id and the current
+                // timestamp
+                final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L, null);
+
+                for (Alias alias : request.aliases()) {
+                    if (Strings.hasLength(alias.filter())) {
+                        aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext, xContentRegistry);
+                    }
+                }
+                for (AliasMetaData aliasMetaData : templatesAliases.values()) {
+                    if (aliasMetaData.filter() != null) {
+                        aliasValidator.validateAliasFilter(aliasMetaData.alias(), aliasMetaData.filter().uncompressed(),
+                            queryShardContext, xContentRegistry);
+                    }
+                }
+
+                // now, update the mappings with the actual source
+                Map<String, MappingMetaData> mappingsMetaData = new HashMap<>();
+                for (DocumentMapper mapper : mapperService.docMappers(true)) {
+                    MappingMetaData mappingMd = new MappingMetaData(mapper);
+                    mappingsMetaData.put(mapper.type(), mappingMd);
+                }
+
+                final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index())
+                    .settings(actualIndexSettings)
+                    .setRoutingNumShards(routingNumShards);
+
+                for (int shardId = 0; shardId < tmpImd.getNumberOfShards(); shardId++) {
+                    indexMetaDataBuilder.primaryTerm(shardId, tmpImd.primaryTerm(shardId));
+                }
+
+                for (MappingMetaData mappingMd : mappingsMetaData.values()) {
+                    indexMetaDataBuilder.putMapping(mappingMd);
+                }
+
+                for (AliasMetaData aliasMetaData : templatesAliases.values()) {
+                    indexMetaDataBuilder.putAlias(aliasMetaData);
+                }
+                for (Alias alias : request.aliases()) {
+                    AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
+                        .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
+                    indexMetaDataBuilder.putAlias(aliasMetaData);
+                }
+
+                for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
+                    indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
+                }
+
+                indexMetaDataBuilder.state(request.state());
+
+                final IndexMetaData indexMetaData;
+                try {
+                    indexMetaData = indexMetaDataBuilder.build();
+                } catch (Exception e) {
+                    removalExtraInfo = "failed to build index metadata";
+                    throw e;
+                }
+
+                indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetaData.getIndex(),
+                    indexMetaData.getSettings());
+
+                MetaData newMetaData = MetaData.builder(currentState.metaData())
+                    .put(indexMetaData, false)
+                    .build();
+
+                logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}",
+                    request.index(), request.cause(), templateNames, indexMetaData.getNumberOfShards(),
+                    indexMetaData.getNumberOfReplicas(), mappings.keySet());
+
+                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+                if (!request.blocks().isEmpty()) {
+                    for (ClusterBlock block : request.blocks()) {
+                        blocks.addIndexBlock(request.index(), block);
+                    }
+                }
+                blocks.updateBlocks(indexMetaData);
+
+                ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metaData(newMetaData).build();
+
+                if (request.state() == State.OPEN) {
+                    RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
+                        .addAsNew(updatedState.metaData().index(request.index()));
+                    updatedState = allocationService.reroute(
+                        ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
+                        "index [" + request.index() + "] created");
+                }
+                removalExtraInfo = "cleaning up after validating index on master";
+                removalReason = IndexRemovalReason.NO_LONGER_ASSIGNED;
+                return updatedState;
+            } finally {
+                if (createdIndex != null) {
+                    // Index was already partially created - need to clean up
+                    indicesService.removeIndex(createdIndex, removalReason, removalExtraInfo);
                 }
             }
         }
-    }
 
-    private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state, IndexTemplateFilter indexTemplateFilter) throws IOException {
-        List<IndexTemplateMetaData> templates = Lists.newArrayList();
-        for (ObjectCursor<IndexTemplateMetaData> cursor : state.metaData().templates().values()) {
-            IndexTemplateMetaData template = cursor.value;
-            if (indexTemplateFilter.apply(request, template)) {
-                templates.add(template);
+        @Override
+        public void onFailure(String source, Exception e) {
+            if (e instanceof ResourceAlreadyExistsException) {
+                logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+            } else {
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
             }
+            super.onFailure(source, e);
         }
 
-        CollectionUtil.timSort(templates, new Comparator<IndexTemplateMetaData>() {
-            @Override
-            public int compare(IndexTemplateMetaData o1, IndexTemplateMetaData o2) {
-                return o2.order() - o1.order();
+        private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws IOException {
+            List<IndexTemplateMetaData> templateMetadata = new ArrayList<>();
+            for (ObjectCursor<IndexTemplateMetaData> cursor : state.metaData().templates().values()) {
+                IndexTemplateMetaData metadata = cursor.value;
+                for (String template: metadata.patterns()) {
+                    if (Regex.simpleMatch(template, request.index())) {
+                        templateMetadata.add(metadata);
+                        break;
+                    }
+                }
             }
-        });
-        return templates;
+
+            CollectionUtil.timSort(templateMetadata, Comparator.comparingInt(IndexTemplateMetaData::order).reversed());
+            return templateMetadata;
+        }
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
@@ -511,39 +577,107 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     }
 
     public void validateIndexSettings(String indexName, Settings settings) throws IndexCreationException {
-        String customPath = settings.get(IndexMetaData.SETTING_DATA_PATH, null);
-        List<String> validationErrors = Lists.newArrayList();
-        if (customPath != null && nodeEnv.isCustomPathsEnabled() == false) {
-            validationErrors.add("custom data_paths for indices is disabled");
-        }
-        Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
-        Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
-        if (number_of_primaries != null && number_of_primaries <= 0) {
-            validationErrors.add("index must have 1 or more primary shards");
-        }
-        if (number_of_replicas != null && number_of_replicas < 0) {
-           validationErrors.add("index must have 0 or more replica shards");
-        }
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings);
         if (validationErrors.isEmpty() == false) {
-            throw new IndexCreationException(new Index(indexName),
-                new IllegalArgumentException(getMessage(validationErrors)));
+            ValidationException validationException = new ValidationException();
+            validationException.addValidationErrors(validationErrors);
+            throw new IndexCreationException(indexName, validationException);
         }
     }
 
-    private String getMessage(List<String> validationErrors) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Validation Failed: ");
-        int index = 0;
-        for (String error : validationErrors) {
-            sb.append(++index).append(": ").append(error).append(";");
+    List<String> getIndexSettingsValidationErrors(Settings settings) {
+        String customPath = IndexMetaData.INDEX_DATA_PATH_SETTING.get(settings);
+        List<String> validationErrors = new ArrayList<>();
+        if (Strings.isEmpty(customPath) == false && env.sharedDataFile() == null) {
+            validationErrors.add("path.shared_data must be set in order to use custom data paths");
+        } else if (Strings.isEmpty(customPath) == false) {
+            Path resolvedPath = PathUtils.get(new Path[]{env.sharedDataFile()}, customPath);
+            if (resolvedPath == null) {
+                validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
+            }
         }
-        return sb.toString();
+        return validationErrors;
     }
 
-    private static class DefaultIndexTemplateFilter implements IndexTemplateFilter {
-        @Override
-        public boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template) {
-            return Regex.simpleMatch(template.template(), request.index());
+    /**
+     * Validates the settings and mappings for shrinking an index.
+     * @return the list of nodes at least one instance of the source index shards are allocated
+     */
+    static List<String> validateShrinkIndex(ClusterState state, String sourceIndex,
+                                        Set<String> targetIndexMappingsTypes, String targetIndexName,
+                                        Settings targetIndexSettings) {
+        if (state.metaData().hasIndex(targetIndexName)) {
+            throw new ResourceAlreadyExistsException(state.metaData().index(targetIndexName).getIndex());
         }
+        final IndexMetaData sourceMetaData = state.metaData().index(sourceIndex);
+        if (sourceMetaData == null) {
+            throw new IndexNotFoundException(sourceIndex);
+        }
+        // ensure index is read-only
+        if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndex) == false) {
+            throw new IllegalStateException("index " + sourceIndex + " must be read-only to shrink index. use \"index.blocks.write=true\"");
+        }
+
+        if (sourceMetaData.getNumberOfShards() == 1) {
+            throw new IllegalArgumentException("can't shrink an index with only one shard");
+        }
+
+
+        if ((targetIndexMappingsTypes.size() > 1 ||
+            (targetIndexMappingsTypes.isEmpty() || targetIndexMappingsTypes.contains(MapperService.DEFAULT_MAPPING)) == false)) {
+            throw new IllegalArgumentException("mappings are not allowed when shrinking indices" +
+                ", all mappings are copied from the source index");
+        }
+
+        if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
+            // this method applies all necessary checks ie. if the target shards are less than the source shards
+            // of if the source shards are divisible by the number of target shards
+            IndexMetaData.getRoutingFactor(sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
+        }
+
+        // now check that index is all on one node
+        final IndexRoutingTable table = state.routingTable().index(sourceIndex);
+        Map<String, AtomicInteger> nodesToNumRouting = new HashMap<>();
+        int numShards = sourceMetaData.getNumberOfShards();
+        for (ShardRouting routing : table.shardsWithState(ShardRoutingState.STARTED)) {
+            nodesToNumRouting.computeIfAbsent(routing.currentNodeId(), (s) -> new AtomicInteger(0)).incrementAndGet();
+        }
+        List<String> nodesToAllocateOn = new ArrayList<>();
+        for (Map.Entry<String, AtomicInteger> entries : nodesToNumRouting.entrySet()) {
+            int numAllocations = entries.getValue().get();
+            assert numAllocations <= numShards : "wait what? " + numAllocations + " is > than num shards " + numShards;
+            if (numAllocations == numShards) {
+                nodesToAllocateOn.add(entries.getKey());
+            }
+        }
+        if (nodesToAllocateOn.isEmpty()) {
+            throw new IllegalStateException("index " + sourceIndex +
+                " must have all shards allocated on the same node to shrink index");
+        }
+        return nodesToAllocateOn;
+    }
+
+    static void prepareShrinkIndexSettings(ClusterState currentState, Set<String> mappingKeys, Settings.Builder indexSettingsBuilder, Index shrinkFromIndex, String shrinkIntoName) {
+        final IndexMetaData sourceMetaData = currentState.metaData().index(shrinkFromIndex.getName());
+
+        final List<String> nodesToAllocateOn = validateShrinkIndex(currentState, shrinkFromIndex.getName(),
+            mappingKeys, shrinkIntoName, indexSettingsBuilder.build());
+        final Predicate<String> sourceSettingsPredicate = (s) -> s.startsWith("index.similarity.")
+            || s.startsWith("index.analysis.") || s.startsWith("index.sort.");
+        indexSettingsBuilder
+            // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
+            // once we are allocated.
+            .put(IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + "_id",
+                Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
+            // we only try once and then give up with a shrink index
+            .put("index.allocation.max_retries", 1)
+            // now copy all similarity / analysis / sort settings - this overrides all settings from the user unless they
+            // wanna add extra settings
+            .put(IndexMetaData.SETTING_VERSION_CREATED, sourceMetaData.getCreationVersion())
+            .put(IndexMetaData.SETTING_VERSION_UPGRADED, sourceMetaData.getUpgradedVersion())
+            .put(sourceMetaData.getSettings().filter(sourceSettingsPredicate))
+            .put(IndexMetaData.SETTING_ROUTING_PARTITION_SIZE, sourceMetaData.getRoutingPartitionSize())
+            .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), shrinkFromIndex.getName())
+            .put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), shrinkFromIndex.getUUID());
     }
 }

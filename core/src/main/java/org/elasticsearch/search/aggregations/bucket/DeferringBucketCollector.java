@@ -20,12 +20,11 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -35,18 +34,13 @@ import java.io.IOException;
  */
 public abstract class DeferringBucketCollector extends BucketCollector {
 
-    private BucketCollector collector;
     /** Sole constructor. */
     public DeferringBucketCollector() {}
 
     /** Set the deferred collectors. */
-    public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
-        this.collector = BucketCollector.wrap(deferredCollectors);
-    }
-    
+    public abstract void setDeferredCollector(Iterable<BucketCollector> deferredCollectors);
 
-    public final void replay(long... selectedBuckets) throws IOException
-    {
+    public final void replay(long... selectedBuckets) throws IOException {
         prepareSelectedBuckets(selectedBuckets);
     }
 
@@ -88,7 +82,7 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public AggregationContext context() {
+        public SearchContext context() {
             return in.context();
         }
 

@@ -1,9 +1,0 @@
-{
-    "fuzzy":{
-        "age":{
-            "value":12,
-            "fuzziness":5,
-            "boost":2.0
-        }
-    }
-}

@@ -1,0 +1,13 @@
+# Integration tests for SMB Store component
+#
+"SMB Store loaded":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - match:  { nodes.$master.plugins.0.name: store-smb  }

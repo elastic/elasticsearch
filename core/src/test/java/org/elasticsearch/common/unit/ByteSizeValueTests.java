@@ -20,44 +20,46 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
-import org.junit.Test;
 
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
-public class ByteSizeValueTests extends ElasticsearchTestCase {
-
-    @Test
+public class ByteSizeValueTests extends ESTestCase {
     public void testActualPeta() {
-        MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.PB).bytes(), equalTo(4503599627370496l));
+        MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.PB).getBytes(), equalTo(4503599627370496L));
     }
 
-    @Test
     public void testActualTera() {
-        MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.TB).bytes(), equalTo(4398046511104l));
+        MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.TB).getBytes(), equalTo(4398046511104L));
     }
 
-    @Test
     public void testActual() {
-        MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.GB).bytes(), equalTo(4294967296l));
+        MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.GB).getBytes(), equalTo(4294967296L));
     }
 
-    @Test
     public void testSimple() {
-        assertThat(ByteSizeUnit.BYTES.toBytes(10), is(new ByteSizeValue(10, ByteSizeUnit.BYTES).bytes()));
-        assertThat(ByteSizeUnit.KB.toKB(10), is(new ByteSizeValue(10, ByteSizeUnit.KB).kb()));
-        assertThat(ByteSizeUnit.MB.toMB(10), is(new ByteSizeValue(10, ByteSizeUnit.MB).mb()));
-        assertThat(ByteSizeUnit.GB.toGB(10), is(new ByteSizeValue(10, ByteSizeUnit.GB).gb()));
-        assertThat(ByteSizeUnit.TB.toTB(10), is(new ByteSizeValue(10, ByteSizeUnit.TB).tb()));
-        assertThat(ByteSizeUnit.PB.toPB(10), is(new ByteSizeValue(10, ByteSizeUnit.PB).pb()));
+        assertThat(ByteSizeUnit.BYTES.toBytes(10), is(new ByteSizeValue(10, ByteSizeUnit.BYTES).getBytes()));
+        assertThat(ByteSizeUnit.KB.toKB(10), is(new ByteSizeValue(10, ByteSizeUnit.KB).getKb()));
+        assertThat(ByteSizeUnit.MB.toMB(10), is(new ByteSizeValue(10, ByteSizeUnit.MB).getMb()));
+        assertThat(ByteSizeUnit.GB.toGB(10), is(new ByteSizeValue(10, ByteSizeUnit.GB).getGb()));
+        assertThat(ByteSizeUnit.TB.toTB(10), is(new ByteSizeValue(10, ByteSizeUnit.TB).getTb()));
+        assertThat(ByteSizeUnit.PB.toPB(10), is(new ByteSizeValue(10, ByteSizeUnit.PB).getPb()));
     }
 
-    @Test
+    public void testEquality() {
+        String[] equalValues = new String[]{"1GB", "1024MB", "1048576KB", "1073741824B"};
+        ByteSizeValue value1 = ByteSizeValue.parseBytesSizeValue(randomFrom(equalValues), "equalTest");
+        ByteSizeValue value2 = ByteSizeValue.parseBytesSizeValue(randomFrom(equalValues), "equalTest");
+        assertThat(value1, equalTo(value2));
+    }
+
     public void testToString() {
         assertThat("10b", is(new ByteSizeValue(10, ByteSizeUnit.BYTES).toString()));
         assertThat("1.5kb", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.BYTES).toString()));
@@ -68,7 +70,6 @@ public class ByteSizeValueTests extends ElasticsearchTestCase {
         assertThat("1536pb", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.PB).toString()));
     }
 
-    @Test
     public void testParsing() {
         assertThat(ByteSizeValue.parseBytesSizeValue("42PB", "testParsing").toString(), is("42pb"));
         assertThat(ByteSizeValue.parseBytesSizeValue("42 PB", "testParsing").toString(), is("42pb"));
@@ -121,28 +122,80 @@ public class ByteSizeValueTests extends ElasticsearchTestCase {
         assertThat(ByteSizeValue.parseBytesSizeValue("1 b", "testParsing").toString(), is("1b"));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testFailOnMissingUnits() {
-        ByteSizeValue.parseBytesSizeValue("23", "test");
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("23", "test"));
+        assertThat(e.getMessage(), containsString("failed to parse setting [test]"));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testFailOnUnknownUnits() {
-        ByteSizeValue.parseBytesSizeValue("23jw", "test");
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("23jw", "test"));
+        assertThat(e.getMessage(), containsString("failed to parse setting [test]"));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testFailOnEmptyParsing() {
-        assertThat(ByteSizeValue.parseBytesSizeValue("", "emptyParsing").toString(), is("23kb"));
+        Exception e = expectThrows(ElasticsearchParseException.class,
+                () -> assertThat(ByteSizeValue.parseBytesSizeValue("", "emptyParsing").toString(), is("23kb")));
+        assertThat(e.getMessage(), containsString("failed to parse setting [emptyParsing]"));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testFailOnEmptyNumberParsing() {
-        assertThat(ByteSizeValue.parseBytesSizeValue("g", "emptyNumberParsing").toString(), is("23b"));
+        Exception e = expectThrows(ElasticsearchParseException.class,
+                () -> assertThat(ByteSizeValue.parseBytesSizeValue("g", "emptyNumberParsing").toString(), is("23b")));
+        assertThat(e.getMessage(), containsString("failed to parse [g]"));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testNoDotsAllowed() {
-        ByteSizeValue.parseBytesSizeValue("42b.", null, "test");
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("42b.", null, "test"));
+        assertThat(e.getMessage(), containsString("failed to parse setting [test]"));
+    }
+
+    public void testCompareEquality() {
+        long firstRandom = randomNonNegativeLong();
+        ByteSizeUnit randomUnit = randomFrom(ByteSizeUnit.values());
+        ByteSizeValue firstByteValue = new ByteSizeValue(firstRandom, randomUnit);
+        ByteSizeValue secondByteValue = new ByteSizeValue(firstRandom, randomUnit);
+        assertEquals(0, firstByteValue.compareTo(secondByteValue));
+    }
+
+    public void testCompareValue() {
+        long firstRandom = randomNonNegativeLong();
+        long secondRandom = randomValueOtherThan(firstRandom, ESTestCase::randomNonNegativeLong);
+        ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
+        ByteSizeValue firstByteValue = new ByteSizeValue(firstRandom, unit);
+        ByteSizeValue secondByteValue = new ByteSizeValue(secondRandom, unit);
+        assertEquals(firstRandom > secondRandom, firstByteValue.compareTo(secondByteValue) > 0);
+        assertEquals(secondRandom > firstRandom, secondByteValue.compareTo(firstByteValue) > 0);
+    }
+
+    public void testCompareUnits() {
+        long number = randomNonNegativeLong();
+        ByteSizeUnit randomUnit = randomValueOtherThan(ByteSizeUnit.PB, ()->randomFrom(ByteSizeUnit.values()));
+        ByteSizeValue firstByteValue = new ByteSizeValue(number, randomUnit);
+        ByteSizeValue secondByteValue = new ByteSizeValue(number, ByteSizeUnit.PB);
+        assertTrue(firstByteValue.compareTo(secondByteValue) < 0);
+        assertTrue(secondByteValue.compareTo(firstByteValue) > 0);
+    }
+
+    public void testEdgeCompare() {
+        ByteSizeValue maxLongValuePB = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.PB);
+        ByteSizeValue maxLongValueB = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        assertTrue(maxLongValuePB.compareTo(maxLongValueB) > 0);
+    }
+
+    public void testConversionHashCode() {
+        ByteSizeValue firstValue = new ByteSizeValue(randomIntBetween(0, Integer.MAX_VALUE), ByteSizeUnit.GB);
+        ByteSizeValue secondValue = new ByteSizeValue(firstValue.getBytes(), ByteSizeUnit.BYTES);
+        assertEquals(firstValue.hashCode(), secondValue.hashCode());
+    }
+
+    public void testSerialization() throws IOException {
+        ByteSizeValue byteSizeValue = new ByteSizeValue(randomNonNegativeLong(), randomFrom(ByteSizeUnit.values()));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            byteSizeValue.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                ByteSizeValue deserializedByteSizeValue = new ByteSizeValue(in);
+                assertEquals(byteSizeValue.getBytes(), deserializedByteSizeValue.getBytes());
+            }
+        }
     }
 }

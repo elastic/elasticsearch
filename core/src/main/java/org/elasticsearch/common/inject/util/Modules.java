@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,18 +16,31 @@
 
 package org.elasticsearch.common.inject.util;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import org.elasticsearch.common.inject.*;
-import org.elasticsearch.common.inject.spi.*;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Binder;
+import org.elasticsearch.common.inject.Binding;
+import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.PrivateBinder;
+import org.elasticsearch.common.inject.Scope;
+import org.elasticsearch.common.inject.spi.DefaultBindingScopingVisitor;
+import org.elasticsearch.common.inject.spi.DefaultElementVisitor;
+import org.elasticsearch.common.inject.spi.Element;
+import org.elasticsearch.common.inject.spi.Elements;
+import org.elasticsearch.common.inject.spi.PrivateElements;
+import org.elasticsearch.common.inject.spi.ScopeBinding;
 
 import java.lang.annotation.Annotation;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  * Static utility methods for creating and working with instances of {@link Module}.
@@ -53,8 +66,8 @@ public final class Modules {
      * Module functionalTestModule
      *     = Modules.override(new ProductionModule()).with(new TestModule());
      * </pre>
-     * <p/>
-     * <p>Prefer to write smaller modules that can be reused and tested without overrides.
+     * <p>
+     * Prefer to write smaller modules that can be reused and tested without overrides.
      *
      * @param modules the modules whose bindings are open to be overridden
      */
@@ -70,8 +83,8 @@ public final class Modules {
      * Module functionalTestModule
      *     = Modules.override(getProductionModules()).with(getTestModules());
      * </pre>
-     * <p/>
-     * <p>Prefer to write smaller modules that can be reused and tested without overrides.
+     * <p>
+     * Prefer to write smaller modules that can be reused and tested without overrides.
      *
      * @param modules the modules whose bindings are open to be overridden
      */
@@ -83,15 +96,14 @@ public final class Modules {
      * Returns a new module that installs all of {@code modules}.
      */
     public static Module combine(Module... modules) {
-        return combine(ImmutableSet.copyOf(modules));
+        return combine(Arrays.asList(modules));
     }
 
     /**
      * Returns a new module that installs all of {@code modules}.
      */
     public static Module combine(Iterable<? extends Module> modules) {
-        // TODO: infer type once JI-9019884 is fixed
-        final Set<Module> modulesSet = ImmutableSet.<Module>copyOf(modules);
+        final Set<? extends Module> modulesSet = newHashSet(modules);
         return new Module() {
             @Override
             public void configure(Binder binder) {
@@ -120,11 +132,11 @@ public final class Modules {
     }
 
     private static final class RealOverriddenModuleBuilder implements OverriddenModuleBuilder {
-        private final ImmutableSet<Module> baseModules;
+        private final Set<Module> baseModules;
 
         private RealOverriddenModuleBuilder(Iterable<? extends Module> baseModules) {
-            // TODO: infer type once JI-9019884 is fixed
-            this.baseModules = ImmutableSet.<Module>copyOf(baseModules);
+            HashSet<? extends Module> modules = newHashSet(baseModules);
+            this.baseModules = unmodifiableSet(modules);
         }
 
         @Override
@@ -140,8 +152,8 @@ public final class Modules {
                     final List<Element> elements = Elements.getElements(baseModules);
                     final List<Element> overrideElements = Elements.getElements(overrides);
 
-                    final Set<Key> overriddenKeys = Sets.newHashSet();
-                    final Set<Class<? extends Annotation>> overridesScopeAnnotations = Sets.newHashSet();
+                    final Set<Key> overriddenKeys = new HashSet<>();
+                    final Set<Class<? extends Annotation>> overridesScopeAnnotations = new HashSet<>();
 
                     // execute the overrides module, keeping track of which keys and scopes are bound
                     new ModuleWriter(binder()) {
@@ -167,8 +179,8 @@ public final class Modules {
                     // execute the original module, skipping all scopes and overridden keys. We only skip each
                     // overridden binding once so things still blow up if the module binds the same thing
                     // multiple times.
-                    final Map<Scope, Object> scopeInstancesInUse = Maps.newHashMap();
-                    final List<ScopeBinding> scopeBindings = Lists.newArrayList();
+                    final Map<Scope, Object> scopeInstancesInUse = new HashMap<>();
+                    final List<ScopeBinding> scopeBindings = new ArrayList<>();
                     new ModuleWriter(binder()) {
                         @Override
                         public <T> Void visit(Binding<T> binding) {
@@ -190,7 +202,7 @@ public final class Modules {
                             PrivateBinder privateBinder = binder.withSource(privateElements.getSource())
                                     .newPrivateBinder();
 
-                            Set<Key<?>> skippedExposes = Sets.newHashSet();
+                            Set<Key<?>> skippedExposes = new HashSet<>();
 
                             for (Key<?> key : privateElements.getExposedKeys()) {
                                 if (overriddenKeys.remove(key)) {

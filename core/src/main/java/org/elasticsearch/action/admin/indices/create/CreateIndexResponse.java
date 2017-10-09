@@ -19,9 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -30,22 +32,54 @@ import java.io.IOException;
  */
 public class CreateIndexResponse extends AcknowledgedResponse {
 
-    CreateIndexResponse() {
+    private boolean shardsAcked;
+    private String index;
+
+    protected CreateIndexResponse() {
     }
 
-    CreateIndexResponse(boolean acknowledged) {
+    protected CreateIndexResponse(boolean acknowledged, boolean shardsAcked, String index) {
         super(acknowledged);
+        assert acknowledged || shardsAcked == false; // if its not acknowledged, then shards acked should be false too
+        this.shardsAcked = shardsAcked;
+        this.index = index;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         readAcknowledged(in);
+        shardsAcked = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
+            index = in.readString();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
+        out.writeBoolean(shardsAcked);
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
+            out.writeString(index);
+        }
+    }
+
+    /**
+     * Returns true if the requisite number of shards were started before
+     * returning from the index creation operation.  If {@link #isAcknowledged()}
+     * is false, then this also returns false.
+     */
+    public boolean isShardsAcked() {
+        return shardsAcked;
+    }
+
+    public String index() {
+        return index;
+    }
+
+    public void addCustomFields(XContentBuilder builder) throws IOException {
+        builder.field("shards_acknowledged", isShardsAcked());
+        builder.field("index", index());
     }
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2009 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,13 +16,17 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.InternalContext;
 import org.elasticsearch.common.inject.spi.InjectionListener;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
+
+import java.util.List;
+import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
+import static java.util.stream.Collectors.toSet;
 
 /**
  * Injects members of instances of a given type.
@@ -32,12 +36,12 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 class MembersInjectorImpl<T> implements MembersInjector<T> {
     private final TypeLiteral<T> typeLiteral;
     private final InjectorImpl injector;
-    private final ImmutableList<SingleMemberInjector> memberInjectors;
-    private final ImmutableList<MembersInjector<? super T>> userMembersInjectors;
-    private final ImmutableList<InjectionListener<? super T>> injectionListeners;
+    private final List<SingleMemberInjector> memberInjectors;
+    private final List<MembersInjector<? super T>> userMembersInjectors;
+    private final List<InjectionListener<? super T>> injectionListeners;
 
     MembersInjectorImpl(InjectorImpl injector, TypeLiteral<T> typeLiteral,
-                        EncounterImpl<T> encounter, ImmutableList<SingleMemberInjector> memberInjectors) {
+                        EncounterImpl<T> encounter, List<SingleMemberInjector> memberInjectors) {
         this.injector = injector;
         this.typeLiteral = typeLiteral;
         this.memberInjectors = memberInjectors;
@@ -45,7 +49,7 @@ class MembersInjectorImpl<T> implements MembersInjector<T> {
         this.injectionListeners = encounter.getInjectionListeners();
     }
 
-    public ImmutableList<SingleMemberInjector> getMemberInjectors() {
+    public List<SingleMemberInjector> getMemberInjectors() {
         return memberInjectors;
     }
 
@@ -111,11 +115,9 @@ class MembersInjectorImpl<T> implements MembersInjector<T> {
         return "MembersInjector<" + typeLiteral + ">";
     }
 
-    public ImmutableSet<InjectionPoint> getInjectionPoints() {
-        ImmutableSet.Builder<InjectionPoint> builder = ImmutableSet.builder();
-        for (SingleMemberInjector memberInjector : memberInjectors) {
-            builder.add(memberInjector.getInjectionPoint());
-        }
-        return builder.build();
+    public Set<InjectionPoint> getInjectionPoints() {
+        return unmodifiableSet(memberInjectors.stream()
+                .map(SingleMemberInjector::getInjectionPoint)
+                .collect(toSet()));
     }
 }

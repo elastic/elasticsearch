@@ -20,34 +20,34 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-/**
- *
- */
+import java.io.IOException;
+
+import static org.elasticsearch.discovery.zen.PublishClusterStateAction.serializeFullClusterState;
+
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
-    private final ClusterName clusterName;
 
     @Inject
     public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                       ClusterName clusterName, ActionFilters actionFilters) {
-        super(settings, ClusterStateAction.NAME, transportService, clusterService, threadPool, actionFilters, ClusterStateRequest.class);
-        this.clusterName = clusterName;
+                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, ClusterStateAction.NAME, false, transportService, clusterService, threadPool, actionFilters, ClusterStateRequest::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -71,24 +71,26 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     }
 
     @Override
-    protected void masterOperation(final ClusterStateRequest request, final ClusterState state, ActionListener<ClusterStateResponse> listener) {
+    protected void masterOperation(final ClusterStateRequest request, final ClusterState state,
+                                   final ActionListener<ClusterStateResponse> listener) throws IOException {
         ClusterState currentState = clusterService.state();
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
-        builder.uuid(currentState.uuid());
+        builder.stateUUID(currentState.stateUUID());
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
         }
         if (request.routingTable()) {
             if (request.indices().length > 0) {
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-                for (String filteredIndex : request.indices()) {
+                String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
+                for (String filteredIndex : indices) {
                     if (currentState.routingTable().getIndicesRouting().containsKey(filteredIndex)) {
                         routingTableBuilder.add(currentState.routingTable().getIndicesRouting().get(filteredIndex));
                     }
                 }
-                builder.routingTable(routingTableBuilder);
+                builder.routingTable(routingTableBuilder.build());
             } else {
                 builder.routingTable(currentState.routingTable());
             }
@@ -105,7 +107,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             }
 
             if (request.indices().length > 0) {
-                String[] indices = currentState.metaData().concreteIndices(request.indicesOptions(), request.indices());
+                String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
                 for (String filteredIndex : indices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
                     if (indexMetaData != null) {
@@ -123,7 +125,15 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
             builder.metaData(mdBuilder);
         }
-        listener.onResponse(new ClusterStateResponse(clusterName, builder.build()));
+        if (request.customs()) {
+            for (ObjectObjectCursor<String, ClusterState.Custom> custom : currentState.customs()) {
+                if (custom.value.isPrivate() == false) {
+                    builder.putCustom(custom.key, custom.value);
+                }
+            }
+        }
+        listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(),
+                                                        serializeFullClusterState(currentState, Version.CURRENT).length()));
     }
 
 

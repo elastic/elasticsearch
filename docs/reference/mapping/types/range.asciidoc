@@ -1,0 +1,140 @@
+[[range]]
+=== Range datatypes
+
+The following range types are supported:
+
+[horizontal]
+`integer_range`::   A range of signed 32-bit integers with a minimum value of +-2^31^+ and maximum of +2^31^-1+.
+`float_range`::     A range of single-precision 32-bit IEEE 754 floating point values.
+`long_range`::      A range of signed 64-bit integers with a minimum value of +-2^63^+ and maximum of +2^63^-1+.
+`double_range`::    A range of double-precision 64-bit IEEE 754 floating point values.
+`date_range`::      A range of date values represented as unsigned 64-bit integer milliseconds elapsed since system epoch.
+`ip_range` ::       A range of ip values supporting either https://en.wikipedia.org/wiki/IPv4[IPv4] or
+                    https://en.wikipedia.org/wiki/IPv6[IPv6] (or mixed) addresses.
+
+Below is an example of configuring a mapping with various range fields followed by an example that indexes several range types.
+
+[source,js]
+--------------------------------------------------
+PUT range_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "expected_attendees": {
+          "type": "integer_range"
+        },
+        "time_frame": {
+          "type": "date_range", <1>
+          "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
+        }
+      }
+    }
+  }
+}
+
+PUT range_index/my_type/1
+{
+  "expected_attendees" : { <2>
+    "gte" : 10,
+    "lte" : 20
+  },
+  "time_frame" : { <3>
+    "gte" : "2015-10-31 12:00:00", <4>
+    "lte" : "2015-11-01"
+  }
+}
+--------------------------------------------------
+//CONSOLE
+
+The following is an example of a `date_range` query over the `date_range` field named "time_frame".
+
+[source,js]
+--------------------------------------------------
+POST range_index/_search
+{
+  "query" : {
+    "range" : {
+      "time_frame" : { <5>
+        "gte" : "2015-10-31",
+        "lte" : "2015-11-01",
+        "relation" : "within" <6>
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:range_index]
+
+The result produced by the above query.
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 13,
+  "timed_out": false,
+  "_shards" : {
+    "total": 2,
+    "successful": 2,
+    "skipped" : 0,
+    "failed": 0
+  },
+  "hits" : {
+    "total" : 1,
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "range_index",
+        "_type" : "my_type",
+        "_id" : "1",
+        "_score" : 1.0,
+        "_source" : {
+          "expected_attendees" : {
+            "gte" : 10, "lte" : 20
+          },
+          "time_frame" : {
+            "gte" : "2015-10-31 12:00:00", "lte" : "2015-11-01"
+          }
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 13/"took" : $body.took/]
+
+<1> `date_range` types accept the same field parameters defined by the <<date, `date`>> type.
+<2> Example indexing a meeting with 10 to 20 attendees.
+<3> Date ranges accept the same format as described in <<ranges-on-dates, date range queries>>.
+<4> Example date range using date time stamp. This also accepts <<date-math, date math>> formatting, or "now" for system time.
+<5> Range queries work the same as described in <<query-dsl-range-query, range query>>.
+<6> Range queries over range <<mapping-types, fields>> support a `relation` parameter which can be one of `WITHIN`, `CONTAINS`,
+    `INTERSECTS` (default).
+
+[[range-params]]
+==== Parameters for range fields
+
+The following parameters are accepted by range types:
+
+[horizontal]
+
+<<coerce,`coerce`>>::
+
+    Try to convert strings to numbers and truncate fractions for integers.
+    Accepts `true` (default) and `false`.
+
+<<mapping-boost,`boost`>>::
+
+    Mapping field-level query time boosting. Accepts a floating point number, defaults
+    to `1.0`.
+
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `true` (default) and `false`.
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).

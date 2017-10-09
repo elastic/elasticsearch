@@ -1,0 +1,122 @@
+[[ip]]
+=== IP datatype
+
+An `ip` field can index/store either https://en.wikipedia.org/wiki/IPv4[IPv4] or
+https://en.wikipedia.org/wiki/IPv6[IPv6] addresses.
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "ip_addr": {
+          "type": "ip"
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{
+  "ip_addr": "192.168.1.1"
+}
+
+GET my_index/_search
+{
+  "query": {
+    "term": {
+      "ip_addr": "192.168.0.0/16"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TESTSETUP
+
+[[ip-params]]
+==== Parameters for `ip` fields
+
+The following parameters are accepted by `ip` fields:
+
+[horizontal]
+
+<<mapping-boost,`boost`>>::
+
+    Mapping field-level query time boosting. Accepts a floating point number, defaults
+    to `1.0`.
+
+<<doc-values,`doc_values`>>::
+
+    Should the field be stored on disk in a column-stride fashion, so that it
+    can later be used for sorting, aggregations, or scripting? Accepts `true`
+    (default) or `false`.
+
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `true` (default) and `false`.
+
+<<null-value,`null_value`>>::
+
+    Accepts an IPv4 value which is substituted for any explicit `null` values.
+    Defaults to `null`, which means the field is treated as missing.
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).
+
+==== Querying `ip` fields
+
+The most common way to query ip addresses is to use the
+https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR]
+notation: `[ip_address]/[prefix_length]`. For instance:
+
+[source,js]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "term": {
+      "ip_addr": "192.168.0.0/16"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+or
+
+[source,js]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "term": {
+      "ip_addr": "2001:db8::/48"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+Also beware that colons are special characters to the
+<<query-dsl-query-string-query,`query_string`>> query, so ipv6 addresses will
+need to be escaped. The easiest way to do so is to put quotes around the
+searched value:
+
+[source,js]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "query_string" : {
+      "query": "ip_addr:\"2001:db8::/48\""
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE

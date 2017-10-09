@@ -19,85 +19,73 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.transport.TransportService;
-import org.junit.Test;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.MockTransportClient;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 1.0)
-public class TransportClientTests extends ElasticsearchIntegrationTest {
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.object.HasToString.hasToString;
 
-    @Test
-    public void testPickingUpChangesInDiscoveryNode() {
-        String nodeName = internalCluster().startNode(Settings.builder().put("node.data", false));
+public class TransportClientTests extends ESTestCase {
 
-        TransportClient client = (TransportClient) internalCluster().client(nodeName);
-        assertThat(client.connectedNodes().get(0).dataNode(), equalTo(false));
-
+    public void testThatUsingAClosedClientThrowsAnException() throws ExecutionException, InterruptedException {
+        final TransportClient client =  new MockTransportClient(Settings.EMPTY);
+        client.close();
+        final IllegalStateException e =
+            expectThrows(IllegalStateException.class, () -> client.admin().cluster().health(new ClusterHealthRequest()).get());
+        assertThat(e, hasToString(containsString("transport client is closed")));
     }
 
-    @Test
-    public void testNodeVersionIsUpdated() {
-        TransportClient client = (TransportClient)  internalCluster().client();
-        TransportClientNodesService nodeService = client.nodeService();
-        Node node = nodeBuilder().data(false).settings(Settings.builder()
-                .put(internalCluster().getDefaultSettings())
-                .put("path.home", createTempDir())
-                .put("node.name", "testNodeVersionIsUpdated")
-                .put("http.enabled", false)
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
-                .build()).clusterName("foobar").build();
-        node.start();
-        try {
-            TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
-            client.addTransportAddress(transportAddress);
-            assertThat(nodeService.connectedNodes().size(), greaterThanOrEqualTo(1)); // since we force transport clients there has to be one node started that we connect to.
-            for (DiscoveryNode discoveryNode : nodeService.connectedNodes()) {  // connected nodes have updated version
-                assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT));
-            }
-
-            for (DiscoveryNode discoveryNode : nodeService.listedNodes()) {
-                assertThat(discoveryNode.id(), startsWith("#transport#-"));
-                assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT.minimumCompatibilityVersion()));
-            }
-
-            assertThat(nodeService.filteredNodes().size(), equalTo(1));
-            for (DiscoveryNode discoveryNode : nodeService.filteredNodes()) {
-                assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT.minimumCompatibilityVersion()));
-            }
-        } finally {
-            node.close();
+    /**
+     * test that when plugins are provided that want to register
+     * {@link NamedWriteable}, those are also made known to the
+     * {@link NamedWriteableRegistry} of the transport client
+     */
+    public void testPluginNamedWriteablesRegistered() {
+        Settings baseSettings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .build();
+        try (TransportClient client = new MockTransportClient(baseSettings, Arrays.asList(MockPlugin.class))) {
+            assertNotNull(client.namedWriteableRegistry.getReader(MockPlugin.MockNamedWriteable.class, MockPlugin.MockNamedWriteable.NAME));
         }
     }
 
-    @Test
-    public void testThatTransportClientSettingIsSet() {
-        TransportClient client = (TransportClient)  internalCluster().client();
-        Settings settings = client.injector.getInstance(Settings.class);
-        assertThat(settings.get(Client.CLIENT_TYPE_SETTING), is("transport"));
-    }
+    public static class MockPlugin extends Plugin {
 
-    @Test
-    public void testThatTransportClientSettingCannotBeChanged() {
-        Settings baseSettings = settingsBuilder().put(Client.CLIENT_TYPE_SETTING, "anything").put("path.home", createTempDir()).build();
-        try (TransportClient client = TransportClient.builder().settings(baseSettings).build()) {
-            Settings settings = client.injector.getInstance(Settings.class);
-            assertThat(settings.get(Client.CLIENT_TYPE_SETTING), is("transport"));
+        @Override
+        public List<Entry> getNamedWriteables() {
+            return Arrays.asList(new Entry[]{ new Entry(MockNamedWriteable.class, MockNamedWriteable.NAME, MockNamedWriteable::new)});
+        }
+
+        public class MockNamedWriteable implements NamedWriteable {
+
+            static final String NAME = "mockNamedWritable";
+
+            MockNamedWriteable(StreamInput in) {
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+            }
+
+            @Override
+            public String getWriteableName() {
+                return NAME;
+            }
+
         }
     }
 }

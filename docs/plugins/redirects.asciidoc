@@ -1,0 +1,48 @@
+["appendix",role="exclude",id="redirects"]
+= Deleted pages
+
+The following pages have moved or been deleted.
+
+[role="exclude",id="discovery-multicast"]
+=== Multicast Discovery Plugin
+
+The `multicast-discovery` plugin has been removed.  Instead, configure networking
+using unicast (see {ref}/modules-network.html[Network settings]) or using
+one of the <<discovery,cloud discovery plugins>>.
+
+[role="exclude",id="cloud-aws"]
+=== AWS Cloud Plugin
+
+Looking for a hosted solution for Elasticsearch on AWS? Check out http://www.elastic.co/cloud.
+
+The Elasticsearch `cloud-aws` plugin has been split into two separate plugins:
+
+*  <<discovery-ec2>> (`discovery-ec2`)
+*  <<repository-s3>> (`repository-s3`)
+
+[role="exclude",id="cloud-azure"]
+=== Azure Cloud Plugin
+
+The `cloud-azure` plugin has been split into two separate plugins:
+
+*  <<discovery-azure-classic>> (`discovery-azure-classic`)
+*  <<repository-azure>> (`repository-azure`)
+
+
+[role="exclude",id="cloud-gce"]
+=== GCE Cloud Plugin
+
+The `cloud-gce` plugin has been renamed to <<discovery-gce>> (`discovery-gce`).
+
+[role="exclude",id="plugins-delete-by-query"]
+=== Delete-By-Query plugin removed
+
+The Delete-By-Query plugin has been removed in favor of a new {ref}/docs-delete-by-query.html[Delete By Query API]
+implementation in core.
+
+
+
+
+
+
+

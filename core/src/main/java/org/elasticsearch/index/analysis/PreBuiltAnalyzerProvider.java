@@ -21,9 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 
-/**
- *
- */
 public class PreBuiltAnalyzerProvider implements AnalyzerProvider<NamedAnalyzer> {
 
     private final NamedAnalyzer analyzer;

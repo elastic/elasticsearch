@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,8 +31,8 @@ public class Strings {
      * The returned string will have the same value as the specified string if
      * its first character is non-alphabetic, if its first character is already
      * uppercase, or if the specified string is of length 0.
-     * <p/>
-     * <p>For example:
+     * <p>
+     * For example:
      * <pre>
      *    capitalize("foo bar").equals("Foo bar");
      *    capitalize("2b or not 2b").equals("2b or not 2b")

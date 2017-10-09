@@ -27,10 +27,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-/**
- *
- */
-class RecoveryCleanFilesRequest extends TransportRequest {
+public class RecoveryCleanFilesRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
@@ -38,7 +35,7 @@ class RecoveryCleanFilesRequest extends TransportRequest {
     private Store.MetadataSnapshot snapshotFiles;
     private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
 
-    RecoveryCleanFilesRequest() {
+    public RecoveryCleanFilesRequest() {
     }
 
     RecoveryCleanFilesRequest(long recoveryId, ShardId shardId, Store.MetadataSnapshot snapshotFiles, int totalTranslogOps) {

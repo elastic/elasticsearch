@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.common.util.concurrent;
 
 import org.apache.lucene.store.AlreadyClosedException;

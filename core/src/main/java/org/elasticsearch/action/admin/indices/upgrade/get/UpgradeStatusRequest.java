@@ -21,10 +21,6 @@ package org.elasticsearch.action.admin.indices.upgrade.get;
 
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
 
 public class UpgradeStatusRequest extends BroadcastRequest<UpgradeStatusRequest> {
 

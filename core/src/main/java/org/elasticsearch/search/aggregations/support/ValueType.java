@@ -19,25 +19,31 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.search.DocValueFormat;
+import org.joda.time.DateTimeZone;
 
-/**
- *
- */
-public enum ValueType {
+import java.io.IOException;
 
-    @Deprecated ANY("any", ValuesSource.class, IndexFieldData.class, null),
-    STRING("string", ValuesSource.Bytes.class, IndexFieldData.class, null),
-    LONG("byte|short|integer|long", ValuesSource.Numeric.class, IndexNumericFieldData.class, ValueFormat.RAW) {
+public enum ValueType implements Writeable {
+
+    STRING((byte) 1, "string", "string", ValuesSourceType.BYTES,
+            IndexFieldData.class, DocValueFormat.RAW),
+    LONG((byte) 2, "byte|short|integer|long", "long",
+                    ValuesSourceType.NUMERIC,
+            IndexNumericFieldData.class, DocValueFormat.RAW) {
         @Override
         public boolean isNumeric() {
             return true;
         }
     },
-    DOUBLE("float|double", ValuesSource.Numeric.class, IndexNumericFieldData.class, ValueFormat.RAW) {
+    DOUBLE((byte) 3, "float|double", "double", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW) {
         @Override
         public boolean isNumeric() {
             return true;
@@ -48,44 +54,52 @@ public enum ValueType {
             return true;
         }
     },
-    NUMBER("number", ValuesSource.Numeric.class, IndexNumericFieldData.class, ValueFormat.RAW) {
+    NUMBER((byte) 4, "number", "number", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW) {
         @Override
         public boolean isNumeric() {
             return true;
         }
     },
-    DATE("date", ValuesSource.Numeric.class, IndexNumericFieldData.class, ValueFormat.DateTime.DEFAULT) {
+    DATE((byte) 5, "date", "date", ValuesSourceType.NUMERIC, IndexNumericFieldData.class,
+            new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateTimeZone.UTC)) {
         @Override
         public boolean isNumeric() {
             return true;
         }
     },
-    IP("ip", ValuesSource.Numeric.class, IndexNumericFieldData.class, ValueFormat.IPv4) {
+    IP((byte) 6, "ip", "ip", ValuesSourceType.BYTES, IndexFieldData.class, DocValueFormat.IP),
+    // TODO: what is the difference between "number" and "numeric"?
+    NUMERIC((byte) 7, "numeric", "numeric", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW) {
         @Override
         public boolean isNumeric() {
             return true;
         }
     },
-    NUMERIC("numeric", ValuesSource.Numeric.class, IndexNumericFieldData.class, ValueFormat.RAW) {
-        @Override
-        public boolean isNumeric() {
-            return true;
-        }
-    },
-    GEOPOINT("geo_point", ValuesSource.GeoPoint.class, IndexGeoPointFieldData.class, null) {
+    GEOPOINT((byte) 8, "geo_point", "geo_point", ValuesSourceType.GEOPOINT, IndexGeoPointFieldData.class, DocValueFormat.GEOHASH) {
         @Override
         public boolean isGeoPoint() {
             return true;
         }
+    },
+    BOOLEAN((byte) 9, "boolean", "boolean", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.BOOLEAN) {
+        @Override
+        public boolean isNumeric() {
+            return super.isNumeric();
+        }
     };
 
     final String description;
-    final Class<? extends ValuesSource> valuesSourceType;
+    final ValuesSourceType valuesSourceType;
     final Class<? extends IndexFieldData> fieldDataType;
-    final ValueFormat defaultFormat;
+    final DocValueFormat defaultFormat;
+    private final byte id;
+    private String preferredName;
 
-    private ValueType(String description, Class<? extends ValuesSource> valuesSourceType, Class<? extends IndexFieldData> fieldDataType, ValueFormat defaultFormat) {
+    ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType,
+            Class<? extends IndexFieldData> fieldDataType, DocValueFormat defaultFormat) {
+        this.id = id;
         this.description = description;
+        this.preferredName = preferredName;
         this.valuesSourceType = valuesSourceType;
         this.fieldDataType = fieldDataType;
         this.defaultFormat = defaultFormat;
@@ -95,7 +109,11 @@ public enum ValueType {
         return description;
     }
 
-    public Class<? extends ValuesSource> getValuesSourceType() {
+    public String getPreferredName() {
+        return preferredName;
+    }
+    
+    public ValuesSourceType getValuesSourceType() {
         return valuesSourceType;
     }
 
@@ -104,7 +122,7 @@ public enum ValueType {
     }
 
     public boolean isA(ValueType valueType) {
-        return valueType.valuesSourceType.isAssignableFrom(valuesSourceType) &&
+        return valueType.valuesSourceType == valuesSourceType &&
                 valueType.fieldDataType.isAssignableFrom(fieldDataType);
     }
 
@@ -112,7 +130,7 @@ public enum ValueType {
         return !isA(valueType);
     }
 
-    public ValueFormat defaultFormat() {
+    public DocValueFormat defaultFormat() {
         return defaultFormat;
     }
 
@@ -139,7 +157,9 @@ public enum ValueType {
             case "byte":    return LONG;
             case "date":    return DATE;
             case "ip":      return IP;
+            case "boolean": return BOOLEAN;
             default:
+                // TODO: do not be lenient here
                 return null;
         }
     }
@@ -147,5 +167,20 @@ public enum ValueType {
     @Override
     public String toString() {
         return description;
+    }
+
+    public static ValueType readFromStream(StreamInput in) throws IOException {
+        byte id = in.readByte();
+        for (ValueType valueType : values()) {
+            if (id == valueType.id) {
+                return valueType;
+            }
+        }
+        throw new IOException("No valueType found for id [" + id + "]");
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeByte(id);
     }
 }

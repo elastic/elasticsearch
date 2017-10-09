@@ -31,23 +31,4 @@ public interface IndexTemplateFilter {
      *          {@code false} otherwise.
      */
     boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template);
-
-    static class Compound implements IndexTemplateFilter {
-
-        private IndexTemplateFilter[] filters;
-
-        Compound(IndexTemplateFilter... filters) {
-            this.filters = filters;
-        }
-
-        @Override
-        public boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template) {
-            for (IndexTemplateFilter filter : filters) {
-                if (!filter.apply(request, template)) {
-                    return false;
-                }
-            }
-            return true;
-        }
-    }
 }

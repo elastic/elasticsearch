@@ -18,16 +18,22 @@
  */
 package org.elasticsearch.common.blobstore;
 
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
- *
+ * An interface for storing blobs.
  */
-public interface BlobStore {
+public interface BlobStore extends Closeable {
 
+    /**
+     * Get a blob container instance for storing blobs at the given {@link BlobPath}.
+     */
     BlobContainer blobContainer(BlobPath path);
 
+    /**
+     * Delete the blob store at the given {@link BlobPath}.
+     */
     void delete(BlobPath path) throws IOException;
 
-    void close();
 }

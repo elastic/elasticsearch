@@ -21,23 +21,33 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
-/**
- *
- */
+import java.io.IOException;
+
 public class UnavailableShardsException extends ElasticsearchException {
 
-    public UnavailableShardsException(@Nullable ShardId shardId, String message) {
-        super(buildMessage(shardId, message));
+    public UnavailableShardsException(@Nullable ShardId shardId, String message, Object... args) {
+        super(buildMessage(shardId, message), args);
+    }
+
+    public UnavailableShardsException(String index, int shardId, String message, Object... args) {
+        super(buildMessage(index, shardId, message), args);
     }
 
     private static String buildMessage(ShardId shardId, String message) {
         if (shardId == null) {
             return message;
         }
-        return "[" + shardId.index().name() + "][" + shardId.id() + "] " + message;
+        return buildMessage(shardId.getIndexName(), shardId.id(), message);
+    }
+
+    private static String buildMessage(String index, int shardId, String message) {return "[" + index + "][" + shardId + "] " + message;}
+
+    public UnavailableShardsException(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override

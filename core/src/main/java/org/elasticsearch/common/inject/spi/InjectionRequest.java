@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,9 +20,8 @@ import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.TypeLiteral;
 
+import java.util.Objects;
 import java.util.Set;
-
-import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * A request to inject the instance fields and methods of an instance. Requests are created
@@ -41,9 +40,9 @@ public final class InjectionRequest<T> implements Element {
     private final T instance;
 
     public InjectionRequest(Object source, TypeLiteral<T> type, T instance) {
-        this.source = checkNotNull(source, "source");
-        this.type = checkNotNull(type, "type");
-        this.instance = checkNotNull(instance, "instance");
+        this.source = Objects.requireNonNull(source, "source");
+        this.type = Objects.requireNonNull(type, "type");
+        this.instance = Objects.requireNonNull(instance, "instance");
     }
 
     @Override

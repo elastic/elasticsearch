@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,20 +16,24 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import org.elasticsearch.common.inject.internal.*;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
+import org.elasticsearch.common.inject.internal.BindingImpl;
+import org.elasticsearch.common.inject.internal.Errors;
+import org.elasticsearch.common.inject.internal.InstanceBindingImpl;
+import org.elasticsearch.common.inject.internal.InternalFactory;
+import org.elasticsearch.common.inject.internal.MatcherAndConverter;
+import org.elasticsearch.common.inject.internal.SourceProvider;
 import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Collections.emptySet;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)
@@ -39,17 +43,17 @@ class InheritingState implements State {
     private final State parent;
 
     // Must be a linked hashmap in order to preserve order of bindings in Modules.
-    private final Map<Key<?>, Binding<?>> explicitBindingsMutable = Maps.newLinkedHashMap();
+    private final Map<Key<?>, Binding<?>> explicitBindingsMutable = new LinkedHashMap<>();
     private final Map<Key<?>, Binding<?>> explicitBindings
             = Collections.unmodifiableMap(explicitBindingsMutable);
-    private final Map<Class<? extends Annotation>, Scope> scopes = Maps.newHashMap();
-    private final List<MatcherAndConverter> converters = Lists.newArrayList();
-    private final List<TypeListenerBinding> listenerBindings = Lists.newArrayList();
+    private final Map<Class<? extends Annotation>, Scope> scopes = new HashMap<>();
+    private final List<MatcherAndConverter> converters = new ArrayList<>();
+    private final List<TypeListenerBinding> listenerBindings = new ArrayList<>();
     private WeakKeySet blacklistedKeys = new WeakKeySet();
     private final Object lock;
 
     InheritingState(State parent) {
-        this.parent = checkNotNull(parent, "parent");
+        this.parent = Objects.requireNonNull(parent, "parent");
         this.lock = (parent == State.NONE) ? this : parent.lock();
     }
 
@@ -146,12 +150,13 @@ class InheritingState implements State {
 
     @Override
     public void makeAllBindingsToEagerSingletons(Injector injector) {
-        Map<Key<?>, Binding<?>> x = Maps.newLinkedHashMap();
+        Map<Key<?>, Binding<?>> x = new LinkedHashMap<>();
         for (Map.Entry<Key<?>, Binding<?>> entry : this.explicitBindingsMutable.entrySet()) {
             Key key = entry.getKey();
             BindingImpl<?> binding = (BindingImpl<?>) entry.getValue();
             Object value = binding.getProvider().get();
-            x.put(key, new InstanceBindingImpl<Object>(injector, key, SourceProvider.UNKNOWN_SOURCE, new InternalFactory.Instance(value), ImmutableSet.<InjectionPoint>of(), value));
+            x.put(key, new InstanceBindingImpl<Object>(injector, key, SourceProvider.UNKNOWN_SOURCE, new InternalFactory.Instance(value),
+                    emptySet(), value));
         }
         this.explicitBindingsMutable.clear();
         this.explicitBindingsMutable.putAll(x);

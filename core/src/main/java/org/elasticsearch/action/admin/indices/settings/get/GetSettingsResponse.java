@@ -28,8 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 
-/**
- */
 public class GetSettingsResponse extends ActionResponse {
 
     private ImmutableOpenMap<String, Settings> indexToSettings = ImmutableOpenMap.of();

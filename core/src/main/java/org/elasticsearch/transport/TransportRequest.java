@@ -19,28 +19,55 @@
 
 package org.elasticsearch.transport;
 
-/**
- */
-public abstract class TransportRequest extends TransportMessage<TransportRequest> {
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskId;
 
+import java.io.IOException;
+
+public abstract class TransportRequest extends TransportMessage implements TaskAwareRequest {
     public static class Empty extends TransportRequest {
-
         public static final Empty INSTANCE = new Empty();
-
-        public Empty() {
-            super();
-        }
-
-        public Empty(TransportRequest request) {
-            super(request);
-        }
     }
 
-    protected TransportRequest() {
+    /**
+     * Parent of this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "no parent".
+     */
+    private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
+
+    public TransportRequest() {
     }
 
-    protected TransportRequest(TransportRequest request) {
-        super(request);
+    public TransportRequest(StreamInput in) throws IOException {
+        parentTaskId = TaskId.readFromStream(in);
     }
 
+    /**
+     * Set a reference to task that created this request.
+     */
+    @Override
+    public void setParentTask(TaskId taskId) {
+        this.parentTaskId = taskId;
+    }
+
+    /**
+     * Get a reference to the task that created this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "there is no parent".
+     */
+    @Override
+    public TaskId getParentTask() {
+        return parentTaskId;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        parentTaskId = TaskId.readFromStream(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        parentTaskId.writeTo(out);
+    }
 }

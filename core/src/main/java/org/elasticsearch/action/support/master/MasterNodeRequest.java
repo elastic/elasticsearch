@@ -29,33 +29,39 @@ import java.io.IOException;
 /**
  * A based request for master based operation.
  */
-public abstract class MasterNodeRequest<T extends MasterNodeRequest> extends ActionRequest<T> {
+public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Request>> extends ActionRequest {
 
     public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     protected TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
     protected MasterNodeRequest() {
-
     }
 
-    protected MasterNodeRequest(ActionRequest request) {
-        super(request);
+    protected MasterNodeRequest(StreamInput in) throws IOException {
+        super(in);
+        masterNodeTimeout = new TimeValue(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        masterNodeTimeout.writeTo(out);
     }
 
     /**
      * A timeout value in case the master has not been discovered yet or disconnected.
      */
     @SuppressWarnings("unchecked")
-    public final T masterNodeTimeout(TimeValue timeout) {
+    public final Request masterNodeTimeout(TimeValue timeout) {
         this.masterNodeTimeout = timeout;
-        return (T) this;
+        return (Request) this;
     }
 
     /**
      * A timeout value in case the master has not been discovered yet or disconnected.
      */
-    public final T masterNodeTimeout(String timeout) {
+    public final Request masterNodeTimeout(String timeout) {
         return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".masterNodeTimeout"));
     }
 
@@ -65,13 +71,9 @@ public abstract class MasterNodeRequest<T extends MasterNodeRequest> extends Act
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        // TODO(talevy): throw exception once all MasterNodeRequest
+        //               subclasses have been migrated to Writeable Readers
         super.readFrom(in);
-        masterNodeTimeout = TimeValue.readTimeValue(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        masterNodeTimeout.writeTo(out);
+        masterNodeTimeout = new TimeValue(in);
     }
 }

@@ -20,21 +20,20 @@
 package org.elasticsearch.common.util.concurrent;
 
 
+import org.elasticsearch.common.lease.Releasable;
+
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * This class manages locks. Locks can be accessed with an identifier and are
  * created the first time they are acquired and removed if no thread hold the
  * lock. The latter is important to assure that the list of locks does not grow
  * infinitely.
- * 
- * A Thread can acquire a lock only once.
- * 
+ *
+ *
  * */
 public class KeyedLock<T> {
 
@@ -51,50 +50,40 @@ public class KeyedLock<T> {
         this(false);
     }
 
-    private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-    protected final ThreadLocal<KeyLock> threadLocal = new ThreadLocal<>();
-
-    public void acquire(T key) {
+    public Releasable acquire(T key) {
+        assert isHeldByCurrentThread(key) == false : "lock for " + key + " is already heald by this thread";
         while (true) {
-            if (threadLocal.get() != null) {
-                // if we are here, the thread already has the lock
-                throw new IllegalStateException("Lock already acquired in Thread" + Thread.currentThread().getId()
-                        + " for key " + key);
-            }
             KeyLock perNodeLock = map.get(key);
             if (perNodeLock == null) {
                 KeyLock newLock = new KeyLock(fair);
                 perNodeLock = map.putIfAbsent(key, newLock);
                 if (perNodeLock == null) {
                     newLock.lock();
-                    threadLocal.set(newLock);
-                    return;
+                    return new ReleasableLock(key, newLock);
                 }
             }
             assert perNodeLock != null;
             int i = perNodeLock.count.get();
             if (i > 0 && perNodeLock.count.compareAndSet(i, i + 1)) {
                 perNodeLock.lock();
-                threadLocal.set(perNodeLock);
-                return;
+                return new ReleasableLock(key, perNodeLock);
             }
         }
     }
 
-    public void release(T key) {
-        KeyLock lock = threadLocal.get();
+    public boolean isHeldByCurrentThread(T key) {
+        KeyLock lock = map.get(key);
         if (lock == null) {
-            throw new IllegalStateException("Lock not acquired");
+            return false;
         }
-        release(key, lock);
+        return lock.isHeldByCurrentThread();
     }
 
     void release(T key, KeyLock lock) {
-        assert lock.isHeldByCurrentThread();
         assert lock == map.get(key);
         lock.unlock();
-        threadLocal.set(null);
         int decrementAndGet = lock.count.decrementAndGet();
         if (decrementAndGet == 0) {
             map.remove(key, lock);
@@ -102,8 +91,26 @@ public class KeyedLock<T> {
     }
 
 
+    private final class ReleasableLock implements Releasable {
+        final T key;
+        final KeyLock lock;
+        final AtomicBoolean closed = new AtomicBoolean();
+
+        private ReleasableLock(T key, KeyLock lock) {
+            this.key = key;
+            this.lock = lock;
+        }
+
+        @Override
+        public void close() {
+            if (closed.compareAndSet(false, true)) {
+                release(key, lock);
+            }
+        }
+    }
+
     @SuppressWarnings("serial")
-    private final static class KeyLock extends ReentrantLock {
+    private static final class KeyLock extends ReentrantLock {
         KeyLock(boolean fair) {
             super(fair);
         }
@@ -113,60 +120,6 @@ public class KeyedLock<T> {
 
     public boolean hasLockedKeys() {
         return !map.isEmpty();
-    }
-
-    /**
-     * A {@link KeyedLock} that allows to acquire a global lock that guarantees
-     * exclusive access to the resource the KeyedLock is guarding.
-     */
-    public final static class GlobalLockable<T> extends KeyedLock<T> {
-
-
-        private final ReadWriteLock lock;
-
-        public GlobalLockable(boolean fair){
-            super(fair);
-            lock = new ReentrantReadWriteLock(fair);
-        }
-
-        public GlobalLockable() {
-            this(false);
-        }
-
-        @Override
-        public void acquire(T key) {
-            boolean success = false;
-            lock.readLock().lock();
-            try {
-                super.acquire(key);
-                success = true;
-            } finally {
-                if (!success) {
-                    lock.readLock().unlock();
-                }
-            }
-        }
-
-        @Override
-        public void release(T key) {
-            KeyLock keyLock = threadLocal.get();
-            if (keyLock == null) {
-                throw new IllegalStateException("Lock not acquired");
-            }
-            try {
-                release(key, keyLock);
-            } finally {
-                lock.readLock().unlock();
-            }
-        }
-
-        /**
-         * Returns a global lock guaranteeing exclusive access to the resource
-         * this KeyedLock is guarding.
-         */
-        public Lock globalLock() {
-            return lock.writeLock();
-        }
     }
 
 }

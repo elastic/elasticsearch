@@ -22,9 +22,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Recovery related statistics, starting at the shard level and allowing aggregation to
  * indices and node level
  */
-public class RecoveryStats implements ToXContent, Streamable {
+public class RecoveryStats implements ToXContentFragment, Streamable {
 
     private final AtomicInteger currentAsSource = new AtomicInteger();
     private final AtomicInteger currentAsTarget = new AtomicInteger();
@@ -47,15 +47,11 @@ public class RecoveryStats implements ToXContent, Streamable {
         if (recoveryStats != null) {
             this.currentAsSource.addAndGet(recoveryStats.currentAsSource());
             this.currentAsTarget.addAndGet(recoveryStats.currentAsTarget());
-            this.throttleTimeInNanos.addAndGet(recoveryStats.throttleTime().nanos());
         }
+        addTotals(recoveryStats);
     }
 
-    /**
-     * add statistics that should be accumulated about old shards after they have been
-     * deleted or relocated
-     */
-    public void addAsOld(RecoveryStats recoveryStats) {
+    public void addTotals(RecoveryStats recoveryStats) {
         if (recoveryStats != null) {
             this.throttleTimeInNanos.addAndGet(recoveryStats.throttleTime().nanos());
         }
@@ -69,7 +65,7 @@ public class RecoveryStats implements ToXContent, Streamable {
     }
 
     /**
-     * Number of ongoing recoveries for which a shard serves as a source
+     * Number of ongoing recoveries for which a shard serves as a target
      */
     public int currentAsTarget() {
         return currentAsTarget.get();
@@ -119,11 +115,11 @@ public class RecoveryStats implements ToXContent, Streamable {
     }
 
     static final class Fields {
-        static final XContentBuilderString RECOVERY = new XContentBuilderString("recovery");
-        static final XContentBuilderString CURRENT_AS_SOURCE = new XContentBuilderString("current_as_source");
-        static final XContentBuilderString CURRENT_AS_TARGET = new XContentBuilderString("current_as_target");
-        static final XContentBuilderString THROTTLE_TIME = new XContentBuilderString("throttle_time");
-        static final XContentBuilderString THROTTLE_TIME_IN_MILLIS = new XContentBuilderString("throttle_time_in_millis");
+        static final String RECOVERY = "recovery";
+        static final String CURRENT_AS_SOURCE = "current_as_source";
+        static final String CURRENT_AS_TARGET = "current_as_target";
+        static final String THROTTLE_TIME = "throttle_time";
+        static final String THROTTLE_TIME_IN_MILLIS = "throttle_time_in_millis";
     }
 
     @Override

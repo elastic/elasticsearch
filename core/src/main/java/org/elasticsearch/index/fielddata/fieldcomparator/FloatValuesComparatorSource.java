@@ -20,7 +20,7 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
@@ -39,15 +39,10 @@ import java.io.IOException;
 public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
     private final IndexNumericFieldData indexFieldData;
-    private final Object missingValue;
-    private final MultiValueMode sortMode;
-    private final Nested nested;
 
     public FloatValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
+        super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
-        this.missingValue = missingValue;
-        this.sortMode = sortMode;
-        this.nested = nested;
     }
 
     @Override
@@ -56,8 +51,8 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
     }
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-        assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldNames().indexName());
+    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
+        assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final float dMissingValue = (Float) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
@@ -70,8 +65,8 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
                 if (nested == null) {
                     selectedValues = sortMode.select(values, dMissingValue);
                 } else {
-                    final BitSet rootDocs = nested.rootDocs(context).bits();
-                    final DocIdSet  innerDocs = nested.innerDocs(context);
+                    final BitSet rootDocs = nested.rootDocs(context);
+                    final DocIdSetIterator innerDocs = nested.innerDocs(context);
                     selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc());
                 }
                 return selectedValues.getRawFloatValues();

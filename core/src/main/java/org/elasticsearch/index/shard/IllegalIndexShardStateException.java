@@ -19,27 +19,40 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
-/**
- *
- */
-public class IllegalIndexShardStateException extends IndexShardException {
+import java.io.IOException;
+
+public class IllegalIndexShardStateException extends ElasticsearchException {
 
     private final IndexShardState currentState;
 
-    public IllegalIndexShardStateException(ShardId shardId, IndexShardState currentState, String msg) {
-        super(shardId, "CurrentState[" + currentState + "] " + msg);
-        this.currentState = currentState;
+    public IllegalIndexShardStateException(ShardId shardId, IndexShardState currentState, String msg, Object... args) {
+        this(shardId, currentState, msg, null, args);
     }
 
-    public IllegalIndexShardStateException(ShardId shardId, IndexShardState currentState, String msg, Throwable ex) {
-        super(shardId, "CurrentState[" + currentState + "] ", ex);
+    public IllegalIndexShardStateException(ShardId shardId, IndexShardState currentState, String msg, Throwable ex, Object... args) {
+        super("CurrentState[" + currentState + "] " + msg, ex, args);
+        setShard(shardId);
         this.currentState = currentState;
     }
 
     public IndexShardState currentState() {
         return currentState;
+    }
+
+    public IllegalIndexShardStateException(StreamInput in) throws IOException{
+        super(in);
+        currentState = IndexShardState.fromId(in.readByte());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeByte(currentState.id());
     }
 
     @Override

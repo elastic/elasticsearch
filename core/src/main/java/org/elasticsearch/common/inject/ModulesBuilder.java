@@ -19,33 +19,17 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.Lists;
-
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-/**
- *
- */
 public class ModulesBuilder implements Iterable<Module> {
 
-    private final List<Module> modules = Lists.newArrayList();
+    private final List<Module> modules = new ArrayList<>();
 
-    public ModulesBuilder add(Module... modules) {
-        for (Module module : modules) {
-            add(module);
-        }
-        return this;
-    }
-
-    public ModulesBuilder add(Module module) {
-        modules.add(module);
-        if (module instanceof SpawnModules) {
-            Iterable<? extends Module> spawned = ((SpawnModules) module).spawnModules();
-            for (Module spawn : spawned) {
-                add(spawn);
-            }
-        }
+    public ModulesBuilder add(Module... newModules) {
+        Collections.addAll(modules, newModules);
         return this;
     }
 
@@ -55,22 +39,11 @@ public class ModulesBuilder implements Iterable<Module> {
     }
 
     public Injector createInjector() {
-        Modules.processModules(modules);
         Injector injector = Guice.createInjector(modules);
-        Injectors.cleanCaches(injector);
+        ((InjectorImpl) injector).clearCache();
         // in ES, we always create all instances as if they are eager singletons
         // this allows for considerable memory savings (no need to store construction info) as well as cycles
         ((InjectorImpl) injector).readOnlyAllSingletons();
         return injector;
-    }
-
-    public Injector createChildInjector(Injector injector) {
-        Modules.processModules(modules);
-        Injector childInjector = injector.createChildInjector(modules);
-        Injectors.cleanCaches(childInjector);
-        // in ES, we always create all instances as if they are eager singletons
-        // this allows for considerable memory savings (no need to store construction info) as well as cycles
-        ((InjectorImpl) childInjector).readOnlyAllSingletons();
-        return childInjector;
     }
 }

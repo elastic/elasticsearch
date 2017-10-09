@@ -20,9 +20,11 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
-/**
- */
+import java.io.IOException;
+
 public class TimestampParsingException extends ElasticsearchException {
 
     private final String timestamp;
@@ -39,5 +41,16 @@ public class TimestampParsingException extends ElasticsearchException {
 
     public String timestamp() {
         return timestamp;
+    }
+
+    public TimestampParsingException(StreamInput in) throws IOException{
+        super(in);
+        this.timestamp = in.readOptionalString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(timestamp);
     }
 }

@@ -1,0 +1,40 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
+"Test escape_dot processor":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "dot_expander" : {
+                  "field" : "foo.bar"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "1"
+        body: {
+          foo.bar: "baz"
+        }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.foo.bar: "baz" }

@@ -28,32 +28,48 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- */
-public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends MasterNodeReadRequest<T> implements IndicesRequest.Replaceable {
+public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Request>> extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-    @SuppressWarnings("unchecked")
+    public ClusterInfoRequest() {
+    }
+
+    public ClusterInfoRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        types = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+    }
+
     @Override
-    public T indices(String... indices) {
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(indices);
+        out.writeStringArray(types);
+        indicesOptions.writeIndicesOptions(out);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Request indices(String... indices) {
         this.indices = indices;
-        return (T) this;
+        return (Request) this;
     }
 
     @SuppressWarnings("unchecked")
-    public T types(String... types) {
+    public Request types(String... types) {
         this.types = types;
-        return (T) this;
+        return (Request) this;
     }
 
     @SuppressWarnings("unchecked")
-    public T indicesOptions(IndicesOptions indicesOptions) {
+    public Request indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
-        return (T) this;
+        return (Request) this;
     }
 
     @Override
@@ -72,17 +88,11 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        // TODO(talevy): once all ClusterInfoRequest objects are converted, remove this
         super.readFrom(in);
         indices = in.readStringArray();
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        out.writeStringArray(types);
-        indicesOptions.writeIndicesOptions(out);
+        // throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

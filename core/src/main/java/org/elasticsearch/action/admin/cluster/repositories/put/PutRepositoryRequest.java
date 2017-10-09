@@ -20,10 +20,8 @@
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -35,13 +33,13 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * Register repository request.
- * <p/>
+ * <p>
  * Registers a repository with given name, type and settings. If the repository with the same name already
  * exists in the cluster, the new repository will replace the existing repository.
  */
@@ -55,7 +53,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
 
     private Settings settings = EMPTY_SETTINGS;
 
-    PutRepositoryRequest() {
+    public PutRepositoryRequest() {
     }
 
     /**
@@ -98,7 +96,6 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
 
     /**
      * The type of the repository
-     * <p/>
      * <ul>
      * <li>"fs" - shared filesystem repository</li>
      * </ul>
@@ -145,11 +142,12 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
     /**
      * Sets the repository settings.
      *
-     * @param source repository settings in json, yaml or properties format
+     * @param source repository settings in json or yaml format
+     * @param xContentType the content type of the source
      * @return this request
      */
-    public PutRepositoryRequest settings(String source) {
-        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
+    public PutRepositoryRequest settings(String source, XContentType xContentType) {
+        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -163,7 +161,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string());
+            settings(builder.string(), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -199,18 +197,8 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
      *
      * @param repositoryDefinition repository definition
      */
-    public PutRepositoryRequest source(XContentBuilder repositoryDefinition) {
-        return source(repositoryDefinition.bytes());
-    }
-
-    /**
-     * Parses repository definition.
-     *
-     * @param repositoryDefinition repository definition
-     */
-    public PutRepositoryRequest source(Map repositoryDefinition) {
-        Map<String, Object> source = repositoryDefinition;
-        for (Map.Entry<String, Object> entry : source.entrySet()) {
+    public PutRepositoryRequest source(Map<String, Object> repositoryDefinition) {
+        for (Map.Entry<String, Object> entry : repositoryDefinition.entrySet()) {
             String name = entry.getKey();
             if (name.equals("type")) {
                 type(entry.getValue().toString());
@@ -218,62 +206,12 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("Malformed settings section, should include an inner object");
                 }
-                settings((Map<String, Object>) entry.getValue());
+                @SuppressWarnings("unchecked")
+                Map<String, Object> sub = (Map<String, Object>) entry.getValue();
+                settings(sub);
             }
         }
         return this;
-    }
-
-    /**
-     * Parses repository definition.
-     * JSON, Smile and YAML formats are supported
-     *
-     * @param repositoryDefinition repository definition
-     */
-    public PutRepositoryRequest source(String repositoryDefinition) {
-        try {
-            return source(XContentFactory.xContent(repositoryDefinition).createParser(repositoryDefinition).mapOrderedAndClose());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to parse repository source [" + repositoryDefinition + "]", e);
-        }
-    }
-
-    /**
-     * Parses repository definition.
-     * JSON, Smile and YAML formats are supported
-     *
-     * @param repositoryDefinition repository definition
-     */
-    public PutRepositoryRequest source(byte[] repositoryDefinition) {
-        return source(repositoryDefinition, 0, repositoryDefinition.length);
-    }
-
-    /**
-     * Parses repository definition.
-     * JSON, Smile and YAML formats are supported
-     *
-     * @param repositoryDefinition repository definition
-     */
-    public PutRepositoryRequest source(byte[] repositoryDefinition, int offset, int length) {
-        try {
-            return source(XContentFactory.xContent(repositoryDefinition, offset, length).createParser(repositoryDefinition, offset, length).mapOrderedAndClose());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to parse repository source", e);
-        }
-    }
-
-    /**
-     * Parses repository definition.
-     * JSON, Smile and YAML formats are supported
-     *
-     * @param repositoryDefinition repository definition
-     */
-    public PutRepositoryRequest source(BytesReference repositoryDefinition) {
-        try {
-            return source(XContentFactory.xContent(repositoryDefinition).createParser(repositoryDefinition).mapOrderedAndClose());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to parse template source", e);
-        }
     }
 
     @Override
@@ -282,7 +220,6 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         name = in.readString();
         type = in.readString();
         settings = readSettingsFromStream(in);
-        readTimeout(in);
         verify = in.readBoolean();
     }
 
@@ -292,7 +229,6 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         out.writeString(name);
         out.writeString(type);
         writeSettingsToStream(settings, out);
-        writeTimeout(out);
         out.writeBoolean(verify);
     }
 }

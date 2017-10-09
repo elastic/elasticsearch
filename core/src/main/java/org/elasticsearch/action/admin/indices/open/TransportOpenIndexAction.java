@@ -19,19 +19,23 @@
 
 package org.elasticsearch.action.admin.indices.open;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.cluster.ack.OpenIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -45,10 +49,12 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
 
     @Inject
     public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                    ThreadPool threadPool, MetaDataIndexStateService indexStateService, NodeSettingsService nodeSettingsService, ActionFilters actionFilters) {
-        super(settings, OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, OpenIndexRequest.class);
+                                    ThreadPool threadPool, MetaDataIndexStateService indexStateService,
+                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                    DestructiveOperations destructiveOperations) {
+        super(settings, OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, OpenIndexRequest::new);
         this.indexStateService = indexStateService;
-        this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
+        this.destructiveOperations = destructiveOperations;
     }
 
     @Override
@@ -63,33 +69,37 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     }
 
     @Override
-    protected void doExecute(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener) {
+    protected void doExecute(Task task, OpenIndexRequest request, ActionListener<OpenIndexResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
-        super.doExecute(request, listener);
+        super.doExecute(task, request, listener);
     }
 
     @Override
     protected ClusterBlockException checkBlock(OpenIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
     protected void masterOperation(final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) {
-        final String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
+        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        if (concreteIndices == null || concreteIndices.length == 0) {
+            listener.onResponse(new OpenIndexResponse(true, true));
+            return;
+        }
         OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .indices(concreteIndices);
+                .indices(concreteIndices).waitForActiveShards(request.waitForActiveShards());
 
-        indexStateService.openIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
+        indexStateService.openIndex(updateRequest, new ActionListener<OpenIndexClusterStateUpdateResponse>() {
 
             @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new OpenIndexResponse(response.isAcknowledged()));
+            public void onResponse(OpenIndexClusterStateUpdateResponse response) {
+                listener.onResponse(new OpenIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged()));
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                logger.debug("failed to open indices [{}]", t, concreteIndices);
+            public void onFailure(Exception t) {
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to open indices [{}]", (Object) concreteIndices), t);
                 listener.onFailure(t);
             }
         });

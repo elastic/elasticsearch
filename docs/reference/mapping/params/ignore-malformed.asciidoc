@@ -1,0 +1,87 @@
+[[ignore-malformed]]
+=== `ignore_malformed`
+
+Sometimes you don't have much control over the data that you receive.  One
+user may send a `login` field that is a <<date,`date`>>, and another sends a
+`login` field that is an email address.
+
+Trying to index the wrong datatype into a field throws an exception by
+default, and rejects the whole document.  The `ignore_malformed` parameter, if
+set to `true`, allows the exception to be ignored.  The malformed field is not
+indexed, but other fields in the document are processed normally.
+
+For example:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "number_one": {
+          "type": "integer",
+          "ignore_malformed": true
+        },
+        "number_two": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{
+  "text":       "Some text value",
+  "number_one": "foo" <1>
+}
+
+PUT my_index/my_type/2
+{
+  "text":       "Some text value",
+  "number_two": "foo" <2>
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[catch:bad_request]
+<1> This document will have the `text` field indexed, but not the `number_one` field.
+<2> This document will be rejected because `number_two` does not allow malformed values.
+
+TIP: The `ignore_malformed` setting is allowed to have different settings for
+fields of the same name in the same index.  Its value can be updated on
+existing fields using the <<indices-put-mapping,PUT mapping API>>.
+
+
+[[ignore-malformed-setting]]
+==== Index-level default
+
+The `index.mapping.ignore_malformed` setting can be set on the index level to
+allow to ignore malformed content globally across all mapping types.
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "settings": {
+    "index.mapping.ignore_malformed": true <1>
+  },
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "number_one": { <1>
+          "type": "byte"
+        },
+        "number_two": {
+          "type": "integer",
+          "ignore_malformed": false <2>
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> The `number_one` field inherits the index-level setting.
+<2> The `number_two` field overrides the index-level setting to turn off `ignore_malformed`.

@@ -18,28 +18,50 @@
  */
 package org.elasticsearch.index.store;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.store.NoLockFactory;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Locale;
 
-/**
- */
-public class IndexStoreTests extends ElasticsearchTestCase {
+public class IndexStoreTests extends ESTestCase {
 
     public void testStoreDirectory() throws IOException {
-        final Path tempDir = createTempDir();
-        final IndexStoreModule.Type[] values = IndexStoreModule.Type.values();
-        final IndexStoreModule.Type type = RandomPicks.randomFrom(random(), values);
-        Settings settings = Settings.settingsBuilder().put(IndexStoreModule.STORE_TYPE, type.name()).build();
-        FsDirectoryService service = new FsDirectoryService(settings, null, new ShardPath(tempDir, tempDir, "foo", new ShardId("foo", 0)));
-        try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
+        Index index = new Index("foo", "fooUUID");
+        final Path tempDir = createTempDir().resolve(index.getUUID()).resolve("0");
+        // default
+        doTestStoreDirectory(index, tempDir, null, IndexModule.Type.FS);
+        // explicit directory impls
+        for (IndexModule.Type type : IndexModule.Type.values()) {
+            doTestStoreDirectory(index, tempDir, type.name().toLowerCase(Locale.ROOT), type);
+        }
+    }
+
+    private void doTestStoreDirectory(Index index, Path tempDir, String typeSettingValue, IndexModule.Type type) throws IOException {
+        Settings.Builder settingsBuilder = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        if (typeSettingValue != null) {
+            settingsBuilder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), typeSettingValue);
+        }
+        Settings settings = settingsBuilder.build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
+        FsDirectoryService service = new FsDirectoryService(indexSettings, null, new ShardPath(false, tempDir, tempDir, new ShardId(index, 0)));
+        try (Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             switch (type) {
                 case NIOFS:
                     assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
@@ -51,35 +73,18 @@ public class IndexStoreTests extends ElasticsearchTestCase {
                     assertTrue(type + " " + directory.toString(), directory instanceof SimpleFSDirectory);
                     break;
                 case FS:
-                case DEFAULT:
-                   if (Constants.WINDOWS) {
-                        if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-                            assertTrue(type + " " + directory.toString(), directory instanceof MMapDirectory);
-                        } else {
-                            assertTrue(type + " " + directory.toString(), directory instanceof SimpleFSDirectory);
-                        }
-                    }  else if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-                        assertTrue(type + " " + directory.toString(), directory instanceof FileSwitchDirectory);
-                    } else  {
-                        assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
+                    if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
+                        assertTrue(directory.toString(), directory instanceof MMapDirectory);
+                    } else if (Constants.WINDOWS) {
+                        assertTrue(directory.toString(), directory instanceof SimpleFSDirectory);
+                    } else {
+                        assertTrue(directory.toString(), directory instanceof NIOFSDirectory);
                     }
                     break;
+                default:
+                    fail();
             }
         }
     }
-
-    public void testStoreDirectoryDefault() throws IOException {
-        final Path tempDir = createTempDir();
-        Settings settings = Settings.EMPTY;
-        FsDirectoryService service = new FsDirectoryService(settings, null, new ShardPath(tempDir, tempDir, "foo", new ShardId("foo", 0)));
-        try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
-            if (Constants.WINDOWS) {
-                assertTrue(directory.toString(), directory instanceof MMapDirectory || directory instanceof SimpleFSDirectory);
-            } else {
-                assertTrue(directory.toString(), directory instanceof FileSwitchDirectory);
-            }
-        }
-    }
-
 
 }

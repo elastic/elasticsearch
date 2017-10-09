@@ -19,7 +19,8 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.ElasticsearchLeafReader;
@@ -34,7 +35,7 @@ public final class ShardUtils {
      */
     @Nullable
     public static ShardId extractShardId(LeafReader reader) {
-        final ElasticsearchLeafReader esReader = getElasticsearchLeafReader(reader);
+        final ElasticsearchLeafReader esReader = ElasticsearchLeafReader.getElasticsearchLeafReader(reader);
         if (esReader != null) {
             assert reader.getRefCount() > 0 : "ElasticsearchLeafReader is already closed";
             return esReader.shardId();
@@ -47,37 +48,14 @@ public final class ShardUtils {
      * will return null.
      */
     @Nullable
-    public static ShardId extractShardId(IndexReader reader) {
-        final ElasticsearchDirectoryReader esReader = getElasticsearchDirectoryReader(reader);
+    public static ShardId extractShardId(DirectoryReader reader) {
+        final ElasticsearchDirectoryReader esReader = ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader);
         if (esReader != null) {
             return esReader.shardId();
         }
-        if (!reader.leaves().isEmpty()) {
-            return extractShardId(reader.leaves().get(0).reader());
-        }
-        return null;
+        throw new IllegalArgumentException("can't extract shard ID, can't unwrap ElasticsearchDirectoryReader");
     }
 
-    private static ElasticsearchLeafReader getElasticsearchLeafReader(LeafReader reader) {
-        if (reader instanceof FilterLeafReader) {
-            if (reader instanceof ElasticsearchLeafReader) {
-                return (ElasticsearchLeafReader) reader;
-            } else {
-                return getElasticsearchLeafReader(FilterLeafReader.unwrap(reader));
-            }
-        }
-        return null;
-    }
 
-    private static ElasticsearchDirectoryReader getElasticsearchDirectoryReader(IndexReader reader) {
-        if (reader instanceof FilterDirectoryReader) {
-            if (reader instanceof ElasticsearchDirectoryReader) {
-                return (ElasticsearchDirectoryReader) reader;
-            } else {
-                return null; // lucene needs a getDelegate method on FilteredDirectoryReader - not a big deal here
-            }
-        }
-        return null;
-    }
 
 }

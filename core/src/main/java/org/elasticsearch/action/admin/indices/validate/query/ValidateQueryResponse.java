@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.action.admin.indices.validate.query.QueryExplanation.readQueryExplanation;
@@ -51,7 +51,7 @@ public class ValidateQueryResponse extends BroadcastResponse {
         this.valid = valid;
         this.queryExplanations = queryExplanations;
         if (queryExplanations == null) {
-            this.queryExplanations = ImmutableList.of();
+            this.queryExplanations = Collections.emptyList();
         }
     }
 
@@ -67,7 +67,7 @@ public class ValidateQueryResponse extends BroadcastResponse {
      */
     public List<? extends QueryExplanation> getQueryExplanation() {
         if (queryExplanations == null) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
         return queryExplanations;
     }

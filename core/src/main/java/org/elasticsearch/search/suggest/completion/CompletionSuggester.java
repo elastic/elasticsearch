@@ -18,103 +18,199 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import com.google.common.collect.Maps;
-import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.suggest.Lookup;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.suggest.document.CompletionQuery;
+import org.apache.lucene.search.suggest.document.TopSuggestDocs;
+import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.Suggester;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
 
-    private static final ScoreComparator scoreComparator = new ScoreComparator();
+    public static final CompletionSuggester INSTANCE = new CompletionSuggester();
 
+    private CompletionSuggester() {}
 
     @Override
     protected Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(String name,
-            CompletionSuggestionContext suggestionContext, IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
-        if (suggestionContext.mapper() == null || !(suggestionContext.mapper() instanceof CompletionFieldMapper)) {
-            throw new ElasticsearchException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
-        }
-        final IndexReader indexReader = searcher.getIndexReader();
-        CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
-        spare.copyUTF8Bytes(suggestionContext.getText());
-
-        CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new StringText(spare.toString()), 0, spare.length());
-        completionSuggestion.addTerm(completionSuggestEntry);
-
-        String fieldName = suggestionContext.getField();
-        Map<String, CompletionSuggestion.Entry.Option> results = Maps.newHashMapWithExpectedSize(indexReader.leaves().size() * suggestionContext.getSize());
-        for (LeafReaderContext atomicReaderContext : indexReader.leaves()) {
-            LeafReader atomicReader = atomicReaderContext.reader();
-            Terms terms = atomicReader.fields().terms(fieldName);
-            if (terms instanceof Completion090PostingsFormat.CompletionTerms) {
-                final Completion090PostingsFormat.CompletionTerms lookupTerms = (Completion090PostingsFormat.CompletionTerms) terms;
-                final Lookup lookup = lookupTerms.getLookup(suggestionContext.mapper(), suggestionContext);
-                if (lookup == null) {
-                    // we don't have a lookup for this segment.. this might be possible if a merge dropped all
-                    // docs from the segment that had a value in this segment.
-                    continue;
+            final CompletionSuggestionContext suggestionContext, final IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
+        if (suggestionContext.getFieldType() != null) {
+            final CompletionFieldMapper.CompletionFieldType fieldType = suggestionContext.getFieldType();
+            CompletionSuggestion completionSuggestion =
+                new CompletionSuggestion(name, suggestionContext.getSize(), suggestionContext.isSkipDuplicates());
+            spare.copyUTF8Bytes(suggestionContext.getText());
+            CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(
+                new Text(spare.toString()), 0, spare.length());
+            completionSuggestion.addTerm(completionSuggestEntry);
+            int shardSize = suggestionContext.getShardSize() != null ? suggestionContext.getShardSize() : suggestionContext.getSize();
+            TopSuggestDocsCollector collector = new TopDocumentsCollector(shardSize, suggestionContext.isSkipDuplicates());
+            suggest(searcher, suggestionContext.toQuery(), collector);
+            int numResult = 0;
+            for (TopSuggestDocs.SuggestScoreDoc suggestScoreDoc : collector.get().scoreLookupDocs()) {
+                TopDocumentsCollector.SuggestDoc suggestDoc = (TopDocumentsCollector.SuggestDoc) suggestScoreDoc;
+                // collect contexts
+                Map<String, Set<CharSequence>> contexts = Collections.emptyMap();
+                if (fieldType.hasContextMappings() && suggestDoc.getContexts().isEmpty() == false) {
+                    contexts = fieldType.getContextMappings().getNamedContexts(suggestDoc.getContexts());
                 }
-                List<Lookup.LookupResult> lookupResults = lookup.lookup(spare.get(), false, suggestionContext.getSize());
-                for (Lookup.LookupResult res : lookupResults) {
+                if (numResult++ < suggestionContext.getSize()) {
+                    CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(suggestDoc.doc,
+                        new Text(suggestDoc.key.toString()), suggestDoc.score, contexts);
+                    completionSuggestEntry.addOption(option);
+                } else {
+                    break;
+                }
+            }
+            return completionSuggestion;
+        }
+        return null;
+    }
 
-                    final String key = res.key.toString();
-                    final float score = res.value;
-                    final Option value = results.get(key);
-                    if (value == null) {
-                        final Option option = new CompletionSuggestion.Entry.Option(new StringText(key), score, res.payload == null ? null
-                                : new BytesArray(res.payload));
-                        results.put(key, option);
-                    } else if (value.getScore() < score) {
-                        value.setScore(score);
-                        value.setPayload(res.payload == null ? null : new BytesArray(res.payload));
-                    }
+    private static void suggest(IndexSearcher searcher, CompletionQuery query, TopSuggestDocsCollector collector) throws IOException {
+        query = (CompletionQuery) query.rewrite(searcher.getIndexReader());
+        Weight weight = query.createWeight(searcher, collector.needsScores(), 1f);
+        for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
+            BulkScorer scorer = weight.bulkScorer(context);
+            if (scorer != null) {
+                try {
+                    scorer.score(collector.getLeafCollector(context), context.reader().getLiveDocs());
+                } catch (CollectionTerminatedException e) {
+                    // collection was terminated prematurely
+                    // continue with the following leaf
                 }
             }
         }
-        final List<CompletionSuggestion.Entry.Option> options = new ArrayList<>(results.values());
-        CollectionUtil.introSort(options, scoreComparator);
+    }
 
-        int optionCount = Math.min(suggestionContext.getSize(), options.size());
-        for (int i = 0 ; i < optionCount ; i++) {
-            completionSuggestEntry.addOption(options.get(i));
+    /**
+     * TODO: this should be refactored and moved to lucene see https://issues.apache.org/jira/browse/LUCENE-6880
+     *
+     * Custom collector that returns top documents from the completion suggester.
+     * When suggestions are augmented with contexts values this collector groups suggestions coming from the same document
+     * but matching different contexts together. Each document is counted as 1 entry and the provided size is the expected number
+     * of documents that should be returned (not the number of suggestions).
+     * This collector is also able to filter duplicate suggestion coming from different documents.
+     * When different contexts match the same suggestion form only the best one (sorted by weight) is kept.
+     * In order to keep this feature fast, the de-duplication of suggestions with different contexts is done
+     * only on the top N*num_contexts (where N is the number of documents to return) suggestions per segment.
+     * This means that skip_duplicates will visit at most N*num_contexts suggestions per segment to find unique suggestions
+     * that match the input. If more than N*num_contexts suggestions are duplicated with different contexts this collector
+     * will not be able to return more than one suggestion even when N is greater than 1.
+     **/
+    private static final class TopDocumentsCollector extends TopSuggestDocsCollector {
+
+        /**
+         * Holds a list of suggest meta data for a doc
+         */
+        private static final class SuggestDoc extends TopSuggestDocs.SuggestScoreDoc {
+
+            private List<TopSuggestDocs.SuggestScoreDoc> suggestScoreDocs;
+
+            SuggestDoc(int doc, CharSequence key, CharSequence context, float score) {
+                super(doc, key, context, score);
+            }
+
+            void add(CharSequence key, CharSequence context, float score) {
+                if (suggestScoreDocs == null) {
+                    suggestScoreDocs = new ArrayList<>(1);
+                }
+                suggestScoreDocs.add(new TopSuggestDocs.SuggestScoreDoc(doc, key, context, score));
+            }
+
+            public List<CharSequence> getKeys() {
+                if (suggestScoreDocs == null) {
+                    return Collections.singletonList(key);
+                } else {
+                    List<CharSequence> keys = new ArrayList<>(suggestScoreDocs.size() + 1);
+                    keys.add(key);
+                    for (TopSuggestDocs.SuggestScoreDoc scoreDoc : suggestScoreDocs) {
+                        keys.add(scoreDoc.key);
+                    }
+                    return keys;
+                }
+            }
+
+            public List<CharSequence> getContexts() {
+                if (suggestScoreDocs == null) {
+                    if (context != null) {
+                        return Collections.singletonList(context);
+                    } else {
+                        return Collections.emptyList();
+                    }
+                } else {
+                    List<CharSequence> contexts = new ArrayList<>(suggestScoreDocs.size() + 1);
+                    contexts.add(context);
+                    for (TopSuggestDocs.SuggestScoreDoc scoreDoc : suggestScoreDocs) {
+                        contexts.add(scoreDoc.context);
+                    }
+                    return contexts;
+                }
+            }
         }
 
-        return completionSuggestion;
-    }
+        private final Map<Integer, SuggestDoc> docsMap;
 
-    @Override
-    public String[] names() {
-        return new String[] { "completion" };
-    }
+        TopDocumentsCollector(int num, boolean skipDuplicates) {
+            super(Math.max(1, num), skipDuplicates);
+            this.docsMap = new LinkedHashMap<>(num);
+        }
 
-    @Override
-    public SuggestContextParser getContextParser() {
-        return new CompletionSuggestParser(this);
-    }
-
-    public static class ScoreComparator implements Comparator<CompletionSuggestion.Entry.Option> {
         @Override
-        public int compare(Option o1, Option o2) {
-            return Float.compare(o2.getScore(), o1.getScore());
+        public void collect(int docID, CharSequence key, CharSequence context, float score) throws IOException {
+            int globalDoc = docID + docBase;
+            if (docsMap.containsKey(globalDoc)) {
+                docsMap.get(globalDoc).add(key, context, score);
+            } else {
+                docsMap.put(globalDoc, new SuggestDoc(globalDoc, key, context, score));
+                super.collect(docID, key, context, score);
+            }
+        }
+
+        @Override
+        public TopSuggestDocs get() throws IOException {
+            TopSuggestDocs entries = super.get();
+            if (entries.scoreDocs.length == 0) {
+                return TopSuggestDocs.EMPTY;
+            }
+            // The parent class returns suggestions, not documents, and dedup only the surface form (without contexts).
+            // The following code groups suggestions matching different contexts by document id and dedup the surface form + contexts
+            // if needed (skip_duplicates).
+            int size = entries.scoreDocs.length;
+            final List<TopSuggestDocs.SuggestScoreDoc> suggestDocs = new ArrayList(size);
+            final CharArraySet seenSurfaceForms = doSkipDuplicates() ? new CharArraySet(size, false) : null;
+            for (TopSuggestDocs.SuggestScoreDoc suggestEntry : entries.scoreLookupDocs()) {
+                final SuggestDoc suggestDoc;
+                if (docsMap != null) {
+                    suggestDoc = docsMap.get(suggestEntry.doc);
+                } else {
+                    suggestDoc = new SuggestDoc(suggestEntry.doc, suggestEntry.key, suggestEntry.context, suggestEntry.score);
+                }
+                if (doSkipDuplicates()) {
+                    if (seenSurfaceForms.contains(suggestDoc.key)) {
+                        continue;
+                    }
+                    seenSurfaceForms.add(suggestDoc.key);
+                }
+                suggestDocs.add(suggestDoc);
+            }
+            return new TopSuggestDocs((int) entries.totalHits,
+                suggestDocs.toArray(new TopSuggestDocs.SuggestScoreDoc[0]), entries.getMaxScore());
         }
     }
 }

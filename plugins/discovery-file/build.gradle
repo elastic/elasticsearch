@@ -1,0 +1,60 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.elasticsearch.gradle.test.ClusterConfiguration
+import org.elasticsearch.gradle.test.ClusterFormationTasks
+import org.elasticsearch.gradle.test.NodeInfo
+
+esplugin {
+    description 'Discovery file plugin enables unicast discovery from hosts stored in a file.'
+    classname 'org.elasticsearch.discovery.file.FileBasedDiscoveryPlugin'
+}
+
+bundlePlugin {
+    from('config/discovery-file') {
+        into 'config'
+    }
+}
+
+task setupSeedNodeAndUnicastHostsFile(type: DefaultTask) {
+    mustRunAfter(precommit)
+}
+// setup the initial cluster with one node that will serve as the seed node
+// for unicast discovery
+ClusterConfiguration config = new ClusterConfiguration(project)
+config.clusterName = 'discovery-file-test-cluster'
+List<NodeInfo> nodes = ClusterFormationTasks.setup(project, 'initialCluster', setupSeedNodeAndUnicastHostsFile, config)
+File srcUnicastHostsFile = file('build/cluster/unicast_hosts.txt')
+
+// write the unicast_hosts.txt file to a temporary location to be used by the second cluster
+setupSeedNodeAndUnicastHostsFile.doLast {
+    // write the unicast_hosts.txt file to a temp file in the build directory
+    srcUnicastHostsFile.setText(nodes.get(0).transportUri(), 'UTF-8')
+}
+
+// second cluster, which will connect to the first via the unicast_hosts.txt file
+integTestCluster {
+    dependsOn setupSeedNodeAndUnicastHostsFile
+    clusterName = 'discovery-file-test-cluster'
+    setting 'discovery.zen.hosts_provider', 'file'
+    extraConfigFile 'discovery-file/unicast_hosts.txt', srcUnicastHostsFile
+}
+
+integTestRunner.finalizedBy ':plugins:discovery-file:initialCluster#stop'
+

@@ -1,0 +1,23 @@
+# Integration tests for HDFS Repository plugin
+#
+# Tests explicit verify
+#
+"HDFS Repository Verify":
+    - do:
+        snapshot.create_repository:
+          repository: test_repository_verify
+          body:
+            type: hdfs
+            settings:
+              uri: "hdfs://localhost:9999"
+              path: "test/repository_verify"
+
+    # Verify repository
+    - do:
+        snapshot.verify_repository:
+          repository: test_repository_verify
+
+    # Remove our repository
+    - do:
+       snapshot.delete_repository:
+         repository: test_repository_verify

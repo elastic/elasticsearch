@@ -19,31 +19,19 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.ObjectObjectMap;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.google.common.collect.Lists;
-
+import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
-/**
- *
- */
 public abstract class ParseContext {
 
     /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
@@ -56,7 +44,7 @@ public abstract class ParseContext {
         private ObjectObjectMap<Object, IndexableField> keyedFields;
 
         private Document(String path, Document parent) {
-            fields = Lists.newArrayList();
+            fields = new ArrayList<>();
             this.path = path;
             this.prefix = path.isEmpty() ? "" : path + ".";
             this.parent = parent;
@@ -132,8 +120,6 @@ public abstract class ParseContext {
          * Returns an array of values of the field specified as the method parameter.
          * This method returns an empty array when there are no
          * matching fields.  It never returns null.
-         * For {@link org.apache.lucene.document.IntField}, {@link org.apache.lucene.document.LongField}, {@link
-         * org.apache.lucene.document.FloatField} and {@link org.apache.lucene.document.DoubleField} it returns the string value of the number.
          * If you want the actual numeric field instances back, use {@link #getFields}.
          * @param name the name of the field
          * @return a <code>String[]</code> of field values
@@ -186,11 +172,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public boolean flyweight() {
-            return in.flyweight();
-        }
-
-        @Override
         public DocumentMapperParser docMapperParser() {
             return in.docMapperParser();
         }
@@ -206,33 +187,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public String index() {
-            return in.index();
-        }
-
-        @Override
         public Settings indexSettings() {
             return in.indexSettings();
         }
 
         @Override
-        public String type() {
-            return in.type();
-        }
-
-        @Override
         public SourceToParse sourceToParse() {
             return in.sourceToParse();
-        }
-
-        @Override
-        public BytesReference source() {
-            return in.source();
-        }
-
-        @Override
-        public void source(BytesReference source) {
-            in.source(source);
         }
 
         @Override
@@ -261,7 +222,7 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDoc(Document doc) {
+        protected void addDoc(Document doc) {
             in.addDoc(doc);
         }
 
@@ -276,38 +237,8 @@ public abstract class ParseContext {
         }
 
         @Override
-        public AnalysisService analysisService() {
-            return in.analysisService();
-        }
-
-        @Override
-        public String id() {
-            return in.id();
-        }
-
-        @Override
-        public void ignoredValue(String indexName, String value) {
-            in.ignoredValue(indexName, value);
-        }
-
-        @Override
-        public String ignoredValue(String indexName) {
-            return in.ignoredValue(indexName);
-        }
-
-        @Override
-        public void id(String id) {
-            in.id(id);
-        }
-
-        @Override
-        public Field uid() {
-            return in.uid();
-        }
-
-        @Override
-        public void uid(Field uid) {
-            in.uid(uid);
+        public MapperService mapperService() {
+            return in.mapperService();
         }
 
         @Override
@@ -321,8 +252,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public AllEntries allEntries() {
-            return in.allEntries();
+        public SeqNoFieldMapper.SequenceIDFields seqID() {
+            return in.seqID();
+        }
+
+        @Override
+        public void seqID(SeqNoFieldMapper.SequenceIDFields seqID) {
+            in.seqID(seqID);
         }
 
         @Override
@@ -336,28 +272,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public float docBoost() {
-            return in.docBoost();
+        public void addDynamicMapper(Mapper update) {
+            in.addDynamicMapper(update);
         }
 
         @Override
-        public void docBoost(float docBoost) {
-            in.docBoost(docBoost);
-        }
-
-        @Override
-        public StringBuilder stringBuilder() {
-            return in.stringBuilder();
-        }
-
-        @Override
-        public void addDynamicMappingsUpdate(Mapper update) {
-            in.addDynamicMappingsUpdate(update);
-        }
-
-        @Override
-        public Mapper dynamicMappingsUpdate() {
-            return in.dynamicMappingsUpdate();
+        public List<Mapper> getDynamicMappers() {
+            return in.getDynamicMappers();
         }
     }
 
@@ -369,76 +290,42 @@ public abstract class ParseContext {
 
         private final ContentPath path;
 
-        private XContentParser parser;
+        private final XContentParser parser;
 
         private Document document;
 
-        private List<Document> documents = Lists.newArrayList();
-
-        private final String index;
+        private final List<Document> documents;
 
         @Nullable
         private final Settings indexSettings;
 
-        private SourceToParse sourceToParse;
-        private BytesReference source;
+        private final SourceToParse sourceToParse;
 
-        private String id;
+        private Field version;
 
-        private Field uid, version;
+        private SeqNoFieldMapper.SequenceIDFields seqID;
 
-        private StringBuilder stringBuilder = new StringBuilder();
 
-        private Map<String, String> ignoredValues = new HashMap<>();
+        private final List<Mapper> dynamicMappers;
 
-        private AllEntries allEntries = new AllEntries();
-
-        private float docBoost = 1.0f;
-
-        private Mapper dynamicMappingsUpdate = null;
-
-        public InternalParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
-            this.index = index;
+        public InternalParseContext(@Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
+                SourceToParse source, XContentParser parser) {
             this.indexSettings = indexSettings;
             this.docMapper = docMapper;
             this.docMapperParser = docMapperParser;
-            this.path = path;
-        }
-
-        public void reset(XContentParser parser, Document document, SourceToParse source) {
+            this.path = new ContentPath(0);
             this.parser = parser;
-            this.document = document;
-            if (document != null) {
-                this.documents = Lists.newArrayList();
-                this.documents.add(document);
-            } else {
-                this.documents = null;
-            }
-            this.uid = null;
+            this.document = new Document();
+            this.documents = new ArrayList<>();
+            this.documents.add(document);
             this.version = null;
-            this.id = null;
             this.sourceToParse = source;
-            this.source = source == null ? null : sourceToParse.source();
-            this.path.reset();
-            this.allEntries = new AllEntries();
-            this.ignoredValues.clear();
-            this.docBoost = 1.0f;
-            this.dynamicMappingsUpdate = null;
-        }
-
-        @Override
-        public boolean flyweight() {
-            return sourceToParse.flyweight();
+            this.dynamicMappers = new ArrayList<>();
         }
 
         @Override
         public DocumentMapperParser docMapperParser() {
             return this.docMapperParser;
-        }
-
-        @Override
-        public String index() {
-            return this.index;
         }
 
         @Override
@@ -448,24 +335,8 @@ public abstract class ParseContext {
         }
 
         @Override
-        public String type() {
-            return sourceToParse.type();
-        }
-
-        @Override
         public SourceToParse sourceToParse() {
             return this.sourceToParse;
-        }
-
-        @Override
-        public BytesReference source() {
-            return source;
-        }
-
-        // only should be used by SourceFieldMapper to update with a compressed source
-        @Override
-        public void source(BytesReference source) {
-            this.source = source;
         }
 
         @Override
@@ -494,7 +365,7 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDoc(Document doc) {
+        protected void addDoc(Document doc) {
             this.documents.add(doc);
         }
 
@@ -509,44 +380,8 @@ public abstract class ParseContext {
         }
 
         @Override
-        public AnalysisService analysisService() {
-            return docMapperParser.analysisService;
-        }
-
-        @Override
-        public String id() {
-            return id;
-        }
-
-        @Override
-        public void ignoredValue(String indexName, String value) {
-            ignoredValues.put(indexName, value);
-        }
-
-        @Override
-        public String ignoredValue(String indexName) {
-            return ignoredValues.get(indexName);
-        }
-
-        /**
-         * Really, just the id mapper should set this.
-         */
-        @Override
-        public void id(String id) {
-            this.id = id;
-        }
-
-        @Override
-        public Field uid() {
-            return this.uid;
-        }
-
-        /**
-         * Really, just the uid mapper should set this.
-         */
-        @Override
-        public void uid(Field uid) {
-            this.uid = uid;
+        public MapperService mapperService() {
+            return docMapperParser.mapperService;
         }
 
         @Override
@@ -560,47 +395,25 @@ public abstract class ParseContext {
         }
 
         @Override
-        public AllEntries allEntries() {
-            return this.allEntries;
+        public SeqNoFieldMapper.SequenceIDFields seqID() {
+            return this.seqID;
         }
 
         @Override
-        public float docBoost() {
-            return this.docBoost;
+        public void seqID(SeqNoFieldMapper.SequenceIDFields seqID) {
+            this.seqID = seqID;
         }
 
         @Override
-        public void docBoost(float docBoost) {
-            this.docBoost = docBoost;
-        }
-
-        /**
-         * A string builder that can be used to construct complex names for example.
-         * Its better to reuse the.
-         */
-        @Override
-        public StringBuilder stringBuilder() {
-            stringBuilder.setLength(0);
-            return this.stringBuilder;
+        public void addDynamicMapper(Mapper mapper) {
+            dynamicMappers.add(mapper);
         }
 
         @Override
-        public void addDynamicMappingsUpdate(Mapper mapper) {
-            assert mapper instanceof RootObjectMapper : mapper;
-            if (dynamicMappingsUpdate == null) {
-                dynamicMappingsUpdate = mapper;
-            } else {
-                MapperUtils.merge(dynamicMappingsUpdate, mapper);
-            }
-        }
-
-        @Override
-        public Mapper dynamicMappingsUpdate() {
-            return dynamicMappingsUpdate;
+        public List<Mapper> getDynamicMappers() {
+            return dynamicMappers;
         }
     }
-
-    public abstract boolean flyweight();
 
     public abstract DocumentMapperParser docMapperParser();
 
@@ -669,19 +482,10 @@ public abstract class ParseContext {
         return false;
     }
 
-    public abstract String index();
-
     @Nullable
     public abstract Settings indexSettings();
 
-    public abstract String type();
-
     public abstract SourceToParse sourceToParse();
-
-    public abstract BytesReference source();
-
-    // only should be used by SourceFieldMapper to update with a compressed source
-    public abstract void source(BytesReference source);
 
     public abstract ContentPath path();
 
@@ -693,63 +497,21 @@ public abstract class ParseContext {
 
     public abstract Document doc();
 
-    public abstract void addDoc(Document doc);
+    protected abstract void addDoc(Document doc);
 
     public abstract RootObjectMapper root();
 
     public abstract DocumentMapper docMapper();
 
-    public abstract AnalysisService analysisService();
-
-    public abstract String id();
-
-    public abstract void ignoredValue(String indexName, String value);
-
-    public abstract String ignoredValue(String indexName);
-
-    /**
-     * Really, just the id mapper should set this.
-     */
-    public abstract void id(String id);
-
-    public abstract Field uid();
-
-    /**
-     * Really, just the uid mapper should set this.
-     */
-    public abstract void uid(Field uid);
+    public abstract MapperService mapperService();
 
     public abstract Field version();
 
     public abstract void version(Field version);
 
-    public final boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
-        return includeInAll(includeInAll, mapper.fieldType().indexOptions() != IndexOptions.NONE);
-    }
+    public abstract SeqNoFieldMapper.SequenceIDFields seqID();
 
-    /**
-     * Is all included or not. Will always disable it if {@link org.elasticsearch.index.mapper.internal.AllFieldMapper#enabled()}
-     * is <tt>false</tt>. If its enabled, then will return <tt>true</tt> only if the specific flag is <tt>null</tt> or
-     * its actual value (so, if not set, defaults to "true") and the field is indexed.
-     */
-    private boolean includeInAll(Boolean specificIncludeInAll, boolean indexed) {
-        if (isWithinCopyTo()) {
-            return false;
-        }
-        if (isWithinMultiFields()) {
-            return false;
-        }
-        if (!docMapper().allFieldMapper().enabled()) {
-            return false;
-        }
-        // not explicitly set
-        if (specificIncludeInAll == null) {
-            return indexed;
-        }
-        return specificIncludeInAll;
-    }
-
-    public abstract AllEntries allEntries();
+    public abstract void seqID(SeqNoFieldMapper.SequenceIDFields seqID);
 
     /**
      * Return a new context that will have the external value set.
@@ -792,23 +554,13 @@ public abstract class ParseContext {
         return clazz.cast(externalValue());
     }
 
-    public abstract float docBoost();
-
-    public abstract void docBoost(float docBoost);
+    /**
+     * Add a new mapper dynamically created while parsing.
+     */
+    public abstract void addDynamicMapper(Mapper update);
 
     /**
-     * A string builder that can be used to construct complex names for example.
-     * Its better to reuse the.
+     * Get dynamic mappers created while parsing.
      */
-    public abstract StringBuilder stringBuilder();
-
-    /**
-     * Add a dynamic update to the root object mapper.
-     */
-    public abstract void addDynamicMappingsUpdate(Mapper update);
-
-    /**
-     * Get dynamic updates to the root object mapper.
-     */
-    public abstract Mapper dynamicMappingsUpdate();
+    public abstract List<Mapper> getDynamicMappers();
 }

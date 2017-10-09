@@ -45,9 +45,9 @@ import java.io.IOException;
 /**
  * To be implemented by {@link SearchScript} which can provided an {@link Explanation} of the score
  * This is currently not used inside elasticsearch but it is used, see for example here:
- * https://github.com/elasticsearch/elasticsearch/issues/8561
+ * https://github.com/elastic/elasticsearch/issues/8561
  */
-public interface ExplainableSearchScript extends LeafSearchScript {
+public interface ExplainableSearchScript {
 
     /**
      * Build the explanation of the current document being scored

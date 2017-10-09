@@ -22,30 +22,17 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public abstract class AbstractTokenizerFactory extends AbstractIndexComponent implements TokenizerFactory {
-
-    private final String name;
-
     protected final Version version;
 
-
-    public AbstractTokenizerFactory(Index index, @IndexSettings Settings indexSettings, String name, Settings settings) {
-        super(index, indexSettings);
-        this.name = name;
-        this.version = Analysis.parseAnalysisVersion(indexSettings, settings, logger);
+    // TODO drop `String ignored` in a followup
+    public AbstractTokenizerFactory(IndexSettings indexSettings, String ignored, Settings settings) {
+        super(indexSettings);
+        this.version = Analysis.parseAnalysisVersion(this.indexSettings.getSettings(), settings, logger);
     }
 
-    @Override
-    public String name() {
-        return this.name;
-    }
-    
     public final Version version() {
         return version;
     }

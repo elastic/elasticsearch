@@ -1,0 +1,10 @@
+---
+"Force merge index tests":
+  - do:
+      indices.create:
+        index: testing
+
+  - do:
+      indices.forcemerge:
+        index: testing
+        max_num_segments: 1

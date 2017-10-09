@@ -19,10 +19,9 @@
 
 package org.elasticsearch.common;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -35,33 +34,20 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Properties;
-import java.util.Random;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
 
-/**
- *
- */
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
+
 public class Strings {
 
     public static final String[] EMPTY_ARRAY = new String[0];
-
-    private static final String FOLDER_SEPARATOR = "/";
-
-    private static final String WINDOWS_FOLDER_SEPARATOR = "\\";
-
-    private static final String TOP_PATH = "src/test";
-
-    private static final String CURRENT_PATH = ".";
-
-    private static final RandomBasedUUIDGenerator RANDOM_UUID_GENERATOR = new RandomBasedUUIDGenerator();
-    private static final UUIDGenerator TIME_UUID_GENERATOR = new TimeBasedUUIDGenerator();
 
     public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
         try (BufferedReader reader = new BufferedReader(new FastStringReader(from))) {
@@ -77,10 +63,10 @@ public class Strings {
 
     /**
      * Splits a backslash escaped string on the separator.
-     * <p/>
+     * <p>
      * Current backslash escaping supported:
      * <br> \n \t \r \b \f are escaped the same as a Java String
-     * <br> Other characters following a backslash are produced verbatim (\c => c)
+     * <br> Other characters following a backslash are produced verbatim (\c =&gt; c)
      *
      * @param s         the string to split
      * @param separator the separator to split on
@@ -144,7 +130,7 @@ public class Strings {
     /**
      * Check that the given CharSequence is neither <code>null</code> nor of length 0.
      * Note: Will return <code>true</code> for a CharSequence that purely consists of whitespace.
-     * <p><pre>
+     * <pre>
      * StringUtils.hasLength(null) = false
      * StringUtils.hasLength("") = false
      * StringUtils.hasLength(" ") = true
@@ -187,7 +173,7 @@ public class Strings {
     /**
      * Check that the given CharSequence is either <code>null</code> or of length 0.
      * Note: Will return <code>false</code> for a CharSequence that purely consists of whitespace.
-     * <p><pre>
+     * <pre>
      * StringUtils.isEmpty(null) = true
      * StringUtils.isEmpty("") = true
      * StringUtils.isEmpty(" ") = false
@@ -206,7 +192,7 @@ public class Strings {
      * Check whether the given CharSequence has actual text.
      * More specifically, returns <code>true</code> if the string not <code>null</code>,
      * its length is greater than 0, and it contains at least one non-whitespace character.
-     * <p><pre>
+     * <pre>
      * StringUtils.hasText(null) = false
      * StringUtils.hasText("") = false
      * StringUtils.hasText(" ") = false
@@ -247,45 +233,6 @@ public class Strings {
     }
 
     /**
-     * Check whether the given CharSequence contains any whitespace characters.
-     *
-     * @param str the CharSequence to check (may be <code>null</code>)
-     * @return <code>true</code> if the CharSequence is not empty and
-     *         contains at least 1 whitespace character
-     * @see java.lang.Character#isWhitespace
-     */
-    public static boolean containsWhitespace(CharSequence str) {
-        if (!hasLength(str)) {
-            return false;
-        }
-        int strLen = str.length();
-        for (int i = 0; i < strLen; i++) {
-            if (Character.isWhitespace(str.charAt(i))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Trim leading whitespace from the given String.
-     *
-     * @param str the String to check
-     * @return the trimmed String
-     * @see java.lang.Character#isWhitespace
-     */
-    public static String trimLeadingWhitespace(String str) {
-        if (!hasLength(str)) {
-            return str;
-        }
-        StringBuilder sb = new StringBuilder(str);
-        while (sb.length() > 0 && Character.isWhitespace(sb.charAt(0))) {
-            sb.deleteCharAt(0);
-        }
-        return sb.toString();
-    }
-
-    /**
      * Trim all occurrences of the supplied leading character from the given String.
      *
      * @param str              the String to check
@@ -319,26 +266,6 @@ public class Strings {
             }
         }
         return true;
-    }
-
-    /**
-     * Count the occurrences of the substring in string s.
-     *
-     * @param str string to search in. Return 0 if this is null.
-     * @param sub string to search for. Return 0 if this is null.
-     */
-    public static int countOccurrencesOf(String str, String sub) {
-        if (str == null || sub == null || str.length() == 0 || sub.length() == 0) {
-            return 0;
-        }
-        int count = 0;
-        int pos = 0;
-        int idx;
-        while ((idx = str.indexOf(sub, pos)) != -1) {
-            ++count;
-            pos = idx + sub.length();
-        }
-        return count;
     }
 
     /**
@@ -413,21 +340,10 @@ public class Strings {
      *
      * @param str the input String (e.g. "myString")
      * @return the quoted String (e.g. "'myString'"),
-     *         or <code>null<code> if the input was <code>null</code>
+     *         or <code>null</code> if the input was <code>null</code>
      */
     public static String quote(String str) {
         return (str != null ? "'" + str + "'" : null);
-    }
-
-    /**
-     * Unqualify a string qualified by a separator character. For example,
-     * "this:name:is:qualified" returns "qualified" if using a ':' separator.
-     *
-     * @param qualifiedName the qualified name
-     * @param separator     the separator
-     */
-    public static String unqualify(String qualifiedName, char separator) {
-        return qualifiedName.substring(qualifiedName.lastIndexOf(separator) + 1);
     }
 
     /**
@@ -456,7 +372,8 @@ public class Strings {
         return sb.toString();
     }
 
-    public static final ImmutableSet<Character> INVALID_FILENAME_CHARS = ImmutableSet.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',');
+    public static final Set<Character> INVALID_FILENAME_CHARS = unmodifiableSet(
+            newHashSet('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ','));
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
@@ -479,66 +396,6 @@ public class Strings {
     }
 
     /**
-     * Normalize the path by suppressing sequences like "path/.." and
-     * inner simple dots.
-     * <p>The result is convenient for path comparison. For other uses,
-     * notice that Windows separators ("\") are replaced by simple slashes.
-     *
-     * @param path the original path
-     * @return the normalized path
-     */
-    public static String cleanPath(String path) {
-        if (path == null) {
-            return null;
-        }
-        String pathToUse = replace(path, WINDOWS_FOLDER_SEPARATOR, FOLDER_SEPARATOR);
-
-        // Strip prefix from path to analyze, to not treat it as part of the
-        // first path element. This is necessary to correctly parse paths like
-        // "file:core/../core/io/Resource.class", where the ".." should just
-        // strip the first "core" directory while keeping the "file:" prefix.
-        int prefixIndex = pathToUse.indexOf(":");
-        String prefix = "";
-        if (prefixIndex != -1) {
-            prefix = pathToUse.substring(0, prefixIndex + 1);
-            pathToUse = pathToUse.substring(prefixIndex + 1);
-        }
-        if (pathToUse.startsWith(FOLDER_SEPARATOR)) {
-            prefix = prefix + FOLDER_SEPARATOR;
-            pathToUse = pathToUse.substring(1);
-        }
-
-        String[] pathArray = delimitedListToStringArray(pathToUse, FOLDER_SEPARATOR);
-        List<String> pathElements = new LinkedList<>();
-        int tops = 0;
-
-        for (int i = pathArray.length - 1; i >= 0; i--) {
-            String element = pathArray[i];
-            if (CURRENT_PATH.equals(element)) {
-                // Points to current directory - drop it.
-            } else if (TOP_PATH.equals(element)) {
-                // Registering top path found.
-                tops++;
-            } else {
-                if (tops > 0) {
-                    // Merging path element with element corresponding to top path.
-                    tops--;
-                } else {
-                    // Normal path element found.
-                    pathElements.add(0, element);
-                }
-            }
-        }
-
-        // Remaining top paths need to be retained.
-        for (int i = 0; i < tops; i++) {
-            pathElements.add(0, TOP_PATH);
-        }
-
-        return prefix + collectionToDelimitedString(pathElements, FOLDER_SEPARATOR);
-    }
-
-    /**
      * Copy the given Collection into a String array.
      * The Collection must contain String elements only.
      *
@@ -558,10 +415,23 @@ public class Strings {
     }
 
     public static String[] splitStringByCommaToArray(final String s) {
-        return splitStringToArray(s, ',');
+        if (s == null || s.isEmpty()) return Strings.EMPTY_ARRAY;
+        else return s.split(",");
     }
 
+    /**
+     * A convenience method for splitting a delimited string into
+     * a set and trimming leading and trailing whitespace from all
+     * split strings.
+     *
+     * @param s the string to split
+     * @param c the delimiter to split on
+     * @return the set of split strings
+     */
     public static Set<String> splitStringToSet(final String s, final char c) {
+        if (s == null || s.isEmpty()) {
+            return Collections.emptySet();
+        }
         final char[] chars = s.toCharArray();
         int count = 1;
         for (final char x : chars) {
@@ -569,59 +439,31 @@ public class Strings {
                 count++;
             }
         }
-        // TODO (MvG): No push: hppc or jcf?
         final Set<String> result = new HashSet<>(count);
         final int len = chars.length;
         int start = 0;  // starting index in chars of the current substring.
         int pos = 0;    // current index in chars.
+        int end = 0; // the position of the end of the current token
         for (; pos < len; pos++) {
             if (chars[pos] == c) {
-                int size = pos - start;
+                int size = end - start;
                 if (size > 0) { // only add non empty strings
                     result.add(new String(chars, start, size));
                 }
                 start = pos + 1;
+                end = start;
+            } else if (Character.isWhitespace(chars[pos])) {
+                if (start == pos) {
+                    // skip over preceding whitespace
+                    start++;
+                }
+            } else {
+                end = pos + 1;
             }
         }
-        int size = pos - start;
+        int size = end - start;
         if (size > 0) {
             result.add(new String(chars, start, size));
-        }
-        return result;
-    }
-
-    public static String[] splitStringToArray(final CharSequence s, final char c) {
-        if (s == null || s.length() == 0) {
-            return Strings.EMPTY_ARRAY;
-        }
-        int count = 1;
-        for (int i = 0; i < s.length(); i++) {
-            if (s.charAt(i) == c) {
-                count++;
-            }
-        }
-        final String[] result = new String[count];
-        final StringBuilder builder = new StringBuilder();
-        int res = 0;
-        for (int i = 0; i < s.length(); i++) {
-            if (s.charAt(i) == c) {
-                if (builder.length() > 0) {
-                    result[res++] = builder.toString();
-                    builder.setLength(0);
-                }
-                
-            } else {
-                builder.append(s.charAt(i));
-            }
-        }
-        if (builder.length() > 0) {
-            result[res++] = builder.toString();
-        }
-        if (res != count) {
-            // we have empty strings, copy over to a new array
-            String[] result1 = new String[res];
-            System.arraycopy(result, 0, result1, 0, res);
-            return result1;
         }
         return result;
     }
@@ -647,41 +489,6 @@ public class Strings {
         String beforeDelimiter = toSplit.substring(0, offset);
         String afterDelimiter = toSplit.substring(offset + delimiter.length());
         return new String[]{beforeDelimiter, afterDelimiter};
-    }
-
-    /**
-     * Take an array Strings and split each element based on the given delimiter.
-     * A <code>Properties</code> instance is then generated, with the left of the
-     * delimiter providing the key, and the right of the delimiter providing the value.
-     * <p>Will trim both the key and value before adding them to the
-     * <code>Properties</code> instance.
-     *
-     * @param array         the array to process
-     * @param delimiter     to split each element using (typically the equals symbol)
-     * @param charsToDelete one or more characters to remove from each element
-     *                      prior to attempting the split operation (typically the quotation mark
-     *                      symbol), or <code>null</code> if no removal should occur
-     * @return a <code>Properties</code> instance representing the array contents,
-     *         or <code>null</code> if the array to process was <code>null</code> or empty
-     */
-    public static Properties splitArrayElementsIntoProperties(
-            String[] array, String delimiter, String charsToDelete) {
-
-        if (isEmpty(array)) {
-            return null;
-        }
-        Properties result = new Properties();
-        for (String element : array) {
-            if (charsToDelete != null) {
-                element = deleteAny(element, charsToDelete);
-            }
-            String[] splittedElement = split(element, delimiter);
-            if (splittedElement == null) {
-                continue;
-            }
-            result.setProperty(splittedElement[0].trim(), splittedElement[1].trim());
-        }
-        return result;
     }
 
     /**
@@ -836,13 +643,12 @@ public class Strings {
      * @return the delimited String
      */
     public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix) {
-        return collectionToDelimitedString(coll, delim, prefix, suffix, new StringBuilder());
+        StringBuilder sb = new StringBuilder();
+        collectionToDelimitedString(coll, delim, prefix, suffix, sb);
+        return sb.toString();
     }
 
-    public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix, StringBuilder sb) {
-        if (Iterables.isEmpty(coll)) {
-            return "";
-        }
+    public static void collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix, StringBuilder sb) {
         Iterator<?> it = coll.iterator();
         while (it.hasNext()) {
             sb.append(prefix).append(it.next()).append(suffix);
@@ -850,7 +656,6 @@ public class Strings {
                 sb.append(delim);
             }
         }
-        return sb.toString();
     }
 
     /**
@@ -885,12 +690,14 @@ public class Strings {
      * @return the delimited String
      */
     public static String arrayToDelimitedString(Object[] arr, String delim) {
-        return arrayToDelimitedString(arr, delim, new StringBuilder());
+        StringBuilder sb = new StringBuilder();
+        arrayToDelimitedString(arr, delim, sb);
+        return sb.toString();
     }
 
-    public static String arrayToDelimitedString(Object[] arr, String delim, StringBuilder sb) {
+    public static void arrayToDelimitedString(Object[] arr, String delim, StringBuilder sb) {
         if (isEmpty(arr)) {
-            return "";
+            return;
         }
         for (int i = 0; i < arr.length; i++) {
             if (i > 0) {
@@ -898,7 +705,6 @@ public class Strings {
             }
             sb.append(arr[i]);
         }
-        return sb.toString();
     }
 
     /**
@@ -935,84 +741,6 @@ public class Strings {
         }
     }
 
-    public static String toCamelCase(String value) {
-        return toCamelCase(value, null);
-    }
-
-    public static String toCamelCase(String value, StringBuilder sb) {
-        boolean changed = false;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (c == '_') {
-                if (!changed) {
-                    if (sb != null) {
-                        sb.setLength(0);
-                    } else {
-                        sb = new StringBuilder();
-                    }
-                    // copy it over here
-                    for (int j = 0; j < i; j++) {
-                        sb.append(value.charAt(j));
-                    }
-                    changed = true;
-                }
-                if (i < value.length() - 1) {
-                    sb.append(Character.toUpperCase(value.charAt(++i)));
-                }
-            } else {
-                if (changed) {
-                    sb.append(c);
-                }
-            }
-        }
-        if (!changed) {
-            return value;
-        }
-        return sb.toString();
-    }
-
-    public static String toUnderscoreCase(String value) {
-        return toUnderscoreCase(value, null);
-    }
-
-    public static String toUnderscoreCase(String value, StringBuilder sb) {
-        boolean changed = false;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (Character.isUpperCase(c)) {
-                if (!changed) {
-                    if (sb != null) {
-                        sb.setLength(0);
-                    } else {
-                        sb = new StringBuilder();
-                    }
-                    // copy it over here
-                    for (int j = 0; j < i; j++) {
-                        sb.append(value.charAt(j));
-                    }
-                    changed = true;
-                    if (i == 0) {
-                        sb.append(Character.toLowerCase(c));
-                    } else {
-                        sb.append('_');
-                        sb.append(Character.toLowerCase(c));
-                    }
-                } else {
-                    sb.append('_');
-                    sb.append(Character.toLowerCase(c));
-                }
-            } else {
-                if (changed) {
-                    sb.append(c);
-                }
-            }
-        }
-        if (!changed) {
-            return value;
-        }
-        return sb.toString();
-    }
-
     /**
      * Determine whether the given array is empty:
      * i.e. <code>null</code> or of zero length.
@@ -1025,11 +753,11 @@ public class Strings {
 
     private Strings() {
     }
-    
+
     public static byte[] toUTF8Bytes(CharSequence charSequence) {
         return toUTF8Bytes(charSequence, new BytesRefBuilder());
     }
-    
+
     public static byte[] toUTF8Bytes(CharSequence charSequence, BytesRefBuilder spare) {
         spare.copyChars(charSequence);
         return Arrays.copyOf(spare.bytes(), spare.length());
@@ -1062,35 +790,104 @@ public class Strings {
                data.length == 1 && ("_all".equals(data[0]) || "*".equals(data[0]));
     }
 
-    /** Returns a Base64 encoded version of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt, using a
-     *  private {@code SecureRandom} instance */
-    public static String randomBase64UUID() {
-        return RANDOM_UUID_GENERATOR.getBase64UUID();
-    }
-
-    /** Returns a Base64 encoded version of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt, using the
-     *  provided {@code Random} instance */
-    public static String randomBase64UUID(Random random) {
-        return RANDOM_UUID_GENERATOR.getBase64UUID(random);
-    }
-
-    /** Generates a time-based UUID (similar to Flake IDs), which is preferred when generating an ID to be indexed into a Lucene index as
-     *  primary key.  The id is opaque and the implementation is free to change at any time! */
-    public static String base64UUID() {
-        return TIME_UUID_GENERATOR.getBase64UUID();
+    /**
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object if needed. The content is not pretty-printed
+     * nor human readable.
+     */
+    public static String toString(ToXContent toXContent) {
+        return toString(toXContent, false, false);
     }
 
     /**
-     * Return a {@link String} that is the json representation of the provided
-     * {@link ToXContent}.
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object if needed. Allows to control whether the outputted
+     * json needs to be pretty printed and human readable.
+     *
      */
-    public static String toString(ToXContent toXContent) {
+    public static String toString(ToXContent toXContent, boolean pretty, boolean human) {
         try {
-            XContentBuilder builder = JsonXContent.contentBuilder();
+            XContentBuilder builder = createBuilder(pretty, human);
+            if (toXContent.isFragment()) {
+                builder.startObject();
+            }
             toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            if (toXContent.isFragment()) {
+                builder.endObject();
+            }
             return builder.string();
         } catch (IOException e) {
-            throw new AssertionError("Cannot happen", e);
+            try {
+                XContentBuilder builder = createBuilder(pretty, human);
+                builder.startObject();
+                builder.field("error", "error building toString out of XContent: " + e.getMessage());
+                builder.field("stack_trace", ExceptionsHelper.stackTrace(e));
+                builder.endObject();
+                return builder.string();
+            } catch (IOException e2) {
+                throw new ElasticsearchException("cannot generate error message for deserialization", e);
+            }
         }
     }
+
+    private static XContentBuilder createBuilder(boolean pretty, boolean human) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        if (pretty) {
+            builder.prettyPrint();
+        }
+        if (human) {
+            builder.humanReadable(true);
+        }
+        return builder;
+    }
+
+    /**
+     * Truncates string to a length less than length. Backtracks to throw out
+     * high surrogates.
+     */
+    public static String cleanTruncate(String s, int length) {
+        if (s == null) {
+            return s;
+        }
+        /*
+         * Its pretty silly for you to truncate to 0 length but just in case
+         * someone does this shouldn't break.
+         */
+        if (length == 0) {
+            return "";
+        }
+        if (length >= s.length()) {
+            return s;
+        }
+        if (Character.isHighSurrogate(s.charAt(length - 1))) {
+            length--;
+        }
+        return s.substring(0, length);
+    }
+
+    public static boolean isNullOrEmpty(@Nullable String s) {
+        return s == null || s.isEmpty();
+    }
+
+    public static String coalesceToEmpty(@Nullable String s) {
+        return s == null ? "" : s;
+    }
+
+    public static String padStart(String s, int minimumLength, char c) {
+        if (s == null) {
+            throw new NullPointerException("s");
+        }
+        if (s.length() >= minimumLength) {
+            return s;
+        } else {
+            StringBuilder sb = new StringBuilder(minimumLength);
+            for (int i = s.length(); i < minimumLength; i++) {
+                sb.append(c);
+            }
+
+            sb.append(s);
+            return sb.toString();
+        }
+    }
+
 }

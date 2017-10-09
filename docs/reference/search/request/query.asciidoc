@@ -6,9 +6,11 @@ query using the <<query-dsl,Query DSL>>.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "query" : {
         "term" : { "user" : "kimchy" }
     }
 }
 --------------------------------------------------
+// CONSOLE

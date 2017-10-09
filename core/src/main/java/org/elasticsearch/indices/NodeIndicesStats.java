@@ -19,9 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -29,36 +26,35 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.stats.PercolateStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
-import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Global information on indices stats running on a specific node.
  */
-public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
+public class NodeIndicesStats implements Streamable, ToXContentFragment {
 
     private CommonStats stats;
     private Map<Index, List<IndexShardStats>> statsByShard;
@@ -107,11 +103,6 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     }
 
     @Nullable
-    public PercolateStats getPercolate() {
-        return stats.getPercolate();
-    }
-
-    @Nullable
     public MergeStats getMerge() {
         return stats.getMerge();
     }
@@ -132,13 +123,13 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     }
 
     @Nullable
-    public FilterCacheStats getFilterCache() {
-        return stats.getFilterCache();
+    public QueryCacheStats getQueryCache() {
+        return stats.getQueryCache();
     }
 
     @Nullable
-    public QueryCacheStats getQueryCache() {
-        return stats.getQueryCache();
+    public RequestCacheStats getRequestCache() {
+        return stats.getRequestCache();
     }
 
     @Nullable
@@ -149,11 +140,6 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     @Nullable
     public SegmentsStats getSegments() {
         return stats.getSegments();
-    }
-
-    @Nullable
-    public SuggestStats getSuggest() {
-        return stats.getSuggest();
     }
 
     @Nullable
@@ -169,14 +155,14 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        stats = CommonStats.readCommonStats(in);
+        stats = new CommonStats(in);
         if (in.readBoolean()) {
             int entries = in.readVInt();
-            statsByShard = Maps.newHashMap();
+            statsByShard = new HashMap<>();
             for (int i = 0; i < entries; i++) {
-                Index index = Index.readIndexName(in);
+                Index index = new Index(in);
                 int indexShardListSize = in.readVInt();
-                List<IndexShardStats> indexShardStats = Lists.newArrayListWithCapacity(indexShardListSize);
+                List<IndexShardStats> indexShardStats = new ArrayList<>(indexShardListSize);
                 for (int j = 0; j < indexShardListSize; j++) {
                     indexShardStats.add(IndexShardStats.readIndexShardStats(in));
                 }
@@ -203,10 +189,11 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        String level = params.param("level", "node");
-        boolean isLevelValid = "node".equalsIgnoreCase(level) || "indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level);
+        final String level = params.param("level", "node");
+        final boolean isLevelValid =
+            "indices".equalsIgnoreCase(level) || "node".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level);
         if (!isLevelValid) {
-            return builder;
+            throw new IllegalArgumentException("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]");
         }
 
         // "node" level
@@ -217,7 +204,7 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
             Map<Index, CommonStats> indexStats = createStatsByIndex();
             builder.startObject(Fields.INDICES);
             for (Map.Entry<Index, CommonStats> entry : indexStats.entrySet()) {
-                builder.startObject(entry.getKey().name());
+                builder.startObject(entry.getKey().getName());
                 entry.getValue().toXContent(builder, params);
                 builder.endObject();
             }
@@ -225,7 +212,7 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         } else if ("shards".equals(level)) {
             builder.startObject("shards");
             for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
-                builder.startArray(entry.getKey().name());
+                builder.startArray(entry.getKey().getName());
                 for (IndexShardStats indexShardStats : entry.getValue()) {
                     builder.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()));
                     for (ShardStats shardStats : indexShardStats.getShards()) {
@@ -243,7 +230,7 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     }
 
     private Map<Index, CommonStats> createStatsByIndex() {
-        Map<Index, CommonStats> statsMap = Maps.newHashMap();
+        Map<Index, CommonStats> statsMap = new HashMap<>();
         for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
             if (!statsMap.containsKey(entry.getKey())) {
                 statsMap.put(entry.getKey(), new CommonStats());
@@ -260,6 +247,6 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString INDICES = new XContentBuilderString("indices");
+        static final String INDICES = "indices";
     }
 }

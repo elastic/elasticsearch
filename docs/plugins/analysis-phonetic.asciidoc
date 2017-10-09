@@ -1,0 +1,99 @@
+[[analysis-phonetic]]
+=== Phonetic Analysis Plugin
+
+The Phonetic Analysis plugin provides token filters which convert tokens to
+their phonetic representation using Soundex, Metaphone, and a variety of other
+algorithms.
+
+:plugin_name: analysis-phonetic
+include::install_remove.asciidoc[]
+
+
+[[analysis-phonetic-token-filter]]
+==== `phonetic` token filter
+
+The `phonetic` token filter takes the following settings:
+
+`encoder`::
+
+    Which phonetic encoder to use.  Accepts `metaphone` (default),
+    `doublemetaphone`, `soundex`, `refinedsoundex`, `caverphone1`,
+    `caverphone2`, `cologne`, `nysiis`, `koelnerphonetik`, `haasephonetik`,
+    `beidermorse`, `daitch_mokotoff`.
+
+`replace`::
+
+    Whether or not the original token should be replaced by the phonetic
+    token. Accepts `true` (default) and `false`.  Not supported by
+    `beidermorse` encoding.
+
+[source,js]
+--------------------------------------------------
+PUT phonetic_sample
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_analyzer": {
+            "tokenizer": "standard",
+            "filter": [
+              "standard",
+              "lowercase",
+              "my_metaphone"
+            ]
+          }
+        },
+        "filter": {
+          "my_metaphone": {
+            "type": "phonetic",
+            "encoder": "metaphone",
+            "replace": false
+          }
+        }
+      }
+    }
+  }
+}
+
+GET phonetic_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "Joe Bloggs" <1>
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> Returns: `J`, `joe`, `BLKS`, `bloggs`
+
+
+[float]
+===== Double metaphone settings
+
+If the `double_metaphone` encoder is used, then this additional setting is
+supported:
+
+`max_code_len`::
+
+    The maximum length of the emitted metaphone token.  Defaults to `4`.
+
+[float]
+===== Beider Morse settings
+
+If the `beider_morse` encoder is used, then these additional settings are
+supported:
+
+`rule_type`::
+
+    Whether matching should be `exact` or `approx` (default).
+
+`name_type`::
+
+    Whether names are `ashkenazi`, `sephardic`, or `generic` (default).
+
+`languageset`::
+
+    An array of languages to check. If not specified, then the language will
+    be guessed. Accepts: `any`, `comomon`, `cyrillic`, `english`, `french`,
+    `german`, `hebrew`, `hungarian`, `polish`, `romanian`, `russian`,
+    `spanish`.

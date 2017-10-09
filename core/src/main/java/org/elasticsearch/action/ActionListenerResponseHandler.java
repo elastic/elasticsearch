@@ -20,20 +20,25 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
+
+import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * A simple base class for action response listeners, defaulting to using the SAME executor (as its
  * very common on response handlers).
  */
-public abstract class ActionListenerResponseHandler<Response extends TransportResponse> extends BaseTransportResponseHandler<Response> {
+public class ActionListenerResponseHandler<Response extends TransportResponse> implements TransportResponseHandler<Response> {
 
-    private final ActionListener<Response> listener;
+    private final ActionListener<? super Response> listener;
+    private final Supplier<Response> responseSupplier;
 
-    public ActionListenerResponseHandler(ActionListener<Response> listener) {
-        this.listener = listener;
+    public ActionListenerResponseHandler(ActionListener<? super Response> listener, Supplier<Response> responseSupplier) {
+        this.listener = Objects.requireNonNull(listener);
+        this.responseSupplier = Objects.requireNonNull(responseSupplier);
     }
 
     @Override
@@ -44,6 +49,11 @@ public abstract class ActionListenerResponseHandler<Response extends TransportRe
     @Override
     public void handleException(TransportException e) {
         listener.onFailure(e);
+    }
+
+    @Override
+    public Response newInstance() {
+        return responseSupplier.get();
     }
 
     @Override

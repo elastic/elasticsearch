@@ -1,0 +1,104 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'ru.vyarus.animalsniffer'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
+
+targetCompatibility = JavaVersion.VERSION_1_7
+sourceCompatibility = JavaVersion.VERSION_1_7
+
+group = 'org.elasticsearch.client'
+archivesBaseName = 'elasticsearch-rest-client-sniffer'
+
+publishing {
+  publications {
+    nebula {
+      artifactId = archivesBaseName
+    }
+  }
+}
+
+dependencies {
+  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+
+  testCompile "org.elasticsearch.client:test:${version}"
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testCompile "junit:junit:${versions.junit}"
+  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  testCompile "org.elasticsearch:securemock:${versions.securemock}"
+  testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  testCompile "org.codehaus.mojo:animal-sniffer-annotations:1.15"
+  signature "org.codehaus.mojo.signature:java17:1.0@signature"
+}
+
+forbiddenApisMain {
+  //client does not depend on core, so only jdk signatures should be checked
+  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+}
+
+forbiddenApisTest {
+  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
+  //client does not depend on core, so only jdk signatures should be checked
+  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+}
+
+dependencyLicenses {
+  mapping from: /http.*/, to: 'httpclient'
+  mapping from: /commons-.*/, to: 'commons'
+}
+
+//JarHell is part of es core, which we don't want to pull in
+jarHell.enabled=false
+
+namingConventions {
+  testClass = 'org.elasticsearch.client.RestClientTestCase'
+  //we don't have integration tests
+  skipIntegTestInDisguise = true
+}
+
+dependencyLicenses {
+  dependencies = project.configurations.runtime.fileCollection {
+    it.group.startsWith('org.elasticsearch') == false
+  }
+}
+
+thirdPartyAudit.excludes = [
+  //commons-logging optional dependencies
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
+  'org.apache.log.Logger',
+  'org.apache.log4j.Category',
+  'org.apache.log4j.Level',
+  'org.apache.log4j.Logger',
+  'org.apache.log4j.Priority',
+  //commons-logging provided dependencies
+  'javax.servlet.ServletContextEvent',
+  'javax.servlet.ServletContextListener'
+]

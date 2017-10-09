@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.io.IOException;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
+
+import java.io.IOException;
 
 //TODO public for tests
 public abstract class CandidateGenerator {
@@ -35,7 +35,7 @@ public abstract class CandidateGenerator {
         CandidateSet set = new CandidateSet(Candidate.EMPTY, createCandidate(term, true));
         return drawCandidates(set);
     }
-    
+
     public Candidate createCandidate(BytesRef term, boolean userInput) throws IOException {
         return createCandidate(term, frequency(term), 1.0, userInput);
     }

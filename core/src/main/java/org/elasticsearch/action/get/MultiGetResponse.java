@@ -19,19 +19,19 @@
 
 package org.elasticsearch.action.get;
 
-import com.google.common.collect.Iterators;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 
-public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ToXContent {
+public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ToXContentObject {
 
     /**
      * Represents a failure.
@@ -40,17 +40,17 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         private String index;
         private String type;
         private String id;
-        private String message;
+        private Exception exception;
 
         Failure() {
 
         }
 
-        public Failure(String index, String type, String id, String message) {
+        public Failure(String index, String type, String id, Exception exception) {
             this.index = index;
             this.type = type;
             this.id = id;
-            this.message = message;
+            this.exception = exception;
         }
 
         /**
@@ -78,7 +78,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
          * The failure message.
          */
         public String getMessage() {
-            return this.message;
+            return exception != null ? exception.getMessage() : null;
         }
 
         public static Failure readFailure(StreamInput in) throws IOException {
@@ -92,7 +92,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             index = in.readString();
             type = in.readOptionalString();
             id = in.readString();
-            message = in.readString();
+            exception = in.readException();
         }
 
         @Override
@@ -100,7 +100,11 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             out.writeString(index);
             out.writeOptionalString(type);
             out.writeString(id);
-            out.writeString(message);
+            out.writeException(exception);
+        }
+
+        public Exception getFailure() {
+            return exception;
         }
     }
 
@@ -119,11 +123,12 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
     @Override
     public Iterator<MultiGetItemResponse> iterator() {
-        return Iterators.forArray(responses);
+        return Arrays.stream(responses).iterator();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startArray(Fields.DOCS);
         for (MultiGetItemResponse response : responses) {
             if (response.isFailed()) {
@@ -132,25 +137,23 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                 builder.field(Fields._INDEX, failure.getIndex());
                 builder.field(Fields._TYPE, failure.getType());
                 builder.field(Fields._ID, failure.getId());
-                builder.field(Fields.ERROR, failure.getMessage());
+                ElasticsearchException.generateFailureXContent(builder, params, failure.getFailure(), true);
                 builder.endObject();
             } else {
                 GetResponse getResponse = response.getResponse();
-                builder.startObject();
                 getResponse.toXContent(builder, params);
-                builder.endObject();
             }
         }
         builder.endArray();
+        builder.endObject();
         return builder;
     }
 
     static final class Fields {
-        static final XContentBuilderString DOCS = new XContentBuilderString("docs");
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString ERROR = new XContentBuilderString("error");
+        static final String DOCS = "docs";
+        static final String _INDEX = "_index";
+        static final String _TYPE = "_type";
+        static final String _ID = "_id";
     }
 
     @Override

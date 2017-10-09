@@ -19,18 +19,31 @@
 
 package org.elasticsearch.index.snapshots;
 
-import org.elasticsearch.index.shard.IndexShardException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  * Generic shard snapshot exception
  */
-public class IndexShardSnapshotException extends IndexShardException {
+public class IndexShardSnapshotException extends ElasticsearchException {
     public IndexShardSnapshotException(ShardId shardId, String msg) {
-        super(shardId, msg);
+        this(shardId, msg, null);
+    }
+
+    public IndexShardSnapshotException(ShardId shardId, Throwable cause) {
+        super(cause);
+        setShard(shardId);
     }
 
     public IndexShardSnapshotException(ShardId shardId, String msg, Throwable cause) {
-        super(shardId, msg, cause);
+        super(msg, cause);
+        setShard(shardId);
+    }
+
+    public IndexShardSnapshotException(StreamInput in) throws IOException{
+        super(in);
     }
 }

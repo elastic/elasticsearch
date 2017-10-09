@@ -20,52 +20,131 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.HasContext;
-import org.elasticsearch.common.HasContextAndHeaders;
-import org.elasticsearch.common.HasHeaders;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.script.Template;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.AliasFilterParsingException;
+import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 /**
  * Shard level request that represents a search.
  * It provides all the methods that the {@link org.elasticsearch.search.internal.SearchContext} needs.
  * Provides a cache key based on its content that can be used to cache shard level response.
  */
-public interface ShardSearchRequest extends HasContextAndHeaders {
+public interface ShardSearchRequest {
 
-    String index();
-
-    int shardId();
+    ShardId shardId();
 
     String[] types();
 
-    BytesReference source();
+    SearchSourceBuilder source();
 
-    void source(BytesReference source);
+    AliasFilter getAliasFilter();
 
-    BytesReference extraSource();
+    void setAliasFilter(AliasFilter filter);
+
+    void source(SearchSourceBuilder source);
 
     int numberOfShards();
 
     SearchType searchType();
 
-    String[] filteringAliases();
+    float indexBoost();
 
     long nowInMillis();
 
-    Template template();
-
-    BytesReference templateSource();
-
-    Boolean queryCache();
+    Boolean requestCache();
 
     Scroll scroll();
+
+    /**
+     * Sets if this shard search needs to be profiled or not
+     * @param profile True if the shard should be profiled
+     */
+    void setProfile(boolean profile);
+
+    /**
+     * Returns true if this shard search is being profiled or not
+     */
+    boolean isProfile();
 
     /**
      * Returns the cache key for this shard search request, based on its content
      */
     BytesReference cacheKey() throws IOException;
+
+    /**
+     * Returns the filter associated with listed filtering aliases.
+     * <p>
+     * The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
+     * Returns <tt>null</tt> if no filtering is required.</p>
+     */
+    static QueryBuilder parseAliasFilter(CheckedFunction<byte[], QueryBuilder, IOException> filterParser,
+                                         IndexMetaData metaData, String... aliasNames) {
+        if (aliasNames == null || aliasNames.length == 0) {
+            return null;
+        }
+        Index index = metaData.getIndex();
+        ImmutableOpenMap<String, AliasMetaData> aliases = metaData.getAliases();
+        Function<AliasMetaData, QueryBuilder> parserFunction = (alias) -> {
+            if (alias.filter() == null) {
+                return null;
+            }
+            try {
+                return filterParser.apply(alias.filter().uncompressed());
+            } catch (IOException ex) {
+                throw new AliasFilterParsingException(index, alias.getAlias(), "Invalid alias filter", ex);
+            }
+        };
+        if (aliasNames.length == 1) {
+            AliasMetaData alias = aliases.get(aliasNames[0]);
+            if (alias == null) {
+                // This shouldn't happen unless alias disappeared after filteringAliases was called.
+                throw new InvalidAliasNameException(index, aliasNames[0], "Unknown alias name was passed to alias Filter");
+            }
+            return parserFunction.apply(alias);
+        } else {
+            // we need to bench here a bit, to see maybe it makes sense to use OrFilter
+            BoolQueryBuilder combined = new BoolQueryBuilder();
+            for (String aliasName : aliasNames) {
+                AliasMetaData alias = aliases.get(aliasName);
+                if (alias == null) {
+                    // This shouldn't happen unless alias disappeared after filteringAliases was called.
+                    throw new InvalidAliasNameException(index, aliasNames[0],
+                        "Unknown alias name was passed to alias Filter");
+                }
+                QueryBuilder parsedFilter = parserFunction.apply(alias);
+                if (parsedFilter != null) {
+                    combined.should(parsedFilter);
+                } else {
+                    // The filter might be null only if filter was removed after filteringAliases was called
+                    return null;
+                }
+            }
+            return combined;
+        }
+    }
+
+    /**
+     * Returns the cluster alias if this request is for a remote cluster or <code>null</code> if the request if targeted to the local
+     * cluster.
+     */
+    String getClusterAlias();
+
+    Rewriteable<Rewriteable> getRewriteable();
+
 }

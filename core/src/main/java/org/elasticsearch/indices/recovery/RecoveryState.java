@@ -19,22 +19,23 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -43,9 +44,9 @@ import java.util.Map;
 /**
  * Keeps track of state related to shard recovery.
  */
-public class RecoveryState implements ToXContent, Streamable {
+public class RecoveryState implements ToXContentFragment, Streamable {
 
-    public static enum Stage {
+    public enum Stage {
         INIT((byte) 0),
 
         /**
@@ -97,39 +98,6 @@ public class RecoveryState implements ToXContent, Streamable {
         }
     }
 
-    public static enum Type {
-        GATEWAY((byte) 0),
-        SNAPSHOT((byte) 1),
-        REPLICA((byte) 2),
-        RELOCATION((byte) 3);
-
-        private static final Type[] TYPES = new Type[Type.values().length];
-
-        static {
-            for (Type type : Type.values()) {
-                assert type.id() < TYPES.length && type.id() >= 0;
-                TYPES[type.id] = type;
-            }
-        }
-
-        private final byte id;
-
-        Type(byte id) {
-            this.id = id;
-        }
-
-        public byte id() {
-            return id;
-        }
-
-        public static Type fromId(byte id) {
-            if (id < 0 || id >= TYPES.length) {
-                throw new IllegalArgumentException("No mapping for id [" + id + "]");
-            }
-            return TYPES[id];
-        }
-    }
-
     private Stage stage;
 
     private final Index index = new Index();
@@ -137,9 +105,9 @@ public class RecoveryState implements ToXContent, Streamable {
     private final VerifyIndex verifyIndex = new VerifyIndex();
     private final Timer timer = new Timer();
 
-    private Type type;
+    private RecoverySource recoverySource;
     private ShardId shardId;
-    private RestoreSource restoreSource;
+    @Nullable
     private DiscoveryNode sourceNode;
     private DiscoveryNode targetNode;
     private boolean primary = false;
@@ -147,20 +115,15 @@ public class RecoveryState implements ToXContent, Streamable {
     private RecoveryState() {
     }
 
-    public RecoveryState(ShardId shardId, boolean primary, Type type, DiscoveryNode sourceNode, DiscoveryNode targetNode) {
-        this(shardId, primary, type, sourceNode, null, targetNode);
-    }
-
-    public RecoveryState(ShardId shardId, boolean primary, Type type, RestoreSource restoreSource, DiscoveryNode targetNode) {
-        this(shardId, primary, type, null, restoreSource, targetNode);
-    }
-
-    private RecoveryState(ShardId shardId, boolean primary, Type type, @Nullable DiscoveryNode sourceNode, @Nullable RestoreSource restoreSource, DiscoveryNode targetNode) {
-        this.shardId = shardId;
-        this.primary = primary;
-        this.type = type;
+    public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode) {
+        assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
+        RecoverySource recoverySource = shardRouting.recoverySource();
+        assert (recoverySource.getType() == RecoverySource.Type.PEER) == (sourceNode != null) :
+            "peer recovery requires source node, recovery type: " + recoverySource.getType() + " source node: " + sourceNode;
+        this.shardId = shardRouting.shardId();
+        this.primary = shardRouting.primary();
+        this.recoverySource = recoverySource;
         this.sourceNode = sourceNode;
-        this.restoreSource = restoreSource;
         this.targetNode = targetNode;
         stage = Stage.INIT;
         timer.start();
@@ -237,20 +200,20 @@ public class RecoveryState implements ToXContent, Streamable {
         return timer;
     }
 
-    public Type getType() {
-        return type;
+    public RecoverySource getRecoverySource() {
+        return recoverySource;
     }
 
+    /**
+     * Returns recovery source node (only non-null if peer recovery)
+     */
+    @Nullable
     public DiscoveryNode getSourceNode() {
         return sourceNode;
     }
 
     public DiscoveryNode getTargetNode() {
         return targetNode;
-    }
-
-    public RestoreSource getRestoreSource() {
-        return restoreSource;
     }
 
     public boolean getPrimary() {
@@ -266,14 +229,11 @@ public class RecoveryState implements ToXContent, Streamable {
     @Override
     public synchronized void readFrom(StreamInput in) throws IOException {
         timer.readFrom(in);
-        type = Type.fromId(in.readByte());
         stage = Stage.fromId(in.readByte());
         shardId = ShardId.readShardId(in);
-        restoreSource = RestoreSource.readOptionalRestoreSource(in);
-        targetNode = DiscoveryNode.readNode(in);
-        if (in.readBoolean()) {
-            sourceNode = DiscoveryNode.readNode(in);
-        }
+        recoverySource = RecoverySource.readFrom(in);
+        targetNode = new DiscoveryNode(in);
+        sourceNode = in.readOptionalWriteable(DiscoveryNode::new);
         index.readFrom(in);
         translog.readFrom(in);
         verifyIndex.readFrom(in);
@@ -283,15 +243,11 @@ public class RecoveryState implements ToXContent, Streamable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         timer.writeTo(out);
-        out.writeByte(type.id());
         out.writeByte(stage.id());
         shardId.writeTo(out);
-        out.writeOptionalStreamable(restoreSource);
+        recoverySource.writeTo(out);
         targetNode.writeTo(out);
-        out.writeBoolean(sourceNode != null);
-        if (sourceNode != null) {
-            sourceNode.writeTo(out);
-        }
+        out.writeOptionalWriteable(sourceNode);
         index.writeTo(out);
         translog.writeTo(out);
         verifyIndex.writeTo(out);
@@ -302,34 +258,35 @@ public class RecoveryState implements ToXContent, Streamable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
         builder.field(Fields.ID, shardId.id());
-        builder.field(Fields.TYPE, type.toString());
+        builder.field(Fields.TYPE, recoverySource.getType());
         builder.field(Fields.STAGE, stage.toString());
         builder.field(Fields.PRIMARY, primary);
-        builder.dateValueField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
+        builder.dateField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
         if (timer.stopTime > 0) {
-            builder.dateValueField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
+            builder.dateField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
         }
         builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, timer.time());
 
-        if (restoreSource != null) {
-            builder.field(Fields.SOURCE);
-            restoreSource.toXContent(builder, params);
+        if (recoverySource.getType() == RecoverySource.Type.PEER) {
+            builder.startObject(Fields.SOURCE);
+            builder.field(Fields.ID, sourceNode.getId());
+            builder.field(Fields.HOST, sourceNode.getHostName());
+            builder.field(Fields.TRANSPORT_ADDRESS, sourceNode.getAddress().toString());
+            builder.field(Fields.IP, sourceNode.getHostAddress());
+            builder.field(Fields.NAME, sourceNode.getName());
+            builder.endObject();
         } else {
             builder.startObject(Fields.SOURCE);
-            builder.field(Fields.ID, sourceNode.id());
-            builder.field(Fields.HOST, sourceNode.getHostName());
-            builder.field(Fields.TRANSPORT_ADDRESS, sourceNode.address().toString());
-            builder.field(Fields.IP, sourceNode.getHostAddress());
-            builder.field(Fields.NAME, sourceNode.name());
+            recoverySource.addAdditionalFields(builder, params);
             builder.endObject();
         }
 
         builder.startObject(Fields.TARGET);
-        builder.field(Fields.ID, targetNode.id());
+        builder.field(Fields.ID, targetNode.getId());
         builder.field(Fields.HOST, targetNode.getHostName());
-        builder.field(Fields.TRANSPORT_ADDRESS, targetNode.address().toString());
+        builder.field(Fields.TRANSPORT_ADDRESS, targetNode.getAddress().toString());
         builder.field(Fields.IP, targetNode.getHostAddress());
-        builder.field(Fields.NAME, targetNode.name());
+        builder.field(Fields.NAME, targetNode.getName());
         builder.endObject();
 
         builder.startObject(Fields.INDEX);
@@ -348,54 +305,56 @@ public class RecoveryState implements ToXContent, Streamable {
     }
 
     static final class Fields {
-        static final XContentBuilderString ID = new XContentBuilderString("id");
-        static final XContentBuilderString TYPE = new XContentBuilderString("type");
-        static final XContentBuilderString STAGE = new XContentBuilderString("stage");
-        static final XContentBuilderString PRIMARY = new XContentBuilderString("primary");
-        static final XContentBuilderString START_TIME = new XContentBuilderString("start_time");
-        static final XContentBuilderString START_TIME_IN_MILLIS = new XContentBuilderString("start_time_in_millis");
-        static final XContentBuilderString STOP_TIME = new XContentBuilderString("stop_time");
-        static final XContentBuilderString STOP_TIME_IN_MILLIS = new XContentBuilderString("stop_time_in_millis");
-        static final XContentBuilderString TOTAL_TIME = new XContentBuilderString("total_time");
-        static final XContentBuilderString TOTAL_TIME_IN_MILLIS = new XContentBuilderString("total_time_in_millis");
-        static final XContentBuilderString SOURCE = new XContentBuilderString("source");
-        static final XContentBuilderString HOST = new XContentBuilderString("host");
-        static final XContentBuilderString TRANSPORT_ADDRESS = new XContentBuilderString("transport_address");
-        static final XContentBuilderString IP = new XContentBuilderString("ip");
-        static final XContentBuilderString NAME = new XContentBuilderString("name");
-        static final XContentBuilderString TARGET = new XContentBuilderString("target");
-        static final XContentBuilderString INDEX = new XContentBuilderString("index");
-        static final XContentBuilderString TRANSLOG = new XContentBuilderString("translog");
-        static final XContentBuilderString TOTAL_ON_START = new XContentBuilderString("total_on_start");
-        static final XContentBuilderString VERIFY_INDEX = new XContentBuilderString("verify_index");
-        static final XContentBuilderString RECOVERED = new XContentBuilderString("recovered");
-        static final XContentBuilderString RECOVERED_IN_BYTES = new XContentBuilderString("recovered_in_bytes");
-        static final XContentBuilderString CHECK_INDEX_TIME = new XContentBuilderString("check_index_time");
-        static final XContentBuilderString CHECK_INDEX_TIME_IN_MILLIS = new XContentBuilderString("check_index_time_in_millis");
-        static final XContentBuilderString LENGTH = new XContentBuilderString("length");
-        static final XContentBuilderString LENGTH_IN_BYTES = new XContentBuilderString("length_in_bytes");
-        static final XContentBuilderString FILES = new XContentBuilderString("files");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
-        static final XContentBuilderString REUSED = new XContentBuilderString("reused");
-        static final XContentBuilderString REUSED_IN_BYTES = new XContentBuilderString("reused_in_bytes");
-        static final XContentBuilderString PERCENT = new XContentBuilderString("percent");
-        static final XContentBuilderString DETAILS = new XContentBuilderString("details");
-        static final XContentBuilderString SIZE = new XContentBuilderString("size");
-        static final XContentBuilderString SOURCE_THROTTLE_TIME = new XContentBuilderString("source_throttle_time");
-        static final XContentBuilderString SOURCE_THROTTLE_TIME_IN_MILLIS = new XContentBuilderString("source_throttle_time_in_millis");
-        static final XContentBuilderString TARGET_THROTTLE_TIME = new XContentBuilderString("target_throttle_time");
-        static final XContentBuilderString TARGET_THROTTLE_TIME_IN_MILLIS = new XContentBuilderString("target_throttle_time_in_millis");
+        static final String ID = "id";
+        static final String TYPE = "type";
+        static final String STAGE = "stage";
+        static final String PRIMARY = "primary";
+        static final String START_TIME = "start_time";
+        static final String START_TIME_IN_MILLIS = "start_time_in_millis";
+        static final String STOP_TIME = "stop_time";
+        static final String STOP_TIME_IN_MILLIS = "stop_time_in_millis";
+        static final String TOTAL_TIME = "total_time";
+        static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
+        static final String SOURCE = "source";
+        static final String HOST = "host";
+        static final String TRANSPORT_ADDRESS = "transport_address";
+        static final String IP = "ip";
+        static final String NAME = "name";
+        static final String TARGET = "target";
+        static final String INDEX = "index";
+        static final String TRANSLOG = "translog";
+        static final String TOTAL_ON_START = "total_on_start";
+        static final String VERIFY_INDEX = "verify_index";
+        static final String RECOVERED = "recovered";
+        static final String RECOVERED_IN_BYTES = "recovered_in_bytes";
+        static final String CHECK_INDEX_TIME = "check_index_time";
+        static final String CHECK_INDEX_TIME_IN_MILLIS = "check_index_time_in_millis";
+        static final String LENGTH = "length";
+        static final String LENGTH_IN_BYTES = "length_in_bytes";
+        static final String FILES = "files";
+        static final String TOTAL = "total";
+        static final String TOTAL_IN_BYTES = "total_in_bytes";
+        static final String REUSED = "reused";
+        static final String REUSED_IN_BYTES = "reused_in_bytes";
+        static final String PERCENT = "percent";
+        static final String DETAILS = "details";
+        static final String SIZE = "size";
+        static final String SOURCE_THROTTLE_TIME = "source_throttle_time";
+        static final String SOURCE_THROTTLE_TIME_IN_MILLIS = "source_throttle_time_in_millis";
+        static final String TARGET_THROTTLE_TIME = "target_throttle_time";
+        static final String TARGET_THROTTLE_TIME_IN_MILLIS = "target_throttle_time_in_millis";
     }
 
     public static class Timer implements Streamable {
         protected long startTime = 0;
+        protected long startNanoTime = 0;
         protected long time = -1;
         protected long stopTime = 0;
 
         public synchronized void start() {
             assert startTime == 0 : "already started";
-            startTime = TimeValue.nsecToMSec(System.nanoTime());
+            startTime = System.currentTimeMillis();
+            startNanoTime = System.nanoTime();
         }
 
         /** Returns start time in millis */
@@ -405,13 +364,13 @@ public class RecoveryState implements ToXContent, Streamable {
 
         /** Returns elapsed time in millis, or 0 if timer was not started */
         public synchronized long time() {
-            if (startTime == 0) {
+            if (startNanoTime == 0) {
                 return 0;
             }
             if (time >= 0) {
                 return time;
             }
-            return Math.max(0, TimeValue.nsecToMSec(System.nanoTime()) - startTime);
+            return Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startNanoTime));
         }
 
         /** Returns stop time in millis */
@@ -421,13 +380,14 @@ public class RecoveryState implements ToXContent, Streamable {
 
         public synchronized void stop() {
             assert stopTime == 0 : "already stopped";
-            stopTime = Math.max(TimeValue.nsecToMSec(System.nanoTime()), startTime);
-            time = stopTime - startTime;
+            stopTime = Math.max(System.currentTimeMillis(), startTime);
+            time = TimeValue.nsecToMSec(System.nanoTime() - startNanoTime);
             assert time >= 0;
         }
 
         public synchronized void reset() {
             startTime = 0;
+            startNanoTime = 0;
             time = -1;
             stopTime = 0;
         }
@@ -436,6 +396,7 @@ public class RecoveryState implements ToXContent, Streamable {
         @Override
         public synchronized void readFrom(StreamInput in) throws IOException {
             startTime = in.readVLong();
+            startNanoTime = in.readVLong();
             stopTime = in.readVLong();
             time = in.readVLong();
         }
@@ -443,6 +404,7 @@ public class RecoveryState implements ToXContent, Streamable {
         @Override
         public synchronized void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(startTime);
+            out.writeVLong(startNanoTime);
             out.writeVLong(stopTime);
             // write a snapshot of current time, which is not per se the time field
             out.writeVLong(time());
@@ -450,7 +412,7 @@ public class RecoveryState implements ToXContent, Streamable {
 
     }
 
-    public static class VerifyIndex extends Timer implements ToXContent, Streamable {
+    public static class VerifyIndex extends Timer implements ToXContentFragment, Streamable {
         private volatile long checkIndexTime;
 
 
@@ -487,7 +449,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
     }
 
-    public static class Translog extends Timer implements ToXContent, Streamable {
+    public static class Translog extends Timer implements ToXContentFragment, Streamable {
         public static final int UNKNOWN = -1;
 
         private int recovered;
@@ -506,6 +468,18 @@ public class RecoveryState implements ToXContent, Streamable {
             assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
         }
 
+        public synchronized void incrementRecoveredOperations(int ops) {
+            recovered += ops;
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
+        }
+
+        public synchronized void decrementRecoveredOperations(int ops) {
+            recovered -= ops;
+            assert recovered >= 0 : "recovered operations must be non-negative. Because [" + recovered + "] after decrementing [" + ops + "]";
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
+        }
+
+
         /**
          * returns the total number of translog operations recovered so far
          */
@@ -516,7 +490,7 @@ public class RecoveryState implements ToXContent, Streamable {
         /**
          * returns the total number of translog operations needed to be recovered at this moment.
          * Note that this can change as the number of operations grows during recovery.
-         * <p/>
+         * <p>
          * A value of -1 ({@link RecoveryState.Translog#UNKNOWN} is return if this is unknown (typically a gateway recovery)
          */
         public synchronized int totalOperations() {
@@ -531,7 +505,7 @@ public class RecoveryState implements ToXContent, Streamable {
         /**
          * returns the total number of translog operations to recovered, on the start of the recovery. Unlike {@link #totalOperations}
          * this does change during recovery.
-         * <p/>
+         * <p>
          * A value of -1 ({@link RecoveryState.Translog#UNKNOWN} is return if this is unknown (typically a gateway recovery)
          */
         public synchronized int totalOperationsOnStart() {
@@ -579,7 +553,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
     }
 
-    public static class File implements ToXContent, Streamable {
+    public static class File implements ToXContentObject, Streamable {
         private String name;
         private long length;
         private long recovered;
@@ -678,8 +652,8 @@ public class RecoveryState implements ToXContent, Streamable {
         @Override
         public int hashCode() {
             int result = name.hashCode();
-            result = 31 * result + (int) (length ^ (length >>> 32));
-            result = 31 * result + (int) (recovered ^ (recovered >>> 32));
+            result = 31 * result + Long.hashCode(length);
+            result = 31 * result + Long.hashCode(recovered);
             result = 31 * result + (reused ? 1 : 0);
             return result;
         }
@@ -690,18 +664,18 @@ public class RecoveryState implements ToXContent, Streamable {
         }
     }
 
-    public static class Index extends Timer implements ToXContent, Streamable {
+    public static class Index extends Timer implements ToXContentFragment, Streamable {
 
         private Map<String, File> fileDetails = new HashMap<>();
 
-        public final static long UNKNOWN = -1L;
+        public static final long UNKNOWN = -1L;
 
         private long version = UNKNOWN;
         private long sourceThrottlingInNanos = UNKNOWN;
         private long targetThrottleTimeInNanos = UNKNOWN;
 
         public synchronized List<File> fileDetails() {
-            return ImmutableList.copyOf(fileDetails.values());
+            return Collections.unmodifiableList(new ArrayList<>(fileDetails.values()));
         }
 
         public synchronized void reset() {
@@ -931,7 +905,7 @@ public class RecoveryState implements ToXContent, Streamable {
             // stream size first, as it matters more and the files section can be long
             builder.startObject(Fields.SIZE);
             builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, totalBytes());
-            builder.byteSizeField(Fields.REUSED_IN_BYTES, Fields.REUSED, totalBytes());
+            builder.byteSizeField(Fields.REUSED_IN_BYTES, Fields.REUSED, reusedBytes());
             builder.byteSizeField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, recoveredBytes());
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredBytesPercent()));
             builder.endObject();
@@ -966,6 +940,10 @@ public class RecoveryState implements ToXContent, Streamable {
             } catch (IOException e) {
                 return "{ \"error\" : \"" + e.getMessage() + "\"}";
             }
+        }
+
+        public File getFileDetails(String dest) {
+            return fileDetails.get(dest);
         }
     }
 }

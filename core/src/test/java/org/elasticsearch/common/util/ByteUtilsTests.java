@@ -21,11 +21,11 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class ByteUtilsTests extends ElasticsearchTestCase {
+public class ByteUtilsTests extends ESTestCase {
 
     public void testZigZag(long l) {
         assertEquals(l, ByteUtils.zigZagDecode(ByteUtils.zigZagEncode(l)));

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.lookup;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchParseException;
@@ -27,16 +26,16 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- *
- */
+import static java.util.Collections.emptyMap;
+
 public class SourceLookup implements Map {
 
     private LeafReader reader;
@@ -66,11 +65,11 @@ public class SourceLookup implements Map {
             return source;
         }
         try {
-            JustSourceFieldsVisitor sourceFieldVisitor = new JustSourceFieldsVisitor();
+            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
             reader.document(docId, sourceFieldVisitor);
             BytesReference source = sourceFieldVisitor.source();
             if (source == null) {
-                this.source = ImmutableMap.of();
+                this.source = emptyMap();
                 this.sourceContentType = null;
             } else {
                 Tuple<XContentType, Map<String, Object>> tuple = sourceAsMapAndType(source);
@@ -129,8 +128,8 @@ public class SourceLookup implements Map {
         return XContentMapValues.extractRawValues(path, loadSourceIfNeeded());
     }
 
-    public Object filter(String[] includes, String[] excludes) {
-        return XContentMapValues.filter(loadSourceIfNeeded(), includes, excludes);
+    public Object filter(FetchSourceContext context) {
+        return context.getFilter().apply(loadSourceIfNeeded());
     }
 
     public Object extractValue(String path) {

@@ -1,0 +1,178 @@
+---
+"Index data and search on the mixed cluster":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_shards: 2
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"f1": "local_cluster", "filter_field": 0}'
+            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"f1": "local_cluster", "filter_field": 1}'
+            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"f1": "local_cluster", "filter_field": 0}'
+            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"f1": "local_cluster", "filter_field": 1}'
+            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"f1": "local_cluster", "filter_field": 0}'
+
+  - do:
+      search:
+        index: test_index,my_remote_cluster:test_index
+        body:
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - match: { _shards.total: 5 }
+  - match: { hits.total: 11 }
+  - length: { aggregations.cluster.buckets: 2 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+  - match: { aggregations.cluster.buckets.1.key: "local_cluster" }
+  - match: { aggregations.cluster.buckets.1.doc_count: 5 }
+
+  - do:
+      search:
+        index: test_index,my_remote_cluster:test_index
+        body:
+          query:
+            term:
+              f1: remote_cluster
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - match: { _shards.total: 5 }
+  - match: { hits.total: 6}
+  - match: { hits.hits.0._index: "my_remote_cluster:test_index"}
+  - length: { aggregations.cluster.buckets: 1 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+
+  - do:
+      search:
+        index: my_remote_cluster:test_index
+        body:
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 6}
+  - match: { hits.hits.0._index: "my_remote_cluster:test_index"}
+  - length: { aggregations.cluster.buckets: 1 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - match: { _shards.total: 2 }
+  - match: { hits.total: 5}
+  - match: { hits.hits.0._index: "test_index"}
+  - length: { aggregations.cluster.buckets: 1 }
+  - match: { aggregations.cluster.buckets.0.key: "local_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 5 }
+
+---
+"Add transient remote cluster based on the preset cluster":
+  - do:
+      cluster.get_settings:
+        include_defaults: true
+
+  - set: { defaults.search.remote.my_remote_cluster.seeds.0: remote_ip }
+
+  - do:
+      cluster.put_settings:
+        flat_settings: true
+        body:
+          transient:
+            search.remote.test_remote_cluster.seeds: $remote_ip
+
+  - match: {transient: {search.remote.test_remote_cluster.seeds: $remote_ip}}
+
+  - do:
+      search:
+        index: test_remote_cluster:test_index
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 6 }
+  - match: { hits.hits.0._index: "test_remote_cluster:test_index" }
+
+---
+"Test wildcard search":
+  - do:
+      cluster.get_settings:
+        include_defaults: true
+
+  - set: { defaults.search.remote.my_remote_cluster.seeds.0: remote_ip }
+
+  - do:
+      cluster.put_settings:
+        flat_settings: true
+        body:
+          transient:
+            search.remote.test_remote_cluster.seeds: $remote_ip
+
+  - match: {transient: {search.remote.test_remote_cluster.seeds: $remote_ip}}
+
+  - do:
+      search:
+        index: "*:test_index"
+
+  - match: { _shards.total: 6 }
+  - match: { hits.total: 12 }
+
+---
+"Search an filtered alias on the remote cluster":
+
+  - do:
+      search:
+        index: my_remote_cluster:aliased_test_index
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.filter_field: 1 }
+  - match: { hits.hits.0._index: "my_remote_cluster:test_index" }
+
+---
+"Search an filtered alias and empty index on the remote cluster":
+
+  - do:
+      search:
+        index: my_remote_cluster:aliased_test_index,my_remote_cluster:field_caps_index_1
+
+  - match: { _shards.total: 8 }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.filter_field: 1 }
+  - match: { hits.hits.0._index: "my_remote_cluster:test_index" }
+
+---
+"Single shard search gets properly proxied":
+
+  - do:
+      search:
+        index: "my_remote_cluster:single_doc_index"
+
+  - match: { _shards.total: 1 }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._index: "my_remote_cluster:single_doc_index"}

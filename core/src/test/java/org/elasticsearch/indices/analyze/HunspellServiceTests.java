@@ -19,105 +19,82 @@
 package org.elasticsearch.indices.analyze;
 
 import org.apache.lucene.analysis.hunspell.Dictionary;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.analysis.HunspellService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import org.hamcrest.Matchers;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
-import java.lang.reflect.Field;
+import java.nio.file.Path;
 
-import static org.elasticsearch.indices.analysis.HunspellService.*;
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.indices.analysis.HunspellService.HUNSPELL_IGNORE_CASE;
+import static org.elasticsearch.indices.analysis.HunspellService.HUNSPELL_LAZY_LOAD;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
-@ClusterScope(scope= Scope.TEST, numDataNodes=0)
-public class HunspellServiceTests extends ElasticsearchIntegrationTest {
-
-    @Test
+public class HunspellServiceTests extends ESTestCase {
     public void testLocaleDirectoryWithNodeLevelConfig() throws Exception {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.conf", getDataPath("/indices/analyze/conf_dir"))
-                .put(HUNSPELL_LAZY_LOAD, randomBoolean())
-                .put(HUNSPELL_IGNORE_CASE, true)
+        Settings settings = Settings.builder()
+                .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
+                .put(HUNSPELL_IGNORE_CASE.getKey(), true)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        internalCluster().startNode(settings);
-        Dictionary dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US");
+        final Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        Dictionary dictionary = new HunspellService(settings, environment, emptyMap()).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
-        assertIgnoreCase(true, dictionary);
+        assertTrue(dictionary.getIgnoreCase());
     }
 
-    @Test
     public void testLocaleDirectoryWithLocaleSpecificConfig() throws Exception {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.conf", getDataPath("/indices/analyze/conf_dir"))
-                .put(HUNSPELL_LAZY_LOAD, randomBoolean())
-                .put(HUNSPELL_IGNORE_CASE, true)
+        Settings settings = Settings.builder()
+                .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
+                .put(HUNSPELL_IGNORE_CASE.getKey(), true)
                 .put("indices.analysis.hunspell.dictionary.en_US.strict_affix_parsing", false)
                 .put("indices.analysis.hunspell.dictionary.en_US.ignore_case", false)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        internalCluster().startNode(settings);
-        Dictionary dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US");
+        final Path configPath = getDataPath("/indices/analyze/conf_dir");
+        final Environment environment = new Environment(settings, configPath);
+        Dictionary dictionary = new HunspellService(settings, environment, emptyMap()).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
-        assertIgnoreCase(false, dictionary);
-
-
+        assertFalse(dictionary.getIgnoreCase());
 
         // testing that dictionary specific settings override node level settings
-        dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US_custom");
+        dictionary = new HunspellService(settings, new Environment(settings, configPath), emptyMap()).getDictionary("en_US_custom");
         assertThat(dictionary, notNullValue());
-        assertIgnoreCase(true, dictionary);
+        assertTrue(dictionary.getIgnoreCase());
     }
 
-    @Test
     public void testDicWithNoAff() throws Exception {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.conf", getDataPath("/indices/analyze/no_aff_conf_dir"))
-                .put(HUNSPELL_LAZY_LOAD, randomBoolean())
+        Settings settings = Settings.builder()
+                .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        Dictionary dictionary = null;
-        try {
-            internalCluster().startNode(settings);
-            dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US");
-            fail("Missing affix file didn't throw an error");
-        }
-        catch (Throwable t) {
-            assertNull(dictionary);
-            assertThat(ExceptionsHelper.unwrap(t, ElasticsearchException.class).toString(), Matchers.containsString("Missing affix file"));
-        }
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> {
+                    final Environment environment = new Environment(settings, getDataPath("/indices/analyze/no_aff_conf_dir"));
+                    new HunspellService(settings, environment, emptyMap()).getDictionary("en_US");
+                });
+        assertEquals("failed to load hunspell dictionary for locale: en_US", e.getMessage());
+        assertThat(e.getCause(), hasToString(containsString("Missing affix file")));
     }
 
-    @Test
     public void testDicWithTwoAffs() throws Exception {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.conf", getDataPath("/indices/analyze/two_aff_conf_dir"))
-                .put(HUNSPELL_LAZY_LOAD, randomBoolean())
+        Settings settings = Settings.builder()
+                .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        Dictionary dictionary = null;
-        try {
-            internalCluster().startNode(settings);
-            dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US");
-            fail("Multiple affix files didn't throw an error");
-        } catch (Throwable t) {
-            assertNull(dictionary);
-            assertThat(ExceptionsHelper.unwrap(t, ElasticsearchException.class).toString(), Matchers.containsString("Too many affix files"));
-        }
-    }
-
-    // TODO: open up a getter on Dictionary
-    private void assertIgnoreCase(boolean expected, Dictionary dictionary) throws Exception {
-        Field f = Dictionary.class.getDeclaredField("ignoreCase");
-        f.setAccessible(true);
-        assertEquals(expected, f.getBoolean(dictionary));
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> {
+                    final Environment environment = new Environment(settings, getDataPath("/indices/analyze/two_aff_conf_dir"));
+                    new HunspellService(settings, environment, emptyMap()).getDictionary("en_US");
+                });
+        assertEquals("failed to load hunspell dictionary for locale: en_US", e.getMessage());
+        assertThat(e.getCause(), hasToString(containsString("Too many affix files")));
     }
 }

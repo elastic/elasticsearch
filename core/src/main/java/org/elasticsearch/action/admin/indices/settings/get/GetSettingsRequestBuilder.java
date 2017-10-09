@@ -19,13 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
-import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.util.ArrayUtils;
 
-/**
- */
 public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder> {
 
     public GetSettingsRequestBuilder(ElasticsearchClient client, GetSettingsAction action, String... indices) {
@@ -38,13 +36,13 @@ public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBui
     }
 
     public GetSettingsRequestBuilder addIndices(String... indices) {
-        request.indices(ObjectArrays.concat(request.indices(), indices, String.class));
+        request.indices(ArrayUtils.concat(request.indices(), indices));
         return this;
     }
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     * <p/>
+     * <p>
      * For example indices that don't exist.
      */
     public GetSettingsRequestBuilder setIndicesOptions(IndicesOptions options) {

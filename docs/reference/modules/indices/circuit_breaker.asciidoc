@@ -1,0 +1,90 @@
+[[circuit-breaker]]
+=== Circuit Breaker
+
+Elasticsearch contains multiple circuit breakers used to prevent operations from
+causing an OutOfMemoryError. Each breaker specifies a limit for how much memory
+it can use. Additionally, there is a parent-level breaker that specifies the
+total amount of memory that can be used across all breakers.
+
+These settings can be dynamically updated on a live cluster with the
+<<cluster-update-settings,cluster-update-settings>> API.
+
+[[parent-circuit-breaker]]
+[float]
+==== Parent circuit breaker
+
+The parent-level breaker can be configured with the following setting:
+
+`indices.breaker.total.limit`::
+
+    Starting limit for overall parent breaker, defaults to 70% of JVM heap.
+
+[[fielddata-circuit-breaker]]
+[float]
+==== Field data circuit breaker
+The field data circuit breaker allows Elasticsearch to estimate the amount of
+memory a field will require to be loaded into memory. It can then prevent the
+field data loading by raising an exception. By default the limit is configured
+to 60% of the maximum JVM heap. It can be configured with the following
+parameters:
+
+`indices.breaker.fielddata.limit`::
+
+    Limit for fielddata breaker, defaults to 60% of JVM heap
+
+`indices.breaker.fielddata.overhead`::
+
+    A constant that all field data estimations are multiplied with to determine a
+    final estimation. Defaults to 1.03
+
+[[request-circuit-breaker]]
+[float]
+==== Request circuit breaker
+
+The request circuit breaker allows Elasticsearch to prevent per-request data
+structures (for example, memory used for calculating aggregations during a
+request) from exceeding a certain amount of memory.
+
+`indices.breaker.request.limit`::
+
+    Limit for request breaker, defaults to 60% of JVM heap
+
+`indices.breaker.request.overhead`::
+
+    A constant that all request estimations are multiplied with to determine a
+    final estimation. Defaults to 1
+
+[[in-flight-circuit-breaker]]
+[float]
+==== In flight requests circuit breaker
+
+The in flight requests circuit breaker allows Elasticsearch to limit the memory usage of all
+currently active incoming requests on transport or HTTP level from exceeding a certain amount of
+memory on a node. The memory usage is based on the content length of the request itself.
+
+`network.breaker.inflight_requests.limit`::
+
+    Limit for in flight requests breaker, defaults to 100% of JVM heap. This means that it is bound
+    by the limit configured for the parent circuit breaker.
+
+`network.breaker.inflight_requests.overhead`::
+
+    A constant that all in flight requests estimations are multiplied with to determine a
+    final estimation. Defaults to 1
+
+[[script-compilation-circuit-breaker]]
+[float]
+==== Script compilation circuit breaker
+
+Slightly different than the previous memory-based circuit breaker, the script
+compilation circuit breaker limits the number of inline script compilations
+within a period of time.
+
+See the "prefer-parameters" section of the <<modules-scripting-using,scripting>>
+documentation for more information.
+
+`script.max_compilations_rate`::
+
+    Limit for the number of unique dynamic scripts within a certain interval
+    that are allowed to be compiled. Defaults to 75/5m, meaning 75 every 5 
+    minutes.

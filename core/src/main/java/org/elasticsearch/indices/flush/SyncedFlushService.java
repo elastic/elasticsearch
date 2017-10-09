@@ -18,18 +18,22 @@
  */
 package org.elasticsearch.indices.flush;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,18 +41,24 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,7 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
-public class SyncedFlushService extends AbstractComponent {
+public class SyncedFlushService extends AbstractComponent implements IndexEventListener {
 
     private static final String PRE_SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/pre";
     private static final String SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/sync";
@@ -66,81 +76,81 @@ public class SyncedFlushService extends AbstractComponent {
     private final IndicesService indicesService;
     private final ClusterService clusterService;
     private final TransportService transportService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public SyncedFlushService(Settings settings, IndicesService indicesService, ClusterService clusterService, TransportService transportService) {
+    public SyncedFlushService(Settings settings, IndicesService indicesService, ClusterService clusterService, TransportService transportService, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        transportService.registerRequestHandler(PRE_SYNCED_FLUSH_ACTION_NAME, PreShardSyncedFlushRequest::new, ThreadPool.Names.FLUSH, new PreSyncedFlushTransportHandler());
+        transportService.registerRequestHandler(SYNCED_FLUSH_ACTION_NAME, ShardSyncedFlushRequest::new, ThreadPool.Names.FLUSH, new SyncedFlushTransportHandler());
+        transportService.registerRequestHandler(IN_FLIGHT_OPS_ACTION_NAME, InFlightOpsRequest::new, ThreadPool.Names.SAME, new InFlightOpCountTransportHandler());
+    }
 
-        transportService.registerRequestHandler(PRE_SYNCED_FLUSH_ACTION_NAME, PreSyncedFlushRequest.class, ThreadPool.Names.FLUSH, new PreSyncedFlushTransportHandler());
-        transportService.registerRequestHandler(SYNCED_FLUSH_ACTION_NAME, SyncedFlushRequest.class, ThreadPool.Names.FLUSH, new SyncedFlushTransportHandler());
-        transportService.registerRequestHandler(IN_FLIGHT_OPS_ACTION_NAME, InFlightOpsRequest.class, ThreadPool.Names.SAME, new InFlightOpCountTransportHandler());
-        indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
-            @Override
-            public void onShardInactive(final IndexShard indexShard) {
-                // we only want to call sync flush once, so only trigger it when we are on a primary
-                if (indexShard.routingEntry().primary()) {
-                    attemptSyncedFlush(indexShard.shardId(), new ActionListener<ShardsSyncedFlushResult>() {
-                        @Override
-                        public void onResponse(ShardsSyncedFlushResult syncedFlushResult) {
-                            logger.trace("{} sync flush on inactive shard returned successfully for sync_id: {}", syncedFlushResult.getShardId(), syncedFlushResult.syncId());
-                        }
-
-                        @Override
-                        public void onFailure(Throwable e) {
-                            logger.debug("{} sync flush on inactive shard failed", e, indexShard.shardId());
-                        }
-                    });
+    @Override
+    public void onShardInactive(final IndexShard indexShard) {
+        // we only want to call sync flush once, so only trigger it when we are on a primary
+        if (indexShard.routingEntry().primary()) {
+            attemptSyncedFlush(indexShard.shardId(), new ActionListener<ShardsSyncedFlushResult>() {
+                @Override
+                public void onResponse(ShardsSyncedFlushResult syncedFlushResult) {
+                    logger.trace("{} sync flush on inactive shard returned successfully for sync_id: {}", syncedFlushResult.getShardId(), syncedFlushResult.syncId());
                 }
-            }
-        });
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} sync flush on inactive shard failed", indexShard.shardId()), e);
+                }
+            });
+        }
     }
 
     /**
      * a utility method to perform a synced flush for all shards of multiple indices. see {@link #attemptSyncedFlush(ShardId, ActionListener)}
      * for more details.
      */
-    public void attemptSyncedFlush(final String[] aliasesOrIndices, IndicesOptions indicesOptions, final ActionListener<IndicesSyncedFlushResult> listener) {
+    public void attemptSyncedFlush(final String[] aliasesOrIndices, IndicesOptions indicesOptions, final ActionListener<SyncedFlushResponse> listener) {
         final ClusterState state = clusterService.state();
-        final String[] concreteIndices = state.metaData().concreteIndices(indicesOptions, aliasesOrIndices);
+        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, indicesOptions, aliasesOrIndices);
         final Map<String, List<ShardsSyncedFlushResult>> results = ConcurrentCollections.newConcurrentMap();
-        int totalNumberOfShards = 0;
         int numberOfShards = 0;
-        for (String index : concreteIndices) {
-            final IndexMetaData indexMetaData = state.metaData().index(index);
-            totalNumberOfShards += indexMetaData.totalNumberOfShards();
+        for (Index index : concreteIndices) {
+            final IndexMetaData indexMetaData = state.metaData().getIndexSafe(index);
             numberOfShards += indexMetaData.getNumberOfShards();
-            results.put(index, Collections.synchronizedList(new ArrayList<ShardsSyncedFlushResult>()));
+            results.put(index.getName(), Collections.synchronizedList(new ArrayList<>()));
 
         }
         if (numberOfShards == 0) {
-            listener.onResponse(new IndicesSyncedFlushResult(results));
+            listener.onResponse(new SyncedFlushResponse(results));
             return;
         }
-        final int finalTotalNumberOfShards = totalNumberOfShards;
         final CountDown countDown = new CountDown(numberOfShards);
 
-        for (final String index : concreteIndices) {
-            final int indexNumberOfShards = state.metaData().index(index).getNumberOfShards();
+        for (final Index concreteIndex : concreteIndices) {
+            final String index = concreteIndex.getName();
+            final IndexMetaData indexMetaData = state.metaData().getIndexSafe(concreteIndex);
+            final int indexNumberOfShards = indexMetaData.getNumberOfShards();
             for (int shard = 0; shard < indexNumberOfShards; shard++) {
-                final ShardId shardId = new ShardId(index, shard);
-                attemptSyncedFlush(shardId, new ActionListener<ShardsSyncedFlushResult>() {
+                final ShardId shardId = new ShardId(indexMetaData.getIndex(), shard);
+                innerAttemptSyncedFlush(shardId, state, new ActionListener<ShardsSyncedFlushResult>() {
                     @Override
                     public void onResponse(ShardsSyncedFlushResult syncedFlushResult) {
                         results.get(index).add(syncedFlushResult);
                         if (countDown.countDown()) {
-                            listener.onResponse(new IndicesSyncedFlushResult(results));
+                            listener.onResponse(new SyncedFlushResponse(results));
                         }
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         logger.debug("{} unexpected error while executing synced flush", shardId);
-                        results.get(index).add(new ShardsSyncedFlushResult(shardId, finalTotalNumberOfShards, e.getMessage()));
+                        final int totalShards = indexMetaData.getNumberOfReplicas() + 1;
+                        results.get(index).add(new ShardsSyncedFlushResult(shardId, totalShards, e.getMessage()));
                         if (countDown.countDown()) {
-                            listener.onResponse(new IndicesSyncedFlushResult(results));
+                            listener.onResponse(new SyncedFlushResponse(results));
                         }
                     }
                 });
@@ -172,11 +182,14 @@ public class SyncedFlushService extends AbstractComponent {
     * be written on a primary if no write operation was executed between step 1 and step 3 and sync id will only be written on
     * the replica if it contains the same changes that the primary contains.
     *
-    * Synced flush is a best effort operation. The sync id may be written on all, some or none of the copies. 
+    * Synced flush is a best effort operation. The sync id may be written on all, some or none of the copies.
     **/
     public void attemptSyncedFlush(final ShardId shardId, final ActionListener<ShardsSyncedFlushResult> actionListener) {
+        innerAttemptSyncedFlush(shardId, clusterService.state(), actionListener);
+    }
+
+    private void innerAttemptSyncedFlush(final ShardId shardId, final ClusterState state, final ActionListener<ShardsSyncedFlushResult> actionListener) {
         try {
-            final ClusterState state = clusterService.state();
             final IndexShardRoutingTable shardRoutingTable = getShardRoutingTable(shardId, state);
             final List<ShardRouting> activeShards = shardRoutingTable.activeShards();
             final int totalShards = shardRoutingTable.getSize();
@@ -202,13 +215,13 @@ public class SyncedFlushService extends AbstractComponent {
                                 actionListener.onResponse(new ShardsSyncedFlushResult(shardId, totalShards, "[" + inflight + "] ongoing operations on primary"));
                             } else {
                                 // 3. now send the sync request to all the shards
-                                String syncId = Strings.base64UUID();
+                                String syncId = UUIDs.randomBase64UUID();
                                 sendSyncRequests(syncId, activeShards, state, commitIds, shardId, totalShards, actionListener);
                             }
                         }
 
                         @Override
-                        public void onFailure(Throwable e) {
+                        public void onFailure(Exception e) {
                             actionListener.onFailure(e);
                         }
                     };
@@ -217,30 +230,30 @@ public class SyncedFlushService extends AbstractComponent {
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     actionListener.onFailure(e);
                 }
             };
 
             // 1. send pre-sync flushes to all replicas
             sendPreSyncRequests(activeShards, state, shardId, commitIdsListener);
-        } catch (Throwable t) {
-            actionListener.onFailure(t);
+        } catch (Exception e) {
+            actionListener.onFailure(e);
         }
     }
 
     final IndexShardRoutingTable getShardRoutingTable(ShardId shardId, ClusterState state) {
-        final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.index().name());
+        final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.getIndexName());
         if (indexRoutingTable == null) {
-            IndexMetaData index = state.getMetaData().index(shardId.index().getName());
-            if (index != null && index.state() == IndexMetaData.State.CLOSE) {
-                throw new IndexClosedException(shardId.index());
+            IndexMetaData index = state.getMetaData().index(shardId.getIndex());
+            if (index != null && index.getState() == IndexMetaData.State.CLOSE) {
+                throw new IndexClosedException(shardId.getIndex());
             }
-            throw new IndexMissingException(shardId.index());
+            throw new IndexNotFoundException(shardId.getIndexName());
         }
         final IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId.id());
         if (shardRoutingTable == null) {
-            throw new IndexShardMissingException(shardId);
+            throw new ShardNotFoundException(shardId);
         }
         return shardRoutingTable;
     }
@@ -259,7 +272,7 @@ public class SyncedFlushService extends AbstractComponent {
             }
             logger.trace("{} retrieving in flight operation count", shardId);
             transportService.sendRequest(primaryNode, IN_FLIGHT_OPS_ACTION_NAME, new InFlightOpsRequest(shardId),
-                    new BaseTransportResponseHandler<InFlightOpsResponse>() {
+                    new TransportResponseHandler<InFlightOpsResponse>() {
                         @Override
                         public InFlightOpsResponse newInstance() {
                             return new InFlightOpsResponse();
@@ -281,8 +294,8 @@ public class SyncedFlushService extends AbstractComponent {
                             return ThreadPool.Names.SAME;
                         }
                     });
-        } catch (Throwable t) {
-            listener.onFailure(t);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 
@@ -290,33 +303,33 @@ public class SyncedFlushService extends AbstractComponent {
     void sendSyncRequests(final String syncId, final List<ShardRouting> shards, ClusterState state, Map<String, Engine.CommitId> expectedCommitIds,
                           final ShardId shardId, final int totalShards, final ActionListener<ShardsSyncedFlushResult> listener) {
         final CountDown countDown = new CountDown(shards.size());
-        final Map<ShardRouting, SyncedFlushResponse> results = ConcurrentCollections.newConcurrentMap();
+        final Map<ShardRouting, ShardSyncedFlushResponse> results = ConcurrentCollections.newConcurrentMap();
         for (final ShardRouting shard : shards) {
             final DiscoveryNode node = state.nodes().get(shard.currentNodeId());
             if (node == null) {
                 logger.trace("{} is assigned to an unknown node. skipping for sync id [{}]. shard routing {}", shardId, syncId, shard);
-                results.put(shard, new SyncedFlushResponse("unknown node"));
+                results.put(shard, new ShardSyncedFlushResponse("unknown node"));
                 contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                 continue;
             }
             final Engine.CommitId expectedCommitId = expectedCommitIds.get(shard.currentNodeId());
             if (expectedCommitId == null) {
-                logger.trace("{} can't resolve expected commit id for {}, skipping for sync id [{}]. shard routing {}", shardId, syncId, shard);
-                results.put(shard, new SyncedFlushResponse("no commit id from pre-sync flush"));
+                logger.trace("{} can't resolve expected commit id for current node, skipping for sync id [{}]. shard routing {}", shardId, syncId, shard);
+                results.put(shard, new ShardSyncedFlushResponse("no commit id from pre-sync flush"));
                 contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                 continue;
             }
             logger.trace("{} sending synced flush request to {}. sync id [{}].", shardId, shard, syncId);
-            transportService.sendRequest(node, SYNCED_FLUSH_ACTION_NAME, new SyncedFlushRequest(shard.shardId(), syncId, expectedCommitId),
-                    new BaseTransportResponseHandler<SyncedFlushResponse>() {
+            transportService.sendRequest(node, SYNCED_FLUSH_ACTION_NAME, new ShardSyncedFlushRequest(shard.shardId(), syncId, expectedCommitId),
+                    new TransportResponseHandler<ShardSyncedFlushResponse>() {
                         @Override
-                        public SyncedFlushResponse newInstance() {
-                            return new SyncedFlushResponse();
+                        public ShardSyncedFlushResponse newInstance() {
+                            return new ShardSyncedFlushResponse();
                         }
 
                         @Override
-                        public void handleResponse(SyncedFlushResponse response) {
-                            SyncedFlushResponse existing = results.put(shard, response);
+                        public void handleResponse(ShardSyncedFlushResponse response) {
+                            ShardSyncedFlushResponse existing = results.put(shard, response);
                             assert existing == null : "got two answers for node [" + node + "]";
                             // count after the assert so we won't decrement twice in handleException
                             contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
@@ -324,8 +337,8 @@ public class SyncedFlushService extends AbstractComponent {
 
                         @Override
                         public void handleException(TransportException exp) {
-                            logger.trace("{} error while performing synced flush on [{}], skipping", exp, shardId, shard);
-                            results.put(shard, new SyncedFlushResponse(exp.getMessage()));
+                            logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} error while performing synced flush on [{}], skipping", shardId, shard), exp);
+                            results.put(shard, new ShardSyncedFlushResponse(exp.getMessage()));
                             contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                         }
 
@@ -339,8 +352,7 @@ public class SyncedFlushService extends AbstractComponent {
     }
 
     private void contDownAndSendResponseIfDone(String syncId, List<ShardRouting> shards, ShardId shardId, int totalShards,
-                                               ActionListener<ShardsSyncedFlushResult> listener, CountDown countDown, Map<ShardRouting,
-            SyncedFlushResponse> results) {
+            ActionListener<ShardsSyncedFlushResult> listener, CountDown countDown, Map<ShardRouting, ShardSyncedFlushResponse> results) {
         if (countDown.countDown()) {
             assert results.size() == shards.size();
             listener.onResponse(new ShardsSyncedFlushResult(shardId, syncId, totalShards, results));
@@ -363,7 +375,7 @@ public class SyncedFlushService extends AbstractComponent {
                 }
                 continue;
             }
-            transportService.sendRequest(node, PRE_SYNCED_FLUSH_ACTION_NAME, new PreSyncedFlushRequest(shard.shardId()), new BaseTransportResponseHandler<PreSyncedFlushResponse>() {
+            transportService.sendRequest(node, PRE_SYNCED_FLUSH_ACTION_NAME, new PreShardSyncedFlushRequest(shard.shardId()), new TransportResponseHandler<PreSyncedFlushResponse>() {
                 @Override
                 public PreSyncedFlushResponse newInstance() {
                     return new PreSyncedFlushResponse();
@@ -371,7 +383,7 @@ public class SyncedFlushService extends AbstractComponent {
 
                 @Override
                 public void handleResponse(PreSyncedFlushResponse response) {
-                    Engine.CommitId existing = commitIds.putIfAbsent(node.id(), response.commitId());
+                    Engine.CommitId existing = commitIds.putIfAbsent(node.getId(), response.commitId());
                     assert existing == null : "got two answers for node [" + node + "]";
                     // count after the assert so we won't decrement twice in handleException
                     if (countDown.countDown()) {
@@ -381,7 +393,7 @@ public class SyncedFlushService extends AbstractComponent {
 
                 @Override
                 public void handleException(TransportException exp) {
-                    logger.trace("{} error while performing pre synced flush on [{}], skipping", exp, shardId, shard);
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} error while performing pre synced flush on [{}], skipping", shardId, shard), exp);
                     if (countDown.countDown()) {
                         listener.onResponse(commitIds);
                     }
@@ -395,8 +407,8 @@ public class SyncedFlushService extends AbstractComponent {
         }
     }
 
-    private PreSyncedFlushResponse performPreSyncedFlush(PreSyncedFlushRequest request) {
-        IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
+    private PreSyncedFlushResponse performPreSyncedFlush(PreShardSyncedFlushRequest request) {
+        IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         FlushRequest flushRequest = new FlushRequest().force(false).waitIfOngoing(true);
         logger.trace("{} performing pre sync flush", request.shardId());
         Engine.CommitId commitId = indexShard.flush(flushRequest);
@@ -404,19 +416,19 @@ public class SyncedFlushService extends AbstractComponent {
         return new PreSyncedFlushResponse(commitId);
     }
 
-    private SyncedFlushResponse performSyncedFlush(SyncedFlushRequest request) {
+    private ShardSyncedFlushResponse performSyncedFlush(ShardSyncedFlushRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
+        IndexShard indexShard = indexService.getShard(request.shardId().id());
         logger.trace("{} performing sync flush. sync id [{}], expected commit id {}", request.shardId(), request.syncId(), request.expectedCommitId());
         Engine.SyncedFlushResult result = indexShard.syncFlush(request.syncId(), request.expectedCommitId());
         logger.trace("{} sync flush done. sync id [{}], result [{}]", request.shardId(), request.syncId(), result);
         switch (result) {
             case SUCCESS:
-                return new SyncedFlushResponse();
+                return new ShardSyncedFlushResponse();
             case COMMIT_MISMATCH:
-                return new SyncedFlushResponse("commit has changed");
+                return new ShardSyncedFlushResponse("commit has changed");
             case PENDING_OPERATIONS:
-                return new SyncedFlushResponse("pending operations");
+                return new ShardSyncedFlushResponse("pending operations");
             default:
                 throw new ElasticsearchException("unknown synced flush result [" + result + "]");
         }
@@ -424,28 +436,28 @@ public class SyncedFlushService extends AbstractComponent {
 
     private InFlightOpsResponse performInFlightOps(InFlightOpsRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
+        IndexShard indexShard = indexService.getShard(request.shardId().id());
         if (indexShard.routingEntry().primary() == false) {
-            throw new IndexShardException(request.shardId(), "expected a primary shard");
+            throw new IllegalStateException("[" + request.shardId() +"] expected a primary shard");
         }
-        int opCount = indexShard.getOperationsCount();
+        int opCount = indexShard.getActiveOperationsCount();
         logger.trace("{} in flight operations sampled at [{}]", request.shardId(), opCount);
         return new InFlightOpsResponse(opCount);
     }
 
-    final static class PreSyncedFlushRequest extends TransportRequest {
+    public static final class PreShardSyncedFlushRequest extends TransportRequest {
         private ShardId shardId;
 
-        PreSyncedFlushRequest() {
+        public PreShardSyncedFlushRequest() {
         }
 
-        public PreSyncedFlushRequest(ShardId shardId) {
+        public PreShardSyncedFlushRequest(ShardId shardId) {
             this.shardId = shardId;
         }
 
         @Override
         public String toString() {
-            return "PreSyncedFlushRequest{" +
+            return "PreShardSyncedFlushRequest{" +
                     "shardId=" + shardId +
                     '}';
         }
@@ -470,7 +482,7 @@ public class SyncedFlushService extends AbstractComponent {
     /**
      * Response for first step of synced flush (flush) for one shard copy
      */
-    final static class PreSyncedFlushResponse extends TransportResponse {
+    static final class PreSyncedFlushResponse extends TransportResponse {
 
         Engine.CommitId commitId;
 
@@ -498,16 +510,16 @@ public class SyncedFlushService extends AbstractComponent {
         }
     }
 
-    static final class SyncedFlushRequest extends TransportRequest {
+    public static final class ShardSyncedFlushRequest extends TransportRequest {
 
         private String syncId;
         private Engine.CommitId expectedCommitId;
         private ShardId shardId;
 
-        public SyncedFlushRequest() {
+        public ShardSyncedFlushRequest() {
         }
 
-        public SyncedFlushRequest(ShardId shardId, String syncId, Engine.CommitId expectedCommitId) {
+        public ShardSyncedFlushRequest(ShardId shardId, String syncId, Engine.CommitId expectedCommitId) {
             this.expectedCommitId = expectedCommitId;
             this.shardId = shardId;
             this.syncId = syncId;
@@ -543,7 +555,7 @@ public class SyncedFlushService extends AbstractComponent {
 
         @Override
         public String toString() {
-            return "SyncedFlushRequest{" +
+            return "ShardSyncedFlushRequest{" +
                     "shardId=" + shardId +
                     ",syncId='" + syncId + '\'' +
                     '}';
@@ -553,18 +565,18 @@ public class SyncedFlushService extends AbstractComponent {
     /**
      * Response for third step of synced flush (writing the sync id) for one shard copy
      */
-    public static final class SyncedFlushResponse extends TransportResponse {
+    public static final class ShardSyncedFlushResponse extends TransportResponse {
 
         /**
          * a non null value indicates a failure to sync flush. null means success
          */
         String failureReason;
 
-        public SyncedFlushResponse() {
+        public ShardSyncedFlushResponse() {
             failureReason = null;
         }
 
-        public SyncedFlushResponse(String failureReason) {
+        public ShardSyncedFlushResponse(String failureReason) {
             this.failureReason = failureReason;
         }
 
@@ -590,15 +602,21 @@ public class SyncedFlushService extends AbstractComponent {
 
         @Override
         public String toString() {
-            return "SyncedFlushResponse{" +
+            return "ShardSyncedFlushResponse{" +
                     "success=" + success() +
                     ", failureReason='" + failureReason + '\'' +
                     '}';
         }
+
+        public static ShardSyncedFlushResponse readSyncedFlushResponse(StreamInput in) throws IOException {
+            ShardSyncedFlushResponse shardSyncedFlushResponse = new ShardSyncedFlushResponse();
+            shardSyncedFlushResponse.readFrom(in);
+            return shardSyncedFlushResponse;
+        }
     }
 
 
-    static final class InFlightOpsRequest extends TransportRequest {
+    public static final class InFlightOpsRequest extends TransportRequest {
 
         private ShardId shardId;
 
@@ -640,10 +658,10 @@ public class SyncedFlushService extends AbstractComponent {
 
         int opCount;
 
-        public InFlightOpsResponse() {
+        InFlightOpsResponse() {
         }
 
-        public InFlightOpsResponse(int opCount) {
+        InFlightOpsResponse(int opCount) {
             this.opCount = opCount;
         }
 
@@ -671,18 +689,18 @@ public class SyncedFlushService extends AbstractComponent {
         }
     }
 
-    private final class PreSyncedFlushTransportHandler implements TransportRequestHandler<PreSyncedFlushRequest> {
+    private final class PreSyncedFlushTransportHandler implements TransportRequestHandler<PreShardSyncedFlushRequest> {
 
         @Override
-        public void messageReceived(PreSyncedFlushRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(PreShardSyncedFlushRequest request, TransportChannel channel) throws Exception {
             channel.sendResponse(performPreSyncedFlush(request));
         }
     }
 
-    private final class SyncedFlushTransportHandler implements TransportRequestHandler<SyncedFlushRequest> {
+    private final class SyncedFlushTransportHandler implements TransportRequestHandler<ShardSyncedFlushRequest> {
 
         @Override
-        public void messageReceived(SyncedFlushRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(ShardSyncedFlushRequest request, TransportChannel channel) throws Exception {
             channel.sendResponse(performSyncedFlush(request));
         }
     }

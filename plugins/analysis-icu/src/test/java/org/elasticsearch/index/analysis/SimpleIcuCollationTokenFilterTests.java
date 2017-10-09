@@ -27,71 +27,77 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
 
-import static org.elasticsearch.index.analysis.AnalysisTestUtils.createAnalysisService;
 import static org.hamcrest.Matchers.equalTo;
 
 // Tests borrowed from Solr's Icu collation key filter factory test.
-public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
+public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
+    /*
+     * Tests usage where we do not provide a language or locale
+     */
+    public void testDefaultUsage() throws Exception {
+        Settings settings = Settings.builder()
+                .put("index.analysis.filter.myCollator.type", "icu_collation")
+                .put("index.analysis.filter.myCollator.strength", "primary")
+                .build();
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
+        assertCollatesToSame(filterFactory, "FOO", "foo");
+    }
     /*
     * Turkish has some funny casing.
     * This test shows how you can solve this kind of thing easily with collation.
     * Instead of using LowerCaseFilter, use a turkish collator with primary strength.
     * Then things will sort and match correctly.
     */
-    @Test
     public void testBasicUsage() throws Exception {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "tr")
                 .put("index.analysis.filter.myCollator.strength", "primary")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "I WİLL USE TURKİSH CASING", "ı will use turkish casıng");
     }
 
     /*
     * Test usage of the decomposition option for unicode normalization.
     */
-    @Test
     public void testNormalization() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "tr")
                 .put("index.analysis.filter.myCollator.strength", "primary")
                 .put("index.analysis.filter.myCollator.decomposition", "canonical")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "I W\u0049\u0307LL USE TURKİSH CASING", "ı will use turkish casıng");
     }
 
     /*
     * Test secondary strength, for english case is not significant.
     */
-    @Test
     public void testSecondaryStrength() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "secondary")
                 .put("index.analysis.filter.myCollator.decomposition", "no")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "TESTING", "testing");
     }
 
@@ -99,18 +105,16 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
     * Setting alternate=shifted to shift whitespace, punctuation and symbols
     * to quaternary level
     */
-    @Test
     public void testIgnorePunctuation() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
                 .put("index.analysis.filter.myCollator.alternate", "shifted")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "foo-bar", "foo bar");
     }
 
@@ -118,19 +122,17 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
     * Setting alternate=shifted and variableTop to shift whitespace, but not
     * punctuation or symbols, to quaternary level
     */
-    @Test
     public void testIgnoreWhitespace() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
                 .put("index.analysis.filter.myCollator.alternate", "shifted")
                 .put("index.analysis.filter.myCollator.variableTop", " ")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "foo bar", "foobar");
         // now assert that punctuation still matters: foo-bar < foo bar
         assertCollation(filterFactory, "foo-bar", "foo bar", -1);
@@ -140,17 +142,15 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
     * Setting numeric to encode digits with numeric value, so that
     * foobar-9 sorts before foobar-10
     */
-    @Test
     public void testNumerics() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.numeric", "true")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollation(filterFactory, "foobar-9", "foobar-10", -1);
     }
 
@@ -158,18 +158,16 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
     * Setting caseLevel=true to create an additional case level between
     * secondary and tertiary
     */
-    @Test
     public void testIgnoreAccentsButNotCase() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
                 .put("index.analysis.filter.myCollator.caseLevel", "true")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "résumé", "resume");
         assertCollatesToSame(filterFactory, "Résumé", "Resume");
         // now assert that case still matters: resume < Resume
@@ -180,18 +178,16 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
     * Setting caseFirst=upper to cause uppercase strings to sort
     * before lowercase ones.
     */
-    @Test
     public void testUpperCaseFirst() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "tertiary")
                 .put("index.analysis.filter.myCollator.caseFirst", "upper")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollation(filterFactory, "Resume", "resume", -1);
     }
 
@@ -202,7 +198,6 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
     * The default is DIN 5007-1, this shows how to tailor a collator to get DIN 5007-2 behavior.
     *  http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4423383
     */
-    @Test
     public void testCustomRules() throws Exception {
         RuleBasedCollator baseCollator = (RuleBasedCollator) Collator.getInstance(new ULocale("de_DE"));
         String DIN5007_2_tailorings =
@@ -213,31 +208,30 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
         RuleBasedCollator tailoredCollator = new RuleBasedCollator(baseCollator.getRules() + DIN5007_2_tailorings);
         String tailoredRules = tailoredCollator.getRules();
 
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.rules", tailoredRules)
                 .put("index.analysis.filter.myCollator.strength", "primary")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "Töne", "Toene");
     }
-    
+
     private void assertCollatesToSame(TokenFilterFactory factory, String string1, String string2) throws IOException {
         assertCollation(factory, string1, string2, 0);
     }
-    
+
     private void assertCollation(TokenFilterFactory factory, String string1, String string2, int comparison) throws IOException {
         Tokenizer tokenizer = new KeywordTokenizer();
         tokenizer.setReader(new StringReader(string1));
         TokenStream stream1 = factory.create(tokenizer);
-    
+
         tokenizer = new KeywordTokenizer();
         tokenizer.setReader(new StringReader(string2));
         TokenStream stream2 = factory.create(tokenizer);
-      
+
         assertCollation(stream1, stream2, comparison);
     }
 
@@ -253,10 +247,10 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
         assertThat(Integer.signum(term1.toString().compareTo(term2.toString())), equalTo(Integer.signum(comparison)));
         assertThat(stream1.incrementToken(), equalTo(false));
         assertThat(stream2.incrementToken(), equalTo(false));
-        
+
         stream1.end();
         stream2.end();
-        
+
         stream1.close();
         stream2.close();
     }

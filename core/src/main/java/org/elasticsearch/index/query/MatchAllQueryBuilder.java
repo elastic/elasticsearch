@@ -19,33 +19,76 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
  * A query that matches on all documents.
  */
-public class MatchAllQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<MatchAllQueryBuilder> {
+public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuilder> {
+    public static final String NAME = "match_all";
 
-    private float boost = -1;
+    public MatchAllQueryBuilder() {
+    }
 
     /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
+     * Read from a stream.
      */
-    @Override
-    public MatchAllQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
+    public MatchAllQueryBuilder(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
-    public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(MatchAllQueryParser.NAME);
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
+    protected void doWriteTo(StreamOutput out) {
+        // only superclass has state
+    }
+
+    @Override
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAME);
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    private static final ObjectParser<MatchAllQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, MatchAllQueryBuilder::new);
+
+    static {
+        declareStandardFields(PARSER);
+    }
+
+    public static MatchAllQueryBuilder fromXContent(XContentParser parser) {
+        try {
+            return PARSER.apply(parser, null);
+        } catch (IllegalArgumentException e) {
+            throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
+        }
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) {
+        return Queries.newMatchAllQuery();
+    }
+
+    @Override
+    protected boolean doEquals(MatchAllQueryBuilder other) {
+        return true;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return 0;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

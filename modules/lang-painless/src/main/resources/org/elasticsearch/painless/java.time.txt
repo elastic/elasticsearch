@@ -1,0 +1,627 @@
+#
+# Licensed to Elasticsearch under one or more contributor
+# license agreements. See the NOTICE file distributed with
+# this work for additional information regarding copyright
+# ownership. Elasticsearch licenses this file to you under
+# the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+#
+# Painless definition file. This defines the hierarchy of classes,
+# what methods and fields they have, etc.
+#
+
+#### Classes
+
+class Clock -> java.time.Clock {
+  Clock fixed(Instant,ZoneId)
+  ZoneId getZone()
+  Instant instant()
+  long millis()
+  Clock offset(Clock,Duration)
+  Clock tick(Clock,Duration)
+}
+
+class Duration -> java.time.Duration {
+  Duration ZERO
+  Duration abs()
+  Duration between(Temporal,Temporal)
+  int compareTo(Duration)
+  Duration dividedBy(long)
+  Duration from(TemporalAmount)
+  int getNano()
+  long getSeconds()
+  boolean isNegative()
+  boolean isZero()
+  Duration minus(Duration)
+  Duration minus(long,TemporalUnit)
+  Duration minusDays(long)
+  Duration minusHours(long)
+  Duration minusMinutes(long)
+  Duration minusSeconds(long)
+  Duration minusMillis(long)
+  Duration minusNanos(long)
+  Duration multipliedBy(long)
+  Duration negated()
+  Duration of(long,TemporalUnit)
+  Duration ofDays(long)
+  Duration ofHours(long)
+  Duration ofMillis(long)
+  Duration ofMinutes(long)
+  Duration ofNanos(long)
+  Duration ofSeconds(long)
+  Duration ofSeconds(long,long)
+  Duration parse(CharSequence)
+  Duration plus(Duration)
+  Duration plus(long,TemporalUnit)
+  Duration plusDays(long)
+  Duration plusHours(long)
+  Duration plusMinutes(long)
+  Duration plusSeconds(long)
+  Duration plusMillis(long)
+  Duration plusNanos(long)
+  long toDays()
+  long toHours()
+  long toMinutes()
+  long toMillis()
+  long toNanos()
+  Duration withSeconds(long)
+  Duration withNanos(int)
+}
+
+class Instant -> java.time.Instant {
+  Instant EPOCH
+  Instant MAX
+  Instant MIN
+  OffsetDateTime atOffset(ZoneOffset)
+  ZonedDateTime atZone(ZoneId)
+  int compareTo(Instant)
+  Instant from(TemporalAccessor)
+  long getEpochSecond()
+  int getNano()
+  boolean isAfter(Instant)
+  boolean isBefore(Instant)
+  Instant minus(TemporalAmount)
+  Instant minus(long,TemporalUnit)
+  Instant minusMillis(long)
+  Instant minusNanos(long)
+  Instant minusSeconds(long)
+  Instant ofEpochSecond(long)
+  Instant ofEpochSecond(long,long)
+  Instant ofEpochMilli(long)
+  Instant parse(CharSequence)
+  Instant plus(TemporalAmount)
+  Instant plus(long,TemporalUnit)
+  Instant plusMillis(long)
+  Instant plusNanos(long)
+  Instant plusSeconds(long)
+  long toEpochMilli()
+  Instant truncatedTo(TemporalUnit)
+  Instant with(TemporalAdjuster)
+  Instant with(TemporalField,long)
+}
+
+class LocalDate -> java.time.LocalDate {
+  LocalDate MAX
+  LocalDate MIN
+  LocalDateTime atStartOfDay()
+  ZonedDateTime atStartOfDay(ZoneId)
+  LocalDateTime atTime(LocalTime)
+  LocalDateTime atTime(int,int)
+  LocalDateTime atTime(int,int,int)
+  LocalDateTime atTime(int,int,int,int)
+  LocalDate from(TemporalAccessor)
+  IsoChronology getChronology()
+  int getDayOfMonth()
+  DayOfWeek getDayOfWeek()
+  int getDayOfYear()
+  Month getMonth()
+  int getMonthValue()
+  int getYear()
+  LocalDate minus(TemporalAmount)
+  LocalDate minus(long,TemporalUnit)
+  LocalDate minusYears(long)
+  LocalDate minusMonths(long)
+  LocalDate minusWeeks(long)
+  LocalDate minusDays(long)
+  LocalDate of(int,int,int)
+  LocalDate ofYearDay(int,int)
+  LocalDate ofEpochDay(long)
+  LocalDate parse(CharSequence)
+  LocalDate parse(CharSequence,DateTimeFormatter)
+  LocalDate plus(TemporalAmount)
+  LocalDate plus(long,TemporalUnit)
+  LocalDate plusYears(long)
+  LocalDate plusMonths(long)
+  LocalDate plusWeeks(long)
+  LocalDate plusDays(long)
+  Period until(ChronoLocalDate)
+  LocalDate with(TemporalAdjuster)
+  LocalDate with(TemporalField,long)
+  LocalDate withDayOfMonth(int)
+  LocalDate withDayOfYear(int)
+  LocalDate withMonth(int)
+  LocalDate withYear(int)
+}
+
+class LocalDateTime -> java.time.LocalDateTime {
+  LocalDateTime MIN
+  LocalDateTime MAX
+  OffsetDateTime atOffset(ZoneOffset)
+  ZonedDateTime atZone(ZoneId)
+  LocalDateTime from(TemporalAccessor)
+  int getDayOfMonth()
+  DayOfWeek getDayOfWeek()
+  int getDayOfYear()
+  int getHour()
+  int getMinute()
+  Month getMonth()
+  int getMonthValue()
+  int getNano()
+  int getSecond()
+  int getYear()
+  LocalDateTime minus(TemporalAmount)
+  LocalDateTime minus(long,TemporalUnit)
+  LocalDateTime minusDays(long)
+  LocalDateTime minusHours(long)
+  LocalDateTime minusMinutes(long)
+  LocalDateTime minusMonths(long)
+  LocalDateTime minusNanos(long)
+  LocalDateTime minusSeconds(long)
+  LocalDateTime minusWeeks(long)
+  LocalDateTime minusYears(long)
+  LocalDateTime of(LocalDate,LocalTime)
+  LocalDateTime of(int,int,int,int,int)
+  LocalDateTime of(int,int,int,int,int,int)
+  LocalDateTime of(int,int,int,int,int,int,int)
+  LocalDateTime ofInstant(Instant,ZoneId)
+  LocalDateTime ofEpochSecond(long,int,ZoneOffset)
+  LocalDateTime parse(CharSequence)
+  LocalDateTime parse(CharSequence,DateTimeFormatter)
+  LocalDateTime plus(TemporalAmount)
+  LocalDateTime plus(long,TemporalUnit)
+  LocalDateTime plusDays(long)
+  LocalDateTime plusHours(long)
+  LocalDateTime plusMinutes(long)
+  LocalDateTime plusMonths(long)
+  LocalDateTime plusNanos(long)
+  LocalDateTime plusSeconds(long)
+  LocalDateTime plusWeeks(long)
+  LocalDateTime plusYears(long)
+  LocalDate toLocalDate()
+  LocalDateTime truncatedTo(TemporalUnit)
+  LocalDateTime with(TemporalAdjuster)
+  LocalDateTime with(TemporalField,long)
+  LocalDateTime withDayOfMonth(int)
+  LocalDateTime withDayOfYear(int)
+  LocalDateTime withHour(int)
+  LocalDateTime withMinute(int)
+  LocalDateTime withMonth(int)
+  LocalDateTime withSecond(int)
+  LocalDateTime withYear(int)
+}
+
+class LocalTime -> java.time.LocalTime {
+  LocalTime MAX
+  LocalTime MIDNIGHT
+  LocalTime MIN
+  LocalTime NOON
+  LocalDateTime atDate(LocalDate)
+  OffsetTime atOffset(ZoneOffset)
+  int compareTo(LocalTime)
+  String format(DateTimeFormatter)
+  LocalTime from(TemporalAccessor)
+  int getHour()
+  int getMinute()
+  int getNano()
+  int getSecond()
+  boolean isAfter(LocalTime)
+  boolean isBefore(LocalTime)
+  LocalTime minus(TemporalAmount)
+  LocalTime minus(long,TemporalUnit)
+  LocalTime minusHours(long)
+  LocalTime minusMinutes(long)
+  LocalTime minusNanos(long)
+  LocalTime minusSeconds(long)
+  LocalTime of(int,int)
+  LocalTime of(int,int,int)
+  LocalTime of(int,int,int,int)
+  LocalTime ofNanoOfDay(long)
+  LocalTime ofSecondOfDay(long)
+  LocalTime parse(CharSequence)
+  LocalTime parse(CharSequence,DateTimeFormatter)
+  LocalTime plus(TemporalAmount)
+  LocalTime plus(long,TemporalUnit)
+  LocalTime plusHours(long)
+  LocalTime plusMinutes(long)
+  LocalTime plusNanos(long)
+  LocalTime plusSeconds(long)
+  long toNanoOfDay()
+  int toSecondOfDay()
+  LocalTime truncatedTo(TemporalUnit)
+  LocalTime with(TemporalAdjuster)
+  LocalTime with(TemporalField,long)
+  LocalTime withHour(int)
+  LocalTime withMinute(int)
+  LocalTime withNano(int)
+  LocalTime withSecond(int)
+}
+
+class MonthDay -> java.time.MonthDay {
+  LocalDate atYear(int)
+  int compareTo(MonthDay)
+  String format(DateTimeFormatter)
+  MonthDay from(TemporalAccessor)
+  int getMonthValue()
+  Month getMonth()
+  int getDayOfMonth()
+  boolean isAfter(MonthDay)
+  boolean isBefore(MonthDay)
+  boolean isValidYear(int)
+  MonthDay of(int,int)
+  MonthDay parse(CharSequence)
+  MonthDay parse(CharSequence,DateTimeFormatter)
+  MonthDay with(Month)
+  MonthDay withDayOfMonth(int)
+  MonthDay withMonth(int)
+}
+
+class OffsetDateTime -> java.time.OffsetDateTime {
+  OffsetDateTime MAX
+  OffsetDateTime MIN
+  ZonedDateTime atZoneSameInstant(ZoneId)
+  ZonedDateTime atZoneSimilarLocal(ZoneId)
+  int compareTo(OffsetDateTime)
+  String format(DateTimeFormatter)
+  OffsetDateTime from(TemporalAccessor)
+  int getDayOfMonth()
+  DayOfWeek getDayOfWeek()
+  int getDayOfYear()
+  int getHour()
+  int getMinute()
+  Month getMonth()
+  int getMonthValue()
+  int getNano()
+  ZoneOffset getOffset()
+  int getSecond()
+  int getYear()
+  boolean isAfter(OffsetDateTime)
+  boolean isBefore(OffsetDateTime)
+  boolean isEqual(OffsetDateTime)
+  OffsetDateTime minus(TemporalAmount)
+  OffsetDateTime minus(long,TemporalUnit)
+  OffsetDateTime minusYears(long)
+  OffsetDateTime minusMonths(long)
+  OffsetDateTime minusWeeks(long)
+  OffsetDateTime minusDays(long)
+  OffsetDateTime minusHours(long)
+  OffsetDateTime minusMinutes(long)
+  OffsetDateTime minusSeconds(long)
+  OffsetDateTime minusNanos(long)
+  OffsetDateTime of(LocalDate,LocalTime,ZoneOffset)
+  OffsetDateTime of(LocalDateTime,ZoneOffset)
+  OffsetDateTime of(int,int,int,int,int,int,int,ZoneOffset)
+  OffsetDateTime ofInstant(Instant,ZoneId)
+  OffsetDateTime parse(CharSequence)
+  OffsetDateTime parse(CharSequence,DateTimeFormatter)
+  OffsetDateTime plus(TemporalAmount)
+  OffsetDateTime plus(long,TemporalUnit)
+  OffsetDateTime plusYears(long)
+  OffsetDateTime plusMonths(long)
+  OffsetDateTime plusWeeks(long)
+  OffsetDateTime plusDays(long)
+  OffsetDateTime plusHours(long)
+  OffsetDateTime plusMinutes(long)
+  OffsetDateTime plusSeconds(long)
+  OffsetDateTime plusNanos(long)
+  Comparator timeLineOrder()
+  long toEpochSecond()
+  Instant toInstant()
+  LocalDate toLocalDate()
+  LocalDateTime toLocalDateTime()
+  LocalTime toLocalTime()
+  OffsetTime toOffsetTime()
+  ZonedDateTime toZonedDateTime()
+  OffsetDateTime truncatedTo(TemporalUnit)
+  OffsetDateTime with(TemporalAdjuster)
+  OffsetDateTime with(TemporalField,long)
+  OffsetDateTime withDayOfMonth(int)
+  OffsetDateTime withDayOfYear(int)
+  OffsetDateTime withHour(int)
+  OffsetDateTime withMinute(int)
+  OffsetDateTime withMonth(int)
+  OffsetDateTime withNano(int)
+  OffsetDateTime withSecond(int)
+  OffsetDateTime withYear(int)
+  OffsetDateTime withOffsetSameLocal(ZoneOffset)
+  OffsetDateTime withOffsetSameInstant(ZoneOffset)
+}
+
+class OffsetTime -> java.time.OffsetTime {
+  OffsetTime MAX
+  OffsetTime MIN
+  int compareTo(OffsetTime)
+  String format(DateTimeFormatter)
+  OffsetTime from(TemporalAccessor)
+  int getHour()
+  int getMinute()
+  ZoneOffset getOffset()
+  int getSecond()
+  int getNano()
+  boolean isAfter(OffsetTime)
+  boolean isBefore(OffsetTime)
+  boolean isEqual(OffsetTime)
+  OffsetTime of(LocalTime,ZoneOffset)
+  OffsetTime of(int,int,int,int,ZoneOffset)
+  OffsetTime ofInstant(Instant,ZoneId)
+  OffsetTime plus(TemporalAmount)
+  OffsetTime plus(long,TemporalUnit)
+  OffsetTime plusHours(long)
+  OffsetTime plusMinutes(long)
+  OffsetTime plusSeconds(long)
+  OffsetTime plusNanos(long)
+  OffsetTime minus(TemporalAmount)
+  OffsetTime minus(long,TemporalUnit)
+  OffsetTime minusHours(long)
+  OffsetTime minusMinutes(long)
+  OffsetTime minusSeconds(long)
+  OffsetTime minusNanos(long)
+  OffsetTime parse(CharSequence)
+  OffsetTime parse(CharSequence,DateTimeFormatter)
+  LocalTime toLocalTime()
+  OffsetTime truncatedTo(TemporalUnit)
+  OffsetTime with(TemporalAdjuster)
+  OffsetTime with(TemporalField,long)
+  OffsetTime withHour(int)
+  OffsetTime withMinute(int)
+  OffsetTime withNano(int)
+  OffsetTime withOffsetSameLocal(ZoneOffset)
+  OffsetTime withOffsetSameInstant(ZoneOffset)
+  OffsetTime withSecond(int)
+}
+
+class Period -> java.time.Period {
+  Period ZERO
+  Period between(LocalDate,LocalDate)
+  Period from(TemporalAmount)
+  IsoChronology getChronology()
+  int getDays()
+  int getMonths()
+  int getYears()
+  Period of(int,int,int)
+  Period ofYears(int)
+  Period ofMonths(int)
+  Period ofWeeks(int)
+  Period ofDays(int)
+  Period parse(CharSequence)
+  Period plus(TemporalAmount)
+  Period plusYears(long)
+  Period plusMonths(long)
+  Period plusDays(long)
+  Period minus(TemporalAmount)
+  Period minusYears(long)
+  Period minusMonths(long)
+  Period minusDays(long)
+  Period multipliedBy(int)
+  Period negated()
+  Period normalized()
+  long toTotalMonths()
+  Period withDays(int)
+  Period withMonths(int)
+  Period withYears(int)
+}
+
+class Year -> java.time.Year {
+  int MAX_VALUE
+  int MIN_VALUE
+  LocalDate atDay(int)
+  YearMonth atMonth(int)
+  LocalDate atMonthDay(MonthDay)
+  int compareTo(Year)
+  String format(DateTimeFormatter)
+  Year from(TemporalAccessor)
+  int getValue()
+  boolean isAfter(Year)
+  boolean isLeap()
+  boolean isLeap(long)
+  boolean isValidMonthDay(MonthDay)
+  int length()
+  Year minus(TemporalAmount)
+  Year minus(long,TemporalUnit)
+  Year minusYears(long)
+  Year of(int)
+  Year parse(CharSequence)
+  Year parse(CharSequence,DateTimeFormatter)
+  Year plus(TemporalAmount)
+  Year plus(long,TemporalUnit)
+  Year plusYears(long)
+  Year with(TemporalAdjuster)
+  Year with(TemporalField,long)
+}
+
+class YearMonth -> java.time.YearMonth {
+  LocalDate atDay(int)
+  LocalDate atEndOfMonth()
+  int compareTo(YearMonth)
+  String format(DateTimeFormatter)
+  YearMonth from(TemporalAccessor)
+  Month getMonth()
+  int getMonthValue()
+  int getYear()
+  boolean isAfter(YearMonth)
+  boolean isBefore(YearMonth)
+  boolean isLeapYear()
+  boolean isValidDay(int)
+  int lengthOfMonth()
+  int lengthOfYear()
+  YearMonth minus(TemporalAmount)
+  YearMonth minus(long,TemporalUnit)
+  YearMonth minusYears(long)
+  YearMonth minusMonths(long)
+  YearMonth of(int,int)
+  YearMonth parse(CharSequence)
+  YearMonth parse(CharSequence,DateTimeFormatter)
+  YearMonth plus(TemporalAmount)
+  YearMonth plus(long,TemporalUnit)
+  YearMonth plusYears(long)
+  YearMonth plusMonths(long)
+  YearMonth with(TemporalAdjuster)
+  YearMonth with(TemporalField,long)
+  YearMonth withYear(int)
+  YearMonth withMonth(int)
+}
+
+class ZonedDateTime -> java.time.ZonedDateTime {
+  int getDayOfMonth()
+  DayOfWeek getDayOfWeek()
+  int getDayOfYear()
+  int getHour()
+  LocalDate toLocalDate()
+  LocalDateTime toLocalDateTime()
+  int getMinute()
+  Month getMonth()
+  int getMonthValue()
+  int getNano()
+  int getSecond()
+  int getYear()
+  ZonedDateTime from(TemporalAccessor)
+  ZonedDateTime minus(TemporalAmount)
+  ZonedDateTime minus(long,TemporalUnit)
+  ZonedDateTime minusYears(long)
+  ZonedDateTime minusMonths(long)
+  ZonedDateTime minusWeeks(long)
+  ZonedDateTime minusDays(long)
+  ZonedDateTime minusHours(long)
+  ZonedDateTime minusMinutes(long)
+  ZonedDateTime minusSeconds(long)
+  ZonedDateTime minusNanos(long)
+  ZonedDateTime of(LocalDate,LocalTime,ZoneId)
+  ZonedDateTime of(LocalDateTime,ZoneId)
+  ZonedDateTime of(int,int,int,int,int,int,int,ZoneId)
+  ZonedDateTime ofInstant(Instant,ZoneId)
+  ZonedDateTime ofInstant(LocalDateTime,ZoneOffset,ZoneId)
+  ZonedDateTime ofLocal(LocalDateTime,ZoneId,ZoneOffset)
+  ZonedDateTime ofStrict(LocalDateTime,ZoneOffset,ZoneId)
+  ZonedDateTime parse(CharSequence)
+  ZonedDateTime parse(CharSequence,DateTimeFormatter)
+  ZonedDateTime plus(TemporalAmount)
+  ZonedDateTime plus(long,TemporalUnit)
+  ZonedDateTime plusDays(long)
+  ZonedDateTime plusHours(long)
+  ZonedDateTime plusMinutes(long)
+  ZonedDateTime plusMonths(long)
+  ZonedDateTime plusNanos(long)
+  ZonedDateTime plusSeconds(long)
+  ZonedDateTime plusWeeks(long)
+  ZonedDateTime plusYears(long)
+  OffsetDateTime toOffsetDateTime()
+  ZonedDateTime truncatedTo(TemporalUnit)
+  ZonedDateTime with(TemporalAdjuster)
+  ZonedDateTime with(TemporalField,long)
+  ZonedDateTime withDayOfMonth(int)
+  ZonedDateTime withDayOfYear(int)
+  ZonedDateTime withEarlierOffsetAtOverlap()
+  ZonedDateTime withFixedOffsetZone()
+  ZonedDateTime withHour(int)
+  ZonedDateTime withLaterOffsetAtOverlap()
+  ZonedDateTime withMinute(int)
+  ZonedDateTime withMonth(int)
+  ZonedDateTime withNano(int)
+  ZonedDateTime withSecond(int)
+  ZonedDateTime withYear(int)
+  ZonedDateTime withZoneSameLocal(ZoneId)
+  ZonedDateTime withZoneSameInstant(ZoneId)
+}
+
+class ZoneId -> java.time.ZoneId {
+  Map SHORT_IDS
+  Set getAvailableZoneIds()
+  ZoneId of(String)
+  ZoneId of(String,Map)
+  ZoneId ofOffset(String,ZoneOffset)
+  ZoneId from(TemporalAccessor)
+  String getId()
+  String getDisplayName(TextStyle,Locale)
+  ZoneId normalized()
+  ZoneId systemDefault()
+  ZoneRules getRules()
+}
+
+class ZoneOffset -> java.time.ZoneOffset {
+  ZoneOffset MAX
+  ZoneOffset MIN
+  ZoneOffset UTC
+  ZoneOffset from(TemporalAccessor)
+  int getTotalSeconds()
+  ZoneOffset of(String)
+  ZoneOffset ofHours(int)
+  ZoneOffset ofHoursMinutes(int,int)
+  ZoneOffset ofHoursMinutesSeconds(int,int,int)
+  ZoneOffset ofTotalSeconds(int)
+}
+
+#### Enums
+
+class DayOfWeek -> java.time.DayOfWeek {
+  DayOfWeek FRIDAY
+  DayOfWeek MONDAY
+  DayOfWeek SATURDAY
+  DayOfWeek SUNDAY
+  DayOfWeek THURSDAY
+  DayOfWeek TUESDAY
+  DayOfWeek WEDNESDAY
+  DayOfWeek of(int)
+  DayOfWeek from(TemporalAccessor)
+  int getValue()
+  String getDisplayName(TextStyle,Locale)
+  DayOfWeek minus(long)
+  DayOfWeek plus(long)
+  DayOfWeek valueOf(String)
+  DayOfWeek[] values()
+}
+
+class Month -> java.time.Month {
+  Month APRIL
+  Month AUGUST
+  Month DECEMBER
+  Month FEBRUARY
+  Month JANUARY
+  Month JULY
+  Month JUNE
+  Month MARCH
+  Month MAY
+  Month NOVEMBER
+  Month OCTOBER
+  Month SEPTEMBER
+  Month from(TemporalAccessor)
+  int firstDayOfYear(boolean)
+  Month firstMonthOfQuarter()
+  int getValue()
+  String getDisplayName(TextStyle,Locale)
+  int length(boolean)
+  int maxLength()
+  int minLength()
+  Month minus(long)
+  Month of(int)
+  Month plus(long)
+  Month valueOf(String)
+  Month[] values()
+}
+
+#### Exceptions
+
+class DateTimeException -> java.time.DateTimeException {
+  (String)
+}
+

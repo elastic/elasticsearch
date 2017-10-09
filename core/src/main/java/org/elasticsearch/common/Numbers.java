@@ -21,10 +21,16 @@ package org.elasticsearch.common;
 
 import org.apache.lucene.util.BytesRef;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+
 /**
  * A set of utilities for numbers.
  */
 public final class Numbers {
+
+    private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
+    private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
 
     private Numbers() {
 
@@ -171,4 +177,90 @@ public final class Numbers {
         return longToBytes(Double.doubleToRawLongBits(val));
     }
 
+    /** Returns true if value is neither NaN nor infinite. */
+    public static boolean isValidDouble(double value) {
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            return false;
+        }
+        return true;
+    }
+
+    /** Return the long that {@code n} stores, or throws an exception if the
+     *  stored value cannot be converted to a long that stores the exact same
+     *  value. */
+    public static long toLongExact(Number n) {
+        if (n instanceof Byte || n instanceof Short || n instanceof Integer
+                || n instanceof Long) {
+            return n.longValue();
+        } else if (n instanceof Float || n instanceof Double) {
+            double d = n.doubleValue();
+            if (d != Math.round(d)) {
+                throw new IllegalArgumentException(n + " is not an integer value");
+            }
+            return n.longValue();
+        } else if (n instanceof BigDecimal) {
+            return ((BigDecimal) n).toBigIntegerExact().longValueExact();
+        } else if (n instanceof BigInteger) {
+            return ((BigInteger) n).longValueExact();
+        } else {
+            throw new IllegalArgumentException("Cannot check whether [" + n + "] of class [" + n.getClass().getName()
+                    + "] is actually a long");
+        }
+    }
+
+    /** Return the long that {@code stringValue} stores or throws an exception if the
+     *  stored value cannot be converted to a long that stores the exact same
+     *  value and {@code coerce} is false. */
+    public static long toLong(String stringValue, boolean coerce) {
+        try {
+            return Long.parseLong(stringValue);
+        } catch (NumberFormatException e) {
+            // we will try again with BigDecimal
+        }
+
+        final BigInteger bigIntegerValue;
+        try {
+            BigDecimal bigDecimalValue = new BigDecimal(stringValue);
+            bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
+        }
+
+        if (bigIntegerValue.compareTo(MAX_LONG_VALUE) > 0 || bigIntegerValue.compareTo(MIN_LONG_VALUE) < 0) {
+            throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
+        }
+
+        return bigIntegerValue.longValue();
+    }
+
+    /** Return the int that {@code n} stores, or throws an exception if the
+     *  stored value cannot be converted to an int that stores the exact same
+     *  value. */
+    public static int toIntExact(Number n) {
+        return Math.toIntExact(toLongExact(n));
+    }
+
+    /** Return the short that {@code n} stores, or throws an exception if the
+     *  stored value cannot be converted to a short that stores the exact same
+     *  value. */
+    public static short toShortExact(Number n) {
+        long l = toLongExact(n);
+        if (l != (short) l) {
+            throw new ArithmeticException("short overflow: " + l);
+        }
+        return (short) l;
+    }
+
+    /** Return the byte that {@code n} stores, or throws an exception if the
+     *  stored value cannot be converted to a byte that stores the exact same
+     *  value. */
+    public static byte toByteExact(Number n) {
+        long l = toLongExact(n);
+        if (l != (byte) l) {
+            throw new ArithmeticException("byte overflow: " + l);
+        }
+        return (byte) l;
+    }
 }

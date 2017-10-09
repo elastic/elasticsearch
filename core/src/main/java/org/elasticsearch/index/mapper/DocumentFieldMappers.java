@@ -19,77 +19,50 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.base.Function;
-import com.google.common.collect.Collections2;
-import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
-/**
- *
- */
 public final class DocumentFieldMappers implements Iterable<FieldMapper> {
 
-    private final FieldMappersLookup fieldMappers;
+    /** Full field name to mapper */
+    private final Map<String, FieldMapper> fieldMappers;
 
     private final FieldNameAnalyzer indexAnalyzer;
     private final FieldNameAnalyzer searchAnalyzer;
     private final FieldNameAnalyzer searchQuoteAnalyzer;
 
-    public DocumentFieldMappers(AnalysisService analysisService) {
-        this(new FieldMappersLookup(), new FieldNameAnalyzer(analysisService.defaultIndexAnalyzer()),
-                                       new FieldNameAnalyzer(analysisService.defaultSearchAnalyzer()),
-                                       new FieldNameAnalyzer(analysisService.defaultSearchQuoteAnalyzer()));
+    private static void put(Map<String, Analyzer> analyzers, String key, Analyzer value, Analyzer defaultValue) {
+        if (value == null) {
+            value = defaultValue;
+        }
+        analyzers.put(key, value);
     }
 
-    private DocumentFieldMappers(FieldMappersLookup fieldMappers, FieldNameAnalyzer indexAnalyzer, FieldNameAnalyzer searchAnalyzer, FieldNameAnalyzer searchQuoteAnalyzer) {
-        this.fieldMappers = fieldMappers;
-        this.indexAnalyzer = indexAnalyzer;
-        this.searchAnalyzer = searchAnalyzer;
-        this.searchQuoteAnalyzer = searchQuoteAnalyzer;
-    }
-
-    public DocumentFieldMappers copyAndAllAll(Collection<FieldMapper> newMappers) {
-        FieldMappersLookup fieldMappers = this.fieldMappers.copyAndAddAll(newMappers);
-        FieldNameAnalyzer indexAnalyzer = this.indexAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper, Map.Entry<String, Analyzer>>() {
-            @Override
-            public Map.Entry<String, Analyzer> apply(FieldMapper input) {
-                return Maps.immutableEntry(input.fieldType().names().indexName(), (Analyzer)input.fieldType().indexAnalyzer());
-            }
-        }));
-        FieldNameAnalyzer searchAnalyzer = this.searchAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper, Map.Entry<String, Analyzer>>() {
-            @Override
-            public Map.Entry<String, Analyzer> apply(FieldMapper input) {
-                return Maps.immutableEntry(input.fieldType().names().indexName(), (Analyzer)input.fieldType().searchAnalyzer());
-            }
-        }));
-        FieldNameAnalyzer searchQuoteAnalyzer = this.searchQuoteAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper, Map.Entry<String, Analyzer>>() {
-            @Override
-            public Map.Entry<String, Analyzer> apply(FieldMapper input) {
-                return Maps.immutableEntry(input.fieldType().names().indexName(), (Analyzer)input.fieldType().searchQuoteAnalyzer());
-            }
-        }));
-        return new DocumentFieldMappers(fieldMappers, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer);
-    }
-
-    /**
-     * Looks up a field by its index name.
-     *
-     * Overriding index name for a field is no longer possibly, and only supported for backcompat.
-     * This function first attempts to lookup the field by full name, and only when that fails,
-     * does a full scan of all field mappers, collecting those with this index name.
-     *
-     * This will be removed in 3.0, once backcompat for overriding index name is removed.
-     * @deprecated Use {@link #getMapper(String)}
-     */
-    @Deprecated
-    public FieldMappers indexName(String indexName) {
-        return fieldMappers.indexName(indexName);
+    public DocumentFieldMappers(Collection<FieldMapper> mappers, Analyzer defaultIndex, Analyzer defaultSearch, Analyzer defaultSearchQuote) {
+        Map<String, FieldMapper> fieldMappers = new HashMap<>();
+        Map<String, Analyzer> indexAnalyzers = new HashMap<>();
+        Map<String, Analyzer> searchAnalyzers = new HashMap<>();
+        Map<String, Analyzer> searchQuoteAnalyzers = new HashMap<>();
+        for (FieldMapper mapper : mappers) {
+            fieldMappers.put(mapper.name(), mapper);
+            MappedFieldType fieldType = mapper.fieldType();
+            put(indexAnalyzers, fieldType.name(), fieldType.indexAnalyzer(), defaultIndex);
+            put(searchAnalyzers, fieldType.name(), fieldType.searchAnalyzer(), defaultSearch);
+            put(searchQuoteAnalyzers, fieldType.name(), fieldType.searchQuoteAnalyzer(), defaultSearchQuote);
+        }
+        this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
+        this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers);
+        this.searchAnalyzer = new FieldNameAnalyzer(searchAnalyzers);
+        this.searchQuoteAnalyzer = new FieldNameAnalyzer(searchQuoteAnalyzers);
     }
 
     /** Returns the mapper for the given field */
@@ -97,23 +70,27 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
         return fieldMappers.get(field);
     }
 
-    Collection<String> simpleMatchToIndexNames(String pattern) {
-        return fieldMappers.simpleMatchToIndexNames(pattern);
-    }
-
     public Collection<String> simpleMatchToFullName(String pattern) {
-        return fieldMappers.simpleMatchToFullName(pattern);
-    }
-
-    /**
-     * Tries to find first based on fullName, then by indexName.
-     */
-    FieldMappers smartName(String name) {
-        return fieldMappers.smartName(name);
+        Set<String> fields = new HashSet<>();
+        for (FieldMapper fieldMapper : this) {
+            if (Regex.simpleMatch(pattern, fieldMapper.fieldType().name())) {
+                fields.add(fieldMapper.fieldType().name());
+            }
+        }
+        return fields;
     }
 
     public FieldMapper smartNameFieldMapper(String name) {
-        return fieldMappers.smartNameFieldMapper(name);
+        FieldMapper fieldMapper = getMapper(name);
+        if (fieldMapper != null) {
+            return fieldMapper;
+        }
+        for (FieldMapper otherFieldMapper : this) {
+            if (otherFieldMapper.fieldType().name().equals(name)) {
+                return otherFieldMapper;
+            }
+        }
+        return null;
     }
 
     /**
@@ -122,14 +99,6 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
      */
     public Analyzer indexAnalyzer() {
         return this.indexAnalyzer;
-    }
-
-    /**
-     * A smart analyzer used for indexing that takes into account specific analyzers configured
-     * per {@link FieldMapper} with a custom default analyzer for no explicit field analyzer.
-     */
-    public Analyzer indexAnalyzer(Analyzer defaultAnalyzer) {
-        return new FieldNameAnalyzer(indexAnalyzer.analyzers(), defaultAnalyzer);
     }
 
     /**
@@ -145,6 +114,6 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
     }
 
     public Iterator<FieldMapper> iterator() {
-        return fieldMappers.iterator();
+        return fieldMappers.values().iterator();
     }
 }

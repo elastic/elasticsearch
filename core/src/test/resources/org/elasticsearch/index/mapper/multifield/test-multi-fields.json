@@ -1,0 +1,38 @@
+{
+  "person": {
+    "properties": {
+      "name": {
+        "type": "text",
+        "store": true,
+        "fields": {
+          "indexed": {
+            "type": "text",
+            "store": false
+          },
+          "not_indexed": {
+            "type": "text",
+            "index": false,
+            "store": true
+          },
+          "test1": {
+            "type": "text",
+            "store": true,
+            "eager_global_ordinals": true
+          }
+        }
+      },
+      "object1": {
+        "properties": {
+          "multi1": {
+            "type": "date",
+            "fields": {
+              "string": {
+                "type": "keyword"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

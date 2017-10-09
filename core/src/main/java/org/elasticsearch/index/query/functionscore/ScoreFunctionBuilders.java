@@ -19,95 +19,64 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
-import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 
-import java.util.Map;
+import static java.util.Collections.emptyMap;
 
+/**
+ * Static method aliases for constructors of known {@link ScoreFunctionBuilder}s.
+ */
 public class ScoreFunctionBuilders {
-   
+
     public static ExponentialDecayFunctionBuilder exponentialDecayFunction(String fieldName, Object origin, Object scale) {
-        return new ExponentialDecayFunctionBuilder(fieldName, origin, scale);
+        return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, null);
     }
-    
-    public static ExponentialDecayFunctionBuilder exponentialDecayFunction(String fieldName, Object scale) {
-        return new ExponentialDecayFunctionBuilder(fieldName, null, scale);
+
+    public static ExponentialDecayFunctionBuilder exponentialDecayFunction(String fieldName, Object origin, Object scale, Object offset) {
+        return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, offset);
     }
-    
+
+    public static ExponentialDecayFunctionBuilder exponentialDecayFunction(String fieldName, Object origin, Object scale, Object offset,
+            double decay) {
+        return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, offset, decay);
+    }
+
     public static GaussDecayFunctionBuilder gaussDecayFunction(String fieldName, Object origin, Object scale) {
-        return new GaussDecayFunctionBuilder(fieldName, origin, scale);
+        return new GaussDecayFunctionBuilder(fieldName, origin, scale, null);
     }
-    
-    public static GaussDecayFunctionBuilder gaussDecayFunction(String fieldName, Object scale) {
-        return new GaussDecayFunctionBuilder(fieldName, null, scale);
+
+    public static GaussDecayFunctionBuilder gaussDecayFunction(String fieldName, Object origin, Object scale, Object offset) {
+        return new GaussDecayFunctionBuilder(fieldName, origin, scale, offset);
     }
-    
+
+    public static GaussDecayFunctionBuilder gaussDecayFunction(String fieldName, Object origin, Object scale, Object offset, double decay) {
+        return new GaussDecayFunctionBuilder(fieldName, origin, scale, offset, decay);
+    }
+
     public static LinearDecayFunctionBuilder linearDecayFunction(String fieldName, Object origin, Object scale) {
-        return new LinearDecayFunctionBuilder(fieldName, origin, scale);
+        return new LinearDecayFunctionBuilder(fieldName, origin, scale, null);
     }
-    
-    public static LinearDecayFunctionBuilder linearDecayFunction(String fieldName, Object scale) {
-        return new LinearDecayFunctionBuilder(fieldName, null, scale);
+
+    public static LinearDecayFunctionBuilder linearDecayFunction(String fieldName, Object origin, Object scale, Object offset) {
+        return new LinearDecayFunctionBuilder(fieldName, origin, scale, offset);
+    }
+
+    public static LinearDecayFunctionBuilder linearDecayFunction(String fieldName, Object origin, Object scale, Object offset,
+            double decay) {
+        return new LinearDecayFunctionBuilder(fieldName, origin, scale, offset, decay);
     }
 
     public static ScriptScoreFunctionBuilder scriptFunction(Script script) {
-        return (new ScriptScoreFunctionBuilder()).script(script);
+        return (new ScriptScoreFunctionBuilder(script));
     }
 
-    /**
-     * @deprecated Use {@link #scriptFunction(Script)} instead.
-     */
-    @Deprecated
     public static ScriptScoreFunctionBuilder scriptFunction(String script) {
-        return (new ScriptScoreFunctionBuilder()).script(script);
+        return (new ScriptScoreFunctionBuilder(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, script, emptyMap())));
     }
 
-    /**
-     * @deprecated Use {@link #scriptFunction(Script)} instead.
-     */
-    @Deprecated
-    public static ScriptScoreFunctionBuilder scriptFunction(String script, String lang) {
-        return (new ScriptScoreFunctionBuilder()).script(script).lang(lang);
-    }
-
-    /**
-     * @deprecated Use {@link #scriptFunction(Script)} instead.
-     */
-    @Deprecated
-    public static ScriptScoreFunctionBuilder scriptFunction(String script, String lang, Map<String, Object> params) {
-        return (new ScriptScoreFunctionBuilder()).script(script).lang(lang).params(params);
-    }
-
-    /**
-     * @deprecated Use {@link #scriptFunction(Script)} instead.
-     */
-    @Deprecated
-    public static ScriptScoreFunctionBuilder scriptFunction(String script, Map<String, Object> params) {
-        return (new ScriptScoreFunctionBuilder()).script(script).params(params);
-    }
-
-    @Deprecated
-    public static FactorBuilder factorFunction(float boost) {
-        return (new FactorBuilder()).boostFactor(boost);
-    }
-
-    public static RandomScoreFunctionBuilder randomFunction(int seed) {
-        return (new RandomScoreFunctionBuilder()).seed(seed);
-    }
-
-    public static RandomScoreFunctionBuilder randomFunction(long seed) {
-        return (new RandomScoreFunctionBuilder()).seed(seed);
-    }
-
-    public static RandomScoreFunctionBuilder randomFunction(String seed) {
-        return (new RandomScoreFunctionBuilder()).seed(seed);
+    public static RandomScoreFunctionBuilder randomFunction() {
+        return new RandomScoreFunctionBuilder();
     }
     
     public static WeightBuilder weightFactorFunction(float weight) {

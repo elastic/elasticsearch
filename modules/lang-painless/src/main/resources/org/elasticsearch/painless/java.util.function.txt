@@ -1,0 +1,231 @@
+#
+# Licensed to Elasticsearch under one or more contributor
+# license agreements. See the NOTICE file distributed with
+# this work for additional information regarding copyright
+# ownership. Elasticsearch licenses this file to you under
+# the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+#
+# Painless definition file. This defines the hierarchy of classes,
+# what methods and fields they have, etc.
+#
+#### Interfaces
+
+class BiConsumer -> java.util.function.BiConsumer {
+  void accept(def,def)
+  BiConsumer andThen(BiConsumer)
+}
+
+class BiFunction -> java.util.function.BiFunction {
+  BiFunction andThen(Function)
+  def apply(def,def)
+}
+
+class BinaryOperator -> java.util.function.BinaryOperator {
+  BinaryOperator maxBy(Comparator)
+  BinaryOperator minBy(Comparator)
+}
+
+class BiPredicate -> java.util.function.BiPredicate {
+  BiPredicate and(BiPredicate)
+  BiPredicate negate()
+  BiPredicate or(BiPredicate)
+  boolean test(def,def)
+}
+
+class BooleanSupplier -> java.util.function.BooleanSupplier {
+  boolean getAsBoolean()
+}
+
+class Consumer -> java.util.function.Consumer {
+  void accept(def)
+  Consumer andThen(Consumer)
+}
+
+class DoubleBinaryOperator -> java.util.function.DoubleBinaryOperator {
+  double applyAsDouble(double,double)
+}
+
+class DoubleConsumer -> java.util.function.DoubleConsumer {
+  void accept(double)
+  DoubleConsumer andThen(DoubleConsumer)
+}
+
+class DoubleFunction -> java.util.function.DoubleFunction {
+  def apply(double)
+}
+
+class DoublePredicate -> java.util.function.DoublePredicate {
+  DoublePredicate and(DoublePredicate)
+  DoublePredicate negate()
+  DoublePredicate or(DoublePredicate)
+  boolean test(double)
+}
+
+class DoubleSupplier -> java.util.function.DoubleSupplier {
+  double getAsDouble()
+}
+
+class DoubleToIntFunction -> java.util.function.DoubleToIntFunction {
+  int applyAsInt(double)
+}
+
+class DoubleToLongFunction -> java.util.function.DoubleToLongFunction {
+  long applyAsLong(double)
+}
+
+class DoubleUnaryOperator -> java.util.function.DoubleUnaryOperator {
+  DoubleUnaryOperator andThen(DoubleUnaryOperator)
+  double applyAsDouble(double)
+  DoubleUnaryOperator compose(DoubleUnaryOperator)
+  DoubleUnaryOperator identity()
+}
+
+class Function -> java.util.function.Function {
+  Function andThen(Function)
+  def apply(def)
+  Function compose(Function)
+  Function identity()
+}
+
+class IntBinaryOperator -> java.util.function.IntBinaryOperator {
+  int applyAsInt(int,int)
+}
+
+class IntConsumer -> java.util.function.IntConsumer {
+  void accept(int)
+  IntConsumer andThen(IntConsumer)
+}
+
+class IntFunction -> java.util.function.IntFunction {
+  def apply(int)
+}
+
+class IntPredicate -> java.util.function.IntPredicate {
+  IntPredicate and(IntPredicate)
+  IntPredicate negate()
+  IntPredicate or(IntPredicate)
+  boolean test(int)
+}
+
+class IntSupplier -> java.util.function.IntSupplier {
+  int getAsInt()
+}
+
+class IntToDoubleFunction -> java.util.function.IntToDoubleFunction {
+  double applyAsDouble(int)
+}
+
+class IntToLongFunction -> java.util.function.IntToLongFunction {
+  long applyAsLong(int)
+}
+
+class IntUnaryOperator -> java.util.function.IntUnaryOperator {
+  IntUnaryOperator andThen(IntUnaryOperator)
+  int applyAsInt(int)
+  IntUnaryOperator compose(IntUnaryOperator)
+  IntUnaryOperator identity()
+}
+
+class LongBinaryOperator -> java.util.function.LongBinaryOperator {
+  long applyAsLong(long,long)
+}
+
+class LongConsumer -> java.util.function.LongConsumer {
+  void accept(long)
+  LongConsumer andThen(LongConsumer)
+}
+
+class LongFunction -> java.util.function.LongFunction {
+  def apply(long)
+}
+
+class LongPredicate -> java.util.function.LongPredicate {
+  LongPredicate and(LongPredicate)
+  LongPredicate negate()
+  LongPredicate or(LongPredicate)
+  boolean test(long)
+}
+
+class LongSupplier -> java.util.function.LongSupplier {
+  long getAsLong()
+}
+
+class LongToDoubleFunction -> java.util.function.LongToDoubleFunction {
+  double applyAsDouble(long)
+}
+
+class LongToIntFunction -> java.util.function.LongToIntFunction {
+  int applyAsInt(long)
+}
+
+class LongUnaryOperator -> java.util.function.LongUnaryOperator {
+  LongUnaryOperator andThen(LongUnaryOperator)
+  long applyAsLong(long)
+  LongUnaryOperator compose(LongUnaryOperator)
+  LongUnaryOperator identity()
+}
+
+class ObjDoubleConsumer -> java.util.function.ObjDoubleConsumer {
+  void accept(def,double)
+}
+
+class ObjIntConsumer -> java.util.function.ObjIntConsumer {
+  void accept(def,int)
+}
+
+class ObjLongConsumer -> java.util.function.ObjLongConsumer {
+  void accept(def,long)
+}
+
+class Predicate -> java.util.function.Predicate {
+  Predicate and(Predicate)
+  Predicate isEqual(def)
+  Predicate negate()
+  Predicate or(Predicate)
+  boolean test(def)
+}
+
+class Supplier -> java.util.function.Supplier {
+  def get()
+}
+
+class ToDoubleBiFunction -> java.util.function.ToDoubleBiFunction {
+  double applyAsDouble(def,def)
+}
+
+class ToDoubleFunction -> java.util.function.ToDoubleFunction {
+  double applyAsDouble(def)
+}
+
+class ToIntBiFunction -> java.util.function.ToIntBiFunction {
+  int applyAsInt(def,def)
+}
+
+class ToIntFunction -> java.util.function.ToIntFunction {
+  int applyAsInt(def)
+}
+
+class ToLongBiFunction -> java.util.function.ToLongBiFunction {
+  long applyAsLong(def,def)
+}
+
+class ToLongFunction -> java.util.function.ToLongFunction {
+  long applyAsLong(def)
+}
+
+class UnaryOperator -> java.util.function.UnaryOperator {
+  UnaryOperator identity()
+}

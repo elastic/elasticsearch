@@ -19,13 +19,18 @@
 
 package org.elasticsearch.transport;
 
-/**
- *
- */
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+
 public class NotSerializableTransportException extends TransportException {
 
     public NotSerializableTransportException(Throwable t) {
         super(buildMessage(t));
+    }
+
+    public NotSerializableTransportException(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override

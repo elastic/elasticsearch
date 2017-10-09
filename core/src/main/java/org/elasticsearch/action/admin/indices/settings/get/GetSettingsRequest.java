@@ -30,13 +30,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- */
 public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
     private String[] names = Strings.EMPTY_ARRAY;
+    private boolean humanReadable = false;
 
     @Override
     public GetSettingsRequest indices(String... indices) {
@@ -47,6 +46,26 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     public GetSettingsRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
+    }
+
+    public GetSettingsRequest() {
+    }
+
+    public GetSettingsRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        names = in.readStringArray();
+        humanReadable = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeStringArray(names);
+        out.writeBoolean(humanReadable);
     }
 
     @Override
@@ -68,6 +87,15 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         return this;
     }
 
+    public boolean humanReadable() {
+        return humanReadable;
+    }
+
+    public GetSettingsRequest humanReadable(boolean humanReadable) {
+        this.humanReadable = humanReadable;
+        return this;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -79,17 +107,6 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        names = in.readStringArray();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeStringArray(names);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

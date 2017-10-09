@@ -21,7 +21,6 @@ package org.elasticsearch.search.dfs;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
@@ -31,47 +30,24 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class DfsSearchResult extends TransportResponse implements SearchPhaseResult {
+public class DfsSearchResult extends SearchPhaseResult {
 
     private static final Term[] EMPTY_TERMS = new Term[0];
     private static final TermStatistics[] EMPTY_TERM_STATS = new TermStatistics[0];
-
-    private SearchShardTarget shardTarget;
-    private long id;
     private Term[] terms;
     private TermStatistics[] termStatistics;
     private ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
     private int maxDoc;
 
     public DfsSearchResult() {
-
     }
 
     public DfsSearchResult(long id, SearchShardTarget shardTarget) {
-        this.id = id;
-        this.shardTarget = shardTarget;
-    }
-
-    @Override
-    public long id() {
-        return this.id;
-    }
-
-    @Override
-    public SearchShardTarget shardTarget() {
-        return shardTarget;
-    }
-
-    @Override
-    public void shardTarget(SearchShardTarget shardTarget) {
-        this.shardTarget = shardTarget;
+        this.setSearchShardTarget(shardTarget);
+        this.requestId = id;
     }
 
     public DfsSearchResult maxDoc(int maxDoc) {
@@ -106,16 +82,10 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         return fieldStatistics;
     }
 
-    public static DfsSearchResult readDfsSearchResult(StreamInput in) throws IOException, ClassNotFoundException {
-        DfsSearchResult result = new DfsSearchResult();
-        result.readFrom(in);
-        return result;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        id = in.readLong();
+        requestId = in.readLong();
         int termsSize = in.readVInt();
         if (termsSize == 0) {
             terms = EMPTY_TERMS;
@@ -127,16 +97,15 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         }
         this.termStatistics = readTermStats(in, terms);
         readFieldStats(in, fieldStatistics);
-        
+
 
         maxDoc = in.readVInt();
     }
 
- 
   @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(id);
+        out.writeLong(requestId);
         out.writeVInt(terms.length);
         for (Term term : terms) {
             out.writeString(term.field());
@@ -146,7 +115,7 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
     }
-    
+
     public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
         out.writeVInt(fieldStatistics.size());
 
@@ -160,20 +129,20 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
             out.writeVLong(addOne(statistics.sumDocFreq()));
         }
     }
-    
+
     public static void writeTermStats(StreamOutput out, TermStatistics[] termStatistics) throws IOException {
         out.writeVInt(termStatistics.length);
         for (TermStatistics termStatistic : termStatistics) {
             writeSingleTermStats(out, termStatistic);
         }
     }
-    
+
     public  static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
         assert termStatistic.docFreq() >= 0;
         out.writeVLong(termStatistic.docFreq());
-        out.writeVLong(addOne(termStatistic.totalTermFreq()));        
+        out.writeVLong(addOne(termStatistic.totalTermFreq()));
     }
-    
+
     public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
         return readFieldStats(in, null);
     }
@@ -215,7 +184,7 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         return termStatistics;
     }
 
-    
+
     /*
      * optional statistics are set to -1 in lucene by default.
      * Since we are using var longs to encode values we add one to each value
@@ -225,8 +194,8 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         assert value + 1 >= 0;
         return value + 1;
     }
-    
-    
+
+
     /*
      * See #addOne this just subtracting one and asserts that the actual value
      * is positive.

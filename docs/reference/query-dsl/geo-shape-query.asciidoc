@@ -3,10 +3,10 @@
 
 Filter documents indexed using the `geo_shape` type.
 
-Requires the <<mapping-geo-shape-type,geo_shape Mapping>>.
+Requires the <<geo-shape,`geo_shape` Mapping>>.
 
 The `geo_shape` query uses the same grid square representation as the
-geo_shape mapping to find documents that have a shape that intersects
+`geo_shape` mapping to find documents that have a shape that intersects
 with the query shape. It will also use the same PrefixTree configuration
 as defined for the field mapping.
 
@@ -17,31 +17,48 @@ examples.
 
 ==== Inline Shape Definition
 
-Similar to the `geo_shape` type, the `geo_shape` Filter uses
+Similar to the `geo_shape` type, the `geo_shape` query uses
 http://www.geojson.org[GeoJSON] to represent shapes.
 
-Given a document that looks like this:
+Given the following index:
 
 [source,js]
 --------------------------------------------------
+PUT /example
+{
+    "mappings": {
+        "doc": {
+            "properties": {
+                "location": {
+                    "type": "geo_shape"
+                }
+            }
+        }
+    }
+}
+
+POST /example/doc?refresh
 {
     "name": "Wind & Wetter, Berlin, Germany",
     "location": {
-        "type": "Point",
+        "type": "point",
         "coordinates": [13.400544, 52.530286]
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TESTSETUP
 
 The following query will find the point using the Elasticsearch's
 `envelope` GeoJSON extension:
 
 [source,js]
 --------------------------------------------------
+GET /example/_search
 {
     "query":{
-        "filtered": {
-            "query": {
+        "bool": {
+            "must": {
                 "match_all": {}
             },
             "filter": {
@@ -50,7 +67,8 @@ The following query will find the point using the Elasticsearch's
                         "shape": {
                             "type": "envelope",
                             "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
-                        }
+                        },
+                        "relation": "within"
                     }
                 }
             }
@@ -58,10 +76,11 @@ The following query will find the point using the Elasticsearch's
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 ==== Pre-Indexed Shape
 
-The Filter also supports using a shape which has already been indexed in
+The Query also supports using a shape which has already been indexed in
 another index and/or index type. This is particularly useful for when
 you have a pre-defined list of shapes which are useful to your
 application and you want to reference this using a logical name (for
@@ -80,19 +99,40 @@ shape:
 
 [source,js]
 --------------------------------------------------
+PUT /shapes
 {
-    "filtered": {
-        "query": {
-            "match_all": {}
-        },
-        "filter": {
-            "geo_shape": {
+    "mappings": {
+        "doc": {
+            "properties": {
                 "location": {
-                    "indexed_shape": {
-                        "id": "DEU",
-                        "type": "countries",
-                        "index": "shapes",
-                        "path": "location"
+                    "type": "geo_shape"
+                }
+            }
+        }
+    }
+}
+
+PUT /shapes/doc/deu
+{
+    "location": {
+        "type": "envelope",
+        "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
+    }
+}
+
+GET /example/_search
+{
+    "query": {
+        "bool": {
+            "filter": {
+                "geo_shape": {
+                    "location": {
+                        "indexed_shape": {
+                            "index": "shapes",
+                            "type": "doc",
+                            "id": "deu",
+                            "path": "location"
+                        }
                     }
                 }
             }
@@ -100,4 +140,29 @@ shape:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
+==== Spatial Relations
+
+The <<spatial-strategy, geo_shape strategy>> mapping parameter determines
+which spatial relation operators may be used at search time.
+
+The following is a complete list of spatial relation operators available:
+
+* `INTERSECTS` - (default) Return all documents whose `geo_shape` field
+intersects the query geometry.
+* `DISJOINT` - Return all documents whose `geo_shape` field
+has nothing in common with the query geometry.
+* `WITHIN` - Return all documents whose `geo_shape` field
+is within the query geometry.
+* `CONTAINS` - Return all documents whose `geo_shape` field
+contains the query geometry.
+
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped field
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the field
+is not mapped.

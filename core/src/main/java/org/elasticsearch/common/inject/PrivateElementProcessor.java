@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,10 +16,10 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.PrivateElements;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -30,7 +30,7 @@ import java.util.List;
 class PrivateElementProcessor extends AbstractProcessor {
 
     private final Stage stage;
-    private final List<InjectorShell.Builder> injectorShellBuilders = Lists.newArrayList();
+    private final List<InjectorShell.Builder> injectorShellBuilders = new ArrayList<>();
 
     PrivateElementProcessor(Errors errors, Stage stage) {
         super(errors);

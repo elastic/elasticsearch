@@ -19,423 +19,544 @@
 
 package org.elasticsearch.monitor.os;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.io.Serializable;
-import java.util.concurrent.TimeUnit;
+import java.util.Arrays;
+import java.util.Objects;
 
-/**
- *
- */
-public class OsStats implements Streamable, Serializable, ToXContent {
+public class OsStats implements Writeable, ToXContentFragment {
 
-    public static final double[] EMPTY_LOAD = new double[0];
+    private final long timestamp;
+    private final Cpu cpu;
+    private final Mem mem;
+    private final Swap swap;
+    private final Cgroup cgroup;
 
-
-    long timestamp;
-
-    double[] loadAverage = EMPTY_LOAD;
-
-    long uptime = -1;
-
-    Cpu cpu = null;
-
-    Mem mem = null;
-
-    Swap swap = null;
-
-    OsStats() {
+    public OsStats(final long timestamp, final Cpu cpu, final Mem mem, final Swap swap, final Cgroup cgroup) {
+        this.timestamp = timestamp;
+        this.cpu = Objects.requireNonNull(cpu);
+        this.mem = Objects.requireNonNull(mem);
+        this.swap = Objects.requireNonNull(swap);
+        this.cgroup = cgroup;
     }
 
-    public long timestamp() {
-        return timestamp;
-    }
-
-    public long getTimestamp() {
-        return timestamp();
-    }
-
-    public double[] loadAverage() {
-        return loadAverage;
-    }
-
-    public double[] getLoadAverage() {
-        return loadAverage();
-    }
-
-    public TimeValue uptime() {
-        return new TimeValue(uptime, TimeUnit.SECONDS);
-    }
-
-    public TimeValue getUptime() {
-        return uptime();
-    }
-
-    public Cpu cpu() {
-        return this.cpu;
-    }
-
-    public Cpu getCpu() {
-        return cpu();
-    }
-
-    public Mem mem() {
-        return this.mem;
-    }
-
-    public Mem getMem() {
-        return mem();
-    }
-
-    public Swap swap() {
-        return this.swap;
-    }
-
-    public Swap getSwap() {
-        return swap();
-    }
-
-    static final class Fields {
-        static final XContentBuilderString OS = new XContentBuilderString("os");
-        static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
-        static final XContentBuilderString UPTIME = new XContentBuilderString("uptime");
-        static final XContentBuilderString UPTIME_IN_MILLIS = new XContentBuilderString("uptime_in_millis");
-        static final XContentBuilderString LOAD_AVERAGE = new XContentBuilderString("load_average");
-        static final XContentBuilderString LOAD_AVERAGE_1m = new XContentBuilderString("1m");
-        static final XContentBuilderString LOAD_AVERAGE_5m = new XContentBuilderString("5m");
-        static final XContentBuilderString LOAD_AVERAGE_15m = new XContentBuilderString("15m");
-
-        static final XContentBuilderString CPU = new XContentBuilderString("cpu");
-        static final XContentBuilderString SYS = new XContentBuilderString("sys");
-        static final XContentBuilderString USER = new XContentBuilderString("user");
-        static final XContentBuilderString USAGE = new XContentBuilderString("usage");
-        static final XContentBuilderString IDLE = new XContentBuilderString("idle");
-        static final XContentBuilderString STOLEN = new XContentBuilderString("stolen");
-
-        static final XContentBuilderString MEM = new XContentBuilderString("mem");
-        static final XContentBuilderString SWAP = new XContentBuilderString("swap");
-        static final XContentBuilderString FREE = new XContentBuilderString("free");
-        static final XContentBuilderString FREE_IN_BYTES = new XContentBuilderString("free_in_bytes");
-        static final XContentBuilderString USED = new XContentBuilderString("used");
-        static final XContentBuilderString USED_IN_BYTES = new XContentBuilderString("used_in_bytes");
-
-        static final XContentBuilderString FREE_PERCENT = new XContentBuilderString("free_percent");
-        static final XContentBuilderString USED_PERCENT = new XContentBuilderString("used_percent");
-
-        static final XContentBuilderString ACTUAL_FREE = new XContentBuilderString("actual_free");
-        static final XContentBuilderString ACTUAL_FREE_IN_BYTES = new XContentBuilderString("actual_free_in_bytes");
-        static final XContentBuilderString ACTUAL_USED = new XContentBuilderString("actual_used");
-        static final XContentBuilderString ACTUAL_USED_IN_BYTES = new XContentBuilderString("actual_used_in_bytes");
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.OS);
-        builder.field(Fields.TIMESTAMP, timestamp);
-
-        if (uptime != -1) {
-            builder.timeValueField(Fields.UPTIME_IN_MILLIS, Fields.UPTIME, uptime);
-        }
-
-        if (loadAverage.length > 0) {
-            if (params.param("load_average_format", "array").equals("hash")) {
-                builder.startObject(Fields.LOAD_AVERAGE);
-                builder.field(Fields.LOAD_AVERAGE_1m, loadAverage[0]);
-                builder.field(Fields.LOAD_AVERAGE_5m, loadAverage[1]);
-                builder.field(Fields.LOAD_AVERAGE_15m, loadAverage[2]);
-                builder.endObject();
-            } else {
-                builder.startArray(Fields.LOAD_AVERAGE);
-                for (double value : loadAverage) {
-                    builder.value(value);
-                }
-                builder.endArray();
-            }
-        }
-
-        if (cpu != null) {
-            builder.startObject(Fields.CPU);
-            builder.field(Fields.SYS, cpu.sys());
-            builder.field(Fields.USER, cpu.user());
-            builder.field(Fields.IDLE, cpu.idle());
-            builder.field(Fields.USAGE, cpu.user() + cpu.sys());
-            builder.field(Fields.STOLEN, cpu.stolen());
-            builder.endObject();
-        }
-
-        if (mem != null) {
-            builder.startObject(Fields.MEM);
-            builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, mem.free);
-            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, mem.used);
-
-            builder.field(Fields.FREE_PERCENT, mem.freePercent());
-            builder.field(Fields.USED_PERCENT, mem.usedPercent());
-
-            builder.byteSizeField(Fields.ACTUAL_FREE_IN_BYTES, Fields.ACTUAL_FREE, mem.actualFree);
-            builder.byteSizeField(Fields.ACTUAL_USED_IN_BYTES, Fields.ACTUAL_USED, mem.actualUsed);
-
-            builder.endObject();
-        }
-
-        if (swap != null) {
-            builder.startObject(Fields.SWAP);
-            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, swap.used);
-            builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, swap.free);
-            builder.endObject();
-        }
-
-        builder.endObject();
-        return builder;
-    }
-
-    public static OsStats readOsStats(StreamInput in) throws IOException {
-        OsStats stats = new OsStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        timestamp = in.readVLong();
-        loadAverage = new double[in.readVInt()];
-        for (int i = 0; i < loadAverage.length; i++) {
-            loadAverage[i] = in.readDouble();
-        }
-        uptime = in.readLong();
-        if (in.readBoolean()) {
-            cpu = Cpu.readCpu(in);
-        }
-        if (in.readBoolean()) {
-            mem = Mem.readMem(in);
-        }
-        if (in.readBoolean()) {
-            swap = Swap.readSwap(in);
+    public OsStats(StreamInput in) throws IOException {
+        this.timestamp = in.readVLong();
+        this.cpu = new Cpu(in);
+        this.mem = new Mem(in);
+        this.swap = new Swap(in);
+        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
+            this.cgroup = in.readOptionalWriteable(Cgroup::new);
+        } else {
+            this.cgroup = null;
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
-        out.writeVInt(loadAverage.length);
-        for (double val : loadAverage) {
-            out.writeDouble(val);
-        }
-        out.writeLong(uptime);
-        if (cpu == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            cpu.writeTo(out);
-        }
-        if (mem == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            mem.writeTo(out);
-        }
-        if (swap == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            swap.writeTo(out);
+        cpu.writeTo(out);
+        mem.writeTo(out);
+        swap.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
+            out.writeOptionalWriteable(cgroup);
         }
     }
 
-    public static class Swap implements Streamable, Serializable {
+    public long getTimestamp() {
+        return timestamp;
+    }
 
-        long free = -1;
-        long used = -1;
+    public Cpu getCpu() { return cpu; }
 
-        public ByteSizeValue free() {
-            return new ByteSizeValue(free);
+    public Mem getMem() {
+        return mem;
+    }
+
+    public Swap getSwap() {
+        return swap;
+    }
+
+    public Cgroup getCgroup() {
+        return cgroup;
+    }
+
+    static final class Fields {
+        static final String OS = "os";
+        static final String TIMESTAMP = "timestamp";
+        static final String CPU = "cpu";
+        static final String PERCENT = "percent";
+        static final String LOAD_AVERAGE = "load_average";
+        static final String LOAD_AVERAGE_1M = "1m";
+        static final String LOAD_AVERAGE_5M = "5m";
+        static final String LOAD_AVERAGE_15M = "15m";
+
+        static final String MEM = "mem";
+        static final String SWAP = "swap";
+        static final String FREE = "free";
+        static final String FREE_IN_BYTES = "free_in_bytes";
+        static final String USED = "used";
+        static final String USED_IN_BYTES = "used_in_bytes";
+        static final String TOTAL = "total";
+        static final String TOTAL_IN_BYTES = "total_in_bytes";
+
+        static final String FREE_PERCENT = "free_percent";
+        static final String USED_PERCENT = "used_percent";
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(Fields.OS);
+        builder.field(Fields.TIMESTAMP, getTimestamp());
+        cpu.toXContent(builder, params);
+        mem.toXContent(builder, params);
+        swap.toXContent(builder, params);
+        if (cgroup != null) {
+            cgroup.toXContent(builder, params);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    public static class Cpu implements Writeable, ToXContentFragment {
+
+        private final short percent;
+        private final double[] loadAverage;
+
+        public Cpu(short systemCpuPercent, double[] systemLoadAverage) {
+            this.percent = systemCpuPercent;
+            this.loadAverage = systemLoadAverage;
+        }
+
+        public Cpu(StreamInput in) throws IOException {
+            this.percent = in.readShort();
+            if (in.readBoolean()) {
+                this.loadAverage = in.readDoubleArray();
+            } else {
+                this.loadAverage = null;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeShort(percent);
+            if (loadAverage == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeDoubleArray(loadAverage);
+            }
+        }
+
+        public short getPercent() {
+            return percent;
+        }
+
+        public double[] getLoadAverage() {
+            return loadAverage;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(Fields.CPU);
+            builder.field(Fields.PERCENT, getPercent());
+            if (getLoadAverage() != null && Arrays.stream(getLoadAverage()).anyMatch(load -> load != -1)) {
+                builder.startObject(Fields.LOAD_AVERAGE);
+                if (getLoadAverage()[0] != -1) {
+                    builder.field(Fields.LOAD_AVERAGE_1M, getLoadAverage()[0]);
+                }
+                if (getLoadAverage()[1] != -1) {
+                    builder.field(Fields.LOAD_AVERAGE_5M, getLoadAverage()[1]);
+                }
+                if (getLoadAverage()[2] != -1) {
+                    builder.field(Fields.LOAD_AVERAGE_15M, getLoadAverage()[2]);
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            return builder;
+        }
+    }
+
+    public static class Swap implements Writeable, ToXContentFragment {
+
+        private final long total;
+        private final long free;
+
+        public Swap(long total, long free) {
+            this.total = total;
+            this.free = free;
+        }
+
+        public Swap(StreamInput in) throws IOException {
+            this.total = in.readLong();
+            this.free = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(total);
+            out.writeLong(free);
         }
 
         public ByteSizeValue getFree() {
-            return free();
-        }
-
-        public ByteSizeValue used() {
-            return new ByteSizeValue(used);
+            return new ByteSizeValue(free);
         }
 
         public ByteSizeValue getUsed() {
-            return used();
+            return new ByteSizeValue(total - free);
         }
 
-        public static Swap readSwap(StreamInput in) throws IOException {
-            Swap swap = new Swap();
-            swap.readFrom(in);
-            return swap;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            free = in.readLong();
-            used = in.readLong();
+        public ByteSizeValue getTotal() {
+            return new ByteSizeValue(total);
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(free);
-            out.writeLong(used);
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(Fields.SWAP);
+            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, getTotal());
+            builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, getFree());
+            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, getUsed());
+            builder.endObject();
+            return builder;
         }
     }
 
-    public static class Mem implements Streamable, Serializable {
+    public static class Mem implements Writeable, ToXContentFragment {
 
-        long free = -1;
-        short freePercent = -1;
-        long used = -1;
-        short usedPercent = -1;
-        long actualFree = -1;
-        long actualUsed = -1;
+        private final long total;
+        private final long free;
 
-        public static Mem readMem(StreamInput in) throws IOException {
-            Mem mem = new Mem();
-            mem.readFrom(in);
-            return mem;
+        public Mem(long total, long free) {
+            this.total = total;
+            this.free = free;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            free = in.readLong();
-            freePercent = in.readShort();
-            used = in.readLong();
-            usedPercent = in.readShort();
-            actualFree = in.readLong();
-            actualUsed = in.readLong();
+        public Mem(StreamInput in) throws IOException {
+            this.total = in.readLong();
+            this.free = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(total);
             out.writeLong(free);
-            out.writeShort(freePercent);
-            out.writeLong(used);
-            out.writeShort(usedPercent);
-            out.writeLong(actualFree);
-            out.writeLong(actualUsed);
         }
 
-        public ByteSizeValue used() {
-            return new ByteSizeValue(used);
+        public ByteSizeValue getTotal() {
+            return new ByteSizeValue(total);
         }
 
         public ByteSizeValue getUsed() {
-            return used();
-        }
-
-        public short usedPercent() {
-            return usedPercent;
+            return new ByteSizeValue(total - free);
         }
 
         public short getUsedPercent() {
-            return usedPercent();
-        }
-
-        public ByteSizeValue free() {
-            return new ByteSizeValue(free);
+            return calculatePercentage(getUsed().getBytes(), total);
         }
 
         public ByteSizeValue getFree() {
-            return free();
-        }
-
-        public short freePercent() {
-            return freePercent;
+            return new ByteSizeValue(free);
         }
 
         public short getFreePercent() {
-            return freePercent();
-        }
-
-        public ByteSizeValue actualFree() {
-            return new ByteSizeValue(actualFree);
-        }
-
-        public ByteSizeValue getActualFree() {
-            return actualFree();
-        }
-
-        public ByteSizeValue actualUsed() {
-            return new ByteSizeValue(actualUsed);
-        }
-
-        public ByteSizeValue getActualUsed() {
-            return actualUsed();
-        }
-    }
-
-    public static class Cpu implements Streamable, Serializable {
-
-        short sys = -1;
-        short user = -1;
-        short idle = -1;
-        short stolen = -1;
-
-        Cpu() {
-
-        }
-
-        public static Cpu readCpu(StreamInput in) throws IOException {
-            Cpu cpu = new Cpu();
-            cpu.readFrom(in);
-            return cpu;
+            return calculatePercentage(free, total);
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            sys = in.readShort();
-            user = in.readShort();
-            idle = in.readShort();
-            stolen = in.readShort();
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(Fields.MEM);
+            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, getTotal());
+            builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, getFree());
+            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, getUsed());
+            builder.field(Fields.FREE_PERCENT, getFreePercent());
+            builder.field(Fields.USED_PERCENT, getUsedPercent());
+            builder.endObject();
+            return builder;
+        }
+    }
+
+    /**
+     * Encapsulates basic cgroup statistics.
+     */
+    public static class Cgroup implements Writeable, ToXContentFragment {
+
+        private final String cpuAcctControlGroup;
+        private final long cpuAcctUsageNanos;
+        private final String cpuControlGroup;
+        private final long cpuCfsPeriodMicros;
+        private final long cpuCfsQuotaMicros;
+        private final CpuStat cpuStat;
+        // These will be null for nodes running versions prior to 6.1.0
+        private final String memoryControlGroup;
+        private final String memoryLimitInBytes;
+        private final String memoryUsageInBytes;
+
+        /**
+         * The control group for the {@code cpuacct} subsystem.
+         *
+         * @return the control group
+         */
+        public String getCpuAcctControlGroup() {
+            return cpuAcctControlGroup;
+        }
+
+        /**
+         * The total CPU time consumed by all tasks in the
+         * {@code cpuacct} control group from
+         * {@link Cgroup#cpuAcctControlGroup}.
+         *
+         * @return the total CPU time in nanoseconds
+         */
+        public long getCpuAcctUsageNanos() {
+            return cpuAcctUsageNanos;
+        }
+
+        /**
+         * The control group for the {@code cpu} subsystem.
+         *
+         * @return the control group
+         */
+        public String getCpuControlGroup() {
+            return cpuControlGroup;
+        }
+
+        /**
+         * The period of time for how frequently the control group from
+         * {@link Cgroup#cpuControlGroup} has its access to CPU
+         * resources reallocated.
+         *
+         * @return the period of time in microseconds
+         */
+        public long getCpuCfsPeriodMicros() {
+            return cpuCfsPeriodMicros;
+        }
+
+        /**
+         * The total amount of time for which all tasks in the control
+         * group from {@link Cgroup#cpuControlGroup} can run in one
+         * period as represented by {@link Cgroup#cpuCfsPeriodMicros}.
+         *
+         * @return the total amount of time in microseconds
+         */
+        public long getCpuCfsQuotaMicros() {
+            return cpuCfsQuotaMicros;
+        }
+
+        /**
+         * The CPU time statistics. See {@link CpuStat}.
+         *
+         * @return the CPU time statistics.
+         */
+        public CpuStat getCpuStat() {
+            return cpuStat;
+        }
+
+        /**
+         * The control group for the {@code memory} subsystem.
+         *
+         * @return the control group
+         */
+        public String getMemoryControlGroup() {
+            return memoryControlGroup;
+        }
+
+        /**
+         * The maximum amount of user memory (including file cache).
+         * This is stored as a <code>String</code> because the value can be too big to fit in a
+         * <code>long</code>.  (The alternative would have been <code>BigInteger</code> but then
+         * it would not be possible to index the OS stats document into Elasticsearch without
+         * losing information, as <code>BigInteger</code> is not a supported Elasticsearch type.)
+         *
+         * @return the maximum amount of user memory (including file cache).
+         */
+        public String getMemoryLimitInBytes() {
+            return memoryLimitInBytes;
+        }
+
+        /**
+         * The total current memory usage by processes in the cgroup (in bytes).
+         * This is stored as a <code>String</code> for consistency with <code>memoryLimitInBytes</code>.
+         *
+         * @return the total current memory usage by processes in the cgroup (in bytes).
+         */
+        public String getMemoryUsageInBytes() {
+            return memoryUsageInBytes;
+        }
+
+        public Cgroup(
+            final String cpuAcctControlGroup,
+            final long cpuAcctUsageNanos,
+            final String cpuControlGroup,
+            final long cpuCfsPeriodMicros,
+            final long cpuCfsQuotaMicros,
+            final CpuStat cpuStat,
+            final String memoryControlGroup,
+            final String memoryLimitInBytes,
+            final String memoryUsageInBytes) {
+            this.cpuAcctControlGroup = Objects.requireNonNull(cpuAcctControlGroup);
+            this.cpuAcctUsageNanos = cpuAcctUsageNanos;
+            this.cpuControlGroup = Objects.requireNonNull(cpuControlGroup);
+            this.cpuCfsPeriodMicros = cpuCfsPeriodMicros;
+            this.cpuCfsQuotaMicros = cpuCfsQuotaMicros;
+            this.cpuStat = Objects.requireNonNull(cpuStat);
+            this.memoryControlGroup = memoryControlGroup;
+            this.memoryLimitInBytes = memoryLimitInBytes;
+            this.memoryUsageInBytes = memoryUsageInBytes;
+        }
+
+        Cgroup(final StreamInput in) throws IOException {
+            cpuAcctControlGroup = in.readString();
+            cpuAcctUsageNanos = in.readLong();
+            cpuControlGroup = in.readString();
+            cpuCfsPeriodMicros = in.readLong();
+            cpuCfsQuotaMicros = in.readLong();
+            cpuStat = new CpuStat(in);
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                memoryControlGroup = in.readOptionalString();
+                memoryLimitInBytes = in.readOptionalString();
+                memoryUsageInBytes = in.readOptionalString();
+            } else {
+                memoryControlGroup = null;
+                memoryLimitInBytes = null;
+                memoryUsageInBytes = null;
+            }
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeShort(sys);
-            out.writeShort(user);
-            out.writeShort(idle);
-            out.writeShort(stolen);
+        public void writeTo(final StreamOutput out) throws IOException {
+            out.writeString(cpuAcctControlGroup);
+            out.writeLong(cpuAcctUsageNanos);
+            out.writeString(cpuControlGroup);
+            out.writeLong(cpuCfsPeriodMicros);
+            out.writeLong(cpuCfsQuotaMicros);
+            cpuStat.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeOptionalString(memoryControlGroup);
+                out.writeOptionalString(memoryLimitInBytes);
+                out.writeOptionalString(memoryUsageInBytes);
+            }
         }
 
-        public short sys() {
-            return sys;
+        @Override
+        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+            builder.startObject("cgroup");
+            {
+                builder.startObject("cpuacct");
+                {
+                    builder.field("control_group", cpuAcctControlGroup);
+                    builder.field("usage_nanos", cpuAcctUsageNanos);
+                }
+                builder.endObject();
+                builder.startObject("cpu");
+                {
+                    builder.field("control_group", cpuControlGroup);
+                    builder.field("cfs_period_micros", cpuCfsPeriodMicros);
+                    builder.field("cfs_quota_micros", cpuCfsQuotaMicros);
+                    cpuStat.toXContent(builder, params);
+                }
+                builder.endObject();
+                if (memoryControlGroup != null) {
+                    builder.startObject("memory");
+                    {
+                        builder.field("control_group", memoryControlGroup);
+                        if (memoryLimitInBytes != null) {
+                            builder.field("limit_in_bytes", memoryLimitInBytes);
+                        }
+                        if (memoryUsageInBytes != null) {
+                            builder.field("usage_in_bytes", memoryUsageInBytes);
+                        }
+                    }
+                    builder.endObject();
+                }
+            }
+            builder.endObject();
+            return builder;
         }
 
-        public short getSys() {
-            return sys();
+        /**
+         * Encapsulates CPU time statistics.
+         */
+        public static class CpuStat implements Writeable, ToXContentFragment {
+
+            private final long numberOfElapsedPeriods;
+            private final long numberOfTimesThrottled;
+            private final long timeThrottledNanos;
+
+            /**
+             * The number of elapsed periods.
+             *
+             * @return the number of elapsed periods as measured by
+             * {@code cpu.cfs_period_us}
+             */
+            public long getNumberOfElapsedPeriods() {
+                return numberOfElapsedPeriods;
+            }
+
+            /**
+             * The number of times tasks in the control group have been
+             * throttled.
+             *
+             * @return the number of times
+             */
+            public long getNumberOfTimesThrottled() {
+                return numberOfTimesThrottled;
+            }
+
+            /**
+             * The total time duration for which tasks in the control
+             * group have been throttled.
+             *
+             * @return the total time in nanoseconds
+             */
+            public long getTimeThrottledNanos() {
+                return timeThrottledNanos;
+            }
+
+            public CpuStat(final long numberOfElapsedPeriods, final long numberOfTimesThrottled, final long timeThrottledNanos) {
+                this.numberOfElapsedPeriods = numberOfElapsedPeriods;
+                this.numberOfTimesThrottled = numberOfTimesThrottled;
+                this.timeThrottledNanos = timeThrottledNanos;
+            }
+
+            CpuStat(final StreamInput in) throws IOException {
+                numberOfElapsedPeriods = in.readLong();
+                numberOfTimesThrottled = in.readLong();
+                timeThrottledNanos = in.readLong();
+            }
+
+            @Override
+            public void writeTo(final StreamOutput out) throws IOException {
+                out.writeLong(numberOfElapsedPeriods);
+                out.writeLong(numberOfTimesThrottled);
+                out.writeLong(timeThrottledNanos);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject("stat");
+                {
+                    builder.field("number_of_elapsed_periods", numberOfElapsedPeriods);
+                    builder.field("number_of_times_throttled", numberOfTimesThrottled);
+                    builder.field("time_throttled_nanos", timeThrottledNanos);
+                }
+                builder.endObject();
+                return builder;
+            }
+
         }
 
-        public short user() {
-            return user;
-        }
-
-        public short getUser() {
-            return user();
-        }
-
-        public short idle() {
-            return idle;
-        }
-
-        public short getIdle() {
-            return idle();
-        }
-
-        public short stolen() {
-            return stolen;
-        }
-
-        public short getStolen() {
-            return stolen();
-        }
     }
+
+    public static short calculatePercentage(long used, long max) {
+        return max <= 0 ? 0 : (short) (Math.round((100d * used) / max));
+    }
+
 }

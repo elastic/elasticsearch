@@ -19,33 +19,37 @@
 
 package org.elasticsearch.bootstrap;
 
-import com.google.common.collect.ImmutableList;
-import com.sun.jna.*;
+import com.sun.jna.IntegerType;
+import com.sun.jna.Native;
+import com.sun.jna.NativeLong;
+import com.sun.jna.Pointer;
+import com.sun.jna.Structure;
+import com.sun.jna.WString;
 import com.sun.jna.win32.StdCallLibrary;
-
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 
 /**
  * Library for Windows/Kernel32
  */
-class JNAKernel32Library {
+final class JNAKernel32Library {
 
-    private static final ESLogger logger = Loggers.getLogger(JNAKernel32Library.class);
+    private static final Logger logger = Loggers.getLogger(JNAKernel32Library.class);
 
     // Callbacks must be kept around in order to be able to be called later,
     // when the Windows ConsoleCtrlHandler sends an event.
     private List<NativeHandlerCallback> callbacks = new ArrayList<>();
 
     // Native library instance must be kept around for the same reason.
-    private final static class Holder {
-        private final static JNAKernel32Library instance = new JNAKernel32Library();
+    private static final class Holder {
+        private static final JNAKernel32Library instance = new JNAKernel32Library();
     }
 
     private JNAKernel32Library() {
@@ -68,7 +72,6 @@ class JNAKernel32Library {
     /**
      * Adds a Console Ctrl Handler.
      *
-     * @param handler
      * @return true if the handler is correctly set
      * @throws java.lang.UnsatisfiedLinkError if the Kernel32 library is not loaded or if the native function is not found
      * @throws java.lang.NoClassDefFoundError if the library for native calls is missing
@@ -85,15 +88,13 @@ class JNAKernel32Library {
         return result;
     }
 
-    ImmutableList<Object> getCallbacks() {
-        return ImmutableList.builder().addAll(callbacks).build();
+    List<Object> getCallbacks() {
+        return Collections.<Object>unmodifiableList(callbacks);
     }
 
     /**
      * Native call to the Kernel32 API to set a new Console Ctrl Handler.
      *
-     * @param handler
-     * @param add
      * @return true if the handler is correctly set
      * @throws java.lang.UnsatisfiedLinkError if the Kernel32 library is not loaded or if the native function is not found
      * @throws java.lang.NoClassDefFoundError if the library for native calls is missing
@@ -102,14 +103,14 @@ class JNAKernel32Library {
 
     /**
      * Handles consoles event with WIN API
-     * <p/>
+     * <p>
      * See http://msdn.microsoft.com/en-us/library/windows/desktop/ms683242%28v=vs.85%29.aspx
      */
     class NativeHandlerCallback implements StdCallLibrary.StdCallCallback {
 
         private final ConsoleCtrlHandler handler;
 
-        public NativeHandlerCallback(ConsoleCtrlHandler handler) {
+        NativeHandlerCallback(ConsoleCtrlHandler handler) {
             this.handler = handler;
         }
 
@@ -148,18 +149,20 @@ class JNAKernel32Library {
         public NativeLong Type;
 
         @Override
-        protected List getFieldOrder() {
-            return Arrays.asList(new String[]{"BaseAddress", "AllocationBase", "AllocationProtect", "RegionSize", "State", "Protect", "Type"});
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("BaseAddress", "AllocationBase", "AllocationProtect", "RegionSize", "State", "Protect", "Type");
         }
     }
 
     public static class SizeT extends IntegerType {
 
+        // JNA requires this no-arg constructor to be public,
+        // otherwise it fails to register kernel32 library
         public SizeT() {
             this(0);
         }
 
-        public SizeT(long value) {
+        SizeT(long value) {
             super(Native.SIZE_T_SIZE, value);
         }
 
@@ -220,4 +223,97 @@ class JNAKernel32Library {
      * @return true if the function succeeds.
      */
     native boolean CloseHandle(Pointer handle);
+
+    /**
+     * Retrieves the short path form of the specified path. See
+     * <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa364989.aspx">{@code GetShortPathName}</a>.
+     *
+     * @param lpszLongPath  the path string
+     * @param lpszShortPath a buffer to receive the short name
+     * @param cchBuffer     the size of the buffer
+     * @return the length of the string copied into {@code lpszShortPath}, otherwise zero for failure
+     */
+    native int GetShortPathNameW(WString lpszLongPath, char[] lpszShortPath, int cchBuffer);
+
+    /**
+     * Creates or opens a new job object
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms682409%28v=vs.85%29.aspx
+     *
+     * @param jobAttributes security attributes
+     * @param name job name
+     * @return job handle if the function succeeds
+     */
+    native Pointer CreateJobObjectW(Pointer jobAttributes, String name);
+
+    /**
+     * Associates a process with an existing job
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms681949%28v=vs.85%29.aspx
+     *
+     * @param job job handle
+     * @param process process handle
+     * @return true if the function succeeds
+     */
+    native boolean AssignProcessToJobObject(Pointer job, Pointer process);
+
+    /**
+     * Basic limit information for a job object
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147%28v=vs.85%29.aspx
+     */
+    public static class JOBOBJECT_BASIC_LIMIT_INFORMATION extends Structure implements Structure.ByReference {
+      public long PerProcessUserTimeLimit;
+      public long PerJobUserTimeLimit;
+      public int LimitFlags;
+      public SizeT MinimumWorkingSetSize;
+      public SizeT MaximumWorkingSetSize;
+      public int ActiveProcessLimit;
+      public Pointer Affinity;
+      public int PriorityClass;
+      public int SchedulingClass;
+
+      @Override
+      protected List<String> getFieldOrder() {
+          return Arrays.asList("PerProcessUserTimeLimit", "PerJobUserTimeLimit", "LimitFlags", "MinimumWorkingSetSize",
+              "MaximumWorkingSetSize", "ActiveProcessLimit", "Affinity", "PriorityClass", "SchedulingClass");
+      }
+    }
+
+    /**
+     * Constant for JOBOBJECT_BASIC_LIMIT_INFORMATION in Query/Set InformationJobObject
+     */
+    static final int JOBOBJECT_BASIC_LIMIT_INFORMATION_CLASS = 2;
+
+    /**
+     * Constant for LimitFlags, indicating a process limit has been set
+     */
+    static final int JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 8;
+
+    /**
+     * Get job limit and state information
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684925%28v=vs.85%29.aspx
+     *
+     * @param job job handle
+     * @param infoClass information class constant
+     * @param info pointer to information structure
+     * @param infoLength size of information structure
+     * @param returnLength length of data written back to structure (or null if not wanted)
+     * @return true if the function succeeds
+     */
+    native boolean QueryInformationJobObject(Pointer job, int infoClass, Pointer info, int infoLength, Pointer returnLength);
+
+    /**
+     * Set job limit and state information
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms686216%28v=vs.85%29.aspx
+     *
+     * @param job job handle
+     * @param infoClass information class constant
+     * @param info pointer to information structure
+     * @param infoLength size of information structure
+     * @return true if the function succeeds
+     */
+    native boolean SetInformationJobObject(Pointer job, int infoClass, Pointer info, int infoLength);
 }

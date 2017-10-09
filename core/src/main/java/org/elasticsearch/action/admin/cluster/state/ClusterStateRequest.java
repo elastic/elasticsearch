@@ -29,19 +29,40 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateRequest> implements IndicesRequest.Replaceable {
 
     private boolean routingTable = true;
     private boolean nodes = true;
     private boolean metaData = true;
     private boolean blocks = true;
+    private boolean customs = true;
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
     public ClusterStateRequest() {
+    }
+
+    public ClusterStateRequest(StreamInput in) throws IOException {
+        super(in);
+        routingTable = in.readBoolean();
+        nodes = in.readBoolean();
+        metaData = in.readBoolean();
+        blocks = in.readBoolean();
+        customs = in.readBoolean();
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeBoolean(routingTable);
+        out.writeBoolean(nodes);
+        out.writeBoolean(metaData);
+        out.writeBoolean(blocks);
+        out.writeBoolean(customs);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override
@@ -54,6 +75,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         nodes = true;
         metaData = true;
         blocks = true;
+        customs = true;
         indices = Strings.EMPTY_ARRAY;
         return this;
     }
@@ -63,6 +85,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         nodes = false;
         metaData = false;
         blocks = false;
+        customs = false;
         indices = Strings.EMPTY_ARRAY;
         return this;
     }
@@ -124,25 +147,17 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         return this;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        routingTable = in.readBoolean();
-        nodes = in.readBoolean();
-        metaData = in.readBoolean();
-        blocks = in.readBoolean();
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
+    public ClusterStateRequest customs(boolean customs) {
+        this.customs = customs;
+        return this;
+    }
+
+    public boolean customs() {
+        return customs;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(routingTable);
-        out.writeBoolean(nodes);
-        out.writeBoolean(metaData);
-        out.writeBoolean(blocks);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
+    public void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

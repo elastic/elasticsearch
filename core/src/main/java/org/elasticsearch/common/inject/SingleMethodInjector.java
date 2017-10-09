@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,7 +34,7 @@ class SingleMethodInjector implements SingleMemberInjector {
     final SingleParameterInjector<?>[] parameterInjectors;
     final InjectionPoint injectionPoint;
 
-    public SingleMethodInjector(InjectorImpl injector, InjectionPoint injectionPoint, Errors errors)
+    SingleMethodInjector(InjectorImpl injector, InjectionPoint injectionPoint, Errors errors)
             throws ErrorsException {
         this.injectionPoint = injectionPoint;
         final Method method = (Method) injectionPoint.getMember();
@@ -47,10 +47,6 @@ class SingleMethodInjector implements SingleMemberInjector {
         // We can't use FastMethod if the method is private.
         int modifiers = method.getModifiers();
         if (!Modifier.isPrivate(modifiers) && !Modifier.isProtected(modifiers)) {
-        }
-
-        if (!Modifier.isPublic(modifiers)) {
-            method.setAccessible(true);
         }
 
         return new MethodInvoker() {

@@ -2,15 +2,17 @@
 == Clear Cache
 
 The clear cache API allows to clear either all caches or specific cached
-associated with one ore more indices.
+associated with one or more indices.
 
 [source,js]
 --------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/twitter/_cache/clear'
+POST /twitter/_cache/clear
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 The API, by default, will clear all caches. Specific caches can be cleaned
-explicitly by setting `filter`, `fielddata` or `query_cache`.
+explicitly by setting `query`, `fielddata` or `request`.
 
 All caches relating to a specific field(s) can also be cleared by
 specifying `fields` parameter with a comma delimited list of the
@@ -24,10 +26,9 @@ call, or even on `_all` the indices.
 
 [source,js]
 --------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/kimchy,elasticsearch/_cache/clear'
+POST /kimchy,elasticsearch/_cache/clear
 
-$ curl -XPOST 'http://localhost:9200/_cache/clear'
+POST /_cache/clear
 --------------------------------------------------
-
-NOTE: The `filter` cache is not cleared immediately but is scheduled to be
-cleared within 60 seconds.
+// CONSOLE
+// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]

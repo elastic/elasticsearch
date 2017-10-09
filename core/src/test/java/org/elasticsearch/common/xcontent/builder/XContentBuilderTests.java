@@ -19,30 +19,40 @@
 
 package org.elasticsearch.common.xcontent.builder;
 
-import com.google.common.collect.Lists;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.FastCharArrayWriter;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.*;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.TimeZone;
 
-import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.CAMELCASE;
-import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.UNDERSCORE;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
-public class XContentBuilderTests extends ElasticsearchTestCase {
-
-    @Test
+public class XContentBuilderTests extends ESTestCase {
     public void testPrettyWithLfAtEnd() throws Exception {
-        FastCharArrayWriter writer = new FastCharArrayWriter();
-        XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(writer);
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(os);
         generator.usePrettyPrint();
         generator.usePrintLineFeedAtEnd();
 
@@ -55,38 +65,37 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
         // double close, and check there is no error...
         generator.close();
 
-        assertThat(writer.unsafeCharArray()[writer.size() - 1], equalTo('\n'));
+        byte[] bytes = os.toByteArray();
+        assertThat((char) bytes[bytes.length - 1], equalTo('\n'));
     }
 
-    @Test
-    public void verifyReuseJsonGenerator() throws Exception {
-        FastCharArrayWriter writer = new FastCharArrayWriter();
-        XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(writer);
+    public void testReuseJsonGenerator() throws Exception {
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(os);
         generator.writeStartObject();
         generator.writeStringField("test", "value");
         generator.writeEndObject();
         generator.flush();
 
-        assertThat(writer.toStringTrim(), equalTo("{\"test\":\"value\"}"));
+        assertThat(new BytesRef(os.toByteArray()), equalTo(new BytesRef("{\"test\":\"value\"}")));
 
         // try again...
-        writer.reset();
+        os.reset();
         generator.writeStartObject();
         generator.writeStringField("test", "value");
         generator.writeEndObject();
         generator.flush();
         // we get a space at the start here since it thinks we are not in the root object (fine, we will ignore it in the real code we use)
-        assertThat(writer.toStringTrim(), equalTo("{\"test\":\"value\"}"));
+        assertThat(new BytesRef(os.toByteArray()), equalTo(new BytesRef(" {\"test\":\"value\"}")));
     }
 
-    @Test
     public void testRaw() throws IOException {
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
             xContentBuilder.startObject();
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}"));
             xContentBuilder.endObject();
-            assertThat(xContentBuilder.bytes().toUtf8(), equalTo("{\"foo\":{\"test\":\"value\"}}"));
+            assertThat(xContentBuilder.bytes().utf8ToString(), equalTo("{\"foo\":{\"test\":\"value\"}}"));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -94,7 +103,7 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}"));
             xContentBuilder.rawField("foo1", new BytesArray("{\"test\":\"value\"}"));
             xContentBuilder.endObject();
-            assertThat(xContentBuilder.bytes().toUtf8(), equalTo("{\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"}}"));
+            assertThat(xContentBuilder.bytes().utf8ToString(), equalTo("{\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"}}"));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -102,7 +111,7 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
             xContentBuilder.field("test", "value");
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}"));
             xContentBuilder.endObject();
-            assertThat(xContentBuilder.bytes().toUtf8(), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"}}"));
+            assertThat(xContentBuilder.bytes().utf8ToString(), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"}}"));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -111,7 +120,7 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}"));
             xContentBuilder.field("test1", "value1");
             xContentBuilder.endObject();
-            assertThat(xContentBuilder.bytes().toUtf8(), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"test1\":\"value1\"}"));
+            assertThat(xContentBuilder.bytes().utf8ToString(), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"test1\":\"value1\"}"));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -121,11 +130,10 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
             xContentBuilder.rawField("foo1", new BytesArray("{\"test\":\"value\"}"));
             xContentBuilder.field("test1", "value1");
             xContentBuilder.endObject();
-            assertThat(xContentBuilder.bytes().toUtf8(), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"},\"test1\":\"value1\"}"));
+            assertThat(xContentBuilder.bytes().utf8ToString(), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"},\"test1\":\"value1\"}"));
         }
     }
 
-    @Test
     public void testSimpleGenerator() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("test", "value").endObject();
@@ -136,14 +144,12 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
         assertThat(builder.string(), equalTo("{\"test\":\"value\"}"));
     }
 
-    @Test
     public void testOverloadedList() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject().field("test", Lists.newArrayList("1", "2")).endObject();
+        builder.startObject().field("test", Arrays.asList("1", "2")).endObject();
         assertThat(builder.string(), equalTo("{\"test\":[\"1\",\"2\"]}"));
     }
 
-    @Test
     public void testWritingBinaryToStream() throws Exception {
         BytesStreamOutput bos = new BytesStreamOutput();
 
@@ -156,35 +162,21 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
         gen.writeEndObject();
         gen.close();
 
-        byte[] data = bos.bytes().toBytes();
-        String sData = new String(data, "UTF8");
-        System.out.println("DATA: " + sData);
+        String sData = bos.bytes().utf8ToString();
+        assertThat(sData, equalTo("{\"name\":\"something\", source : { test : \"value\" },\"name2\":\"something2\"}"));
     }
 
-    @Test
-    public void testFieldCaseConversion() throws Exception {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).fieldCaseConversion(CAMELCASE);
-        builder.startObject().field("test_name", "value").endObject();
-        assertThat(builder.string(), equalTo("{\"testName\":\"value\"}"));
-
-        builder = XContentFactory.contentBuilder(XContentType.JSON).fieldCaseConversion(UNDERSCORE);
-        builder.startObject().field("testName", "value").endObject();
-        assertThat(builder.string(), equalTo("{\"test_name\":\"value\"}"));
-    }
-
-    @Test
     public void testByteConversion() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("test_name", (Byte)(byte)120).endObject();
-        assertThat(builder.bytes().toUtf8(), equalTo("{\"test_name\":120}"));
+        assertThat(builder.bytes().utf8ToString(), equalTo("{\"test_name\":120}"));
     }
 
-    @Test
     public void testDateTypesConversion() throws Exception {
         Date date = new Date();
-        String expectedDate = XContentBuilder.defaultDatePrinter.print(date.getTime());
+        String expectedDate = XContentBuilder.DEFAULT_DATE_PRINTER.print(date.getTime());
         Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-        String expectedCalendar = XContentBuilder.defaultDatePrinter.print(calendar.getTimeInMillis());
+        String expectedCalendar = XContentBuilder.DEFAULT_DATE_PRINTER.print(calendar.getTimeInMillis());
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("date", date).endObject();
         assertThat(builder.string(), equalTo("{\"date\":\"" + expectedDate + "\"}"));
@@ -206,7 +198,6 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
         assertThat(builder.string(), equalTo("{\"calendar\":\"" + expectedCalendar + "\"}"));
     }
 
-    @Test
     public void testCopyCurrentStructure() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject()
@@ -223,7 +214,7 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
 
         builder.field("fakefield", terms).endObject().endObject().endObject();
 
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
 
         XContentBuilder filterBuilder = null;
         XContentParser.Token token;
@@ -245,7 +236,7 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
         }
 
         assertNotNull(filterBuilder);
-        parser = XContentFactory.xContent(XContentType.JSON).createParser(filterBuilder.bytes());
+        parser = createParser(JsonXContent.jsonXContent, filterBuilder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
         assertThat(parser.currentName(), equalTo("terms"));
@@ -259,5 +250,142 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
         }
 
         assertThat(i, equalTo(terms.size()));
+    }
+
+    public void testHandlingOfPath() throws IOException {
+        Path path = PathUtils.get("path");
+        checkPathSerialization(path);
+    }
+
+    public void testHandlingOfPath_relative() throws IOException {
+        Path path = PathUtils.get("..", "..", "path");
+        checkPathSerialization(path);
+    }
+
+    public void testHandlingOfPath_absolute() throws IOException {
+        Path path = createTempDir().toAbsolutePath();
+        checkPathSerialization(path);
+    }
+
+    private void checkPathSerialization(Path path) throws IOException {
+        XContentBuilder pathBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        pathBuilder.startObject().field("file", path).endObject();
+
+        XContentBuilder stringBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        stringBuilder.startObject().field("file", path.toString()).endObject();
+
+        assertThat(pathBuilder.string(), equalTo(stringBuilder.string()));
+    }
+
+    public void testHandlingOfPath_StringName() throws IOException {
+        Path path = PathUtils.get("path");
+        String name = new String("file");
+
+        XContentBuilder pathBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        pathBuilder.startObject().field(name, path).endObject();
+
+        XContentBuilder stringBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        stringBuilder.startObject().field(name, path.toString()).endObject();
+
+        assertThat(pathBuilder.string(), equalTo(stringBuilder.string()));
+    }
+
+    public void testHandlingOfCollectionOfPaths() throws IOException {
+        Path path = PathUtils.get("path");
+
+        XContentBuilder pathBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        pathBuilder.startObject().field("file", Arrays.asList(path)).endObject();
+
+        XContentBuilder stringBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        stringBuilder.startObject().field("file", Arrays.asList(path.toString())).endObject();
+
+        assertThat(pathBuilder.string(), equalTo(stringBuilder.string()));
+    }
+
+    public void testIndentIsPlatformIndependent() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+        builder.startObject().field("test","foo").startObject("foo").field("foobar", "boom").endObject().endObject();
+        String string = builder.string();
+        assertEquals("{\n" +
+                "  \"test\" : \"foo\",\n" +
+                "  \"foo\" : {\n" +
+                "    \"foobar\" : \"boom\"\n" +
+                "  }\n" +
+                "}", string);
+
+        builder = XContentFactory.contentBuilder(XContentType.YAML).prettyPrint();
+        builder.startObject().field("test","foo").startObject("foo").field("foobar", "boom").endObject().endObject();
+        string = builder.string();
+        assertEquals("---\n" +
+                "test: \"foo\"\n" +
+                "foo:\n" +
+                "  foobar: \"boom\"\n", string);
+    }
+
+    public void testRenderGeoPoint() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+        builder.startObject().field("foo").value(new GeoPoint(1,2)).endObject();
+        String string = builder.string();
+        assertEquals("{\n" +
+                "  \"foo\" : {\n" +
+                "    \"lat\" : 1.0,\n" +
+                "    \"lon\" : 2.0\n" +
+                "  }\n" +
+                "}", string.trim());
+    }
+
+    public void testWriteMapWithNullKeys() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        try {
+            builder.map(Collections.singletonMap(null, "test"));
+            fail("write map should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Field name cannot be null"));
+        }
+    }
+
+    public void testWriteMapValueWithNullKeys() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        try {
+            builder.map(Collections.singletonMap(null, "test"));
+            fail("write map should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Field name cannot be null"));
+        }
+    }
+
+    public void testWriteFieldMapWithNullKeys() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        try {
+            builder.startObject();
+            builder.field("map", Collections.singletonMap(null, "test"));
+            fail("write map should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Field name cannot be null"));
+        }
+    }
+
+    public void testMissingEndObject() throws IOException {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
+                builder.startObject();
+                builder.field("foo", true);
+            }
+        });
+        assertThat(e.getMessage(), equalTo("Failed to close the XContentBuilder"));
+        assertThat(e.getCause().getMessage(), equalTo("Unclosed object or array found"));
+    }
+
+    public void testMissingEndArray() throws IOException {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
+                builder.startObject();
+                builder.startArray("foo");
+                builder.value(0);
+                builder.value(1);
+            }
+        });
+        assertThat(e.getMessage(), equalTo("Failed to close the XContentBuilder"));
+        assertThat(e.getCause().getMessage(), equalTo("Unclosed object or array found"));
     }
 }

@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.cluster.node.hotthreads;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class NodesHotThreadsAction extends Action<NodesHotThreadsRequest, NodesHotThreadsResponse, NodesHotThreadsRequestBuilder> {
 
     public static final NodesHotThreadsAction INSTANCE = new NodesHotThreadsAction();

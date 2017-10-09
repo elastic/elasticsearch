@@ -1,0 +1,28 @@
+[[java-admin-indices-create-index]]
+==== Create Index
+
+Using an <<java-admin-indices,`IndicesAdminClient`>>, you can create an index with all default settings and no mapping:
+
+[source,java]
+--------------------------------------------------
+client.admin().indices().prepareCreate("twitter").get();
+--------------------------------------------------
+
+[float]
+[[java-admin-indices-create-index-settings]]
+===== Index Settings
+
+Each index created can have specific settings associated with it.
+
+[source,java]
+--------------------------------------------------
+client.admin().indices().prepareCreate("twitter")
+        .setSettings(Settings.builder()             <1>
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 2)
+        )
+        .get();                                     <2>
+--------------------------------------------------
+<1> Settings for this index
+<2> Execute the action and wait for the result
+

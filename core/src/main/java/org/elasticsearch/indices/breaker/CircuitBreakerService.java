@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
  * Interface for Circuit Breaker services, which provide breakers to classes
  * that load field data.
  */
-public abstract class CircuitBreakerService extends AbstractLifecycleComponent<CircuitBreakerService> {
+public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
 
     protected CircuitBreakerService(Settings settings) {
         super(settings);
@@ -35,8 +35,6 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent<C
 
     /**
      * Allows to register of a custom circuit breaker.
-     *
-     * @param breakerSettings
      */
     public abstract void registerBreaker(BreakerSettings breakerSettings);
 
@@ -66,4 +64,5 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent<C
     @Override
     protected void doClose() {
     }
+
 }

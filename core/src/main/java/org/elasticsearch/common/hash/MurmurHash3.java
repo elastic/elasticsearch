@@ -32,7 +32,10 @@ public enum MurmurHash3 {
      * A 128-bits hash.
      */
     public static class Hash128 {
-        public long h1, h2;
+        /** lower 64 bits part **/
+        public long h1;
+        /** higher 64 bits part **/
+        public long h2;
     }
 
     private static long C1 = 0x87c37b91114253d5L;
@@ -59,6 +62,7 @@ public enum MurmurHash3 {
      * Note, this hashing function might be used to persist hashes, so if the way hashes are computed
      * changes for some reason, it needs to be addressed (like in BloomFilter and MurmurHashField).
      */
+    @SuppressWarnings("fallthrough") // Intentionally uses fallthrough to implement a well known hashing algorithm
     public static Hash128 hash128(byte[] key, int offset, int length, long seed, Hash128 hash) {
         long h1 = seed;
         long h2 = seed;

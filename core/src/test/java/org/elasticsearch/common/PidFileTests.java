@@ -19,33 +19,36 @@
 
 package org.elasticsearch.common;
 
-import com.google.common.base.Charsets;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
+import static org.hamcrest.Matchers.containsString;
+
 /**
  * UnitTest for {@link org.elasticsearch.common.PidFile}
  */
-public class PidFileTests extends ElasticsearchTestCase {
-
-    @Test(expected = IllegalArgumentException.class)
+public class PidFileTests extends ESTestCase {
     public void testParentIsFile() throws IOException {
         Path dir = createTempDir();
         Path parent = dir.resolve("foo");
-        try(BufferedWriter stream = Files.newBufferedWriter(parent, Charsets.UTF_8, StandardOpenOption.CREATE_NEW)) {
+        try(BufferedWriter stream = Files.newBufferedWriter(parent, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW)) {
             stream.write("foo");
         }
 
-        PidFile.create(parent.resolve("bar.pid"), false);
+        try {
+            PidFile.create(parent.resolve("bar.pid"), false);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("exists but is not a directory"));
+        }
     }
 
-    @Test
     public void testPidFile() throws IOException {
         Path dir = createTempDir();
         Path parent = dir.resolve("foo");
@@ -65,7 +68,7 @@ public class PidFileTests extends ElasticsearchTestCase {
         Path pidFile = parent.resolve("foo.pid");
         long pid = randomLong();
         if (randomBoolean() && Files.exists(parent)) {
-            try (BufferedWriter stream = Files.newBufferedWriter(pidFile, Charsets.UTF_8, StandardOpenOption.CREATE_NEW)) {
+            try (BufferedWriter stream = Files.newBufferedWriter(pidFile, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW)) {
                 stream.write("foo");
             }
         }
@@ -75,6 +78,6 @@ public class PidFileTests extends ElasticsearchTestCase {
         assertEquals(pid, inst.getPid());
         assertFalse(inst.isDeleteOnExit());
         assertTrue(Files.exists(pidFile));
-        assertEquals(pid, Long.parseLong(new String(Files.readAllBytes(pidFile), Charsets.UTF_8)));
+        assertEquals(pid, Long.parseLong(new String(Files.readAllBytes(pidFile), StandardCharsets.UTF_8)));
     }
 }

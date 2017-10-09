@@ -1,0 +1,10 @@
+[[java-query-dsl-type-query]]
+==== Type Query
+
+See {ref}/query-dsl-type-query.html[Type Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[type]
+--------------------------------------------------
+<1> type

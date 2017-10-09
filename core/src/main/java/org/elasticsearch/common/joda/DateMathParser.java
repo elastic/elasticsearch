@@ -24,13 +24,12 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.format.DateTimeFormatter;
 
-import java.util.concurrent.Callable;
-
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.Objects;
+import java.util.function.LongSupplier;
 
 /**
  * A parser for date/time formatted text with optional date math.
- * 
+ *
  * The format of the datetime is configurable, and unix timestamps can also be used. Datemath
  * is appended to a datetime with the following syntax:
  * <code>||[+-/](\d+)?[yMwdhHms]</code>.
@@ -40,37 +39,34 @@ public class DateMathParser {
     private final FormatDateTimeFormatter dateTimeFormatter;
 
     public DateMathParser(FormatDateTimeFormatter dateTimeFormatter) {
-        checkNotNull(dateTimeFormatter);
+        Objects.requireNonNull(dateTimeFormatter);
         this.dateTimeFormatter = dateTimeFormatter;
     }
 
-    public long parse(String text, Callable<Long> now) {
+    public long parse(String text, LongSupplier now) {
         return parse(text, now, false, null);
     }
 
     // Note: we take a callable here for the timestamp in order to be able to figure out
-    // if it has been used. For instance, the query cache does not cache queries that make
+    // if it has been used. For instance, the request cache does not cache requests that make
     // use of `now`.
-    public long parse(String text, Callable<Long> now, boolean roundUp, DateTimeZone timeZone) {
+    public long parse(String text, LongSupplier now, boolean roundUp, DateTimeZone timeZone) {
         long time;
         String mathString;
         if (text.startsWith("now")) {
             try {
-                time = now.call();
+                time = now.getAsLong();
             } catch (Exception e) {
-                throw new ElasticsearchParseException("Could not read the current timestamp", e);
+                throw new ElasticsearchParseException("could not read the current timestamp", e);
             }
             mathString = text.substring("now".length());
         } else {
             int index = text.indexOf("||");
             if (index == -1) {
-                return parseDateTime(text, timeZone);
+                return parseDateTime(text, timeZone, roundUp);
             }
-            time = parseDateTime(text.substring(0, index), timeZone);
+            time = parseDateTime(text.substring(0, index), timeZone, false);
             mathString = text.substring(index + 2);
-            if (mathString.isEmpty()) {
-                return time;
-            }
         }
 
         return parseMath(mathString, time, roundUp, timeZone);
@@ -95,12 +91,12 @@ public class DateMathParser {
                 } else if (c == '-') {
                     sign = -1;
                 } else {
-                    throw new ElasticsearchParseException("operator not supported for date math [" + mathString + "]");
+                    throw new ElasticsearchParseException("operator not supported for date math [{}]", mathString);
                 }
             }
-                
+
             if (i >= mathString.length()) {
-                throw new ElasticsearchParseException("truncated date math [" + mathString + "]");
+                throw new ElasticsearchParseException("truncated date math [{}]", mathString);
             }
 
             final int num;
@@ -112,13 +108,13 @@ public class DateMathParser {
                     i++;
                 }
                 if (i >= mathString.length()) {
-                    throw new ElasticsearchParseException("truncated date math [" + mathString + "]");
+                    throw new ElasticsearchParseException("truncated date math [{}]", mathString);
                 }
                 num = Integer.parseInt(mathString.substring(numFrom, i));
             }
             if (round) {
                 if (num != 1) {
-                    throw new ElasticsearchParseException("rounding `/` can only be used on single unit types [" + mathString + "]");
+                    throw new ElasticsearchParseException("rounding `/` can only be used on single unit types [{}]", mathString);
                 }
             }
             char unit = mathString.charAt(i++);
@@ -175,7 +171,7 @@ public class DateMathParser {
                     }
                     break;
                 default:
-                    throw new ElasticsearchParseException("unit [" + unit + "] not supported for date math [" + mathString + "]");
+                    throw new ElasticsearchParseException("unit [{}] not supported for date math [{}]", unit, mathString);
             }
             if (propertyToRound != null) {
                 if (roundUp) {
@@ -191,16 +187,30 @@ public class DateMathParser {
         return dateTime.getMillis();
     }
 
-    private long parseDateTime(String value, DateTimeZone timeZone) {
+    private long parseDateTime(String value, DateTimeZone timeZone, boolean roundUpIfNoTime) {
         DateTimeFormatter parser = dateTimeFormatter.parser();
         if (timeZone != null) {
             parser = parser.withZone(timeZone);
         }
         try {
-            return parser.parseMillis(value);
+            MutableDateTime date;
+            // We use 01/01/1970 as a base date so that things keep working with date
+            // fields that are filled with times without dates
+            if (roundUpIfNoTime) {
+                date = new MutableDateTime(1970, 1, 1, 23, 59, 59, 999, DateTimeZone.UTC);
+            } else {
+                date = new MutableDateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC);
+            }
+            final int end = parser.parseInto(date, value, 0);
+            if (end < 0) {
+                int position = ~end;
+                throw new IllegalArgumentException("Parse failure at index [" + position + "] of [" + value + "]");
+            } else if (end != value.length()) {
+                throw new IllegalArgumentException("Unrecognized chars at the end of [" + value + "]: [" + value.substring(end) + "]");
+            }
+            return date.getMillis();
         } catch (IllegalArgumentException e) {
-            
-            throw new ElasticsearchParseException("failed to parse date field [" + value + "] with format [" + dateTimeFormatter.format() + "]", e);
+            throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]", e, value, dateTimeFormatter.format());
         }
     }
 

@@ -1,0 +1,19 @@
+---
+"Custom normalizer with illegal filter in request":
+    # Tests analyze api with normalizer. This is in the analysis-common module
+    # because there are no filters that support multiTermAware
+    - skip:
+        version: " - 5.99.99"
+        reason:  normalizer support in 6.0.0
+    - do:
+        catch: bad_request
+        indices.analyze:
+          body:
+            text: ABc
+            explain: true
+            filter: [word_delimiter]
+
+    - match: { status: 400 }
+    - match: { error.type: illegal_argument_exception }
+    - match: { error.reason: "Custom normalizer may not use filter [word_delimiter]" }
+

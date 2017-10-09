@@ -24,9 +24,6 @@ import org.elasticsearch.common.blobstore.BlobStore;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class BlobStoreWrapper implements BlobStore {
 
     private BlobStore delegate;
@@ -46,7 +43,7 @@ public class BlobStoreWrapper implements BlobStore {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         delegate.close();
     }
 

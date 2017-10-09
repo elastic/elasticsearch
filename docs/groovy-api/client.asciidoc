@@ -13,7 +13,7 @@ within the cluster.
 A Node based client is the simplest form to get a `GClient` to start
 executing operations against elasticsearch.
 
-[source,js]
+[source,groovy]
 --------------------------------------------------
 import org.elasticsearch.groovy.client.GClient
 import org.elasticsearch.groovy.node.GNode
@@ -33,7 +33,7 @@ Since elasticsearch allows to configure it using JSON based settings,
 the configuration itself can be done using a closure that represent the
 JSON:
 
-[source,js]
+[source,groovy]
 --------------------------------------------------
 import org.elasticsearch.groovy.node.GNode
 import org.elasticsearch.groovy.node.GNodeBuilder

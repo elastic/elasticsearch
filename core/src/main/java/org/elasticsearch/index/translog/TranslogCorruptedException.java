@@ -20,6 +20,9 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 public class TranslogCorruptedException extends ElasticsearchException {
     public TranslogCorruptedException(String msg) {
@@ -28,5 +31,9 @@ public class TranslogCorruptedException extends ElasticsearchException {
 
     public TranslogCorruptedException(String msg, Throwable cause) {
         super(msg, cause);
+    }
+
+    public TranslogCorruptedException(StreamInput in) throws IOException{
+        super(in);
     }
 }

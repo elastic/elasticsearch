@@ -45,7 +45,7 @@ public final class LongHash extends AbstractHash {
     }
 
     /**
-     * Return the key at <code>0 &lte; index &lte; capacity()</code>. The result is undefined if the slot is unused.
+     * Return the key at <code>0 &lt;= index &lt;= capacity()</code>. The result is undefined if the slot is unused.
      */
     public long get(long id) {
         return keys.get(id);
@@ -98,7 +98,7 @@ public final class LongHash extends AbstractHash {
     }
 
     /**
-     * Try to add <code>key</code>. Return its newly allocated id if it wasn't in the hash table yet, or </code>-1-id</code>
+     * Try to add <code>key</code>. Return its newly allocated id if it wasn't in the hash table yet, or <code>-1-id</code>
      * if it was already present in the hash table.
      */
     public long add(long key) {

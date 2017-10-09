@@ -18,56 +18,96 @@
  */
 package org.elasticsearch.common.unit;
 
-import com.google.common.base.Preconditions;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.util.automaton.LevenshteinAutomata;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Locale;
+import java.util.Objects;
 
 /**
  * A unit class that encapsulates all in-exact search
  * parsing and conversion from similarities to edit distances
  * etc.
  */
-public final class Fuzziness implements ToXContent {
+public final class Fuzziness implements ToXContentFragment, Writeable {
 
-    public static final XContentBuilderString X_FIELD_NAME = new XContentBuilderString("fuzziness");
+    public static final String X_FIELD_NAME = "fuzziness";
     public static final Fuzziness ZERO = new Fuzziness(0);
     public static final Fuzziness ONE = new Fuzziness(1);
     public static final Fuzziness TWO = new Fuzziness(2);
     public static final Fuzziness AUTO = new Fuzziness("AUTO");
-    public static final ParseField FIELD = new ParseField(X_FIELD_NAME.camelCase().getValue());
+    public static final ParseField FIELD = new ParseField(X_FIELD_NAME);
+    private static final int DEFAULT_LOW_DISTANCE = 3;
+    private static final int DEFAULT_HIGH_DISTANCE = 6;
 
-    private final Object fuzziness;
+    private final String fuzziness;
+    private int lowDistance = DEFAULT_LOW_DISTANCE;
+    private int highDistance = DEFAULT_HIGH_DISTANCE;
 
     private Fuzziness(int fuzziness) {
-        Preconditions.checkArgument(fuzziness >= 0 && fuzziness <= 2, "Valid edit distances are [0, 1, 2] but was [" + fuzziness + "]");
-        this.fuzziness = fuzziness;
-    }
-
-    private Fuzziness(float fuzziness) {
-        Preconditions.checkArgument(fuzziness >= 0.0 && fuzziness < 1.0f, "Valid similarities must be in the interval [0..1] but was [" + fuzziness + "]");
-        this.fuzziness = fuzziness;
+        if (fuzziness != 0 && fuzziness != 1 && fuzziness != 2) {
+            throw new IllegalArgumentException("Valid edit distances are [0, 1, 2] but was [" + fuzziness + "]");
+        }
+        this.fuzziness = Integer.toString(fuzziness);
     }
 
     private Fuzziness(String fuzziness) {
-        this.fuzziness = fuzziness;
+        if (fuzziness == null || fuzziness.isEmpty()) {
+            throw new IllegalArgumentException("fuzziness can't be null!");
+        }
+        this.fuzziness = fuzziness.toUpperCase(Locale.ROOT);
+    }
+
+    private Fuzziness(String fuzziness, int lowDistance, int highDistance) {
+        this(fuzziness);
+        if (lowDistance < 0 || highDistance < 0 || lowDistance > highDistance) {
+            throw new IllegalArgumentException("fuzziness wrongly configured, must be: lowDistance > 0, highDistance" +
+                " > 0 and lowDistance <= highDistance ");
+        }
+        this.lowDistance = lowDistance;
+        this.highDistance = highDistance;
     }
 
     /**
-     * Creates a {@link Fuzziness} instance from a similarity. The value must be in the range <tt>[0..1)</tt>
+     * Read from a stream.
      */
-    public static Fuzziness fromSimilarity(float similarity) {
-        return new Fuzziness(similarity);
+    public Fuzziness(StreamInput in) throws IOException {
+        fuzziness = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.readBoolean()) {
+            lowDistance = in.readVInt();
+            highDistance = in.readVInt();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(fuzziness);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            // we cannot serialize the low/high bounds since the other node does not know about them.
+            // This is a best-effort to not fail queries in case the cluster is being upgraded and users
+            // start using features that are not available on all nodes.
+            if (isAutoWithCustomValues()) {
+                out.writeBoolean(true);
+                out.writeVInt(lowDistance);
+                out.writeVInt(highDistance);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     /**
      * Creates a {@link Fuzziness} instance from an edit distance. The value must be one of <tt>[0, 1, 2]</tt>
+     *
+     * Note: Using this method only makes sense if the field you are applying Fuzziness to is some sort of string.
      */
     public static Fuzziness fromEdits(int edits) {
         return new Fuzziness(edits);
@@ -80,8 +120,27 @@ public final class Fuzziness implements ToXContent {
         String string = fuzziness.toString();
         if (AUTO.asString().equalsIgnoreCase(string)) {
             return AUTO;
+        } else if (string.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":")) {
+            return parseCustomAuto(string);
         }
         return new Fuzziness(string);
+    }
+
+    private static Fuzziness parseCustomAuto( final String string) {
+        assert string.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":");
+        String[] fuzzinessLimit = string.substring(AUTO.asString().length() + 1).split(",");
+        if (fuzzinessLimit.length == 2) {
+            try {
+                int lowerLimit = Integer.parseInt(fuzzinessLimit[0]);
+                int highLimit = Integer.parseInt(fuzzinessLimit[1]);
+                return new Fuzziness("AUTO", lowerLimit, highLimit);
+            } catch (NumberFormatException e) {
+                throw new ElasticsearchParseException("failed to parse [{}] as a \"auto:int,int\"", e,
+                    string);
+            }
+        } else {
+            throw new ElasticsearchParseException("failed to find low and high distance values");
+        }
     }
 
     public static Fuzziness parse(XContentParser parser) throws IOException {
@@ -92,6 +151,8 @@ public final class Fuzziness implements ToXContent {
                 final String fuzziness = parser.text();
                 if (AUTO.asString().equalsIgnoreCase(fuzziness)) {
                     return AUTO;
+                } else if (fuzziness.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":")) {
+                    return parseCustomAuto(fuzziness);
                 }
                 try {
                     final int minimumSimilarity = Integer.parseInt(fuzziness);
@@ -116,15 +177,7 @@ public final class Fuzziness implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, true);
-    }
-
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeFieldName) throws IOException {
-        if (includeFieldName) {
-            builder.field(X_FIELD_NAME, fuzziness);
-        } else {
-            builder.value(fuzziness);
-        }
+        builder.field(X_FIELD_NAME, fuzziness);
         return builder;
     }
 
@@ -133,116 +186,24 @@ public final class Fuzziness implements ToXContent {
     }
 
     public int asDistance(String text) {
-        if (fuzziness instanceof String) {
-            if (this == AUTO) { //AUTO
-                final int len = termLen(text);
-                if (len <= 2) {
-                    return 0;
-                } else if (len > 5) {
-                    return 2;
-                } else {
-                    return 1;
-                }
+        if (this.equals(AUTO)) { //AUTO
+            final int len = termLen(text);
+            if (len < lowDistance) {
+                return 0;
+            } else if (len < highDistance) {
+                return 1;
+            } else {
+                return 2;
             }
         }
-        return FuzzyQuery.floatToEdits(asFloat(), termLen(text));
-    }
-
-    public TimeValue asTimeValue() {
-        if (this == AUTO) {
-            return TimeValue.timeValueMillis(1);
-        } else {
-            return TimeValue.parseTimeValue(fuzziness.toString(), null, "fuzziness");
-        }
-    }
-
-    public long asLong() {
-        if (this == AUTO) {
-            return 1;
-        }
-        try {
-            return Long.parseLong(fuzziness.toString());
-        } catch (NumberFormatException ex) {
-            return (long) Double.parseDouble(fuzziness.toString());
-        }
-    }
-
-    public int asInt() {
-        if (this == AUTO) {
-            return 1;
-        }
-        try {
-            return Integer.parseInt(fuzziness.toString());
-        } catch (NumberFormatException ex) {
-            return (int) Float.parseFloat(fuzziness.toString());
-        }
-    }
-
-    public short asShort() {
-        if (this == AUTO) {
-            return 1;
-        }
-        try {
-            return Short.parseShort(fuzziness.toString());
-        } catch (NumberFormatException ex) {
-            return (short) Float.parseFloat(fuzziness.toString());
-        }
-    }
-
-    public byte asByte() {
-        if (this == AUTO) {
-            return 1;
-        }
-        try {
-            return Byte.parseByte(fuzziness.toString());
-        } catch (NumberFormatException ex) {
-            return (byte) Float.parseFloat(fuzziness.toString());
-        }
-    }
-
-    public double asDouble() {
-        if (this == AUTO) {
-            return 1d;
-        }
-        return Double.parseDouble(fuzziness.toString());
+        return Math.min(2, (int) asFloat());
     }
 
     public float asFloat() {
-        if (this == AUTO) {
+        if (this.equals(AUTO) || isAutoWithCustomValues()) {
             return 1f;
         }
         return Float.parseFloat(fuzziness.toString());
-    }
-
-    public float asSimilarity() {
-        return asSimilarity(null);
-    }
-
-    public float asSimilarity(String text) {
-        if (this == AUTO) {
-            final int len = termLen(text);
-            if (len <= 2) {
-                return 0.0f;
-            } else if (len > 5) {
-                return 0.5f;
-            } else {
-                return 0.66f;
-            }
-//            return dist == 0 ? dist : Math.min(0.999f, Math.max(0.0f, 1.0f - ((float) dist/ (float) termLen(text))));
-        }
-        if (fuzziness instanceof Float) { // it's a similarity
-            return ((Float) fuzziness).floatValue();
-        } else if (fuzziness instanceof Integer) { // it's an edit!
-            int dist = Math.min(((Integer) fuzziness).intValue(),
-                    LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE);
-            return Math.min(0.999f, Math.max(0.0f, 1.0f - ((float) dist / (float) termLen(text))));
-        } else {
-            final float similarity = Float.parseFloat(fuzziness.toString());
-            if (similarity >= 0.0f && similarity < 1.0f) {
-                return similarity;
-            }
-        }
-        throw new IllegalArgumentException("Can't get similarity from fuzziness [" + fuzziness + "]");
     }
 
     private int termLen(String text) {
@@ -250,6 +211,31 @@ public final class Fuzziness implements ToXContent {
     }
 
     public String asString() {
+        if (isAutoWithCustomValues()) {
+            return fuzziness.toString() + ":" + lowDistance + "," + highDistance;
+        }
         return fuzziness.toString();
+    }
+
+    private boolean isAutoWithCustomValues() {
+        return fuzziness.startsWith("AUTO") && (lowDistance != DEFAULT_LOW_DISTANCE ||
+            highDistance != DEFAULT_HIGH_DISTANCE);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        Fuzziness other = (Fuzziness) obj;
+        return Objects.equals(fuzziness, other.fuzziness);
+    }
+
+    @Override
+    public int hashCode() {
+        return fuzziness.hashCode();
     }
 }

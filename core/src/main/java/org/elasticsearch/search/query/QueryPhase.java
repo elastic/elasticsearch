@@ -19,29 +19,59 @@
 
 package org.elasticsearch.search.query;
 
-import com.google.common.collect.ImmutableMap;
-
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.queries.MinDocQuery;
+import org.apache.lucene.queries.SearchAfterSortedDocQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.EarlyTerminatingSortingCollector;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.inject.Inject;
+import org.apache.lucene.util.Counter;
+import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescorePhase;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.sort.SortParseElement;
-import org.elasticsearch.search.sort.TrackScoresParseElement;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Map;
+import java.util.LinkedList;
+import java.util.function.Consumer;
+
+import static org.elasticsearch.search.query.QueryCollectorContext.createCancellableCollectorContext;
+import static org.elasticsearch.search.query.QueryCollectorContext.createEarlySortingTerminationCollectorContext;
+import static org.elasticsearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
+import static org.elasticsearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
+import static org.elasticsearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
+import static org.elasticsearch.search.query.QueryCollectorContext.createMultiCollectorContext;
+import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
+
 
 /**
- *
+ * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
+ * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
  */
 public class QueryPhase implements SearchPhase {
 
@@ -49,119 +79,252 @@ public class QueryPhase implements SearchPhase {
     private final SuggestPhase suggestPhase;
     private RescorePhase rescorePhase;
 
-    @Inject
-    public QueryPhase(AggregationPhase aggregationPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
-        this.aggregationPhase = aggregationPhase;
-        this.suggestPhase = suggestPhase;
-        this.rescorePhase = rescorePhase;
-    }
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
-        parseElements.put("from", new FromParseElement()).put("size", new SizeParseElement())
-                .put("indices_boost", new IndicesBoostParseElement())
-                .put("indicesBoost", new IndicesBoostParseElement())
-                .put("query", new QueryParseElement())
-                .put("queryBinary", new QueryBinaryParseElement())
-                .put("query_binary", new QueryBinaryParseElement())
-                .put("filter", new PostFilterParseElement()) // For bw comp reason, should be removed in version 1.1
-                .put("post_filter", new PostFilterParseElement())
-                .put("postFilter", new PostFilterParseElement())
-                .put("filterBinary", new FilterBinaryParseElement())
-                .put("filter_binary", new FilterBinaryParseElement())
-                .put("sort", new SortParseElement())
-                .put("trackScores", new TrackScoresParseElement())
-                .put("track_scores", new TrackScoresParseElement())
-                .put("min_score", new MinScoreParseElement())
-                .put("minScore", new MinScoreParseElement())
-                .put("timeout", new TimeoutParseElement())
-                .put("terminate_after", new TerminateAfterParseElement())
-                .putAll(aggregationPhase.parseElements())
-                .putAll(suggestPhase.parseElements())
-                .putAll(rescorePhase.parseElements());
-        return parseElements.build();
+    public QueryPhase(Settings settings) {
+        this.aggregationPhase = new AggregationPhase();
+        this.suggestPhase = new SuggestPhase(settings);
+        this.rescorePhase = new RescorePhase(settings);
     }
 
     @Override
     public void preProcess(SearchContext context) {
-        context.preProcess();
+        context.preProcess(true);
     }
 
     @Override
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        if (searchContext.hasOnlySuggest()) {
+            suggestPhase.execute(searchContext);
+            // TODO: fix this once we can fetch docs for suggestions
+            searchContext.queryResult().topDocs(
+                    new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0),
+                    new DocValueFormat[0]);
+            return;
+        }
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
         aggregationPhase.preProcess(searchContext);
+        Sort indexSort = searchContext.mapperService().getIndexSettings().getIndexSortConfig()
+            .buildIndexSort(searchContext.mapperService()::fullName, searchContext::getForField);
+        final ContextIndexSearcher searcher = searchContext.searcher();
+        boolean rescore = execute(searchContext, searchContext.searcher(), searcher::setCheckCancelled, indexSort);
 
-        searchContext.queryResult().searchTimedOut(false);
-
-        searchContext.searcher().inStage(ContextIndexSearcher.Stage.MAIN_QUERY);
-        boolean rescore = false;
-        try {
-            searchContext.queryResult().from(searchContext.from());
-            searchContext.queryResult().size(searchContext.size());
-
-            Query query = searchContext.query();
-
-            final TopDocs topDocs;
-            int numDocs = searchContext.from() + searchContext.size();
-
-            if (searchContext.size() == 0) { // no matter what the value of from is
-                topDocs = new TopDocs(searchContext.searcher().count(query), Lucene.EMPTY_SCORE_DOCS, 0);
-            } else if (searchContext.searchType() == SearchType.SCAN) {
-                topDocs = searchContext.scanContext().execute(searchContext);
-            } else {
-                // Perhaps have a dedicated scroll phase?
-                if (searchContext.request().scroll() != null) {
-                    numDocs = searchContext.size();
-                    ScoreDoc lastEmittedDoc = searchContext.lastEmittedDoc();
-                    if (searchContext.sort() != null) {
-                        topDocs = searchContext.searcher().searchAfter(
-                                lastEmittedDoc, query, null, numDocs, searchContext.sort(),
-                                searchContext.trackScores(), searchContext.trackScores()
-                        );
-                    } else {
-                        rescore = !searchContext.rescore().isEmpty();
-                        for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
-                            numDocs = Math.max(rescoreContext.window(), numDocs);
-                        }
-                        topDocs = searchContext.searcher().searchAfter(lastEmittedDoc, query, numDocs);
-                    }
-
-                    int size = topDocs.scoreDocs.length;
-                    if (size > 0) {
-                        // In the case of *QUERY_AND_FETCH we don't get back to shards telling them which least
-                        // relevant docs got emitted as hit, we can simply mark the last doc as last emitted
-                        if (searchContext.searchType() == SearchType.QUERY_AND_FETCH ||
-                                searchContext.searchType() == SearchType.DFS_QUERY_AND_FETCH) {
-                            searchContext.lastEmittedDoc(topDocs.scoreDocs[size - 1]);
-                        }
-                    }
-                } else {
-                    if (searchContext.sort() != null) {
-                        topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort(),
-                                searchContext.trackScores(), searchContext.trackScores());
-                    } else {
-                        rescore = !searchContext.rescore().isEmpty();
-                        for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
-                            numDocs = Math.max(rescoreContext.window(), numDocs);
-                        }
-                        topDocs = searchContext.searcher().search(query, numDocs);
-                    }
-                }
-            }
-            searchContext.queryResult().topDocs(topDocs);
-        } catch (Throwable e) {
-            throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
-        } finally {
-            searchContext.searcher().finishStage(ContextIndexSearcher.Stage.MAIN_QUERY);
-        }
         if (rescore) { // only if we do a regular search
             rescorePhase.execute(searchContext);
         }
         suggestPhase.execute(searchContext);
         aggregationPhase.execute(searchContext);
+
+        if (searchContext.getProfilers() != null) {
+            ProfileShardResult shardResults = SearchProfileShardResults
+                    .buildShardResults(searchContext.getProfilers());
+            searchContext.queryResult().profileResults(shardResults);
+        }
     }
+
+    /**
+     * In a package-private method so that it can be tested without having to
+     * wire everything (mapperService, etc.)
+     * @return whether the rescoring phase should be executed
+     */
+    static boolean execute(SearchContext searchContext, final IndexSearcher searcher,
+            Consumer<Runnable> checkCancellationSetter, @Nullable Sort indexSort) throws QueryPhaseExecutionException {
+        QuerySearchResult queryResult = searchContext.queryResult();
+        queryResult.searchTimedOut(false);
+
+        try {
+            queryResult.from(searchContext.from());
+            queryResult.size(searchContext.size());
+            Query query = searchContext.query();
+            assert query == searcher.rewrite(query); // already rewritten
+
+            final ScrollContext scrollContext = searchContext.scrollContext();
+            if (scrollContext != null) {
+                if (scrollContext.totalHits == -1) {
+                    // first round
+                    assert scrollContext.lastEmittedDoc == null;
+                    // there is not much that we can optimize here since we want to collect all
+                    // documents in order to get the total number of hits
+
+                } else {
+                    final ScoreDoc after = scrollContext.lastEmittedDoc;
+                    if (returnsDocsInOrder(query, searchContext.sort())) {
+                        // now this gets interesting: since we sort in index-order, we can directly
+                        // skip to the desired doc
+                        if (after != null) {
+                            BooleanQuery bq = new BooleanQuery.Builder()
+                                .add(query, BooleanClause.Occur.MUST)
+                                .add(new MinDocQuery(after.doc + 1), BooleanClause.Occur.FILTER)
+                                .build();
+                            query = bq;
+                        }
+                        // ... and stop collecting after ${size} matches
+                        searchContext.terminateAfter(searchContext.size());
+                        searchContext.trackTotalHits(false);
+                    } else if (canEarlyTerminate(indexSort, searchContext)) {
+                        // now this gets interesting: since the index sort matches the search sort, we can directly
+                        // skip to the desired doc
+                        if (after != null) {
+                            BooleanQuery bq = new BooleanQuery.Builder()
+                                .add(query, BooleanClause.Occur.MUST)
+                                .add(new SearchAfterSortedDocQuery(indexSort, (FieldDoc) after), BooleanClause.Occur.FILTER)
+                                .build();
+                            query = bq;
+                        }
+                        searchContext.trackTotalHits(false);
+                    }
+                }
+            }
+
+            final LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
+            if (searchContext.parsedPostFilter() != null) {
+                // add post filters before aggregations
+                // it will only be applied to top hits
+                collectors.add(createFilteredCollectorContext(searcher, searchContext.parsedPostFilter().query()));
+            }
+            if (searchContext.queryCollectors().isEmpty() == false) {
+                // plug in additional collectors, like aggregations
+                collectors.add(createMultiCollectorContext(searchContext.queryCollectors().values()));
+            }
+            if (searchContext.minimumScore() != null) {
+                // apply the minimum score after multi collector so we filter aggs as well
+                collectors.add(createMinScoreCollectorContext(searchContext.minimumScore()));
+            }
+            if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
+                // apply terminate after after all filters collectors
+                collectors.add(createEarlyTerminationCollectorContext(searchContext.terminateAfter()));
+            }
+
+            boolean timeoutSet = scrollContext == null && searchContext.timeout() != null &&
+                searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;
+
+            final Runnable timeoutRunnable;
+            if (timeoutSet) {
+                final Counter counter = searchContext.timeEstimateCounter();
+                final long startTime = counter.get();
+                final long timeout = searchContext.timeout().millis();
+                final long maxTime = startTime + timeout;
+                timeoutRunnable = () -> {
+                    final long time = counter.get();
+                    if (time > maxTime) {
+                        throw new TimeExceededException();
+                    }
+                };
+            } else {
+                timeoutRunnable = null;
+            }
+
+            final Runnable cancellationRunnable;
+            if (searchContext.lowLevelCancellation()) {
+                SearchTask task = searchContext.getTask();
+                cancellationRunnable = () -> { if (task.isCancelled()) throw new TaskCancelledException("cancelled"); };
+            } else {
+                cancellationRunnable = null;
+            }
+
+            final Runnable checkCancelled;
+            if (timeoutRunnable != null && cancellationRunnable != null) {
+                checkCancelled = () -> { timeoutRunnable.run(); cancellationRunnable.run(); };
+            } else if (timeoutRunnable != null) {
+                checkCancelled = timeoutRunnable;
+            } else if (cancellationRunnable != null) {
+                checkCancelled = cancellationRunnable;
+            } else {
+                checkCancelled = null;
+            }
+
+            checkCancellationSetter.accept(checkCancelled);
+
+            // add cancellable
+            // this only performs segment-level cancellation, which is cheap and checked regardless of
+            // searchContext.lowLevelCancellation()
+            collectors.add(createCancellableCollectorContext(searchContext.getTask()::isCancelled));
+
+            final IndexReader reader = searcher.getIndexReader();
+            final boolean doProfile = searchContext.getProfilers() != null;
+            // create the top docs collector last when the other collectors are known
+            final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, reader,
+                collectors.stream().anyMatch(QueryCollectorContext::shouldCollect));
+            final boolean shouldCollect = topDocsFactory.shouldCollect();
+
+            if (topDocsFactory.numHits() > 0 &&
+                (scrollContext == null || scrollContext.totalHits != -1) &&
+                canEarlyTerminate(indexSort, searchContext)) {
+                // top docs collection can be early terminated based on index sort
+                // add the collector context first so we don't early terminate aggs but only top docs
+                collectors.addFirst(createEarlySortingTerminationCollectorContext(reader, searchContext.query(), indexSort,
+                    topDocsFactory.numHits(), searchContext.trackTotalHits(), shouldCollect));
+            }
+            // add the top docs collector, the first collector context in the chain
+            collectors.addFirst(topDocsFactory);
+
+            final Collector queryCollector;
+            if (doProfile) {
+                InternalProfileCollector profileCollector = QueryCollectorContext.createQueryCollectorWithProfiler(collectors);
+                searchContext.getProfilers().getCurrentQueryProfiler().setCollector(profileCollector);
+                queryCollector = profileCollector;
+            } else {
+               queryCollector = QueryCollectorContext.createQueryCollector(collectors);
+            }
+
+            try {
+                if (shouldCollect) {
+                    searcher.search(query, queryCollector);
+                }
+            } catch (TimeExceededException e) {
+                assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
+                queryResult.searchTimedOut(true);
+            } finally {
+                searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);
+            }
+
+            final QuerySearchResult result = searchContext.queryResult();
+            for (QueryCollectorContext ctx : collectors) {
+                ctx.postProcess(result, shouldCollect);
+            }
+            EsThreadPoolExecutor executor = (EsThreadPoolExecutor)
+                    searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
+            if (executor instanceof QueueResizingEsThreadPoolExecutor) {
+                QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;
+                queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+            }
+            if (searchContext.getProfilers() != null) {
+                ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(searchContext.getProfilers());
+                result.profileResults(shardResults);
+            }
+            return topDocsFactory.shouldRescore();
+        } catch (Exception e) {
+            throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
+        }
+    }
+
+    /**
+     * Returns true if the provided <code>query</code> returns docs in index order (internal doc ids).
+     * @param query The query to execute
+     * @param sf The query sort
+     */
+    static boolean returnsDocsInOrder(Query query, SortAndFormats sf) {
+        if (sf == null || Sort.RELEVANCE.equals(sf.sort)) {
+            // sort by score
+            // queries that return constant scores will return docs in index
+            // order since Lucene tie-breaks on the doc id
+            return query.getClass() == ConstantScoreQuery.class
+                || query.getClass() == MatchAllDocsQuery.class;
+        } else {
+            return Sort.INDEXORDER.equals(sf.sort);
+        }
+    }
+
+    /**
+     * Returns true if the provided <code>searchContext</code> can early terminate based on <code>indexSort</code>
+     * @param indexSort The index sort specification
+     * @param context The search context for the request
+     */
+    static boolean canEarlyTerminate(Sort indexSort, SearchContext context) {
+        final Sort sort = context.sort() == null ? Sort.RELEVANCE : context.sort().sort;
+        return indexSort != null && EarlyTerminatingSortingCollector.canEarlyTerminate(sort, indexSort);
+    }
+
+    private static class TimeExceededException extends RuntimeException {}
 }

@@ -19,66 +19,67 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.Template;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Objects;
 
-import static org.elasticsearch.search.Scroll.readScroll;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using
  * {@link org.elasticsearch.client.Requests#searchRequest(String...)}.
- * <p/>
- * <p>Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
+ * <p>
+ * Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including aggregations and such.
- * <p/>
- * <p>There is an option to specify an addition search source using the {@link #extraSource(org.elasticsearch.search.builder.SearchSourceBuilder)}.
+ * </p>
  *
  * @see org.elasticsearch.client.Requests#searchRequest(String...)
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest.Replaceable {
+public final class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
+
+    private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+
+    public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
 
     private SearchType searchType = SearchType.DEFAULT;
 
-    private String[] indices;
+    private String[] indices = Strings.EMPTY_ARRAY;
 
     @Nullable
     private String routing;
     @Nullable
     private String preference;
 
-    private BytesReference templateSource;
-    private Template template;
+    private SearchSourceBuilder source;
 
-    private BytesReference source;
-
-    private BytesReference extraSource;
-    private Boolean queryCache;
+    private Boolean requestCache;
 
     private Scroll scroll;
+
+    private int batchedReduceSize = 512;
+
+    private int maxConcurrentShardRequests = 0;
+
+    private int preFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -90,56 +91,84 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     }
 
     /**
-     * Copy constructor that creates a new search request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public SearchRequest(SearchRequest searchRequest, ActionRequest originalRequest) {
-        super(originalRequest);
-        this.searchType = searchRequest.searchType;
-        this.indices = searchRequest.indices;
-        this.routing = searchRequest.routing;
-        this.preference = searchRequest.preference;
-        this.templateSource = searchRequest.templateSource;
-        this.template = searchRequest.template;
-        this.source = searchRequest.source;
-        this.extraSource = searchRequest.extraSource;
-        this.queryCache = searchRequest.queryCache;
-        this.scroll = searchRequest.scroll;
-        this.types = searchRequest.types;
-        this.indicesOptions = searchRequest.indicesOptions;
-    }
-
-    /**
-     * Constructs a new search request starting from the provided request, meaning that it will
-     * inherit its headers and context
-     */
-    public SearchRequest(ActionRequest request) {
-        super(request);
-    }
-
-    /**
      * Constructs a new search request against the indices. No indices provided here means that search
      * will run against all indices.
      */
     public SearchRequest(String... indices) {
-        indices(indices);
+        this(indices, new SearchSourceBuilder());
     }
 
     /**
      * Constructs a new search request against the provided indices with the given search source.
      */
-    public SearchRequest(String[] indices, byte[] source) {
+    public SearchRequest(String[] indices, SearchSourceBuilder source) {
+        if (source == null) {
+            throw new IllegalArgumentException("source must not be null");
+        }
         indices(indices);
-        this.source = new BytesArray(source);
+        this.source = source;
+    }
+
+    /**
+     * Constructs a new search request from reading the specified stream.
+     *
+     * @param in The stream the request is read from
+     * @throws IOException if there is an issue reading the stream
+     */
+    public SearchRequest(StreamInput in) throws IOException {
+        super(in);
+        searchType = SearchType.fromId(in.readByte());
+        indices = new String[in.readVInt()];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = in.readString();
+        }
+        routing = in.readOptionalString();
+        preference = in.readOptionalString();
+        scroll = in.readOptionalWriteable(Scroll::new);
+        source = in.readOptionalWriteable(SearchSourceBuilder::new);
+        types = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        requestCache = in.readOptionalBoolean();
+        batchedReduceSize = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
+            maxConcurrentShardRequests = in.readVInt();
+            preFilterShardSize = in.readVInt();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeByte(searchType.id());
+        out.writeVInt(indices.length);
+        for (String index : indices) {
+            out.writeString(index);
+        }
+        out.writeOptionalString(routing);
+        out.writeOptionalString(preference);
+        out.writeOptionalWriteable(scroll);
+        out.writeOptionalWriteable(source);
+        out.writeStringArray(types);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeOptionalBoolean(requestCache);
+        out.writeVInt(batchedReduceSize);
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
+            out.writeVInt(maxConcurrentShardRequests);
+            out.writeVInt(preFilterShardSize);
+        }
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        // no need to check, we resolve to match all query
-//        if (source == null && extraSource == null) {
-//            validationException = addValidationError("search source is missing", validationException);
-//        }
+        if (source != null && source.trackTotalHits() == false && scroll() != null) {
+            validationException =
+                addValidationError("disabling [track_total_hits] is not allowed in a scroll context", validationException);
+        }
+        if (source != null && source.from() > 0 &&  scroll() != null) {
+            validationException =
+                addValidationError("using [from] is not allowed in a scroll context", validationException);
+        }
         return validationException;
     }
 
@@ -148,14 +177,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      */
     @Override
     public SearchRequest indices(String... indices) {
-        if (indices == null) {
-            throw new IllegalArgumentException("indices must not be null");
-        } else {
-            for (int i = 0; i < indices.length; i++) {
-                if (indices[i] == null) {
-                    throw new IllegalArgumentException("indices[" + i + "] must not be null");
-                }
-            }
+        Objects.requireNonNull(indices, "indices must not be null");
+        for (String index : indices) {
+            Objects.requireNonNull(index, "index must not be null");
         }
         this.indices = indices;
         return this;
@@ -167,7 +191,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     }
 
     public SearchRequest indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = indicesOptions;
+        this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
         return this;
     }
 
@@ -184,6 +208,10 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * all types.
      */
     public SearchRequest types(String... types) {
+        Objects.requireNonNull(types, "types must not be null");
+        for (String type : types) {
+            Objects.requireNonNull(type, "type must not be null");
+        }
         this.types = types;
         return this;
     }
@@ -213,8 +241,8 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
-     * a custom value, which guarantees that the same order will be used across different requests.
+     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * will be used across different requests.
      */
     public SearchRequest preference(String preference) {
         this.preference = preference;
@@ -229,7 +257,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * The search type to execute, defaults to {@link SearchType#DEFAULT}.
      */
     public SearchRequest searchType(SearchType searchType) {
-        this.searchType = searchType;
+        this.searchType = Objects.requireNonNull(searchType, "searchType must not be null");
         return this;
     }
 
@@ -246,241 +274,15 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * The source of the search request.
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
-        this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        return this;
-    }
-
-    /**
-     * The source of the search request. Consider using either {@link #source(byte[])} or
-     * {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}.
-     */
-    public SearchRequest source(String source) {
-        this.source = new BytesArray(source);
-        return this;
-    }
-
-    /**
-     * The source of the search request in the form of a map.
-     */
-    public SearchRequest source(Map source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            builder.map(source);
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
-    }
-
-    public SearchRequest source(XContentBuilder builder) {
-        this.source = builder.bytes();
+        this.source = Objects.requireNonNull(sourceBuilder, "source must not be null");
         return this;
     }
 
     /**
      * The search source to execute.
      */
-    public SearchRequest source(byte[] source) {
-        return source(source, 0, source.length);
-    }
-
-
-    /**
-     * The search source to execute.
-     */
-    public SearchRequest source(byte[] source, int offset, int length) {
-        return source(new BytesArray(source, offset, length));
-    }
-
-    /**
-     * The search source to execute.
-     */
-    public SearchRequest source(BytesReference source) {
-        this.source = source;
-        return this;
-    }
-
-    /**
-     * The search source to execute.
-     */
-    public BytesReference source() {
+    public SearchSourceBuilder source() {
         return source;
-    }
-
-    /**
-     * The search source template to execute.
-     */
-    public BytesReference templateSource() {
-        return templateSource;
-    }
-
-    /**
-     * Allows to provide additional source that will be used as well.
-     */
-    public SearchRequest extraSource(SearchSourceBuilder sourceBuilder) {
-        if (sourceBuilder == null) {
-            extraSource = null;
-            return this;
-        }
-        this.extraSource = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        return this;
-    }
-
-    public SearchRequest extraSource(Map extraSource) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            builder.map(extraSource);
-            return extraSource(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + extraSource + "]", e);
-        }
-    }
-
-    public SearchRequest extraSource(XContentBuilder builder) {
-        this.extraSource = builder.bytes();
-        return this;
-    }
-
-    /**
-     * Allows to provide additional source that will use used as well.
-     */
-    public SearchRequest extraSource(String source) {
-        this.extraSource = new BytesArray(source);
-        return this;
-    }
-
-    /**
-     * Allows to provide additional source that will be used as well.
-     */
-    public SearchRequest extraSource(byte[] source) {
-        return extraSource(source, 0, source.length);
-    }
-
-    /**
-     * Allows to provide additional source that will be used as well.
-     */
-    public SearchRequest extraSource(byte[] source, int offset, int length) {
-        return extraSource(new BytesArray(source, offset, length));
-    }
-
-    /**
-     * Allows to provide additional source that will be used as well.
-     */
-    public SearchRequest extraSource(BytesReference source) {
-        this.extraSource = source;
-        return this;
-    }
-
-    /**
-     * Allows to provide template as source.
-     */
-    public SearchRequest templateSource(BytesReference template) {
-        this.templateSource = template;
-        return this;
-    }
-
-    /**
-     * The template of the search request.
-     */
-    public SearchRequest templateSource(String template) {
-        this.templateSource = new BytesArray(template);
-        return this;
-    }
-
-    /**
-     * The stored template
-     */
-    public void template(Template template) {
-        this.template = template;
-    }
-
-    /**
-     * The stored template
-     */
-    public Template template() {
-        return template;
-    }
-
-    /**
-     * The name of the stored template
-     * 
-     * @deprecated use {@link #template(Template))} instead.
-     */
-    @Deprecated
-    public void templateName(String templateName) {
-        updateOrCreateScript(templateName, null, null, null);
-    }
-
-    /**
-     * The type of the stored template
-     * 
-     * @deprecated use {@link #template(Template))} instead.
-     */
-    @Deprecated
-    public void templateType(ScriptService.ScriptType templateType) {
-        updateOrCreateScript(null, templateType, null, null);
-    }
-
-    /**
-     * Template parameters used for rendering
-     * 
-     * @deprecated use {@link #template(Template))} instead.
-     */
-    @Deprecated
-    public void templateParams(Map<String, Object> params) {
-        updateOrCreateScript(null, null, null, params);
-    }
-
-    /**
-     * The name of the stored template
-     * 
-     * @deprecated use {@link #template()} instead.
-     */
-    @Deprecated
-    public String templateName() {
-        return template == null ? null : template.getScript();
-    }
-
-    /**
-     * The name of the stored template
-     * 
-     * @deprecated use {@link #template()} instead.
-     */
-    @Deprecated
-    public ScriptService.ScriptType templateType() {
-        return template == null ? null : template.getType();
-    }
-
-    /**
-     * Template parameters used for rendering
-     * 
-     * @deprecated use {@link #template()} instead.
-     */
-    @Deprecated
-    public Map<String, Object> templateParams() {
-        return template == null ? null : template.getParams();
-    }
-
-    private void updateOrCreateScript(String templateContent, ScriptType type, String lang, Map<String, Object> params) {
-        Template template = template();
-        if (template == null) {
-            template = new Template(templateContent == null ? "" : templateContent, type == null ? ScriptType.INLINE : type, lang, null,
-                    params);
-        } else {
-            String newTemplateContent = templateContent == null ? template.getScript() : templateContent;
-            ScriptType newTemplateType = type == null ? template.getType() : type;
-            String newTemplateLang = lang == null ? template.getLang() : lang;
-            Map<String, Object> newTemplateParams = params == null ? template.getParams() : params;
-            template = new Template(newTemplateContent, newTemplateType, MustacheScriptEngineService.NAME, null, newTemplateParams);
-        }
-        template(template);
-    }
-
-    /**
-     * Additional search source to execute.
-     */
-    public BytesReference extraSource() {
-        return this.extraSource;
     }
 
     /**
@@ -528,80 +330,168 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     }
 
     /**
-     * Sets if this request should use the query cache or not, assuming that it can (for
+     * Sets if this request should use the request cache or not, assuming that it can (for
      * example, if "now" is used, it will never be cached). By default (not set, or null,
-     * will default to the index level setting if query cache is enabled or not).
+     * will default to the index level setting if request cache is enabled or not).
      */
-    public SearchRequest queryCache(Boolean queryCache) {
-        this.queryCache = queryCache;
+    public SearchRequest requestCache(Boolean requestCache) {
+        this.requestCache = requestCache;
         return this;
     }
 
-    public Boolean queryCache() {
-        return this.queryCache;
+    public Boolean requestCache() {
+        return this.requestCache;
+    }
+
+    /**
+     * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
+     * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
+     */
+    public void setBatchedReduceSize(int batchedReduceSize) {
+        if (batchedReduceSize <= 1) {
+            throw new IllegalArgumentException("batchedReduceSize must be >= 2");
+        }
+        this.batchedReduceSize = batchedReduceSize;
+    }
+
+    /**
+     * Returns the number of shard results that should be reduced at once on the coordinating node. This value should be used as a
+     * protection mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
+     */
+    public int getBatchedReduceSize() {
+        return batchedReduceSize;
+    }
+
+    /**
+     * Returns the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
+     * reduce the number of shard reqeusts fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
+     */
+    public int getMaxConcurrentShardRequests() {
+        return maxConcurrentShardRequests == 0 ? 256 : maxConcurrentShardRequests;
+    }
+
+    /**
+     * Sets the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
+     * reduce the number of shard requests fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
+     */
+    public void setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        if (maxConcurrentShardRequests < 1) {
+            throw new IllegalArgumentException("maxConcurrentShardRequests must be >= 1");
+        }
+        this.maxConcurrentShardRequests = maxConcurrentShardRequests;
+    }
+    /**
+     * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public void setPreFilterShardSize(int preFilterShardSize) {
+        if (preFilterShardSize < 1) {
+            throw new IllegalArgumentException("preFilterShardSize must be >= 1");
+        }
+        this.preFilterShardSize = preFilterShardSize;
+    }
+
+    /**
+     * Returns a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public int getPreFilterShardSize() {
+        return preFilterShardSize;
+    }
+
+    /**
+     * Returns <code>true</code> iff the maxConcurrentShardRequest is set.
+     */
+    boolean isMaxConcurrentShardRequestsSet() {
+        return maxConcurrentShardRequests != 0;
+    }
+
+    /**
+     * @return true if the request only has suggest
+     */
+    public boolean isSuggestOnly() {
+        return source != null && source.isSuggestOnly();
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        // generating description in a lazy way since source can be quite big
+        return new SearchTask(id, type, action, null, parentTaskId) {
+            @Override
+            public String getDescription() {
+                StringBuilder sb = new StringBuilder();
+                sb.append("indices[");
+                Strings.arrayToDelimitedString(indices, ",", sb);
+                sb.append("], ");
+                sb.append("types[");
+                Strings.arrayToDelimitedString(types, ",", sb);
+                sb.append("], ");
+                sb.append("search_type[").append(searchType).append("], ");
+                if (source != null) {
+
+                    sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+                } else {
+                    sb.append("source[]");
+                }
+                return sb.toString();
+            }
+        };
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        searchType = SearchType.fromId(in.readByte());
-
-        indices = new String[in.readVInt()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readString();
-        }
-
-        routing = in.readOptionalString();
-        preference = in.readOptionalString();
-
-        if (in.readBoolean()) {
-            scroll = readScroll(in);
-        }
-
-        source = in.readBytesReference();
-        extraSource = in.readBytesReference();
-
-        types = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-
-        templateSource = in.readBytesReference();
-        if (in.readBoolean()) {
-            template = Template.readTemplate(in);
-        }
-        queryCache = in.readOptionalBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeByte(searchType.id());
-
-        out.writeVInt(indices.length);
-        for (String index : indices) {
-            out.writeString(index);
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
         }
-
-        out.writeOptionalString(routing);
-        out.writeOptionalString(preference);
-
-        if (scroll == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            scroll.writeTo(out);
+        if (o == null || getClass() != o.getClass()) {
+            return false;
         }
-        out.writeBytesReference(source);
-        out.writeBytesReference(extraSource);
-        out.writeStringArray(types);
-        indicesOptions.writeIndicesOptions(out);
+        SearchRequest that = (SearchRequest) o;
+        return searchType == that.searchType &&
+                Arrays.equals(indices, that.indices) &&
+                Objects.equals(routing, that.routing) &&
+                Objects.equals(preference, that.preference) &&
+                Objects.equals(source, that.source) &&
+                Objects.equals(requestCache, that.requestCache)  &&
+                Objects.equals(scroll, that.scroll) &&
+                Arrays.equals(types, that.types) &&
+                Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
+                Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
+                Objects.equals(preFilterShardSize, that.preFilterShardSize) &&
+                Objects.equals(indicesOptions, that.indicesOptions);
+    }
 
-        out.writeBytesReference(templateSource);
-        boolean hasTemplate = template != null;
-        out.writeBoolean(hasTemplate);
-        if (hasTemplate) {
-            template.writeTo(out);
-        }
+    @Override
+    public int hashCode() {
+        return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
+                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize);
+    }
 
-        out.writeOptionalBoolean(queryCache);
+    @Override
+    public String toString() {
+        return "SearchRequest{" +
+                "searchType=" + searchType +
+                ", indices=" + Arrays.toString(indices) +
+                ", indicesOptions=" + indicesOptions +
+                ", types=" + Arrays.toString(types) +
+                ", routing='" + routing + '\'' +
+                ", preference='" + preference + '\'' +
+                ", requestCache=" + requestCache +
+                ", scroll=" + scroll +
+                ", maxConcurrentShardRequests=" + maxConcurrentShardRequests +
+                ", batchedReduceSize=" + batchedReduceSize +
+                ", preFilterShardSize=" + preFilterShardSize +
+                ", source=" + source + '}';
     }
 }

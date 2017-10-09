@@ -1,0 +1,31 @@
+[[modules-fielddata]]
+=== Fielddata
+
+The field data cache is used mainly when sorting on or computing aggregations
+on a field. It loads all the field values to memory in order to provide fast
+document based access to those values. The field data cache can be
+expensive to build for a field, so its recommended to have enough memory
+to allocate it, and to keep it loaded.
+
+The amount of memory used for the field
+data cache can be controlled using `indices.fielddata.cache.size`. Note:
+reloading  the field data which does not fit into your cache will be expensive
+and  perform poorly.
+
+`indices.fielddata.cache.size`::
+
+    The max size of the field data cache, eg `30%` of node heap space, or an
+    absolute value, eg `12GB`. Defaults to unbounded.  Also see
+    <<fielddata-circuit-breaker>>.
+
+NOTE: These are static settings which must be configured on every data node in
+the cluster.
+
+[float]
+[[fielddata-monitoring]]
+==== Monitoring field data
+
+You can monitor memory usage for field data as well as the field data circuit
+breaker using
+<<cluster-nodes-stats,Nodes Stats API>>
+

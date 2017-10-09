@@ -1,0 +1,167 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.nio.file.Files
+
+apply plugin: 'groovy'
+
+group = 'org.elasticsearch.gradle'
+
+if (GradleVersion.current() < GradleVersion.version('3.3')) {
+  throw new GradleException('Gradle 3.3+ is required to build elasticsearch')
+}
+
+if (JavaVersion.current() < JavaVersion.VERSION_1_8) {
+  throw new GradleException('Java 1.8 is required to build elasticsearch gradle tools')
+}
+
+if (project == rootProject) {
+  // change the build dir used during build init, so that doing a clean
+  // won't wipe out the buildscript jar
+  buildDir = 'build-bootstrap'
+}
+
+/*****************************************************************************
+ *         Propagating version.properties to the rest of the build           *
+ *****************************************************************************/
+
+Properties props = new Properties()
+props.load(project.file('version.properties').newDataInputStream())
+version = props.getProperty('elasticsearch')
+boolean snapshot = "true".equals(System.getProperty("build.snapshot", "true"));
+if (snapshot) {
+  // we update the version property to reflect if we are building a snapshot or a release build
+  // we write this back out below to load it in the Build.java which will be shown in rest main action
+  // to indicate this being a snapshot build or a release build.
+  version += "-SNAPSHOT"
+  props.put("elasticsearch", version);
+}
+
+File tempPropertiesFile = new File(project.buildDir, "version.properties")
+task writeVersionProperties {
+  inputs.properties(props)
+  outputs.file(tempPropertiesFile)
+  doLast {
+    OutputStream stream = Files.newOutputStream(tempPropertiesFile.toPath());
+    try {
+      props.store(stream, "UTF-8");
+    } finally {
+      stream.close();
+    }
+  }
+}
+
+processResources {
+  dependsOn writeVersionProperties
+  from tempPropertiesFile
+}
+
+/*****************************************************************************
+ *                    Dependencies used by the entire build                  *
+ *****************************************************************************/
+
+repositories {
+  jcenter()
+}
+
+dependencies {
+  compile gradleApi()
+  compile localGroovy()
+  compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
+  compile("junit:junit:${props.getProperty('junit')}") {
+    transitive = false
+  }
+  compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
+  compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
+  compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
+  compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
+  compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
+  compile 'de.thetaphi:forbiddenapis:2.4.1'
+  compile 'org.apache.rat:apache-rat:0.11'
+  compile "org.elasticsearch:jna:4.4.0-1"
+}
+
+// Gradle 2.14+ removed ProgressLogger(-Factory) classes from the public APIs
+// Use logging dependency instead
+
+dependencies {
+  compileOnly "org.gradle:gradle-logging:${GradleVersion.current().getVersion()}"
+  compile 'ru.vyarus:gradle-animalsniffer-plugin:1.2.0' // Gradle 2.14 requires a version > 1.0.1
+}
+
+/*****************************************************************************
+ *                         Bootstrap repositories                            *
+ *****************************************************************************/
+// this will only happen when buildSrc is built on its own during build init
+if (project == rootProject) {
+
+  repositories {
+    if (System.getProperty("repos.mavenLocal") != null) {
+      mavenLocal()
+    }
+    mavenCentral()
+  }
+  test.exclude 'org/elasticsearch/test/NamingConventionsCheckBadClasses*'
+}
+
+/*****************************************************************************
+ *                           Normal project checks                           *
+ *****************************************************************************/
+
+// this happens when included as a normal project in the build, which we do
+// to enforce precommit checks like forbidden apis, as well as setup publishing
+if (project != rootProject) {
+  apply plugin: 'elasticsearch.build'
+  apply plugin: 'nebula.maven-base-publish'
+  apply plugin: 'nebula.maven-scm'
+
+  // groovydoc succeeds, but has some weird internal exception...
+  groovydoc.enabled = false
+
+  // build-tools is not ready for primetime with these...
+  dependencyLicenses.enabled = false
+  forbiddenApisMain.enabled = false
+  forbiddenApisTest.enabled = false
+  jarHell.enabled = false
+  thirdPartyAudit.enabled = false
+
+  // test for elasticsearch.build tries to run with ES...
+  test.enabled = false
+
+  // TODO: re-enable once randomizedtesting gradle code is published and removed from here
+  licenseHeaders.enabled = false
+
+  forbiddenPatterns {
+    exclude '**/*.wav'
+    // the file that actually defines nocommit
+    exclude '**/ForbiddenPatternsTask.groovy'
+  }
+
+  namingConventions {
+    testClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$UnitTestCase'
+    integTestClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$IntegTestCase'
+  }
+
+  task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
+    checkForTestsInMain = true
+    testClass = namingConventions.testClass
+    integTestClass = namingConventions.integTestClass
+  }
+  precommit.dependsOn namingConventionsMain
+}

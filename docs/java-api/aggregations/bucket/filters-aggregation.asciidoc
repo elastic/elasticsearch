@@ -14,9 +14,9 @@ Here is an example on how to create the aggregation request:
 --------------------------------------------------
 AggregationBuilder aggregation =
     AggregationBuilders
-        .filters("agg")
-            .filter("men", FilterBuilders.termFilter("gender", "male"))
-            .filter("women", FilterBuilders.termFilter("gender", "female"));
+        .filters("agg",
+            new FiltersAggregator.KeyedFilter("men", QueryBuilders.termQuery("gender", "male")),
+            new FiltersAggregator.KeyedFilter("women", QueryBuilders.termQuery("gender", "female")));
 --------------------------------------------------
 
 
@@ -36,7 +36,7 @@ Filters agg = sr.getAggregations().get("agg");
 
 // For each entry
 for (Filters.Bucket entry : agg.getBuckets()) {
-    String key = entry.getKey();                    // bucket key
+    String key = entry.getKeyAsString();            // bucket key
     long docCount = entry.getDocCount();            // Doc count
     logger.info("key [{}], doc_count [{}]", key, docCount);
 }

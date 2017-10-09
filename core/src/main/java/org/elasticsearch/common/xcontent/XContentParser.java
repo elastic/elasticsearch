@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,7 +33,7 @@ import java.util.Map;
  *
  * <pre>
  *     XContentType xContentType = XContentType.JSON;
- *     XContentParser parser = xContentType.xContent().createParser("{\"key\" : \"value\"}");
+ *     XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, "{\"key\" : \"value\"}");
  * </pre>
  */
 public interface XContentParser extends Releasable {
@@ -130,9 +131,13 @@ public interface XContentParser extends Releasable {
 
     Map<String, Object> mapOrdered() throws IOException;
 
-    Map<String, Object> mapAndClose() throws IOException;
+    Map<String, String> mapStrings() throws IOException;
 
-    Map<String, Object> mapOrderedAndClose() throws IOException;
+    Map<String, String> mapStringsOrdered() throws IOException;
+
+    List<Object> list() throws IOException;
+
+    List<Object> listOrderedMap() throws IOException;
 
     String text() throws IOException;
 
@@ -176,12 +181,6 @@ public interface XContentParser extends Releasable {
 
     NumberType numberType() throws IOException;
 
-    /**
-     * Is the number type estimated or not (i.e. an int might actually be a long, its just low enough
-     * to be an int).
-     */
-    boolean estimatedNumberType();
-
     short shortValue(boolean coerce) throws IOException;
 
     int intValue(boolean coerce) throws IOException;
@@ -191,7 +190,7 @@ public interface XContentParser extends Releasable {
     float floatValue(boolean coerce) throws IOException;
 
     double doubleValue(boolean coerce) throws IOException;
-    
+
     short shortValue() throws IOException;
 
     int intValue() throws IOException;
@@ -203,41 +202,57 @@ public interface XContentParser extends Releasable {
     double doubleValue() throws IOException;
 
     /**
-     * returns true if the current value is boolean in nature.
-     * values that are considered booleans:
-     * - boolean value (true/false)
-     * - numeric integers (=0 is considered as false, !=0 is true)
-     * - one of the following strings: "true","false","on","off","yes","no","1","0"
+     * @return true iff the current value is either boolean (<code>true</code> or <code>false</code>) or one of "false", "true".
      */
     boolean isBooleanValue() throws IOException;
 
     boolean booleanValue() throws IOException;
 
+    // TODO #22298: Remove this method and replace all call sites with #isBooleanValue()
+    /**
+     * returns true if the current value is boolean in nature.
+     * values that are considered booleans:
+     * - boolean value (true/false)
+     * - numeric integers (=0 is considered as false, !=0 is true)
+     * - one of the following strings: "true","false","on","off","yes","no","1","0"
+     *
+     * @deprecated Just present for providing backwards compatibility. Use {@link #isBooleanValue()} instead.
+     */
+    @Deprecated
+    boolean isBooleanValueLenient() throws IOException;
+
+    // TODO #22298: Remove this method and replace all call sites with #booleanValue()
+    /**
+     * @deprecated Just present for providing backwards compatibility. Use {@link #booleanValue()} instead.
+     */
+    @Deprecated
+    boolean booleanValueLenient() throws IOException;
+
     /**
      * Reads a plain binary value that was written via one of the following methods:
      *
-     * <li>
-     *     <ul>{@link XContentBuilder#field(String, org.apache.lucene.util.BytesRef)}</ul>
-     *     <ul>{@link XContentBuilder#field(String, org.elasticsearch.common.bytes.BytesReference)}</ul>
-     *     <ul>{@link XContentBuilder#field(String, byte[], int, int)}}</ul>
-     *     <ul>{@link XContentBuilder#field(String, byte[])}}</ul>
-     * </li>
+     * <ul>
+     *     <li>{@link XContentBuilder#field(String, org.apache.lucene.util.BytesRef)}</li>
+     *     <li>{@link XContentBuilder#field(String, org.elasticsearch.common.bytes.BytesReference)}</li>
+     *     <li>{@link XContentBuilder#field(String, byte[], int, int)}}</li>
+     *     <li>{@link XContentBuilder#field(String, byte[])}}</li>
+     * </ul>
      *
-     * as well as via their <code>XContentBuilderString</code> variants of the separated value methods.
+     * as well as via their <code>String</code> variants of the separated value methods.
      * Note: Do not use this method to read values written with:
-     * <li>
-     *     <ul>{@link XContentBuilder#utf8Field(XContentBuilderString, org.apache.lucene.util.BytesRef)}</ul>
-     *     <ul>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</ul>
-     * </li>
+     * <ul>
+     *     <li>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</li>
+     *     <li>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</li>
+     * </ul>
      *
      * these methods write UTF-8 encoded strings and must be read through:
-     * <li>
-     *     <ul>{@link XContentParser#utf8Bytes()}</ul>
-     *     <ul>{@link XContentParser#utf8BytesOrNull()}}</ul>
-     *     <ul>{@link XContentParser#text()} ()}</ul>
-     *     <ul>{@link XContentParser#textOrNull()} ()}</ul>
-     *     <ul>{@link XContentParser#textCharacters()} ()}}</ul>
-     * </li>
+     * <ul>
+     *     <li>{@link XContentParser#utf8Bytes()}</li>
+     *     <li>{@link XContentParser#utf8BytesOrNull()}}</li>
+     *     <li>{@link XContentParser#text()} ()}</li>
+     *     <li>{@link XContentParser#textOrNull()} ()}</li>
+     *     <li>{@link XContentParser#textCharacters()} ()}}</li>
+     * </ul>
      *
      */
     byte[] binaryValue() throws IOException;
@@ -245,8 +260,21 @@ public interface XContentParser extends Releasable {
     /**
      * Used for error reporting to highlight where syntax errors occur in
      * content being parsed.
-     * 
+     *
      * @return last token's location or null if cannot be determined
      */
     XContentLocation getTokenLocation();
+
+    // TODO remove context entirely when it isn't needed
+    /**
+     * Parse an object by name.
+     */
+    <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException;
+
+    /**
+     * The registry used to resolve {@link #namedObject(Class, String, Object)}. Use this when building a sub-parser from this parser.
+     */
+    NamedXContentRegistry getXContentRegistry();
+
+    boolean isClosed();
 }

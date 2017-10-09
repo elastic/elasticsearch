@@ -1,0 +1,19 @@
+[[java-admin-indices-refresh]]
+==== Refresh
+
+The refresh API allows to explicitly refresh one or more index:
+
+[source,java]
+--------------------------------------------------
+client.admin().indices().prepareRefresh().get(); <1>
+client.admin().indices()
+        .prepareRefresh("twitter")               <2>
+        .get();
+client.admin().indices()
+        .prepareRefresh("twitter", "company")   <3>
+        .get();
+--------------------------------------------------
+<1> Refresh all indices
+<2> Refresh one index
+<3> Refresh many indices
+

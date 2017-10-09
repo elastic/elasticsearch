@@ -24,18 +24,13 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 
-/**
- *
- */
 public class DefaultShardOperationFailedException implements ShardOperationFailedException {
 
     private String index;
@@ -46,21 +41,21 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
 
     private RestStatus status;
 
-    private DefaultShardOperationFailedException() {
+    protected DefaultShardOperationFailedException() {
     }
 
-    public DefaultShardOperationFailedException(IndexShardException e) {
-        this.index = e.shardId().index().name();
-        this.shardId = e.shardId().id();
+    public DefaultShardOperationFailedException(ElasticsearchException e) {
+        this.index = e.getIndex() == null ? null : e.getIndex().getName();
+        this.shardId = e.getShardId().id();
         this.reason = e;
         this.status = e.status();
     }
 
-    public DefaultShardOperationFailedException(String index, int shardId, Throwable t) {
+    public DefaultShardOperationFailedException(String index, int shardId, Throwable reason) {
         this.index = index;
         this.shardId = shardId;
-        this.reason = t;
-        status = ExceptionsHelper.status(t);
+        this.reason = reason;
+        this.status = ExceptionsHelper.status(reason);
     }
 
     @Override
@@ -100,7 +95,7 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
             index = in.readString();
         }
         shardId = in.readVInt();
-        reason = in.readThrowable();
+        reason = in.readException();
         status = RestStatus.readFrom(in);
     }
 
@@ -113,7 +108,7 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
             out.writeString(index);
         }
         out.writeVInt(shardId);
-        out.writeThrowable(reason);
+        out.writeException(reason);
         RestStatus.writeTo(out, status);
     }
 
@@ -130,7 +125,7 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
         if (reason != null) {
             builder.field("reason");
             builder.startObject();
-            ElasticsearchException.toXContent(builder, params, reason);
+            ElasticsearchException.generateThrowableXContent(builder, params, reason);
             builder.endObject();
         }
         return builder;

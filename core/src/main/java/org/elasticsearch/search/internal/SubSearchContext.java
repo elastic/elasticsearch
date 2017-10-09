@@ -18,41 +18,36 @@
  */
 package org.elasticsearch.search.internal;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
-import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.search.highlight.SearchContextHighlight;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
 
-/**
- */
 public class SubSearchContext extends FilteredSearchContext {
 
     // By default return 3 hits per bucket. A higher default would make the response really large by default, since
     // the to hits are returned per bucket.
-    private final static int DEFAULT_SIZE = 3;
+    private static final int DEFAULT_SIZE = 3;
 
     private int from;
     private int size = DEFAULT_SIZE;
-    private Sort sort;
+    private SortAndFormats sort;
+    private ParsedQuery parsedQuery;
+    private Query query;
 
     private final FetchSearchResult fetchSearchResult;
     private final QuerySearchResult querySearchResult;
@@ -61,17 +56,15 @@ public class SubSearchContext extends FilteredSearchContext {
     private int docsIdsToLoadFrom;
     private int docsIdsToLoadSize;
 
-    private List<String> fieldNames;
-    private FieldDataFieldsContext fieldDataFields;
+    private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
+    private DocValueFieldsContext docValueFieldsContext;
     private SearchContextHighlight highlight;
 
     private boolean explain;
     private boolean trackScores;
     private boolean version;
-
-    private InnerHitsContext innerHitsContext;
 
     public SubSearchContext(SearchContext context) {
         super(context);
@@ -84,26 +77,16 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public void preProcess() {
+    public void preProcess(boolean rewrite) {
     }
 
     @Override
-    public Filter searchFilter(String[] types) {
+    public Query buildFilteredQuery(Query query) {
         throw new UnsupportedOperationException("this context should be read only");
     }
 
     @Override
-    public SearchContext searchType(SearchType searchType) {
-        throw new UnsupportedOperationException("this context should be read only");
-    }
-
-    @Override
-    public SearchContext queryBoost(float queryBoost) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
-    public SearchContext scroll(Scroll scroll) {
+    public SearchContext scrollContext(ScrollContext scrollContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 
@@ -128,21 +111,8 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public void addRescore(RescoreSearchContext rescore) {
+    public void addRescore(RescoreContext rescore) {
         throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
-    public boolean hasFieldDataFields() {
-        return fieldDataFields != null;
-    }
-
-    @Override
-    public FieldDataFieldsContext fieldDataFields() {
-        if (fieldDataFields == null) {
-            fieldDataFields = new FieldDataFieldsContext();
-        }
-        return this.fieldDataFields;
     }
 
     @Override
@@ -180,7 +150,18 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public void timeoutInMillis(long timeoutInMillis) {
+    public DocValueFieldsContext docValueFieldsContext() {
+        return docValueFieldsContext;
+    }
+
+    @Override
+    public SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext) {
+        this.docValueFieldsContext = docValueFieldsContext;
+        return this;
+    }
+
+    @Override
+    public void timeout(TimeValue timeout) {
         throw new UnsupportedOperationException("Not supported");
     }
 
@@ -195,14 +176,33 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public SearchContext sort(Sort sort) {
+    public SearchContext sort(SortAndFormats sort) {
         this.sort = sort;
         return this;
     }
 
     @Override
-    public Sort sort() {
+    public SortAndFormats sort() {
         return sort;
+    }
+
+    @Override
+    public SearchContext parsedQuery(ParsedQuery parsedQuery) {
+        this.parsedQuery = parsedQuery;
+        if (parsedQuery != null) {
+            this.query = parsedQuery.query();
+        }
+        return this;
+    }
+
+    @Override
+    public ParsedQuery parsedQuery() {
+        return parsedQuery;
+    }
+
+    @Override
+    public Query query() {
+        return query;
     }
 
     @Override
@@ -218,11 +218,6 @@ public class SubSearchContext extends FilteredSearchContext {
 
     @Override
     public SearchContext parsedPostFilter(ParsedQuery postFilter) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
-    public SearchContext updateRewriteQuery(Query rewriteQuery) {
         throw new UnsupportedOperationException("Not supported");
     }
 
@@ -249,21 +244,29 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public boolean hasFieldNames() {
-        return fieldNames != null;
+    public boolean hasStoredFields() {
+        return storedFields != null && storedFields.fieldNames() != null;
     }
 
     @Override
-    public List<String> fieldNames() {
-        if (fieldNames == null) {
-            fieldNames = Lists.newArrayList();
-        }
-        return fieldNames;
+    public boolean hasStoredFieldsContext() {
+        return storedFields != null;
     }
 
     @Override
-    public void emptyFieldNames() {
-        this.fieldNames = ImmutableList.of();
+    public boolean storedFieldsRequested() {
+        return storedFields != null && storedFields.fetchFields();
+    }
+
+    @Override
+    public StoredFieldsContext storedFieldsContext() {
+        return storedFields;
+    }
+
+    @Override
+    public SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext) {
+        this.storedFields = storedFieldsContext;
+        return this;
     }
 
     @Override
@@ -315,17 +318,17 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
+    public CollapseContext collapse() {
+        return null;
+    }
+
+    @Override
     public void accessed(long accessTime) {
         throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public void keepAlive(long keepAlive) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
-    public void lastEmittedDoc(ScoreDoc doc) {
         throw new UnsupportedOperationException("Not supported");
     }
 
@@ -339,28 +342,9 @@ public class SubSearchContext extends FilteredSearchContext {
         return fetchSearchResult;
     }
 
-    private SearchLookup searchLookup;
-
-    @Override
-    public SearchLookup lookup() {
-        if (searchLookup == null) {
-            searchLookup = new SearchLookup(mapperService(), fieldData(), request().types());
-        }
-        return searchLookup;
-    }
-
     @Override
     public Counter timeEstimateCounter() {
         throw new UnsupportedOperationException("Not supported");
     }
 
-    @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        this.innerHitsContext = innerHitsContext;
-    }
-
-    @Override
-    public InnerHitsContext innerHits() {
-        return innerHitsContext;
-    }
 }

@@ -19,18 +19,18 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 
-/**
- *
- */
+import java.io.IOException;
+
 public class FlushFailedEngineException extends EngineException {
 
     public FlushFailedEngineException(ShardId shardId, Throwable t) {
         super(shardId, "Flush failed", t);
     }
 
-    public FlushFailedEngineException(ShardId shardId, String message, Throwable t) {
-        super(shardId, "Flush failed [" + message + "]", t);
+    public FlushFailedEngineException(StreamInput in) throws IOException{
+        super(in);
     }
 }

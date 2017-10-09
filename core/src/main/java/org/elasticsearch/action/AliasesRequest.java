@@ -35,7 +35,7 @@ public interface AliasesRequest extends IndicesRequest.Replaceable {
     /**
      * Sets the array of aliases that the action relates to
      */
-    AliasesRequest aliases(String[] aliases);
+    AliasesRequest aliases(String... aliases);
 
     /**
      * Returns true if wildcards expressions among aliases should be resolved, false otherwise

@@ -19,51 +19,62 @@
 
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
  * A pluggable module allowing to implement discovery of other nodes, publishing of the cluster
  * state to all nodes, electing a master of the cluster that raises cluster state change
  * events.
  */
-public interface Discovery extends LifecycleComponent<Discovery> {
-
-    DiscoveryNode localNode();
-
-    void addListener(InitialStateDiscoveryListener listener);
-
-    void removeListener(InitialStateDiscoveryListener listener);
-
-    String nodeDescription();
-
-    /**
-     * Here as a hack to solve dep injection problem...
-     */
-    void setNodeService(@Nullable NodeService nodeService);
-
-    /**
-     * Another hack to solve dep injection problem..., note, this will be called before
-     * any start is called.
-     */
-    void setAllocationService(AllocationService allocationService);
+public interface Discovery extends LifecycleComponent {
 
     /**
      * Publish all the changes to the cluster from the master (can be called just by the master). The publish
-     * process should not publish this state to the master as well! (the master is sending it...).
+     * process should apply this state to the master as well!
      *
      * The {@link AckListener} allows to keep track of the ack received from nodes, and verify whether
      * they updated their own cluster state or not.
+     *
+     * The method is guaranteed to throw a {@link FailedToCommitClusterStateException} if the change is not committed and should be rejected.
+     * Any other exception signals the something wrong happened but the change is committed.
      */
     void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener);
 
-    public static interface AckListener {
-        void onNodeAck(DiscoveryNode node, @Nullable Throwable t);
+    interface AckListener {
+        void onNodeAck(DiscoveryNode node, @Nullable Exception e);
         void onTimeout();
     }
+
+    class FailedToCommitClusterStateException extends ElasticsearchException {
+
+        public FailedToCommitClusterStateException(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public FailedToCommitClusterStateException(String msg, Object... args) {
+            super(msg, args);
+        }
+
+        public FailedToCommitClusterStateException(String msg, Throwable cause, Object... args) {
+            super(msg, cause, args);
+        }
+    }
+
+    /**
+     * @return stats about the discovery
+     */
+    DiscoveryStats stats();
+
+    /**
+     * Triggers the first join cycle
+     */
+    void startInitialJoin();
+
 }

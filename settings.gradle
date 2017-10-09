@@ -1,0 +1,155 @@
+String dirName = rootProject.projectDir.name
+rootProject.name = dirName
+
+List projects = [
+  'build-tools',
+  'rest-api-spec',
+  'core',
+  'docs',
+  'client:rest',
+  'client:rest-high-level',
+  'client:sniffer',
+  'client:transport',
+  'client:test',
+  'client:client-benchmark-noop-api-plugin',
+  'client:benchmark',
+  'benchmarks',
+  'distribution:integ-test-zip',
+  'distribution:bwc-release-snapshot',
+  'distribution:bwc-stable-snapshot',
+  'distribution:zip',
+  'distribution:tar',
+  'distribution:deb',
+  'distribution:rpm',
+  'distribution:tools:java-version-checker',
+  'distribution:tools:plugin-cli',
+  'test:framework',
+  'test:fixtures:example-fixture',
+  'test:fixtures:hdfs-fixture',
+  'test:fixtures:krb5kdc-fixture',
+  'test:fixtures:old-elasticsearch',
+  'test:logger-usage',
+  'modules:aggs-matrix-stats',
+  'modules:analysis-common',
+  'modules:ingest-common',
+  'modules:lang-expression',
+  'modules:lang-mustache',
+  'modules:lang-painless',
+  'modules:mapper-extras',
+  'modules:parent-join',
+  'modules:percolator',
+  'modules:reindex',
+  'modules:repository-url',
+  'modules:transport-netty4',
+  'modules:tribe',
+  'plugins:analysis-icu',
+  'plugins:analysis-kuromoji',
+  'plugins:analysis-phonetic',
+  'plugins:analysis-smartcn',
+  'plugins:analysis-stempel',
+  'plugins:analysis-ukrainian',
+  'plugins:discovery-azure-classic',
+  'plugins:discovery-ec2',
+  'plugins:discovery-file',
+  'plugins:discovery-gce',
+  'plugins:ingest-geoip',
+  'plugins:ingest-attachment',
+  'plugins:ingest-user-agent',
+  'plugins:mapper-murmur3',
+  'plugins:mapper-size',
+  'plugins:repository-azure',
+  'plugins:repository-gcs',
+  'plugins:repository-hdfs',
+  'plugins:repository-s3',
+  'plugins:jvm-example',
+  'plugins:store-smb',
+  'qa:auto-create-index',
+  'qa:evil-tests',
+  'qa:full-cluster-restart',
+  'qa:integration-bwc',
+  'qa:mixed-cluster',
+  'qa:multi-cluster-search',
+  'qa:no-bootstrap-tests',
+  'qa:reindex-from-old',
+  'qa:rolling-upgrade',
+  'qa:smoke-test-client',
+  'qa:smoke-test-http',
+  'qa:smoke-test-ingest-with-all-dependencies',
+  'qa:smoke-test-ingest-disabled',
+  'qa:smoke-test-multinode',
+  'qa:smoke-test-plugins',
+  'qa:smoke-test-reindex-with-all-modules',
+  'qa:smoke-test-tribe-node',
+  'qa:vagrant',
+  'qa:verify-version-constants',
+  'qa:wildfly',
+  'qa:query-builder-bwc'
+]
+
+File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')
+List<String> examplePlugins = []
+for (File example : examplePluginsDir.listFiles()) {
+  if (example.isDirectory() == false) continue;
+  if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
+  projects.add("example-plugins:${example.name}".toString())
+  examplePlugins.add(example.name)
+}
+
+boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
+if (isEclipse) {
+  // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
+  // for core-src and core-tests
+  projects << 'core-tests'
+}
+
+include projects.toArray(new String[0])
+
+project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
+project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugins/examples')
+
+for (String example : examplePlugins) {
+  project(":example-plugins:${example}").projectDir = new File(rootProject.projectDir, "plugins/examples/${example}")
+}
+
+/* bwc and bwc-unreleased share the same build directory and build file, but
+ * apply to different backwards compatibility branches. */
+project(':distribution:bwc-release-snapshot').projectDir =
+    new File(rootProject.projectDir, 'distribution/bwc')
+project(':distribution:bwc-stable-snapshot').projectDir =
+    new File(rootProject.projectDir, 'distribution/bwc')
+
+if (isEclipse) {
+  project(":core").projectDir = new File(rootProject.projectDir, 'core/src/main')
+  project(":core").buildFileName = 'eclipse-build.gradle'
+  project(":core-tests").projectDir = new File(rootProject.projectDir, 'core/src/test')
+  project(":core-tests").buildFileName = 'eclipse-build.gradle'
+}
+
+/**
+  * Iterates over sub directories, looking for build.gradle, and adds a project if found
+  * for that dir with the given path prefix. Note that this requires each level
+  * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
+  * all files/directories in the source tree to find all projects.
+  */
+void addSubProjects(String path, File dir) {
+  if (dir.isDirectory() == false) return;
+  if (dir.name == 'buildSrc') return;
+  if (new File(dir, 'build.gradle').exists() == false) return;
+
+  String projectName = "${path}:${dir.name}"
+  include projectName
+  if (path.isEmpty()) {
+    project(projectName).projectDir = dir
+  }
+  for (File subdir : dir.listFiles()) {
+    addSubProjects(projectName, subdir)
+  }
+}
+
+// look for extra plugins for elasticsearch
+File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")
+if (extraProjects.exists()) {
+  for (File extraProjectDir : extraProjects.listFiles()) {
+    addSubProjects('', extraProjectDir)
+  }
+}

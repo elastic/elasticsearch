@@ -19,54 +19,66 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
-import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-/**
- *
- */
-public class SignificanceHeuristicTests extends ElasticsearchTestCase {
+public class SignificanceHeuristicTests extends ESTestCase {
     static class SignificantTermsTestSearchContext extends TestSearchContext {
+
+        SignificantTermsTestSearchContext() {
+            super(null);
+        }
+
         @Override
         public int numberOfShards() {
             return 1;
@@ -74,149 +86,223 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
         @Override
         public SearchShardTarget shardTarget() {
-            return new SearchShardTarget("no node, this is a unit test", "no index, this is a unit test", 0);
+            return new SearchShardTarget("no node, this is a unit test", new Index("no index, this is a unit test", "_na_"), 0, null);
         }
     }
 
     // test that stream output can actually be read - does not replace bwc test
-    @Test
-    public void streamResponse() throws Exception {
-        SignificanceHeuristicStreams.registerStream(MutualInformation.STREAM, MutualInformation.STREAM.getName());
-        SignificanceHeuristicStreams.registerStream(JLHScore.STREAM, JLHScore.STREAM.getName());
-        SignificanceHeuristicStreams.registerStream(PercentageScore.STREAM, PercentageScore.STREAM.getName());
-        SignificanceHeuristicStreams.registerStream(GND.STREAM, GND.STREAM.getName());
-        SignificanceHeuristicStreams.registerStream(ChiSquare.STREAM, ChiSquare.STREAM.getName());
-        SignificanceHeuristicStreams.registerStream(ScriptHeuristic.STREAM, ScriptHeuristic.STREAM.getName());
+    public void testStreamResponse() throws Exception {
         Version version = randomVersion(random());
-        InternalSignificantTerms[] sigTerms = getRandomSignificantTerms(getRandomSignificanceheuristic());
+        InternalMappedSignificantTerms<?, ?> sigTerms = getRandomSignificantTerms(getRandomSignificanceheuristic());
 
         // write
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         out.setVersion(version);
-
-        sigTerms[0].writeTo(out);
+        out.writeNamedWriteable(sigTerms);
 
         // read
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-        InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
+        StreamInput in = new InputStreamStreamInput(inBuffer);
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList()); // populates the registry through side effects
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        in = new NamedWriteableAwareStreamInput(in, registry);
         in.setVersion(version);
+        InternalMappedSignificantTerms<?, ?> read = (InternalMappedSignificantTerms<?, ?>) in.readNamedWriteable(InternalAggregation.class);
 
-        sigTerms[1].readFrom(in);
-
-        assertTrue(sigTerms[1].significanceHeuristic.equals(sigTerms[0].significanceHeuristic));
+        assertEquals(sigTerms.significanceHeuristic, read.significanceHeuristic);
+        SignificantTerms.Bucket originalBucket = sigTerms.getBuckets().get(0);
+        SignificantTerms.Bucket streamedBucket = read.getBuckets().get(0);
+        assertThat(originalBucket.getKeyAsString(), equalTo(streamedBucket.getKeyAsString()));
+        assertThat(originalBucket.getSupersetDf(), equalTo(streamedBucket.getSupersetDf()));
+        assertThat(originalBucket.getSubsetDf(), equalTo(streamedBucket.getSubsetDf()));
+        assertThat(streamedBucket.getSubsetSize(), equalTo(10L));
+        assertThat(streamedBucket.getSupersetSize(), equalTo(20L));
     }
 
-    InternalSignificantTerms[] getRandomSignificantTerms(SignificanceHeuristic heuristic) {
-        InternalSignificantTerms[] sTerms = new InternalSignificantTerms[2];
-        ArrayList<InternalSignificantTerms.Bucket> buckets = new ArrayList<>();
+    InternalMappedSignificantTerms<?, ?> getRandomSignificantTerms(SignificanceHeuristic heuristic) {
         if (randomBoolean()) {
-            BytesRef term = new BytesRef("123.0");
-            buckets.add(new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY, null));
-            sTerms[0] = new SignificantLongTerms(10, 20, "some_name", null, 1, 1, heuristic, buckets,
-                    (List<PipelineAggregator>) Collections.EMPTY_LIST, null);
-            sTerms[1] = new SignificantLongTerms();
+            SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY,
+                    DocValueFormat.RAW);
+            return new SignificantLongTerms("some_name", 1, 1, emptyList(), null, DocValueFormat.RAW, 10, 20, heuristic,
+                    singletonList(bucket));
         } else {
-
-            BytesRef term = new BytesRef("someterm");
-            buckets.add(new SignificantStringTerms.Bucket(term, 1, 2, 3, 4, InternalAggregations.EMPTY));
-            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets, (List<PipelineAggregator>) Collections.EMPTY_LIST,
-                    null);
-            sTerms[1] = new SignificantStringTerms();
+            SignificantStringTerms.Bucket bucket = new SignificantStringTerms.Bucket(new BytesRef("someterm"), 1, 2, 3, 4,
+                    InternalAggregations.EMPTY, DocValueFormat.RAW);
+            return new SignificantStringTerms("some_name", 1, 1, emptyList(), null, DocValueFormat.RAW, 10, 20, heuristic,
+                    singletonList(bucket));
         }
-        return sTerms;
     }
 
-    SignificanceHeuristic getRandomSignificanceheuristic() {
+    public static SignificanceHeuristic getRandomSignificanceheuristic() {
         List<SignificanceHeuristic> heuristics = new ArrayList<>();
-        heuristics.add(JLHScore.INSTANCE);
+        heuristics.add(new JLHScore());
         heuristics.add(new MutualInformation(randomBoolean(), randomBoolean()));
         heuristics.add(new GND(randomBoolean()));
         heuristics.add(new ChiSquare(randomBoolean(), randomBoolean()));
         return heuristics.get(randomInt(3));
     }
 
-    // test that
-    // 1. The output of the builders can actually be parsed
-    // 2. The parser does not swallow parameters after a significance heuristic was defined
-    @Test
-    public void testBuilderAndParser() throws Exception {
-
-        Set<SignificanceHeuristicParser> parsers = new HashSet<>();
-        parsers.add(new JLHScore.JLHScoreParser());
-        parsers.add(new MutualInformation.MutualInformationParser());
-        parsers.add(new GND.GNDParser());
-        parsers.add(new ChiSquare.ChiSquareParser());
-        SignificanceHeuristicParserMapper heuristicParserMapper = new SignificanceHeuristicParserMapper(parsers);
-        SearchContext searchContext = new SignificantTermsTestSearchContext();
-
-        // test jlh with string
-        assertTrue(parseFromString(heuristicParserMapper, searchContext, "\"jlh\":{}") instanceof JLHScore);
-        // test gnd with string
-        assertTrue(parseFromString(heuristicParserMapper, searchContext, "\"gnd\":{}") instanceof GND);
-        // test mutual information with string
-        boolean includeNegatives = randomBoolean();
-        boolean backgroundIsSuperset = randomBoolean();
-        assertThat(parseFromString(heuristicParserMapper, searchContext, "\"mutual_information\":{\"include_negatives\": " + includeNegatives + ", \"background_is_superset\":" + backgroundIsSuperset + "}"), equalTo((SignificanceHeuristic) (new MutualInformation(includeNegatives, backgroundIsSuperset))));
-        assertThat(parseFromString(heuristicParserMapper, searchContext, "\"chi_square\":{\"include_negatives\": " + includeNegatives + ", \"background_is_superset\":" + backgroundIsSuperset + "}"), equalTo((SignificanceHeuristic) (new ChiSquare(includeNegatives, backgroundIsSuperset))));
-
-        // test with builders
-        assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new JLHScore.JLHScoreBuilder()) instanceof JLHScore);
-        assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new GND.GNDBuilder(backgroundIsSuperset)) instanceof GND);
-        assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new MutualInformation.MutualInformationBuilder(includeNegatives, backgroundIsSuperset)), equalTo((SignificanceHeuristic) new MutualInformation(includeNegatives, backgroundIsSuperset)));
-        assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new ChiSquare.ChiSquareBuilder(includeNegatives, backgroundIsSuperset)), equalTo((SignificanceHeuristic) new ChiSquare(includeNegatives, backgroundIsSuperset)));
-
-        // test exceptions
-        String faultyHeuristicdefinition = "\"mutual_information\":{\"include_negatives\": false, \"some_unknown_field\": false}";
-        String expectedError = "unknown for mutual_information";
-        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
-
-        faultyHeuristicdefinition = "\"chi_square\":{\"unknown_field\": true}";
-        expectedError = "unknown for chi_square";
-        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
-
-        faultyHeuristicdefinition = "\"jlh\":{\"unknown_field\": true}";
-        expectedError = "expected }, got ";
-        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
-
-        faultyHeuristicdefinition = "\"gnd\":{\"unknown_field\": true}";
-        expectedError = "unknown for gnd";
-        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
+    public void testReduce() {
+        List<InternalAggregation> aggs = createInternalAggregations();
+        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, null, true);
+        SignificantTerms reducedAgg = (SignificantTerms) aggs.get(0).doReduce(aggs, context);
+        assertThat(reducedAgg.getBuckets().size(), equalTo(2));
+        assertThat(reducedAgg.getBuckets().get(0).getSubsetDf(), equalTo(8L));
+        assertThat(reducedAgg.getBuckets().get(0).getSubsetSize(), equalTo(16L));
+        assertThat(reducedAgg.getBuckets().get(0).getSupersetDf(), equalTo(10L));
+        assertThat(reducedAgg.getBuckets().get(0).getSupersetSize(), equalTo(30L));
+        assertThat(reducedAgg.getBuckets().get(1).getSubsetDf(), equalTo(8L));
+        assertThat(reducedAgg.getBuckets().get(1).getSubsetSize(), equalTo(16L));
+        assertThat(reducedAgg.getBuckets().get(1).getSupersetDf(), equalTo(10L));
+        assertThat(reducedAgg.getBuckets().get(1).getSupersetSize(), equalTo(30L));
     }
 
-    protected void checkParseException(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, String faultyHeuristicDefinition, String expectedError) throws IOException {
-        try {
-            XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
-            stParser.nextToken();
-            new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
-            fail();
-        } catch (ElasticsearchParseException e) {
-            assertTrue(e.getMessage().contains(expectedError));
+    // Create aggregations as they might come from three different shards and return as list.
+    private List<InternalAggregation> createInternalAggregations() {
+        SignificanceHeuristic significanceHeuristic = getRandomSignificanceheuristic();
+        TestAggFactory<?, ?> factory = randomBoolean() ? new StringTestAggFactory() : new LongTestAggFactory();
+
+        List<InternalAggregation> aggs = new ArrayList<>();
+        aggs.add(factory.createAggregation(significanceHeuristic, 4, 10, 1, (f, i) -> f.createBucket(4, 4, 5, 10, 0)));
+        aggs.add(factory.createAggregation(significanceHeuristic, 4, 10, 1, (f, i) -> f.createBucket(4, 4, 5, 10, 1)));
+        aggs.add(factory.createAggregation(significanceHeuristic, 8, 10, 2, (f, i) -> f.createBucket(4, 4, 5, 10, i)));
+        return aggs;
+    }
+
+    private abstract class TestAggFactory<A extends InternalSignificantTerms<A, B>, B extends InternalSignificantTerms.Bucket<B>> {
+        final A createAggregation(SignificanceHeuristic significanceHeuristic, long subsetSize, long supersetSize, int bucketCount,
+                BiFunction<TestAggFactory<?, B>, Integer, B> bucketFactory) {
+            List<B> buckets = IntStream.range(0, bucketCount).mapToObj(i -> bucketFactory.apply(this, i))
+                    .collect(Collectors.toList());
+            return createAggregation(significanceHeuristic, subsetSize, supersetSize, buckets);
+        }
+
+        abstract A createAggregation(SignificanceHeuristic significanceHeuristic, long subsetSize, long supersetSize, List<B> buckets);
+
+        abstract B createBucket(long subsetDF, long subsetSize, long supersetDF, long supersetSize, long label);
+    }
+    private class StringTestAggFactory extends TestAggFactory<SignificantStringTerms, SignificantStringTerms.Bucket> {
+        @Override
+        SignificantStringTerms createAggregation(SignificanceHeuristic significanceHeuristic, long subsetSize, long supersetSize,
+                List<SignificantStringTerms.Bucket> buckets) {
+            return new SignificantStringTerms("sig_terms", 2, -1, emptyList(),
+                    emptyMap(), DocValueFormat.RAW, subsetSize, supersetSize, significanceHeuristic, buckets);
+        }
+
+        @Override
+        SignificantStringTerms.Bucket createBucket(long subsetDF, long subsetSize, long supersetDF, long supersetSize, long label) {
+            return new SignificantStringTerms.Bucket(new BytesRef(Long.toString(label).getBytes(StandardCharsets.UTF_8)), subsetDF,
+                    subsetSize, supersetDF, supersetSize, InternalAggregations.EMPTY, DocValueFormat.RAW);
+        }
+    }
+    private class LongTestAggFactory extends TestAggFactory<SignificantLongTerms, SignificantLongTerms.Bucket> {
+        @Override
+        SignificantLongTerms createAggregation(SignificanceHeuristic significanceHeuristic, long subsetSize, long supersetSize,
+                List<SignificantLongTerms.Bucket> buckets) {
+            return new SignificantLongTerms("sig_terms", 2, -1, new ArrayList<PipelineAggregator>(), emptyMap(), DocValueFormat.RAW,
+                    subsetSize, supersetSize, significanceHeuristic, buckets);
+        }
+
+        @Override
+        SignificantLongTerms.Bucket createBucket(long subsetDF, long subsetSize, long supersetDF, long supersetSize, long label) {
+            return new SignificantLongTerms.Bucket(subsetDF, subsetSize, supersetDF, supersetSize, label, InternalAggregations.EMPTY,
+                    DocValueFormat.RAW);
         }
     }
 
-    protected SignificanceHeuristic parseFromBuilder(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, SignificanceHeuristicBuilder significanceHeuristicBuilder) throws IOException {
-        SignificantTermsBuilder stBuilder = new SignificantTermsBuilder("testagg");
-        stBuilder.significanceHeuristic(significanceHeuristicBuilder).field("text").minDocCount(200);
+    // test that
+    // 1. The output of the builders can actually be parsed
+    // 2. The parser does not swallow parameters after a significance heuristic was defined
+    public void testBuilderAndParser() throws Exception {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        ParseFieldRegistry<SignificanceHeuristicParser> heuristicParserMapper = searchModule.getSignificanceHeuristicParserRegistry();
+
+        // test jlh with string
+        assertTrue(parseFromString(heuristicParserMapper, "\"jlh\":{}") instanceof JLHScore);
+        // test gnd with string
+        assertTrue(parseFromString(heuristicParserMapper, "\"gnd\":{}") instanceof GND);
+        // test mutual information with string
+        boolean includeNegatives = randomBoolean();
+        boolean backgroundIsSuperset = randomBoolean();
+        String mutual = "\"mutual_information\":{\"include_negatives\": " + includeNegatives + ", \"background_is_superset\":"
+                + backgroundIsSuperset + "}";
+        assertEquals(new MutualInformation(includeNegatives, backgroundIsSuperset),
+                parseFromString(heuristicParserMapper, mutual));
+        String chiSquare = "\"chi_square\":{\"include_negatives\": " + includeNegatives + ", \"background_is_superset\":"
+                + backgroundIsSuperset + "}";
+        assertEquals(new ChiSquare(includeNegatives, backgroundIsSuperset),
+                parseFromString(heuristicParserMapper, chiSquare));
+
+        // test with builders
+        assertThat(parseFromBuilder(heuristicParserMapper, new JLHScore()), instanceOf(JLHScore.class));
+        assertThat(parseFromBuilder(heuristicParserMapper, new GND(backgroundIsSuperset)), instanceOf(GND.class));
+        assertEquals(new MutualInformation(includeNegatives, backgroundIsSuperset),
+                parseFromBuilder(heuristicParserMapper, new MutualInformation(includeNegatives, backgroundIsSuperset)));
+        assertEquals(new ChiSquare(includeNegatives, backgroundIsSuperset),
+                parseFromBuilder(heuristicParserMapper, new ChiSquare(includeNegatives, backgroundIsSuperset)));
+
+        // test exceptions
+        String faultyHeuristicdefinition = "\"mutual_information\":{\"include_negatives\": false, \"some_unknown_field\": false}";
+        String expectedError = "unknown field [some_unknown_field]";
+        checkParseException(heuristicParserMapper, faultyHeuristicdefinition, expectedError);
+
+        faultyHeuristicdefinition = "\"chi_square\":{\"unknown_field\": true}";
+        expectedError = "unknown field [unknown_field]";
+        checkParseException(heuristicParserMapper, faultyHeuristicdefinition, expectedError);
+
+        faultyHeuristicdefinition = "\"jlh\":{\"unknown_field\": true}";
+        expectedError = "expected an empty object, but found ";
+        checkParseException(heuristicParserMapper, faultyHeuristicdefinition, expectedError);
+
+        faultyHeuristicdefinition = "\"gnd\":{\"unknown_field\": true}";
+        expectedError = "unknown field [unknown_field]";
+        checkParseException(heuristicParserMapper, faultyHeuristicdefinition, expectedError);
+    }
+
+    protected void checkParseException(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
+            String faultyHeuristicDefinition, String expectedError) throws IOException {
+
+        try {
+            XContentParser stParser = createParser(JsonXContent.jsonXContent,
+                    "{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
+            stParser.nextToken();
+            SignificantTermsAggregationBuilder.getParser(significanceHeuristicParserRegistry).parse("testagg", stParser);
+            fail();
+        } catch (ParsingException e) {
+            assertThat(e.getCause().getMessage(), containsString(expectedError));
+        }
+    }
+
+    protected SignificanceHeuristic parseFromBuilder(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
+            SignificanceHeuristic significanceHeuristic) throws IOException {
+        SignificantTermsAggregationBuilder stBuilder = significantTerms("testagg");
+        stBuilder.significanceHeuristic(significanceHeuristic).field("text").minDocCount(200);
         XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
         stBuilder.internalXContent(stXContentBuilder, null);
-        XContentParser stParser = JsonXContent.jsonXContent.createParser(stXContentBuilder.string());
-        return parseSignificanceHeuristic(heuristicParserMapper, searchContext, stParser);
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, stXContentBuilder.string());
+        return parseSignificanceHeuristic(significanceHeuristicParserRegistry, stParser);
     }
 
-    private SignificanceHeuristic parseSignificanceHeuristic(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, XContentParser stParser) throws IOException {
+    private static SignificanceHeuristic parseSignificanceHeuristic(
+            ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
+            XContentParser stParser) throws IOException {
         stParser.nextToken();
-        SignificantTermsAggregatorFactory aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
+        SignificantTermsAggregationBuilder aggregatorFactory =
+                (SignificantTermsAggregationBuilder) SignificantTermsAggregationBuilder.getParser(
+                significanceHeuristicParserRegistry).parse("testagg", stParser);
         stParser.nextToken();
-        assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
+        assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200L));
         assertThat(stParser.currentToken(), equalTo(null));
         stParser.close();
-        return aggregatorFactory.getSignificanceHeuristic();
+        return aggregatorFactory.significanceHeuristic();
     }
 
-    protected SignificanceHeuristic parseFromString(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, String heuristicString) throws IOException {
-        XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", " + heuristicString + ", \"min_doc_count\":200}");
-        return parseSignificanceHeuristic(heuristicParserMapper, searchContext, stParser);
+    protected SignificanceHeuristic parseFromString(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
+            String heuristicString) throws IOException {
+        XContentParser stParser = createParser(JsonXContent.jsonXContent,
+                "{\"field\":\"text\", " + heuristicString + ", \"min_doc_count\":200}");
+        return parseSignificanceHeuristic(significanceHeuristicParserRegistry, stParser);
     }
 
     void testBackgroundAssertions(SignificanceHeuristic heuristicIsSuperset, SignificanceHeuristic heuristicNotSuperset) {
@@ -318,26 +404,23 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testAssertions() throws Exception {
         testBackgroundAssertions(new MutualInformation(true, true), new MutualInformation(true, false));
         testBackgroundAssertions(new ChiSquare(true, true), new ChiSquare(true, false));
         testBackgroundAssertions(new GND(true), new GND(false));
-        testAssertions(PercentageScore.INSTANCE);
-        testAssertions(JLHScore.INSTANCE);
+        testAssertions(new PercentageScore());
+        testAssertions(new JLHScore());
     }
 
-    @Test
-    public void basicScoreProperties() {
-        basicScoreProperties(JLHScore.INSTANCE, true);
+    public void testBasicScoreProperties() {
+        basicScoreProperties(new JLHScore(), true);
         basicScoreProperties(new GND(true), true);
-        basicScoreProperties(PercentageScore.INSTANCE, true);
+        basicScoreProperties(new PercentageScore(), true);
         basicScoreProperties(new MutualInformation(true, true), false);
         basicScoreProperties(new ChiSquare(true, true), false);
     }
 
     public void basicScoreProperties(SignificanceHeuristic heuristic, boolean test0) {
-
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
         assertThat(heuristic.getScore(1, 1, 3, 4), lessThan(heuristic.getScore(1, 1, 2, 4)));
@@ -357,8 +440,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         assertThat(score, greaterThanOrEqualTo(0.0));
     }
 
-    @Test
-    public void scoreMutual() throws Exception {
+    public void testScoreMutual() throws Exception {
         SignificanceHeuristic heuristic = new MutualInformation(true, true);
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
@@ -394,7 +476,6 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         assertThat(score, lessThanOrEqualTo(1.0));
     }
 
-    @Test
     public void testGNDCornerCases() throws Exception {
         GND gnd = new GND(true);
         //term is only in the subset, not at all in the other set but that is because the other set is empty.

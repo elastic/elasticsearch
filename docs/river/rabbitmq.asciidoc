@@ -1,9 +1,0 @@
-[[river-rabbitmq]]
-== RabbitMQ River
-
-RabbitMQ River allows to automatically index a
-http://www.rabbitmq.com/[RabbitMQ] queue.
-
-See
-https://github.com/elasticsearch/elasticsearch-river-rabbitmq/blob/master/README.md[README
-file] for details.

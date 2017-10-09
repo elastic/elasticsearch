@@ -19,36 +19,69 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.unit.TimeValue;
+
+import java.util.List;
 
 /**
  * A task that can update the cluster state.
  */
-abstract public class ClusterStateUpdateTask {
+public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskExecutor<ClusterStateUpdateTask>, ClusterStateTaskListener {
+
+    private final Priority priority;
+
+    public ClusterStateUpdateTask() {
+        this(Priority.NORMAL);
+    }
+
+    public ClusterStateUpdateTask(Priority priority) {
+        this.priority = priority;
+    }
+
+    @Override
+    public final ClusterTasksResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks) throws Exception {
+        ClusterState result = execute(currentState);
+        return ClusterTasksResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
+    }
+
+    @Override
+    public String describeTasks(List<ClusterStateUpdateTask> tasks) {
+        return ""; // one of task, source is enough
+    }
 
     /**
      * Update the cluster state based on the current state. Return the *same instance* if no state
      * should be changed.
      */
-    abstract public ClusterState execute(ClusterState currentState) throws Exception;
+    public abstract ClusterState execute(ClusterState currentState) throws Exception;
 
     /**
      * A callback called when execute fails.
      */
-    abstract public void onFailure(String source, Throwable t);
-
+    public abstract void onFailure(String source, Exception e);
 
     /**
-     * indicates whether this task should only run if current node is master
+     * If the cluster state update task wasn't processed by the provided timeout, call
+     * {@link ClusterStateTaskListener#onFailure(String, Exception)}. May return null to indicate no timeout is needed (default).
      */
-    public boolean runOnlyOnMaster() {
-        return true;
+    @Nullable
+    public TimeValue timeout() {
+        return null;
+    }
+
+    @Override
+    public Priority priority() {
+        return priority;
     }
 
     /**
-     * called when the task was rejected because the local node is no longer master
+     * Marked as final as cluster state update tasks should only run on master.
+     * For local requests, use {@link LocalClusterUpdateTask} instead.
      */
-    public void onNoLongerMaster(String source) {
-        onFailure(source, new EsRejectedExecutionException("no longer master. source: [" + source + "]"));
+    @Override
+    public final boolean runOnlyOnMaster() {
+        return true;
     }
 }

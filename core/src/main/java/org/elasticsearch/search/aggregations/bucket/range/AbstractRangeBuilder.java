@@ -19,63 +19,125 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import com.google.common.collect.Lists;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.apache.lucene.util.InPlaceMergeSorter;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.ValuesSourceAggregationBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilderException;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
 
-/**
- *
- */
-public abstract class AbstractRangeBuilder<B extends AbstractRangeBuilder<B>> extends ValuesSourceAggregationBuilder<B> {
+public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R>, R extends Range>
+        extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, AB> implements MultiBucketAggregationBuilder {
 
-    protected static class Range implements ToXContent {
+    protected final InternalRange.Factory<?, ?> rangeFactory;
+    protected List<R> ranges = new ArrayList<>();
+    protected boolean keyed = false;
 
-        private String key;
-        private Object from;
-        private Object to;
-
-        public Range(String key, Object from, Object to) {
-            this.key = key;
-            this.from = from;
-            this.to = to;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            if (key != null) {
-                builder.field("key", key);
-            }
-            if (from != null) {
-                builder.field("from", from);
-            }
-            if (to != null) {
-                builder.field("to", to);
-            }
-            return builder.endObject();
-        }
+    protected AbstractRangeBuilder(String name, InternalRange.Factory<?, ?> rangeFactory) {
+        super(name, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
+        this.rangeFactory = rangeFactory;
     }
 
-    protected List<Range> ranges = Lists.newArrayList();
+    /**
+     * Read from a stream.
+     */
+    protected AbstractRangeBuilder(StreamInput in, InternalRange.Factory<?, ?> rangeFactory, Writeable.Reader<R> rangeReader)
+            throws IOException {
+        super(in, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
+        this.rangeFactory = rangeFactory;
+        ranges = in.readList(rangeReader);
+        keyed = in.readBoolean();
+    }
 
-    protected AbstractRangeBuilder(String name, String type) {
-        super(name, type);
+    /**
+     * Resolve any strings in the ranges so we have a number value for the from
+     * and to of each range. The ranges are also sorted before being returned.
+     */
+    protected Range[] processRanges(Function<Range, Range> rangeProcessor) {
+        Range[] ranges = new Range[this.ranges.size()];
+        for (int i = 0; i < ranges.length; i++) {
+            ranges[i] = rangeProcessor.apply(this.ranges.get(i));
+        }
+        sortRanges(ranges);
+        return ranges;
+    }
+
+    private static void sortRanges(final Range[] ranges) {
+        new InPlaceMergeSorter() {
+
+            @Override
+            protected void swap(int i, int j) {
+                final Range tmp = ranges[i];
+                ranges[i] = ranges[j];
+                ranges[j] = tmp;
+            }
+
+            @Override
+            protected int compare(int i, int j) {
+                int cmp = Double.compare(ranges[i].from, ranges[j].from);
+                if (cmp == 0) {
+                    cmp = Double.compare(ranges[i].to, ranges[j].to);
+                }
+                return cmp;
+            }
+        }.sort(0, ranges.length);
     }
 
     @Override
-    protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
-        if (ranges.isEmpty()) {
-            throw new SearchSourceBuilderException("at least one range must be defined for range aggregation [" + getName() + "]");
-        }
-        builder.startArray("ranges");
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeVInt(ranges.size());
         for (Range range : ranges) {
-            range.toXContent(builder, params);
+            range.writeTo(out);
         }
-        return builder.endArray();
+        out.writeBoolean(keyed);
+    }
+
+    public AB addRange(R range) {
+        if (range == null) {
+            throw new IllegalArgumentException("[range] must not be null: [" + name + "]");
+        }
+        ranges.add(range);
+        return (AB) this;
+    }
+
+    public List<R> ranges() {
+        return ranges;
+    }
+
+    public AB keyed(boolean keyed) {
+        this.keyed = keyed;
+        return (AB) this;
+    }
+
+    public boolean keyed() {
+        return keyed;
+    }
+
+    @Override
+    protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.field(RangeAggregator.RANGES_FIELD.getPreferredName(), ranges);
+        builder.field(RangeAggregator.KEYED_FIELD.getPreferredName(), keyed);
+        return builder;
+    }
+
+    @Override
+    protected int innerHashCode() {
+        return Objects.hash(ranges, keyed);
+    }
+
+    @Override
+    protected boolean innerEquals(Object obj) {
+        AbstractRangeBuilder<AB, R> other = (AbstractRangeBuilder<AB, R>) obj;
+        return Objects.equals(ranges, other.ranges)
+                && Objects.equals(keyed, other.keyed);
     }
 }

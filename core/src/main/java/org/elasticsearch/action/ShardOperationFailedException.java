@@ -21,22 +21,14 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexException;
 import org.elasticsearch.rest.RestStatus;
-
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 /**
  * An exception indicating that a failure occurred performing an operation on the shard.
  *
  *
  */
-public interface ShardOperationFailedException extends Streamable, Serializable, ToXContent {
+public interface ShardOperationFailedException extends Streamable, ToXContent {
 
     /**
      * The index the operation failed on. Might return <tt>null</tt> if it can't be derived.

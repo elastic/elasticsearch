@@ -19,11 +19,9 @@
 
 package org.elasticsearch.common.util;
 
+import java.lang.reflect.Array;
 import java.util.Arrays;
 
-/**
- *
- */
 public class ArrayUtils {
 
     private ArrayUtils() {}
@@ -68,5 +66,22 @@ public class ArrayUtils {
             }
         }
         return index;
+    }
+
+    /**
+     * Concatenates 2 arrays
+     */
+    public static String[] concat(String[] one, String[] other) {
+        return concat(one, other, String.class);
+    }
+
+    /**
+     * Concatenates 2 arrays
+     */
+    public static <T> T[] concat(T[] one, T[] other, Class<T> clazz) {
+        T[] target = (T[]) Array.newInstance(clazz, one.length + other.length);
+        System.arraycopy(one, 0, target, 0, one.length);
+        System.arraycopy(other, 0, target, one.length, other.length);
+        return target;
     }
 }

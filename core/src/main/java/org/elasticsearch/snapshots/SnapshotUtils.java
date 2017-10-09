@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.IndexNotFoundException;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -42,7 +44,7 @@ public class SnapshotUtils {
      * @return filtered out indices
      */
     public static List<String> filterIndices(List<String> availableIndices, String[] selectedIndices, IndicesOptions indicesOptions) {
-        if (selectedIndices == null || selectedIndices.length == 0) {
+        if (IndexNameExpressionResolver.isAllIndices(Arrays.asList(selectedIndices))) {
             return availableIndices;
         }
         Set<String> result = null;
@@ -51,9 +53,10 @@ public class SnapshotUtils {
             boolean add = true;
             if (!indexOrPattern.isEmpty()) {
                 if (availableIndices.contains(indexOrPattern)) {
-                    if (result != null) {
-                        result.add(indexOrPattern);
+                    if (result == null) {
+                        result = new HashSet<>();
                     }
+                    result.add(indexOrPattern);
                     continue;
                 }
                 if (indexOrPattern.charAt(0) == '+') {
@@ -75,12 +78,11 @@ public class SnapshotUtils {
             if (indexOrPattern.isEmpty() || !Regex.isSimpleMatchPattern(indexOrPattern)) {
                 if (!availableIndices.contains(indexOrPattern)) {
                     if (!indicesOptions.ignoreUnavailable()) {
-                        throw new IndexMissingException(new Index(indexOrPattern));
+                        throw new IndexNotFoundException(indexOrPattern);
                     } else {
                         if (result == null) {
                             // add all the previous ones...
-                            result = new HashSet<>();
-                            result.addAll(availableIndices.subList(0, i));
+                            result = new HashSet<>(availableIndices.subList(0, i));
                         }
                     }
                 } else {
@@ -96,8 +98,7 @@ public class SnapshotUtils {
             }
             if (result == null) {
                 // add all the previous ones...
-                result = new HashSet<>();
-                result.addAll(availableIndices.subList(0, i));
+                result = new HashSet<>(availableIndices.subList(0, i));
             }
             boolean found = false;
             for (String index : availableIndices) {
@@ -111,12 +112,12 @@ public class SnapshotUtils {
                 }
             }
             if (!found && !indicesOptions.allowNoIndices()) {
-                throw new IndexMissingException(new Index(indexOrPattern));
+                throw new IndexNotFoundException(indexOrPattern);
             }
         }
         if (result == null) {
-            return ImmutableList.copyOf(selectedIndices);
+            return Collections.unmodifiableList(new ArrayList<>(Arrays.asList(selectedIndices)));
         }
-        return ImmutableList.copyOf(result);
+        return Collections.unmodifiableList(new ArrayList<>(result));
     }
 }

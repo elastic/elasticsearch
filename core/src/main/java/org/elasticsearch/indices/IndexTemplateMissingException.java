@@ -19,11 +19,12 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
-/**
- *
- */
+import java.io.IOException;
+
 public class IndexTemplateMissingException extends ElasticsearchException {
 
     private final String name;
@@ -33,10 +34,20 @@ public class IndexTemplateMissingException extends ElasticsearchException {
         this.name = name;
     }
 
+    public IndexTemplateMissingException(StreamInput in) throws IOException {
+        super(in);
+        name = in.readOptionalString();
+    }
+
     public String name() {
         return this.name;
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(name);
+    }
 
     @Override
     public RestStatus status() {

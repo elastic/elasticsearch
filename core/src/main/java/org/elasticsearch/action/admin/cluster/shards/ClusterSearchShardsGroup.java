@@ -19,45 +19,37 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.cluster.routing.ImmutableShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- */
-public class ClusterSearchShardsGroup implements Streamable, ToXContent {
+public class ClusterSearchShardsGroup implements Streamable, ToXContentObject {
 
-    private String index;
-    private int shardId;
-    ShardRouting[] shards;
+    private ShardId shardId;
+    private ShardRouting[] shards;
 
-    ClusterSearchShardsGroup() {
+    private ClusterSearchShardsGroup() {
 
     }
 
-    public ClusterSearchShardsGroup(String index, int shardId, ShardRouting[] shards) {
-        this.index = index;
+    public ClusterSearchShardsGroup(ShardId shardId, ShardRouting[] shards) {
         this.shardId = shardId;
         this.shards = shards;
     }
 
-    public static ClusterSearchShardsGroup readSearchShardsGroupResponse(StreamInput in) throws IOException {
+    static ClusterSearchShardsGroup readSearchShardsGroupResponse(StreamInput in) throws IOException {
         ClusterSearchShardsGroup response = new ClusterSearchShardsGroup();
         response.readFrom(in);
         return response;
     }
 
-    public String getIndex() {
-        return index;
-    }
-
-    public int getShardId() {
+    public ShardId getShardId() {
         return shardId;
     }
 
@@ -67,18 +59,16 @@ public class ClusterSearchShardsGroup implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = in.readString();
-        shardId = in.readVInt();
+        shardId = ShardId.readShardId(in);
         shards = new ShardRouting[in.readVInt()];
         for (int i = 0; i < shards.length; i++) {
-            shards[i] = ImmutableShardRouting.readShardRoutingEntry(in, index, shardId);
+            shards[i] = new ShardRouting(shardId, in);
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index);
-        out.writeVInt(shardId);
+        shardId.writeTo(out);
         out.writeVInt(shards.length);
         for (ShardRouting shardRouting : shards) {
             shardRouting.writeToThin(out);

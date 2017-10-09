@@ -1,0 +1,13 @@
+# Integration tests for Azure Classic Discovery component
+#
+"Discovery Azure Classic loaded":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - match:  { nodes.$master.plugins.0.name: discovery-azure-classic  }

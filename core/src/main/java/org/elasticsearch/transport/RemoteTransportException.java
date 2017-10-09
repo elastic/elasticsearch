@@ -20,7 +20,10 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.TransportAddress;
+
+import java.io.IOException;
 
 /**
  * A remote exception for an action. A wrapper exception around the actual remote cause and does not fill the
@@ -31,11 +34,15 @@ import org.elasticsearch.common.transport.TransportAddress;
 public class RemoteTransportException extends ActionTransportException implements ElasticsearchWrapperException {
 
     public RemoteTransportException(String msg, Throwable cause) {
-        super(msg, cause);
+        super(msg, null, null, cause);
     }
 
     public RemoteTransportException(String name, TransportAddress address, String action, Throwable cause) {
         super(name, address, action, cause);
+    }
+
+    public RemoteTransportException(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override

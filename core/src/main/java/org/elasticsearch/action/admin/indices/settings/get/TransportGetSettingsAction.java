@@ -22,32 +22,33 @@ package org.elasticsearch.action.admin.indices.settings.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 
-/**
- */
 public class TransportGetSettingsAction extends TransportMasterNodeReadAction<GetSettingsRequest, GetSettingsResponse> {
 
     private final SettingsFilter settingsFilter;
 
     @Inject
     public TransportGetSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, SettingsFilter settingsFilter, ActionFilters actionFilters) {
-        super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetSettingsRequest.class);
+                                      ThreadPool threadPool, SettingsFilter settingsFilter, ActionFilters actionFilters,
+                                      IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetSettingsRequest::new, indexNameExpressionResolver);
         this.settingsFilter = settingsFilter;
     }
 
@@ -59,7 +60,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
 
     @Override
     protected ClusterBlockException checkBlock(GetSettingsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
 
@@ -70,25 +71,22 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
 
     @Override
     protected void masterOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
-        String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
+        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         ImmutableOpenMap.Builder<String, Settings> indexToSettingsBuilder = ImmutableOpenMap.builder();
-        for (String concreteIndex : concreteIndices) {
+        for (Index concreteIndex : concreteIndices) {
             IndexMetaData indexMetaData = state.getMetaData().index(concreteIndex);
             if (indexMetaData == null) {
                 continue;
             }
 
-            Settings settings = SettingsFilter.filterSettings(settingsFilter.getPatterns(), indexMetaData.settings());
-            if (!CollectionUtils.isEmpty(request.names())) {
-                Settings.Builder settingsBuilder = Settings.builder();
-                for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                    if (Regex.simpleMatch(request.names(), entry.getKey())) {
-                        settingsBuilder.put(entry.getKey(), entry.getValue());
-                    }
-                }
-                settings = settingsBuilder.build();
+            Settings settings = settingsFilter.filter(indexMetaData.getSettings());
+            if (request.humanReadable()) {
+                settings = IndexMetaData.addHumanReadableSettings(settings);
             }
-            indexToSettingsBuilder.put(concreteIndex, settings);
+            if (CollectionUtils.isEmpty(request.names()) == false) {
+                settings = settings.filter(k -> Regex.simpleMatch(request.names(), k));
+            }
+            indexToSettingsBuilder.put(concreteIndex.getName(), settings);
         }
         listener.onResponse(new GetSettingsResponse(indexToSettingsBuilder.build()));
     }

@@ -19,27 +19,19 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
- *
+ * Defines a query parser that is able to parse {@link QueryBuilder}s from {@link org.elasticsearch.common.xcontent.XContent}.
  */
-public interface QueryParser {
-
+@FunctionalInterface
+public interface QueryParser<QB extends QueryBuilder> {
     /**
-     * The names this query parser is registered under.
+     * Creates a new {@link QueryBuilder} from the query held by the
+     * {@link XContentParser}. The state on the parser contained in this context
+     * will be changed as a side effect of this method call
      */
-    String[] names();
-
-    /**
-     * Parses the into a query from the current parser location. Will be at "START_OBJECT" location,
-     * and should end when the token is at the matching "END_OBJECT".
-     * <p/>
-     * Returns <tt>null</tt> if this query should be ignored in the context of the DSL.
-     */
-    @Nullable
-    Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException;
+    QB fromXContent(XContentParser parser) throws IOException;
 }

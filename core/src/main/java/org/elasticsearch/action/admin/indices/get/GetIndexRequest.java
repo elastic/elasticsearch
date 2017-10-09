@@ -19,12 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import com.google.common.collect.ObjectArrays;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ArrayUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,11 +34,10 @@ import java.util.List;
  */
 public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
-    public static enum Feature {
+    public enum Feature {
         ALIASES((byte) 0, "_aliases", "_alias"),
         MAPPINGS((byte) 1, "_mappings", "_mapping"),
-        SETTINGS((byte) 2, "_settings"),
-        WARMERS((byte) 3, "_warmers", "_warmer");
+        SETTINGS((byte) 2, "_settings");
 
         private static final Feature[] FEATURES = new Feature[Feature.values().length];
 
@@ -54,7 +52,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         private final String preferredName;
         private final byte id;
 
-        private Feature(byte id, String... validNames) {
+        Feature(byte id, String... validNames) {
             assert validNames != null && validNames.length > 0;
             this.id = id;
             this.validNames = Arrays.asList(validNames);
@@ -79,7 +77,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
                     return feature;
                 }
             }
-            throw new IllegalArgumentException("No feature for name [" + name + "]");
+            throw new IllegalArgumentException("No endpoint or operation is available at [" + name + "]");
         }
 
         public static Feature fromId(byte id) {
@@ -98,8 +96,23 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         }
     }
 
-    private static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS, Feature.WARMERS };
+    private static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS };
     private Feature[] features = DEFAULT_FEATURES;
+    private boolean humanReadable = false;
+
+    public GetIndexRequest() {
+
+    }
+
+    public GetIndexRequest(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        features = new Feature[size];
+        for (int i = 0; i < size; i++) {
+            features[i] = Feature.fromId(in.readByte());
+        }
+        humanReadable = in.readBoolean();
+    }
 
     public GetIndexRequest features(Feature... features) {
         if (features == null) {
@@ -114,7 +127,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         if (this.features == DEFAULT_FEATURES) {
             return features(features);
         } else {
-            return features(ObjectArrays.concat(featuresAsEnums(), features, Feature.class));
+            return features(ArrayUtils.concat(features(), features, Feature.class));
         }
     }
 
@@ -122,27 +135,23 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         return features;
     }
 
-    /**
-     * @deprecated use {@link #features()} instead
-     */
-    @Deprecated
-    public Feature[] featuresAsEnums() {
-        return features();
-    }
-    
     @Override
     public ActionRequestValidationException validate() {
         return null;
     }
 
+    public GetIndexRequest humanReadable(boolean humanReadable) {
+        this.humanReadable = humanReadable;
+        return this;
+    }
+
+    public boolean humanReadable() {
+        return humanReadable;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        features = new Feature[size];
-        for (int i = 0; i < size; i++) {
-            features[i] = Feature.fromId(in.readByte());
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -152,6 +161,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         for (Feature feature : features) {
             out.writeByte(feature.id);
         }
+        out.writeBoolean(humanReadable);
     }
 
 }

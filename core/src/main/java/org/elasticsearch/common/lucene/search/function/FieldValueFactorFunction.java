@@ -22,10 +22,16 @@ package org.elasticsearch.common.lucene.search.function;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
+import java.io.IOException;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * A function_score function that multiplies the score with the value of a
@@ -44,7 +50,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
 
     public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType, Double missing,
             IndexNumericFieldData indexFieldData) {
-        super(CombineFunction.MULT);
+        super(CombineFunction.MULTIPLY);
         this.field = field;
         this.boostFactor = boostFactor;
         this.modifier = modifierType;
@@ -54,48 +60,68 @@ public class FieldValueFactorFunction extends ScoreFunction {
 
     @Override
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
-        final SortedNumericDoubleValues values = this.indexFieldData.load(ctx).getDoubleValues();
+        final SortedNumericDoubleValues values;
+        if(indexFieldData == null) {
+            values = FieldData.emptySortedNumericDoubles();
+        } else {
+            values = this.indexFieldData.load(ctx).getDoubleValues();
+        }
+
         return new LeafScoreFunction() {
 
             @Override
-            public double score(int docId, float subQueryScore) {
-                values.setDocument(docId);
-                final int numValues = values.count();
+            public double score(int docId, float subQueryScore) throws IOException {
                 double value;
-                if (numValues > 0) {
-                    value = values.valueAt(0);
-                } else if (missing != null) {
-                    value = missing;
+                if (values.advanceExact(docId)) {
+                    value = values.nextValue();
                 } else {
-                    throw new ElasticsearchException("Missing value for field [" + field + "]");
+                    if (missing != null) {
+                        value = missing;
+                    } else {
+                        throw new ElasticsearchException("Missing value for field [" + field + "]");
+                    }
                 }
                 double val = value * boostFactor;
                 double result = modifier.apply(val);
-                if (Double.isNaN(result) || Double.isInfinite(result)) {
-                    throw new ElasticsearchException("Result of field modification [" + modifier.toString() + "(" + val
-                            + ")] must be a number");
-                }
                 return result;
             }
 
             @Override
-            public Explanation explainScore(int docId, Explanation subQueryScore) {
+            public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 String modifierStr = modifier != null ? modifier.toString() : "";
                 String defaultStr = missing != null ? "?:" + missing : "";
                 double score = score(docId, subQueryScore.getValue());
                 return Explanation.match(
-                        CombineFunction.toFloat(score),
+                        (float) score,
                         String.format(Locale.ROOT,
                                 "field value function: %s(doc['%s'].value%s * factor=%s)", modifierStr, field, defaultStr, boostFactor));
             }
         };
     }
 
+    @Override
+    public boolean needsScores() {
+        return false;
+    }
+
+    @Override
+    protected boolean doEquals(ScoreFunction other) {
+        FieldValueFactorFunction fieldValueFactorFunction = (FieldValueFactorFunction) other;
+        return this.boostFactor == fieldValueFactorFunction.boostFactor &&
+                Objects.equals(this.field, fieldValueFactorFunction.field) &&
+                Objects.equals(this.modifier, fieldValueFactorFunction.modifier);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(boostFactor, field, modifier);
+    }
+
     /**
      * The Type class encapsulates the modification types that can be applied
      * to the score/value product.
      */
-    public enum Modifier {
+    public enum Modifier implements Writeable {
         NONE {
             @Override
             public double apply(double n) {
@@ -160,11 +186,21 @@ public class FieldValueFactorFunction extends ScoreFunction {
         public abstract double apply(double n);
 
         @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeEnum(this);
+        }
+
+        public static Modifier readFromStream(StreamInput in) throws IOException {
+            return in.readEnum(Modifier.class);
+        }
+
+        @Override
         public String toString() {
-            if (this == NONE) {
-                return "";
-            }
             return super.toString().toLowerCase(Locale.ROOT);
+        }
+
+        public static Modifier fromString(String modifier) {
+            return valueOf(modifier.toUpperCase(Locale.ROOT));
         }
     }
 }

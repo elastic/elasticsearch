@@ -1,0 +1,17 @@
+{
+    "person":{
+        "properties":{
+            "name":{
+                "type": "text",
+                "index":false,
+                "fields":{
+                    "not_indexed3":{
+                        "type": "text",
+                        "index":false,
+                        "store":true
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2009 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,9 +23,8 @@ import org.elasticsearch.common.inject.matcher.Matcher;
 /**
  * Binds types (picked using a Matcher) to an type listener. Registrations are created explicitly in
  * a module using {@link org.elasticsearch.common.inject.Binder#bindListener(Matcher, TypeListener)} statements:
- * <p/>
  * <pre>
- *     register(only(new TypeLiteral&lt;PaymentService&lt;CreditCard>>() {}), listener);</pre>
+ *     register(only(new TypeLiteral&lt;PaymentService&lt;CreditCard&gt;&gt;() {}), listener);</pre>
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0

@@ -20,23 +20,17 @@
 package org.elasticsearch.index.analysis.pl;
 
 import org.apache.lucene.analysis.pl.PolishAnalyzer;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
-import org.elasticsearch.index.settings.IndexSettings;
 
-/**
- */
 public class PolishAnalyzerProvider extends AbstractIndexAnalyzerProvider<PolishAnalyzer> {
 
     private final PolishAnalyzer analyzer;
 
-    @Inject
-    public PolishAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public PolishAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
 
         analyzer = new PolishAnalyzer(PolishAnalyzer.getDefaultStopSet());
         analyzer.setVersion(version);

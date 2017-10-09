@@ -30,7 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /** Request the mappings of specific fields */
-public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsRequest> implements IndicesRequest.Replaceable {
+public class GetFieldMappingsRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     protected boolean local = false;
 
@@ -49,7 +49,7 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
 
     /**
      * Indicate whether the receiving node should operate based on local index information or forward requests,
-     * where needed, to other nodes. If running locally, request will not raise errors if running locally & missing indices.
+     * where needed, to other nodes. If running locally, request will not raise errors if running locally &amp; missing indices.
      */
     public GetFieldMappingsRequest local(boolean local) {
         this.local = local;

@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.util.Map;
 
@@ -45,7 +46,7 @@ public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<Upd
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     * <p/>
+     * <p>
      * For example indices that don't exist.
      */
     public UpdateSettingsRequestBuilder setIndicesOptions(IndicesOptions options) {
@@ -70,18 +71,23 @@ public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<Upd
     }
 
     /**
-     * Sets the settings to be updated (either json/yaml/properties format)
+     * Sets the settings to be updated (either json or yaml format)
      */
-    public UpdateSettingsRequestBuilder setSettings(String source) {
-        request.settings(source);
+    public UpdateSettingsRequestBuilder setSettings(String source, XContentType xContentType) {
+        request.settings(source, xContentType);
         return this;
     }
 
     /**
-     * Sets the settings to be updated (either json/yaml/properties format)
+     * Sets the settings to be updated
      */
     public UpdateSettingsRequestBuilder setSettings(Map<String, Object> source) {
         request.settings(source);
+        return this;
+    }
+
+    public UpdateSettingsRequestBuilder setPreserveExisting(boolean preserveExisting) {
+        request.setPreserveExisting(preserveExisting);
         return this;
     }
 }

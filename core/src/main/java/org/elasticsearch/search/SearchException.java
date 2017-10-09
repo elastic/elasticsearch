@@ -20,22 +20,43 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
-/**
- *
- */
-public class SearchException extends ElasticsearchException {
+import java.io.IOException;
+
+public class SearchException extends ElasticsearchException implements ElasticsearchWrapperException {
 
     private final SearchShardTarget shardTarget;
 
     public SearchException(SearchShardTarget shardTarget, String msg) {
-        super(msg);
-        this.shardTarget = shardTarget;
+        this(shardTarget, msg, null);
     }
 
     public SearchException(SearchShardTarget shardTarget, String msg, Throwable cause) {
         super(msg, cause);
         this.shardTarget = shardTarget;
+    }
+
+    public SearchException(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            shardTarget = new SearchShardTarget(in);
+        } else {
+            shardTarget = null;
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (shardTarget == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            shardTarget.writeTo(out);
+        }
     }
 
     public SearchShardTarget shard() {

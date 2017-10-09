@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -28,9 +27,6 @@ import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
 
-/**
- *
- */
 public final class EngineSearcherTotalHitsMatcher extends TypeSafeMatcher<Engine.Searcher> {
 
     private final Query query;
@@ -46,7 +42,7 @@ public final class EngineSearcherTotalHitsMatcher extends TypeSafeMatcher<Engine
     @Override
     public boolean matchesSafely(Engine.Searcher searcher) {
         try {
-            this.count = (int) Lucene.count(searcher.searcher(), query);
+            this.count = (int) searcher.searcher().count(query);
             return count == totalHits;
         } catch (IOException e) {
             return false;

@@ -22,9 +22,6 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- *
- */
 public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesInfoRequest, NodesInfoResponse, NodesInfoRequestBuilder> {
 
     public NodesInfoRequestBuilder(ElasticsearchClient client, NodesInfoAction action) {
@@ -40,7 +37,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
     }
 
     /**
-     * Sets to reutrn all the data.
+     * Sets to return all the data.
      */
     public NodesInfoRequestBuilder all() {
         request.all();
@@ -88,14 +85,6 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
     }
 
     /**
-     * Should the node Network info be returned.
-     */
-    public NodesInfoRequestBuilder setNetwork(boolean network) {
-        request.network(network);
-        return this;
-    }
-
-    /**
      * Should the node Transport info be returned.
      */
     public NodesInfoRequestBuilder setTransport(boolean transport) {
@@ -116,6 +105,22 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      */
     public NodesInfoRequestBuilder setPlugins(boolean plugins) {
         request().plugins(plugins);
+        return this;
+    }
+
+    /**
+     * Should the node ingest info be returned.
+     */
+    public NodesInfoRequestBuilder setIngest(boolean ingest) {
+        request().ingest(ingest);
+        return this;
+    }
+
+    /**
+     * Should the node indices info be returned.
+     */
+    public NodesInfoRequestBuilder setIndices(boolean indices) {
+        request().indices(indices);
         return this;
     }
 }

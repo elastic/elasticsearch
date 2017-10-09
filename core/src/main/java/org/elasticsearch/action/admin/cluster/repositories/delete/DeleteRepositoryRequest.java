@@ -30,14 +30,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Unregister repository request.
- * <p/>
+ * <p>
  * The unregister repository command just unregisters the repository. No data is getting deleted from the repository.
  */
 public class DeleteRepositoryRequest extends AcknowledgedRequest<DeleteRepositoryRequest> {
 
     private String name;
 
-    DeleteRepositoryRequest() {
+    public DeleteRepositoryRequest() {
     }
 
     /**
@@ -81,13 +81,11 @@ public class DeleteRepositoryRequest extends AcknowledgedRequest<DeleteRepositor
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         name = in.readString();
-        readTimeout(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
-        writeTimeout(out);
     }
 }

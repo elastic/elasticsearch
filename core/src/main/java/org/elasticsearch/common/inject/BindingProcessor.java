@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,13 +16,38 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import org.elasticsearch.common.inject.internal.*;
-import org.elasticsearch.common.inject.spi.*;
+import org.elasticsearch.common.inject.internal.Annotations;
+import org.elasticsearch.common.inject.internal.BindingImpl;
+import org.elasticsearch.common.inject.internal.Errors;
+import org.elasticsearch.common.inject.internal.ErrorsException;
+import org.elasticsearch.common.inject.internal.ExposedBindingImpl;
+import org.elasticsearch.common.inject.internal.InstanceBindingImpl;
+import org.elasticsearch.common.inject.internal.InternalFactory;
+import org.elasticsearch.common.inject.internal.LinkedBindingImpl;
+import org.elasticsearch.common.inject.internal.LinkedProviderBindingImpl;
+import org.elasticsearch.common.inject.internal.ProviderInstanceBindingImpl;
+import org.elasticsearch.common.inject.internal.ProviderMethod;
+import org.elasticsearch.common.inject.internal.Scoping;
+import org.elasticsearch.common.inject.internal.UntargettedBindingImpl;
+import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
+import org.elasticsearch.common.inject.spi.ConstructorBinding;
+import org.elasticsearch.common.inject.spi.ConvertedConstantBinding;
+import org.elasticsearch.common.inject.spi.ExposedBinding;
+import org.elasticsearch.common.inject.spi.InjectionPoint;
+import org.elasticsearch.common.inject.spi.InstanceBinding;
+import org.elasticsearch.common.inject.spi.LinkedKeyBinding;
+import org.elasticsearch.common.inject.spi.PrivateElements;
+import org.elasticsearch.common.inject.spi.ProviderBinding;
+import org.elasticsearch.common.inject.spi.ProviderInstanceBinding;
+import org.elasticsearch.common.inject.spi.ProviderKeyBinding;
+import org.elasticsearch.common.inject.spi.UntargettedBinding;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  * Handles {@link Binder#bind} and {@link Binder#bindConstant} elements.
@@ -32,9 +57,9 @@ import java.util.Set;
  */
 class BindingProcessor extends AbstractProcessor {
 
-    private final List<CreationListener> creationListeners = Lists.newArrayList();
+    private final List<CreationListener> creationListeners = new ArrayList<>();
     private final Initializer initializer;
-    private final List<Runnable> uninitializedBindings = Lists.newArrayList();
+    private final List<Runnable> uninitializedBindings = new ArrayList<>();
 
     BindingProcessor(Errors errors, Initializer initializer) {
         super(errors);
@@ -259,7 +284,7 @@ class BindingProcessor extends AbstractProcessor {
     // It's unfortunate that we have to maintain a blacklist of specific
     // classes, but we can't easily block the whole package because of
     // all our unit tests.
-    private static final Set<Class<?>> FORBIDDEN_TYPES = ImmutableSet.of(
+    private static final Set<Class<?>> FORBIDDEN_TYPES = unmodifiableSet(newHashSet(
             AbstractModule.class,
             Binder.class,
             Binding.class,
@@ -269,7 +294,7 @@ class BindingProcessor extends AbstractProcessor {
             Module.class,
             Provider.class,
             Scope.class,
-            TypeLiteral.class);
+            TypeLiteral.class));
     // TODO(jessewilson): fix BuiltInModule, then add Stage
 
     interface CreationListener {

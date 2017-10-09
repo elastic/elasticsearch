@@ -19,7 +19,12 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.*;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.InPlaceMergeSorter;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.Sorter;
 
 import java.util.Arrays;
 
@@ -28,6 +33,7 @@ import java.util.Arrays;
  */
 public abstract class SortingBinaryDocValues extends SortedBinaryDocValues {
 
+    private int index;
     protected int count;
     protected BytesRefBuilder[] values;
     private final Sorter sorter;
@@ -68,15 +74,17 @@ public abstract class SortingBinaryDocValues extends SortedBinaryDocValues {
      */
     protected final void sort() {
         sorter.sort(0, count);
+        index = 0;
     }
 
     @Override
-    public final int count() {
+    public int docValueCount() {
         return count;
     }
 
     @Override
-    public final BytesRef valueAt(int index) {
-        return values[index].get();
+    public final BytesRef nextValue() {
+        assert index < count;
+        return values[index++].get();
     }
 }

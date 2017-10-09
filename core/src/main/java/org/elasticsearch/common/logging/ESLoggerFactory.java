@@ -19,70 +19,55 @@
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.common.logging.jdk.JdkESLoggerFactory;
-import org.elasticsearch.common.logging.log4j.Log4jESLoggerFactory;
-import org.elasticsearch.common.logging.slf4j.Slf4jESLoggerFactory;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.spi.ExtendedLogger;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 
 /**
- * Factory to get {@link ESLogger}s
+ * Factory to get {@link Logger}s
  */
-public abstract class ESLoggerFactory {
+public final class ESLoggerFactory {
 
-    private static volatile ESLoggerFactory defaultFactory = new JdkESLoggerFactory();
+    private ESLoggerFactory() {
 
-    static {
-        try {
-            Class<?> loggerClazz = Class.forName("org.apache.log4j.Logger");
-            // below will throw a NoSuchMethod failure with using slf4j log4j bridge
-            loggerClazz.getMethod("setLevel", Class.forName("org.apache.log4j.Level"));
-            defaultFactory = new Log4jESLoggerFactory();
-        } catch (Throwable e) {
-            // no log4j
-            try {
-                Class.forName("org.slf4j.Logger");
-                defaultFactory = new Slf4jESLoggerFactory();
-            } catch (Throwable e1) {
-                // no slf4j
-            }
-        }
     }
 
-    /**
-     * Changes the default factory.
-     */
-    public static void setDefaultFactory(ESLoggerFactory defaultFactory) {
-        if (defaultFactory == null) {
-            throw new NullPointerException("defaultFactory");
-        }
-        ESLoggerFactory.defaultFactory = defaultFactory;
+    public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING =
+        new Setting<>("logger.level", Level.INFO.name(), Level::valueOf, Property.NodeScope);
+    public static final Setting.AffixSetting<Level> LOG_LEVEL_SETTING =
+        Setting.prefixKeySetting("logger.", (key) -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Property.Dynamic,
+            Property.NodeScope));
+
+    public static Logger getLogger(String prefix, String name) {
+        return getLogger(prefix, LogManager.getLogger(name));
     }
 
-
-    public static ESLogger getLogger(String prefix, String name) {
-        return defaultFactory.newInstance(prefix == null ? null : prefix.intern(), name.intern());
+    public static Logger getLogger(String prefix, Class<?> clazz) {
+        /*
+         * Do not use LogManager#getLogger(Class) as this now uses Class#getCanonicalName under the hood; as this returns null for local and
+         * anonymous classes, any place we create, for example, an abstract component defined as an anonymous class (e.g., in tests) will
+         * result in a logger with a null name which will blow up in a lookup inside of Log4j.
+         */
+        return getLogger(prefix, LogManager.getLogger(clazz.getName()));
     }
 
-    public static ESLogger getLogger(String name) {
-        return defaultFactory.newInstance(name.intern());
+    public static Logger getLogger(String prefix, Logger logger) {
+        return new PrefixLogger((ExtendedLogger)logger, logger.getName(), prefix);
     }
 
-    public static DeprecationLogger getDeprecationLogger(String name) {
-        return new DeprecationLogger(getLogger(name));
+    public static Logger getLogger(Class<?> clazz) {
+        return getLogger(null, clazz);
     }
 
-    public static DeprecationLogger getDeprecationLogger(String prefix, String name) {
-        return new DeprecationLogger(getLogger(prefix, name));
+    public static Logger getLogger(String name) {
+        return getLogger(null, name);
     }
 
-    public static ESLogger getRootLogger() {
-        return defaultFactory.rootLogger();
+    public static Logger getRootLogger() {
+        return LogManager.getRootLogger();
     }
 
-    public ESLogger newInstance(String name) {
-        return newInstance(null, name);
-    }
-
-    protected abstract ESLogger rootLogger();
-
-    protected abstract ESLogger newInstance(String prefix, String name);
 }

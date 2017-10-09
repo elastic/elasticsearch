@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,7 +29,7 @@ import java.util.Map;
 /**
  * The builder class for a term vector request.
  * Returns the term vector (doc frequency, positions, offsets) for a document.
- * <p/>
+ * <p>
  * Note, the {@code index}, {@code type} and {@code id} are
  * required.
  */
@@ -100,8 +99,8 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
-     * a custom value, which guarantees that the same order will be used across different requests.
+     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * will be used across different requests.
      */
     public TermVectorsRequestBuilder setPreference(String preference) {
         request.preference(preference);
@@ -151,14 +150,6 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
     }
 
     /**
-     * Sets whether to use distributed frequencies instead of shard statistics.
-     */
-    public TermVectorsRequestBuilder setDfs(boolean dfs) {
-        request.dfs(dfs);
-        return this;
-    }
-
-    /**
      * Sets whether to return only term vectors for special selected fields. Returns the term
      * vectors for all fields if selectedFields == null
      */
@@ -170,7 +161,7 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
     /**
      * Sets whether term vectors are generated real-time.
      */
-    public TermVectorsRequestBuilder setRealtime(Boolean realtime) {
+    public TermVectorsRequestBuilder setRealtime(boolean realtime) {
         request.realtime(realtime);
         return this;
     }

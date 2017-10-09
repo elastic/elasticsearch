@@ -19,12 +19,16 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 
-/**
- *
- */
+import java.io.IOException;
+
 public class MapperParsingException extends MapperException {
+
+    public MapperParsingException(StreamInput in) throws IOException {
+        super(in);
+    }
 
     public MapperParsingException(String message) {
         super(message);
@@ -32,6 +36,10 @@ public class MapperParsingException extends MapperException {
 
     public MapperParsingException(String message, Throwable cause) {
         super(message, cause);
+    }
+
+    public MapperParsingException(String message, Throwable cause, Object... args) {
+        super(message, cause, args);
     }
 
     @Override

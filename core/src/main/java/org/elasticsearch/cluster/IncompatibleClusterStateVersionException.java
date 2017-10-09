@@ -20,9 +20,12 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
- * Thrown by {@link Diffable#readDiffAndApply(org.elasticsearch.common.io.stream.StreamInput)} method
+ * Thrown by {@link Diff#apply} method
  */
 public class IncompatibleClusterStateVersionException extends ElasticsearchException {
     public IncompatibleClusterStateVersionException(String msg) {
@@ -31,5 +34,9 @@ public class IncompatibleClusterStateVersionException extends ElasticsearchExcep
 
     public IncompatibleClusterStateVersionException(long expectedVersion, String expectedUuid, long receivedVersion, String receivedUuid) {
         super("Expected diff for version " + expectedVersion + " with uuid " + expectedUuid + " got version " + receivedVersion + " and uuid " + receivedUuid);
+    }
+
+    public IncompatibleClusterStateVersionException(StreamInput in) throws IOException{
+        super(in);
     }
 }

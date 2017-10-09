@@ -1,0 +1,18 @@
+[[java-admin]]
+== Java API Administration
+
+Elasticsearch provides a full Java API to deal with administration tasks.
+
+To access them, you need to call `admin()` method from a client to get an `AdminClient`:
+
+[source,java]
+--------------------------------------------------
+AdminClient adminClient = client.admin();
+--------------------------------------------------
+
+[NOTE]
+In the rest of this guide, we will use `client.admin()`.
+
+include::indices/index.asciidoc[]
+
+include::cluster/index.asciidoc[]

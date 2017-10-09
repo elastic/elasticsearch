@@ -20,21 +20,17 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class JNANativesTests extends ElasticsearchTestCase {
-
-    @Test
+public class JNANativesTests extends ESTestCase {
     public void testMlockall() {
         if (Constants.MAC_OS_X) {
             assertFalse("Memory locking is not available on OS X platforms", JNANatives.LOCAL_MLOCKALL);
         }
     }
-    
-    @Test
+
     public void testConsoleCtrlHandler() {
         if (Constants.WINDOWS) {
             assertNotNull(JNAKernel32Library.getInstance());

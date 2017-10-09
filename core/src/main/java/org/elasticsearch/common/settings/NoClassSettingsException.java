@@ -19,6 +19,10 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+
 /**
  * A specific type of {@link SettingsException} indicating failure to load a class
  * based on a settings value.
@@ -27,11 +31,11 @@ package org.elasticsearch.common.settings;
  */
 public class NoClassSettingsException extends SettingsException {
 
-    public NoClassSettingsException(String message) {
-        super(message);
-    }
-
     public NoClassSettingsException(String message, Throwable cause) {
         super(message, cause);
+    }
+
+    public NoClassSettingsException(StreamInput in) throws IOException {
+        super(in);
     }
 }

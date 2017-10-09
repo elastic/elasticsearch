@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,11 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.inject.internal.*;
+import org.elasticsearch.common.inject.internal.BindingImpl;
+import org.elasticsearch.common.inject.internal.Errors;
+import org.elasticsearch.common.inject.internal.ErrorsException;
+import org.elasticsearch.common.inject.internal.InternalContext;
+import org.elasticsearch.common.inject.internal.InternalFactory;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.PrivateElements;
 
@@ -29,7 +33,7 @@ class ExposedKeyFactory<T> implements InternalFactory<T>, BindingProcessor.Creat
     private final PrivateElements privateElements;
     private BindingImpl<T> delegate;
 
-    public ExposedKeyFactory(Key<T> key, PrivateElements privateElements) {
+    ExposedKeyFactory(Key<T> key, PrivateElements privateElements) {
         this.key = key;
         this.privateElements = privateElements;
     }

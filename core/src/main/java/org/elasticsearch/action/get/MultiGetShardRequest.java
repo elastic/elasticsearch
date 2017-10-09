@@ -20,6 +20,7 @@
 package org.elasticsearch.action.get;
 
 import com.carrotsearch.hppc.IntArrayList;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,26 +33,29 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
 
     private int shardId;
     private String preference;
-    Boolean realtime;
+    boolean realtime = true;
     boolean refresh;
-    boolean ignoreErrorsOnGeneratedFields = false;
 
     IntArrayList locations;
     List<MultiGetRequest.Item> items;
 
-    MultiGetShardRequest() {
+    public MultiGetShardRequest() {
 
     }
 
     MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId) {
-        super(multiGetRequest, index);
+        super(index);
         this.shardId = shardId;
         locations = new IntArrayList();
         items = new ArrayList<>();
         preference = multiGetRequest.preference;
         realtime = multiGetRequest.realtime;
         refresh = multiGetRequest.refresh;
-        ignoreErrorsOnGeneratedFields = multiGetRequest.ignoreErrorsOnGeneratedFields;
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        return super.validateNonNullIndex();
     }
 
     public int shardId() {
@@ -60,8 +64,8 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
-     * a custom value, which guarantees that the same order will be used across different requests.
+     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * will be used across different requests.
      */
     public MultiGetShardRequest preference(String preference) {
         this.preference = preference;
@@ -73,16 +77,11 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
     }
 
     public boolean realtime() {
-        return this.realtime == null ? true : this.realtime;
+        return this.realtime;
     }
 
-    public MultiGetShardRequest realtime(Boolean realtime) {
+    public MultiGetShardRequest realtime(boolean realtime) {
         this.realtime = realtime;
-        return this;
-    }
-
-    public MultiGetShardRequest ignoreErrorsOnGeneratedFields(Boolean ignoreErrorsOnGeneratedFields) {
-        this.ignoreErrorsOnGeneratedFields = ignoreErrorsOnGeneratedFields;
         return this;
     }
 
@@ -123,13 +122,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
 
         preference = in.readOptionalString();
         refresh = in.readBoolean();
-        byte realtime = in.readByte();
-        if (realtime == 0) {
-            this.realtime = false;
-        } else if (realtime == 1) {
-            this.realtime = true;
-        }
-        ignoreErrorsOnGeneratedFields = in.readBoolean();
+        realtime = in.readBoolean();
     }
 
     @Override
@@ -144,18 +137,6 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
 
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);
-        if (realtime == null) {
-            out.writeByte((byte) -1);
-        } else if (!realtime) {
-            out.writeByte((byte) 0);
-        } else {
-            out.writeByte((byte) 1);
-        }
-        out.writeBoolean(ignoreErrorsOnGeneratedFields);
-
-    }
-
-    public boolean ignoreErrorsOnGeneratedFields() {
-        return ignoreErrorsOnGeneratedFields;
+        out.writeBoolean(realtime);
     }
 }

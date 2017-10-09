@@ -22,8 +22,6 @@ package org.elasticsearch.common.io.stream;
 import java.io.IOException;
 import java.io.OutputStream;
 
-/**
- */
 public class OutputStreamStreamOutput extends StreamOutput {
 
     private final OutputStream out;

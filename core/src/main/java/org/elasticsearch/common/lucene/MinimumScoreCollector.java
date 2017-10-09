@@ -20,13 +20,14 @@
 package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.ScoreCachingWrappingScorer;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class MinimumScoreCollector extends SimpleCollector {
 
     private final Collector collector;

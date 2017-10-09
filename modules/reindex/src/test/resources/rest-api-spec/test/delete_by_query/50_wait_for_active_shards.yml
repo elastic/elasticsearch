@@ -1,0 +1,59 @@
+---
+"can override wait_for_active_shards":
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              number_of_replicas: 5
+  - do:
+      index:
+        index:       test
+        type:        test
+        id:          1
+        body:        {"text": "test"}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: unavailable
+      delete_by_query:
+        index: test
+        timeout: 1s
+        wait_for_active_shards: 4
+        body:
+          query:
+            match_all: {}
+
+  - match:
+      failures.0.cause.reason: /Not.enough.active.copies.to.meet.shard.count.of.\[4\].\(have.1,.needed.4\)..Timeout\:.\[1s\],.request:.+/
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      count:
+        index: test
+
+  - match: {count: 1}
+
+  - do:
+      delete_by_query:
+        index: test
+        wait_for_active_shards: 1
+        body:
+          query:
+            match_all: {}
+
+  - match: {failures: []}
+  - match: {deleted: 1}
+  - match: {version_conflicts: 0}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      count:
+        index: test
+
+  - match: {count: 0}

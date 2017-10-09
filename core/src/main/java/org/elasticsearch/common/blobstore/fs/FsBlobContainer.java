@@ -19,23 +19,40 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.io.Streams;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
+ * A file system based implementation of {@link org.elasticsearch.common.blobstore.BlobContainer}.
+ * All blobs in the container are stored on a file system, the location of which is specified by the {@link BlobPath}.
  *
+ * Note that the methods in this implementation of {@link org.elasticsearch.common.blobstore.BlobContainer} may
+ * additionally throw a {@link java.lang.SecurityException} if the configured {@link java.lang.SecurityManager}
+ * does not permit read and/or write access to the underlying files.
  */
 public class FsBlobContainer extends AbstractBlobContainer {
 
@@ -50,14 +67,14 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetaData> listBlobs() throws IOException {
         return listBlobsByPrefix(null);
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
-        // using MapBuilder and not ImmutableMap.Builder as it seems like File#listFiles might return duplicate files!
-        MapBuilder<String, BlobMetaData> builder = MapBuilder.newMapBuilder();
+    public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+        // If we get duplicate files we should just take the last entry
+        Map<String, BlobMetaData> builder = new HashMap<>();
 
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, blobNamePrefix + "*")) {
@@ -68,13 +85,25 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 }
             }
         }
-        return builder.immutableMap();
+        return unmodifiableMap(builder);
     }
 
     @Override
     public void deleteBlob(String blobName) throws IOException {
         Path blobPath = path.resolve(blobName);
-        Files.deleteIfExists(blobPath);
+        if (Files.isDirectory(blobPath)) {
+            // delete directory recursively as long as it is empty (only contains empty directories),
+            // which is the reason we aren't deleting any files, only the directories on the post-visit
+            Files.walkFileTree(blobPath, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                    Files.delete(dir);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } else {
+            Files.delete(blobPath);
+        }
     }
 
     @Override
@@ -83,25 +112,26 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream openInput(String name) throws IOException {
-        return new BufferedInputStream(Files.newInputStream(path.resolve(name)), blobStore.bufferSizeInBytes());
+    public InputStream readBlob(String name) throws IOException {
+        final Path resolvedPath = path.resolve(name);
+        try {
+            return new BufferedInputStream(Files.newInputStream(resolvedPath), blobStore.bufferSizeInBytes());
+        } catch (FileNotFoundException fnfe) {
+            throw new NoSuchFileException("[" + name + "] blob not found");
+        }
     }
 
     @Override
-    public OutputStream createOutput(String blobName) throws IOException {
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+        if (blobExists(blobName)) {
+            throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
+        }
         final Path file = path.resolve(blobName);
-        return new BufferedOutputStream(new FilterOutputStream(Files.newOutputStream(file)) {
-
-            @Override // FilterOutputStream#write(byte[] b, int off, int len) is trappy writes every single byte
-            public void write(byte[] b, int off, int len) throws IOException { out.write(b, off, len);}
-
-            @Override
-            public void close() throws IOException {
-                super.close();
-                IOUtils.fsync(file, false);
-                IOUtils.fsync(path, true);
-            }
-        }, blobStore.bufferSizeInBytes());
+        try (OutputStream outputStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW)) {
+            Streams.copy(inputStream, outputStream, new byte[blobStore.bufferSizeInBytes()]);
+        }
+        IOUtils.fsync(file, false);
+        IOUtils.fsync(path, true);
     }
 
     @Override

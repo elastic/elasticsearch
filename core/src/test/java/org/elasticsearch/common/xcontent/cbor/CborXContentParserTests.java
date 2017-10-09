@@ -22,22 +22,18 @@ package org.elasticsearch.common.xcontent.cbor;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class CborXContentParserTests extends ElasticsearchTestCase {
-
-    @Test
+public class CborXContentParserTests extends ESTestCase {
     public void testEmptyValue() throws IOException {
         BytesReference ref = XContentFactory.cborBuilder().startObject().field("field", "").endObject().bytes();
 
         for (int i = 0; i < 2; i++) {
             // Running this part twice triggers the issue.
             // See https://github.com/elastic/elasticsearch/issues/8629
-            XContentParser parser = XContentFactory.xContent(XContentType.CBOR).createParser(ref);
+            XContentParser parser = createParser(CborXContent.cborXContent, ref);
             while (parser.nextToken() != null) {
                 parser.utf8Bytes();
             }

@@ -22,12 +22,17 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -35,92 +40,56 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- *
+ * Requests that are run on a particular replica, first on the primary and then on the replicas like {@link IndexRequest} or
+ * {@link TransportShardRefreshAction}.
  */
-public abstract class ReplicationRequest<T extends ReplicationRequest> extends ActionRequest<T> implements IndicesRequest {
+public abstract class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ActionRequest
+        implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
-    ShardId internalShardId;
+    /**
+     * Target shard the request should execute on. In case of index and delete requests,
+     * shard id gets resolved by the transport action before performing request operation
+     * and at request creation time for shard-level bulk, refresh and flush requests.
+     */
+    protected ShardId shardId;
 
     protected TimeValue timeout = DEFAULT_TIMEOUT;
     protected String index;
 
-    private boolean threadedOperation = true;
-    private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
-    private volatile boolean canHaveDuplicates = false;
+    /**
+     * The number of shard copies that must be active before proceeding with the replication action.
+     */
+    protected ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
-    protected ReplicationRequest() {
+    private long routedBasedOnClusterVersion = 0;
+
+    public ReplicationRequest() {
 
     }
 
     /**
-     * Creates a new request that inherits headers and context from the request provided as argument.
+     * Creates a new request with resolved shard id
      */
-    protected ReplicationRequest(ActionRequest request) {
-        super(request);
-    }
-
-    /**
-     * Copy constructor that creates a new request that is a copy of the one provided as an argument.
-     */
-    protected ReplicationRequest(T request) {
-        this(request, request);
-    }
-
-    /**
-     * Copy constructor that creates a new request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    protected ReplicationRequest(T request, ActionRequest originalRequest) {
-        super(originalRequest);
-        this.timeout = request.timeout();
-        this.index = request.index();
-        this.threadedOperation = request.operationThreaded();
-        this.consistencyLevel = request.consistencyLevel();
-    }
-
-    void setCanHaveDuplicates() {
-        this.canHaveDuplicates = true;
-    }
-
-    /**
-     * Is this request can potentially be dup on a single shard.
-     */
-    public boolean canHaveDuplicates() {
-        return canHaveDuplicates;
-    }
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally.
-     */
-    public final boolean operationThreaded() {
-        return threadedOperation;
-    }
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally. Defaults
-     * to <tt>true</tt> when running in embedded mode.
-     */
-    @SuppressWarnings("unchecked")
-    public final T operationThreaded(boolean threadedOperation) {
-        this.threadedOperation = threadedOperation;
-        return (T) this;
+    public ReplicationRequest(ShardId shardId) {
+        this.index = shardId.getIndexName();
+        this.shardId = shardId;
     }
 
     /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     @SuppressWarnings("unchecked")
-    public final T timeout(TimeValue timeout) {
+    public final Request timeout(TimeValue timeout) {
         this.timeout = timeout;
-        return (T) this;
+        return (Request) this;
     }
 
     /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
-    public final T timeout(String timeout) {
+    public final Request timeout(String timeout) {
         return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
     }
 
@@ -133,9 +102,9 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
     }
 
     @SuppressWarnings("unchecked")
-    public final T index(String index) {
+    public final Request index(String index) {
         this.index = index;
-        return (T) this;
+        return (Request) this;
     }
 
     @Override
@@ -148,17 +117,55 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
         return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
-    public WriteConsistencyLevel consistencyLevel() {
-        return this.consistencyLevel;
+    public ActiveShardCount waitForActiveShards() {
+        return this.waitForActiveShards;
     }
 
     /**
-     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     * @return the shardId of the shard where this operation should be executed on.
+     * can be null if the shardID has not yet been resolved
+     */
+    @Nullable
+    public ShardId shardId() {
+        return shardId;
+    }
+
+    /**
+     * Sets the number of shard copies that must be active before proceeding with the replication
+     * operation. Defaults to {@link ActiveShardCount#DEFAULT}, which requires one shard copy
+     * (the primary) to be active. Set this value to {@link ActiveShardCount#ALL} to
+     * wait for all shards (primary and all replicas) to be active. Otherwise, use
+     * {@link ActiveShardCount#from(int)} to set this value to any non-negative integer, up to the
+     * total number of shard copies (number of replicas + 1).
      */
     @SuppressWarnings("unchecked")
-    public final T consistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        this.consistencyLevel = consistencyLevel;
-        return (T) this;
+    public final Request waitForActiveShards(ActiveShardCount waitForActiveShards) {
+        this.waitForActiveShards = waitForActiveShards;
+        return (Request) this;
+    }
+
+    /**
+     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    @SuppressWarnings("unchecked")
+    public final Request waitForActiveShards(final int waitForActiveShards) {
+        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
+
+    /**
+     * Sets the minimum version of the cluster state that is required on the next node before we redirect to another primary.
+     * Used to prevent redirect loops, see also {@link TransportReplicationAction.ReroutePhase#doRun()}
+     */
+    @SuppressWarnings("unchecked")
+    Request routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
+        this.routedBasedOnClusterVersion = routedBasedOnClusterVersion;
+        return (Request) this;
+    }
+
+    long routedBasedOnClusterVersion() {
+        return routedBasedOnClusterVersion;
     }
 
     @Override
@@ -174,22 +181,59 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.readBoolean()) {
-            internalShardId = ShardId.readShardId(in);
+            shardId = ShardId.readShardId(in);
+        } else {
+            shardId = null;
         }
-        consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
-        timeout = TimeValue.readTimeValue(in);
+        waitForActiveShards = ActiveShardCount.readFrom(in);
+        timeout = new TimeValue(in);
         index = in.readString();
-        canHaveDuplicates = in.readBoolean();
-        // no need to serialize threaded* parameters, since they only matter locally
+        routedBasedOnClusterVersion = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalStreamable(internalShardId);
-        out.writeByte(consistencyLevel.id());
+        if (shardId != null) {
+            out.writeBoolean(true);
+            shardId.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
+        waitForActiveShards.writeTo(out);
         timeout.writeTo(out);
         out.writeString(index);
-        out.writeBoolean(canHaveDuplicates);
+        out.writeVLong(routedBasedOnClusterVersion);
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new ReplicationTask(id, type, action, getDescription(), parentTaskId);
+    }
+
+    /**
+     * Sets the target shard id for the request. The shard id is set when a
+     * index/delete request is resolved by the transport action
+     */
+    @SuppressWarnings("unchecked")
+    public Request setShardId(ShardId shardId) {
+        this.shardId = shardId;
+        return (Request) this;
+    }
+
+    @Override
+    public abstract String toString(); // force a proper to string to ease debugging
+
+    @Override
+    public String getDescription() {
+        return toString();
+    }
+
+    /**
+     * This method is called before this replication request is retried
+     * the first time.
+     */
+    public void onRetry() {
+        // nothing by default
     }
 }

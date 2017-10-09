@@ -1,0 +1,118 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.Version
+
+apply plugin: 'elasticsearch.standalone-test'
+
+// This is a top level task which we will add dependencies to below.
+// It is a single task that can be used to backcompat tests against all versions.
+task bwcTest {
+  description = 'Runs backwards compatibility tests.'
+  group = 'verification'
+}
+
+for (Version version : wireCompatVersions) {
+  String baseName = "v${version}"
+
+  Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
+    mustRunAfter(precommit)
+  }
+
+  Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
+  configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
+    distribution = 'zip'
+    bwcVersion = version
+    numBwcNodes = 2
+    numNodes = 2
+    clusterName = 'rolling-upgrade'
+    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    if (version.onOrAfter('5.3.0')) {
+      setting 'http.content_type.required', 'true'
+    }
+  }
+
+  Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
+  oldClusterTestRunner.configure {
+    systemProperty 'tests.rest.suite', 'old_cluster'
+  }
+
+  Task mixedClusterTest = tasks.create(name: "${baseName}#mixedClusterTest", type: RestIntegTestTask)
+
+  configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
+    dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
+    distribution = 'zip'
+    clusterName = 'rolling-upgrade'
+    unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
+    minimumMasterNodes = { 2 }
+    /* Override the data directory so the new node always gets the node we
+     * just stopped's data directory. */
+    dataDir = { nodeNumber -> oldClusterTest.nodes[1].dataDir }
+    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+  }
+
+  Task mixedClusterTestRunner = tasks.getByName("${baseName}#mixedClusterTestRunner")
+  mixedClusterTestRunner.configure {
+    systemProperty 'tests.rest.suite', 'mixed_cluster'
+    finalizedBy "${baseName}#oldClusterTestCluster#node0.stop"
+  }
+
+  Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask) {
+    dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
+  }
+
+  configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
+    distribution = 'zip'
+    clusterName = 'rolling-upgrade'
+    unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
+    minimumMasterNodes = { 2 }
+    /* Override the data directory so the new node always gets the node we
+     * just stopped's data directory. */
+    dataDir = { nodeNumber -> oldClusterTest.nodes[0].dataDir}
+    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+  }
+
+  Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
+  upgradedClusterTestRunner.configure {
+    systemProperty 'tests.rest.suite', 'upgraded_cluster'
+    // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
+    finalizedBy "${baseName}#mixedClusterTestCluster#stop"
+  }
+
+  Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
+    enabled = project.bwc_tests_enabled
+    dependsOn = [upgradedClusterTest]
+  }
+
+  if (project.bwc_tests_enabled) {
+    bwcTest.dependsOn(versionBwcTest)
+  }
+}
+
+test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+
+// basic integ tests includes testing bwc against the most recent version
+task integTest {
+  if (project.bwc_tests_enabled) {
+    dependsOn = ["v${wireCompatVersions[-1]}#bwcTest"]
+  }
+}
+
+check.dependsOn(integTest)

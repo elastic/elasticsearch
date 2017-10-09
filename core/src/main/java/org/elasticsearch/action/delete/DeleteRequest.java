@@ -19,15 +19,16 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocumentRequest;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -36,21 +37,22 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to delete a document from an index based on its type and id. Best created using
  * {@link org.elasticsearch.client.Requests#deleteRequest(String)}.
- * <p/>
- * <p>The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)} to
+ * <p>
+ * The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)} to
  * be set.
  *
  * @see DeleteResponse
  * @see org.elasticsearch.client.Client#delete(DeleteRequest)
  * @see org.elasticsearch.client.Requests#deleteRequest(String)
  */
-public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements DocumentRequest<DeleteRequest> {
+public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
 
     private String type;
     private String id;
     @Nullable
     private String routing;
-    private boolean refresh;
+    @Nullable
+    private String parent;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 
@@ -78,35 +80,6 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         this.id = id;
     }
 
-    /**
-     * Copy constructor that creates a new delete request that is a copy of the one provided as an argument.
-     */
-    public DeleteRequest(DeleteRequest request) {
-        this(request, request);
-    }
-
-    /**
-     * Copy constructor that creates a new delete request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public DeleteRequest(DeleteRequest request, ActionRequest originalRequest) {
-        super(request, originalRequest);
-        this.type = request.type();
-        this.id = request.id();
-        this.routing = request.routing();
-        this.refresh = request.refresh();
-        this.version = request.version();
-        this.versionType = request.versionType();
-    }
-
-    /**
-     * Creates a delete request caused by some other request, which is provided as an
-     * argument so that its headers and context can be copied to the new request
-     */
-    public DeleteRequest(ActionRequest request) {
-        super(request);
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
@@ -118,6 +91,9 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         }
         if (!versionType.validateVersionForWrites(version)) {
             validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
+        }
+        if (versionType == VersionType.FORCE) {
+            validationException = addValidationError("version type [force] may no longer be used", validationException);
         }
         return validationException;
     }
@@ -155,13 +131,18 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
     }
 
     /**
-     * Sets the parent id of this document. Will simply set the routing to this value, as it is only
-     * used for routing with delete requests.
+     * @return The parent for this request.
+     */
+    @Override
+    public String parent() {
+        return parent;
+    }
+
+    /**
+     * Sets the parent id of this document.
      */
     public DeleteRequest parent(String parent) {
-        if (routing == null) {
-            routing = parent;
-        }
+        this.parent = parent;
         return this;
     }
 
@@ -188,40 +169,31 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         return this.routing;
     }
 
-    /**
-     * Should a refresh be executed post this index operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public DeleteRequest refresh(boolean refresh) {
-        this.refresh = refresh;
-        return this;
-    }
-
-    public boolean refresh() {
-        return this.refresh;
-    }
-
-    /**
-     * Sets the version, which will cause the delete operation to only be performed if a matching
-     * version exists and no changes happened on the doc since then.
-     */
+    @Override
     public DeleteRequest version(long version) {
         this.version = version;
         return this;
     }
 
+    @Override
     public long version() {
         return this.version;
     }
 
+    @Override
     public DeleteRequest versionType(VersionType versionType) {
         this.versionType = versionType;
         return this;
     }
 
+    @Override
     public VersionType versionType() {
         return this.versionType;
+    }
+
+    @Override
+    public OpType opType() {
+        return OpType.DELETE;
     }
 
     @Override
@@ -230,7 +202,7 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        refresh = in.readBoolean();
+        parent = in.readOptionalString();
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
     }
@@ -241,7 +213,7 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing());
-        out.writeBoolean(refresh);
+        out.writeOptionalString(parent());
         out.writeLong(version);
         out.writeByte(versionType.getValue());
     }
@@ -249,5 +221,15 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
     @Override
     public String toString() {
         return "delete {[" + index + "][" + type + "][" + id + "]}";
+    }
+
+    /**
+     * Override this method from ReplicationAction, this is where we are storing our state in the request object (which we really shouldn't
+     * do). Once the transport client goes away we can move away from making this available, but in the meantime this is dangerous to set or
+     * use because the DeleteRequest object will always be wrapped in a bulk request envelope, which is where this *should* be set.
+     */
+    @Override
+    public DeleteRequest setShardId(ShardId shardId) {
+        throw new UnsupportedOperationException("shard id should never be set on DeleteRequest");
     }
 }

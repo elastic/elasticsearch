@@ -16,59 +16,46 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.ThrowableObjectInputStream;
-import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.hamcrest.Matchers;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.net.InetAddress;
 
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
-public class DiscoveryNodeTests extends ElasticsearchTestCase {
+public class DiscoveryNodeTests extends ESTestCase {
 
-
-    @Test
-    public void testJavaSerializablilty() throws IOException, ClassNotFoundException {
-        final int iters = scaledRandomIntBetween(100, 300);
-        for (int i = 0; i < iters; i++) {
-            final String id = randomUnicodeOfLengthBetween(3, 20);
-            final String nodeName = randomUnicodeOfLengthBetween(3, 20);
-            final String hostName = randomUnicodeOfLengthBetween(3, 20);
-            final String hostAddress = randomUnicodeOfLengthBetween(3, 20);
-            final TransportAddress transportAddress = new LocalTransportAddress(randomUnicodeOfLengthBetween(3, 20));
-            final Map<String, String> attributes = new HashMap<>();
-            for (int a = randomInt(10); a > 0; a--) {
-                attributes.put(randomUnicodeOfLengthBetween(3, 20), randomUnicodeOfLengthBetween(3, 20));
-            }
-            final Version version = randomVersion(random());
-            DiscoveryNode discoveryNode = new DiscoveryNode(nodeName, id, hostName, hostAddress, transportAddress, attributes, version);
-            BytesStreamOutput bytesOutput = new BytesStreamOutput();
-            ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(bytesOutput);
-            too.writeObject(discoveryNode);
-            too.close();
-            ThrowableObjectInputStream from = new ThrowableObjectInputStream(StreamInput.wrap(bytesOutput.bytes()));
-            DiscoveryNode readDiscoveryNode = (DiscoveryNode) from.readObject();
-            from.close();
-            assertThat(readDiscoveryNode, Matchers.equalTo(discoveryNode));
-            assertThat(readDiscoveryNode.id(), Matchers.equalTo(id));
-            assertThat(readDiscoveryNode.name(), Matchers.equalTo(nodeName));
-            assertThat(readDiscoveryNode.getHostName(), Matchers.equalTo(hostName));
-            assertThat(readDiscoveryNode.getHostAddress(), Matchers.equalTo(hostAddress));
-            assertThat(readDiscoveryNode.address(), Matchers.equalTo(transportAddress));
-            assertThat(readDiscoveryNode.attributes(), Matchers.equalTo(attributes));
-            assertThat(readDiscoveryNode.version(), Matchers.equalTo(version));
-        }
+    public void testDiscoveryNodeIsCreatedWithHostFromInetAddress() throws Exception {
+        InetAddress inetAddress = randomBoolean() ? InetAddress.getByName("192.0.2.1") :
+            InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
+        TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
+        DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
+        assertEquals(transportAddress.address().getHostString(), node.getHostName());
+        assertEquals(transportAddress.getAddress(), node.getHostAddress());
     }
 
+    public void testDiscoveryNodeSerializationKeepsHost() throws Exception {
+        InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
+        TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
+        DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
+
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+        streamOutput.setVersion(Version.CURRENT);
+        node.writeTo(streamOutput);
+
+        StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
+        DiscoveryNode serialized = new DiscoveryNode(in);
+        assertEquals(transportAddress.address().getHostString(), serialized.getHostName());
+        assertEquals(transportAddress.address().getHostString(), serialized.getAddress().address().getHostString());
+        assertEquals(transportAddress.getAddress(), serialized.getHostAddress());
+        assertEquals(transportAddress.getAddress(), serialized.getAddress().getAddress());
+        assertEquals(transportAddress.getPort(), serialized.getAddress().getPort());
+    }
 }

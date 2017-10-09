@@ -23,21 +23,16 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 
 import java.io.IOException;
+import java.util.Objects;
 
-/**
- *
- */
 public class WeightFactorFunction extends ScoreFunction {
 
-    private static final ScoreFunction SCORE_ONE = new ScoreOne(CombineFunction.MULT);
+    private static final ScoreFunction SCORE_ONE = new ScoreOne(CombineFunction.MULTIPLY);
     private final ScoreFunction scoreFunction;
     private float weight = 1.0f;
 
     public WeightFactorFunction(float weight, ScoreFunction scoreFunction) {
-        super(CombineFunction.MULT);
-        if (scoreFunction instanceof BoostScoreFunction) {
-            throw new IllegalArgumentException(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE);
-        }
+        super(CombineFunction.MULTIPLY);
         if (scoreFunction == null) {
             this.scoreFunction = SCORE_ONE;
         } else {
@@ -47,7 +42,7 @@ public class WeightFactorFunction extends ScoreFunction {
     }
 
     public WeightFactorFunction(float weight) {
-        super(CombineFunction.MULT);
+        super(CombineFunction.MULTIPLY);
         this.scoreFunction = SCORE_ONE;
         this.weight = weight;
     }
@@ -57,7 +52,7 @@ public class WeightFactorFunction extends ScoreFunction {
         final LeafScoreFunction leafFunction = scoreFunction.getLeafScoreFunction(ctx);
         return new LeafScoreFunction() {
             @Override
-            public double score(int docId, float subQueryScore) {
+            public double score(int docId, float subQueryScore) throws IOException {
                 return leafFunction.score(docId, subQueryScore) * getWeight();
             }
 
@@ -71,12 +66,34 @@ public class WeightFactorFunction extends ScoreFunction {
         };
     }
 
+    @Override
+    public boolean needsScores() {
+        return scoreFunction.needsScores();
+    }
+
     public Explanation explainWeight() {
         return Explanation.match(getWeight(), "weight");
     }
 
+    @Override
     public float getWeight() {
         return weight;
+    }
+
+    public ScoreFunction getScoreFunction() {
+        return scoreFunction;
+    }
+
+    @Override
+    protected boolean doEquals(ScoreFunction other) {
+        WeightFactorFunction weightFactorFunction = (WeightFactorFunction) other;
+        return this.weight == weightFactorFunction.weight &&
+                Objects.equals(this.scoreFunction, weightFactorFunction.scoreFunction);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(weight, scoreFunction);
     }
 
     private static class ScoreOne extends ScoreFunction {
@@ -98,6 +115,21 @@ public class WeightFactorFunction extends ScoreFunction {
                     return Explanation.match(1.0f, "constant score 1.0 - no function provided");
                 }
             };
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
+
+        @Override
+        protected boolean doEquals(ScoreFunction other) {
+            return true;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
         }
     }
 }

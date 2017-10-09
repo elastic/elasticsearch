@@ -19,16 +19,20 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.*;
+import org.elasticsearch.action.support.nodes.BaseNodeRequest;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,26 +44,24 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
-/**
- *
- */
-public class TransportNodesListGatewayMetaState extends TransportNodesAction<TransportNodesListGatewayMetaState.Request, TransportNodesListGatewayMetaState.NodesGatewayMetaState, TransportNodesListGatewayMetaState.NodeRequest, TransportNodesListGatewayMetaState.NodeGatewayMetaState> {
+public class TransportNodesListGatewayMetaState extends TransportNodesAction<TransportNodesListGatewayMetaState.Request,
+                                                                             TransportNodesListGatewayMetaState.NodesGatewayMetaState,
+                                                                             TransportNodesListGatewayMetaState.NodeRequest,
+                                                                             TransportNodesListGatewayMetaState.NodeGatewayMetaState> {
 
     public static final String ACTION_NAME = "internal:gateway/local/meta_state";
 
-    private GatewayMetaState metaState;
+    private final GatewayMetaState metaState;
 
     @Inject
-    public TransportNodesListGatewayMetaState(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                Request.class, NodeRequest.class, ThreadPool.Names.GENERIC);
-    }
-
-    TransportNodesListGatewayMetaState init(GatewayMetaState metaState) {
+    public TransportNodesListGatewayMetaState(Settings settings, ThreadPool threadPool,
+                                              ClusterService clusterService, TransportService transportService,
+                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                              GatewayMetaState metaState) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+              indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeGatewayMetaState.class);
         this.metaState = metaState;
-        return this;
     }
 
     public ActionFuture<NodesGatewayMetaState> list(String[] nodesIds, @Nullable TimeValue timeout) {
@@ -73,7 +75,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
 
     @Override
     protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId, request);
+        return new NodeRequest(nodeId);
     }
 
     @Override
@@ -82,21 +84,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     }
 
     @Override
-    protected NodesGatewayMetaState newResponse(Request request, AtomicReferenceArray responses) {
-        final List<NodeGatewayMetaState> nodesList = Lists.newArrayList();
-        final List<FailedNodeException> failures = Lists.newArrayList();
-        for (int i = 0; i < responses.length(); i++) {
-            Object resp = responses.get(i);
-            if (resp instanceof NodeGatewayMetaState) { // will also filter out null response for unallocated ones
-                nodesList.add((NodeGatewayMetaState) resp);
-            } else if (resp instanceof FailedNodeException) {
-                failures.add((FailedNodeException) resp);
-            } else {
-                logger.warn("unknown response type [{}], expected NodeLocalGatewayMetaState or FailedNodeException", resp);
-            }
-        }
-        return new NodesGatewayMetaState(clusterName, nodesList.toArray(new NodeGatewayMetaState[nodesList.size()]),
-                failures.toArray(new FailedNodeException[failures.size()]));
+    protected NodesGatewayMetaState newResponse(Request request, List<NodeGatewayMetaState> responses, List<FailedNodeException> failures) {
+        return new NodesGatewayMetaState(clusterService.getClusterName(), responses, failures);
     }
 
     @Override
@@ -108,12 +97,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
         }
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return true;
-    }
-
-    static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest<Request> {
 
         public Request() {
         }
@@ -135,48 +119,31 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
 
     public static class NodesGatewayMetaState extends BaseNodesResponse<NodeGatewayMetaState> {
 
-        private FailedNodeException[] failures;
-
         NodesGatewayMetaState() {
         }
 
-        public NodesGatewayMetaState(ClusterName clusterName, NodeGatewayMetaState[] nodes, FailedNodeException[] failures) {
-            super(clusterName, nodes);
-            this.failures = failures;
-        }
-
-        public FailedNodeException[] failures() {
-            return failures;
+        public NodesGatewayMetaState(ClusterName clusterName, List<NodeGatewayMetaState> nodes, List<FailedNodeException> failures) {
+            super(clusterName, nodes, failures);
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            nodes = new NodeGatewayMetaState[in.readVInt()];
-            for (int i = 0; i < nodes.length; i++) {
-                nodes[i] = new NodeGatewayMetaState();
-                nodes[i].readFrom(in);
-            }
+        protected List<NodeGatewayMetaState> readNodesFrom(StreamInput in) throws IOException {
+            return in.readStreamableList(NodeGatewayMetaState::new);
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeVInt(nodes.length);
-            for (NodeGatewayMetaState response : nodes) {
-                response.writeTo(out);
-            }
+        protected void writeNodesTo(StreamOutput out, List<NodeGatewayMetaState> nodes) throws IOException {
+            out.writeStreamableList(nodes);
         }
     }
 
+    public static class NodeRequest extends BaseNodeRequest {
 
-    static class NodeRequest extends BaseNodeRequest {
-
-        NodeRequest() {
+        public NodeRequest() {
         }
 
-        NodeRequest(String nodeId, TransportNodesListGatewayMetaState.Request request) {
-            super(request, nodeId);
+        NodeRequest(String nodeId) {
+            super(nodeId);
         }
 
         @Override
@@ -210,7 +177,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             if (in.readBoolean()) {
-                metaData = MetaData.Builder.readFrom(in);
+                metaData = MetaData.readFrom(in);
             }
         }
 

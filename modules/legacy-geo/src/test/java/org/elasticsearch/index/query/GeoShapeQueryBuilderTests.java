@@ -40,7 +40,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.dependsonjts.DependsOnJtsPlugin;
+import org.elasticsearch.legacygeo.LegacyGeoPlugin;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
@@ -75,7 +75,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
-        plugins.add(DependsOnJtsPlugin.class);
+        plugins.add(LegacyGeoPlugin.class);
         return Collections.unmodifiableCollection(plugins);
     }
 

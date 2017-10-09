@@ -21,7 +21,7 @@ package org.elasticsearch.search.geo;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.dependsonjts.DependsOnJtsPlugin;
+import org.elasticsearch.legacygeo.LegacyGeoPlugin;
 import org.locationtech.spatial4j.shape.Rectangle;
 import com.vividsolutions.jts.geom.Coordinate;
 
@@ -67,7 +67,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(DependsOnJtsPlugin.class);
+        return pluginList(LegacyGeoPlugin.class);
     }
 
     public void testNullShape() throws Exception {

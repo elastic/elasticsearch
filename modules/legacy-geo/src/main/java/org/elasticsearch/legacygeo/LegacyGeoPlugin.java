@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.dependsonjts;
+package org.elasticsearch.legacygeo;
 
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
@@ -34,7 +34,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class DependsOnJtsPlugin extends Plugin implements MapperPlugin, SearchPlugin {
+public class LegacyGeoPlugin extends Plugin implements MapperPlugin, SearchPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {

@@ -26,7 +26,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.dependsonjts.DependsOnJtsPlugin;
+import org.elasticsearch.legacygeo.LegacyGeoPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -42,7 +42,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, DependsOnJtsPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, LegacyGeoPlugin.class);
     }
 
     public void testDefaultConfiguration() throws IOException {

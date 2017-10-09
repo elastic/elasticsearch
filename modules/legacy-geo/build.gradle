@@ -22,8 +22,8 @@ import org.apache.tools.ant.types.Path
 apply plugin: 'nebula.optional-base'
 
 esplugin {
-  description 'Features that we would happily have in core but that transitively depend on JTS which is LGPL'
-  classname 'org.elasticsearch.dependsonjts.DependsOnJtsPlugin'
+  description 'Legacy geo support that transitively depend on JTS which is LGPL'
+  classname 'org.elasticsearch.legacygeo.LegacyGeoPlugin'
   hasClientJar = true
 }
 

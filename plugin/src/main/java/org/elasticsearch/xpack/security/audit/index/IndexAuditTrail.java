@@ -47,7 +47,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -75,7 +74,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -785,8 +783,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     Client initializeRemoteClient(Settings settings, Logger logger) {
         Settings clientSettings = REMOTE_CLIENT_SETTINGS.get(settings);
-        String[] hosts = clientSettings.getAsArray("hosts");
-        if (hosts.length == 0) {
+        List<String> hosts = clientSettings.getAsList("hosts");
+        if (hosts.isEmpty()) {
             throw new ElasticsearchException("missing required setting " +
                     "[" + REMOTE_CLIENT_SETTINGS.getKey() + ".hosts] for remote audit log indexing");
         }

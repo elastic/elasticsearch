@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.notification.hipchat;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -36,16 +35,16 @@ public class IntegrationAccount extends HipChatAccount {
 
     public IntegrationAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient, Logger logger) {
         super(name, Profile.INTEGRATION, settings, defaultServer, httpClient, logger);
-        String[] rooms = settings.getAsArray(ROOM_SETTING, null);
-        if (rooms == null || rooms.length == 0) {
+        List<String> rooms = settings.getAsList(ROOM_SETTING, null);
+        if (rooms == null || rooms.isEmpty()) {
             throw new SettingsException("invalid hipchat account [" + name + "]. missing required [" + ROOM_SETTING + "] setting for [" +
                     TYPE + "] account profile");
         }
-        if (rooms.length > 1) {
+        if (rooms.size() > 1) {
             throw new SettingsException("invalid hipchat account [" + name + "]. [" + ROOM_SETTING + "] setting for [" + TYPE + "] " +
                     "account must only be set with a single value");
         }
-        this.room = rooms[0];
+        this.room = rooms.get(0);
         defaults = new Defaults(settings);
     }
 

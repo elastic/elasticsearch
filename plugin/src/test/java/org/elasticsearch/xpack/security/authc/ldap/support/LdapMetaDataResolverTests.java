@@ -30,7 +30,7 @@ public class LdapMetaDataResolverTests extends ESTestCase {
     private LdapMetaDataResolver resolver;
 
     public void testParseSettings() throws Exception {
-        resolver = new LdapMetaDataResolver(Settings.builder().putArray("metadata", "cn", "uid").build(), false);
+        resolver = new LdapMetaDataResolver(Settings.builder().putList("metadata", "cn", "uid").build(), false);
         assertThat(resolver.attributeNames(), arrayContaining("cn", "uid"));
     }
 

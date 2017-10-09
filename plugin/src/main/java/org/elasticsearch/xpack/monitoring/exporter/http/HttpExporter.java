@@ -22,7 +22,6 @@ import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer.Scheme;
 import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.logging.Loggers;
@@ -283,9 +282,9 @@ public class HttpExporter extends Exporter {
 
         // the sniffer is allowed to be ENABLED; it's disabled by default until we think it's ready for use
         if (settings.getAsBoolean(SNIFF_ENABLED_SETTING, false)) {
-            final String[] hosts = config.settings().getAsArray(HOST_SETTING);
+            final List<String> hosts = config.settings().getAsList(HOST_SETTING);
             // createHosts(config) ensures that all schemes are the same for all hosts!
-            final Scheme scheme = hosts[0].startsWith("https") ? Scheme.HTTPS : Scheme.HTTP;
+            final Scheme scheme = hosts.get(0).startsWith("https") ? Scheme.HTTPS : Scheme.HTTP;
             final ElasticsearchHostsSniffer hostsSniffer =
                     new ElasticsearchHostsSniffer(client, ElasticsearchHostsSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
 
@@ -332,13 +331,13 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if any setting is malformed or if no host is set
      */
     private static HttpHost[] createHosts(final Config config) {
-        final String[] hosts = config.settings().getAsArray(HOST_SETTING);
+        final List<String> hosts = config.settings().getAsList(HOST_SETTING);
 
-        if (hosts.length == 0) {
+        if (hosts.isEmpty()) {
             throw new SettingsException("missing required setting [" + settingFQN(config, HOST_SETTING) + "]");
         }
 
-        final List<HttpHost> httpHosts = new ArrayList<>(hosts.length);
+        final List<HttpHost> httpHosts = new ArrayList<>(hosts.size());
         boolean httpHostFound = false;
         boolean httpsHostFound = false;
 
@@ -368,7 +367,7 @@ public class HttpExporter extends Exporter {
         }
 
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] using hosts [{}]", settingFQN(config), Strings.arrayToCommaDelimitedString(hosts));
+            logger.debug("[{}] using hosts {}", settingFQN(config), hosts);
         }
 
         return httpHosts.toArray(new HttpHost[httpHosts.size()]);
@@ -398,9 +397,9 @@ public class HttpExporter extends Exporter {
                 throw new SettingsException("[" + name + "] cannot be overwritten via [" + settingFQN(config, "headers") + "]");
             }
 
-            final String[] values = headerSettings.getAsArray(name);
+            final List<String> values = headerSettings.getAsList(name);
 
-            if (values.length == 0) {
+            if (values.isEmpty()) {
                 final String settingName = settingFQN(config, "headers." + name);
                 throw new SettingsException("headers must have values, missing for setting [" + settingName + "]");
             }
@@ -430,9 +429,9 @@ public class HttpExporter extends Exporter {
         final Settings sslSettings = config.settings().getAsSettings(SSL_SETTING);
         final SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(sslSettings);
         final CredentialsProvider credentialsProvider = createCredentialsProvider(config);
-
+        List<String> hostList = config.settings().getAsList(HOST_SETTING);
         // sending credentials in plaintext!
-        if (credentialsProvider != null && config.settings().getAsArray(HOST_SETTING)[0].startsWith("https") == false) {
+        if (credentialsProvider != null && hostList.stream().findFirst().orElse("").startsWith("https") == false) {
             logger.warn("[" + settingFQN(config) + "] is not using https, but using user authentication with plaintext username/password!");
         }
 

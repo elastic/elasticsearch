@@ -111,13 +111,13 @@ public class DNSOnlyHostnameVerificationTests extends SecurityIntegTestCase {
         });
         builder.put("xpack.ssl.keystore.path", keystorePath.toAbsolutePath())
                .put("xpack.ssl.truststore.path", keystorePath.toAbsolutePath());
-        List<String> unicastHosts = Arrays.stream(defaultSettings.getAsArray("discovery.zen.ping.unicast.hosts"))
+        List<String> unicastHosts = defaultSettings.getAsList("discovery.zen.ping.unicast.hosts").stream()
                 .map((s) -> {
                     String port = s.substring(s.lastIndexOf(':'), s.length());
                     return hostName + port;
                 })
                 .collect(Collectors.toList());
-        builder.putArray("discovery.zen.ping.unicast.hosts", unicastHosts);
+        builder.putList("discovery.zen.ping.unicast.hosts", unicastHosts);
         return builder.build();
     }
 

@@ -54,7 +54,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("xpack.security.audit.enabled", true)
                 .put("xpack.security.audit.outputs", "index")
-                .putArray("xpack.security.audit.index.events.include", "access_denied", "authentication_failed", "run_as_denied")
+                .putList("xpack.security.audit.index.events.include", "access_denied", "authentication_failed", "run_as_denied")
                 .build();
     }
 

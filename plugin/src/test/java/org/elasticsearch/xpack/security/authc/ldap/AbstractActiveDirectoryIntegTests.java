@@ -62,7 +62,7 @@ public class AbstractActiveDirectoryIntegTests extends ESTestCase {
     Settings buildAdSettings(String ldapUrl, String adDomainName, String userSearchDN, LdapSearchScope scope,
                                            boolean hostnameVerification) {
         Settings.Builder builder = Settings.builder()
-                .putArray(ActiveDirectorySessionFactory.URLS_SETTING, ldapUrl)
+                .putList(ActiveDirectorySessionFactory.URLS_SETTING, ldapUrl)
                 .put(ActiveDirectorySessionFactory.AD_DOMAIN_NAME_SETTING, adDomainName)
                 .put(ActiveDirectorySessionFactory.AD_USER_SEARCH_BASEDN_SETTING, userSearchDN)
                 .put(ActiveDirectorySessionFactory.AD_USER_SEARCH_SCOPE_SETTING, scope);

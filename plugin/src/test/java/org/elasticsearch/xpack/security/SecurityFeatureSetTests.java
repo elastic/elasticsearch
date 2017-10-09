@@ -106,7 +106,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 new String[] { "index" },
                 new String[] { "logfile", "index" }
         );
-        settings.putArray(Security.AUDIT_OUTPUTS_SETTING.getKey(), auditOutputs);
+        settings.putList(Security.AUDIT_OUTPUTS_SETTING.getKey(), auditOutputs);
         final boolean httpIpFilterEnabled = randomBoolean();
         final boolean transportIPFilterEnabled = randomBoolean();
         when(ipFilter.usageStats())

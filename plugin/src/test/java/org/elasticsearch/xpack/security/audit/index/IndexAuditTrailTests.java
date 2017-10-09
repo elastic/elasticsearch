@@ -255,10 +255,10 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     static Settings levelSettings(String[] includes, String[] excludes) {
         Settings.Builder builder = Settings.builder();
         if (includes != null) {
-            builder.putArray("xpack.security.audit.index.events.include", includes);
+            builder.putList("xpack.security.audit.index.events.include", includes);
         }
         if (excludes != null) {
-            builder.putArray("xpack.security.audit.index.events.exclude", excludes);
+            builder.putList("xpack.security.audit.index.events.exclude", excludes);
         }
         return builder.build();
     }

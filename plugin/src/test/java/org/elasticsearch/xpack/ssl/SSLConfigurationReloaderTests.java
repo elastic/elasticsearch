@@ -36,7 +36,6 @@ import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
-import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiConsumer;
 
@@ -151,7 +150,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .put("xpack.ssl.key", keyPath)
                 .put("xpack.ssl.certificate", certPath)
-                .putArray("xpack.ssl.certificate_authorities", certPath.toString(), clientCertPath.toString())
+                .putList("xpack.ssl.certificate_authorities", certPath.toString(), clientCertPath.toString())
                 .setSecureSettings(secureSettings)
                 .build();
         final Environment env = randomBoolean() ? null :
@@ -258,7 +257,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path clientCertPath = tempDir.resolve("testclient.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"), clientCertPath);
         Settings settings = Settings.builder()
-                .putArray("xpack.ssl.certificate_authorities", clientCertPath.toString())
+                .putList("xpack.ssl.certificate_authorities", clientCertPath.toString())
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);
@@ -343,7 +342,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("xpack.ssl.key", keyPath)
                 .put("xpack.ssl.certificate", certPath)
-                .putArray("xpack.ssl.certificate_authorities", certPath.toString(), clientCertPath.toString())
+                .putList("xpack.ssl.certificate_authorities", certPath.toString(), clientCertPath.toString())
                 .put("path.home", createTempDir())
                 .setSecureSettings(secureSettings)
                 .build();
@@ -411,7 +410,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path clientCertPath = tempDir.resolve("testclient.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"), clientCertPath);
         Settings settings = Settings.builder()
-                .putArray("xpack.ssl.certificate_authorities", clientCertPath.toString())
+                .putList("xpack.ssl.certificate_authorities", clientCertPath.toString())
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);

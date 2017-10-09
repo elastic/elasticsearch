@@ -179,7 +179,7 @@ public class OpenLdapTests extends ESTestCase {
     }
 
     public void testResolveSingleValuedAttributeFromConnection() throws Exception {
-        LdapMetaDataResolver resolver = new LdapMetaDataResolver(Settings.builder().putArray("metadata", "cn", "sn").build(), true);
+        LdapMetaDataResolver resolver = new LdapMetaDataResolver(Settings.builder().putList("metadata", "cn", "sn").build(), true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
             assertThat(map.size(), equalTo(2));
@@ -189,7 +189,7 @@ public class OpenLdapTests extends ESTestCase {
     }
 
     public void testResolveMultiValuedAttributeFromConnection() throws Exception {
-        LdapMetaDataResolver resolver = new LdapMetaDataResolver(Settings.builder().putArray("metadata", "objectClass").build(), true);
+        LdapMetaDataResolver resolver = new LdapMetaDataResolver(Settings.builder().putList("metadata", "objectClass").build(), true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
             assertThat(map.size(), equalTo(1));
@@ -199,7 +199,7 @@ public class OpenLdapTests extends ESTestCase {
     }
 
     public void testResolveMissingAttributeFromConnection() throws Exception {
-        LdapMetaDataResolver resolver = new LdapMetaDataResolver(Settings.builder().putArray("metadata", "alias").build(), true);
+        LdapMetaDataResolver resolver = new LdapMetaDataResolver(Settings.builder().putList("metadata", "alias").build(), true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
             assertThat(map.size(), equalTo(0));

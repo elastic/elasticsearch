@@ -208,8 +208,8 @@ public class LdapRealmTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = Settings.builder()
-                .putArray(URLS_SETTING, ldapUrls())
-                .putArray(USER_DN_TEMPLATES_SETTING_KEY, userTemplate)
+                .putList(URLS_SETTING, ldapUrls())
+                .putList(USER_DN_TEMPLATES_SETTING_KEY, userTemplate)
                 .put("group_search.base_dn", groupSearchBase)
                 .put("group_search.scope", LdapSearchScope.SUB_TREE)
                 .put("ssl.verification_mode", VerificationMode.CERTIFICATE)
@@ -222,7 +222,7 @@ public class LdapRealmTests extends LdapTestCase {
     public void testLdapRealmSelectsLdapUserSearchSessionFactory() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         Settings settings = Settings.builder()
-                .putArray(URLS_SETTING, ldapUrls())
+                .putList(URLS_SETTING, ldapUrls())
                 .put("user_search.base_dn", "")
                 .put("bind_dn", "cn=Thomas Masterman Hardy,ou=people,o=sevenSeas")
                 .put("bind_password", PASSWORD)
@@ -241,8 +241,8 @@ public class LdapRealmTests extends LdapTestCase {
 
     public void testLdapRealmThrowsExceptionForUserTemplateAndSearchSettings() throws Exception {
         Settings settings = Settings.builder()
-                .putArray(URLS_SETTING, ldapUrls())
-                .putArray(USER_DN_TEMPLATES_SETTING_KEY, "cn=foo")
+                .putList(URLS_SETTING, ldapUrls())
+                .putList(USER_DN_TEMPLATES_SETTING_KEY, "cn=foo")
                 .put("user_search.base_dn", "cn=bar")
                 .put("group_search.base_dn", "")
                 .put("group_search.scope", LdapSearchScope.SUB_TREE)
@@ -259,7 +259,7 @@ public class LdapRealmTests extends LdapTestCase {
 
     public void testLdapRealmThrowsExceptionWhenNeitherUserTemplateNorSearchSettingsProvided() throws Exception {
         Settings settings = Settings.builder()
-                .putArray(URLS_SETTING, ldapUrls())
+                .putList(URLS_SETTING, ldapUrls())
                 .put("group_search.base_dn", "")
                 .put("group_search.scope", LdapSearchScope.SUB_TREE)
                 .put("ssl.verification_mode", VerificationMode.CERTIFICATE)
@@ -326,7 +326,7 @@ public class LdapRealmTests extends LdapTestCase {
     public void testUsageStats() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         Settings.Builder settings = Settings.builder()
-                .putArray(URLS_SETTING, ldapUrls())
+                .putList(URLS_SETTING, ldapUrls())
                 .put("bind_dn", "cn=Thomas Masterman Hardy,ou=people,o=sevenSeas")
                 .put("bind_password", PASSWORD)
                 .put("group_search.base_dn", groupSearchBase)

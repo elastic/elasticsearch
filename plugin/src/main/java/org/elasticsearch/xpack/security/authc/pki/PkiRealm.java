@@ -36,6 +36,7 @@ import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -157,7 +158,7 @@ public class PkiRealm extends Realm {
     static X509TrustManager trustManagers(RealmConfig realmConfig) {
         final Settings settings = realmConfig.settings();
         final Environment env = realmConfig.env();
-        String[] certificateAuthorities = settings.getAsArray(SSL_SETTINGS.caPaths.getKey(), null);
+        List<String> certificateAuthorities = settings.getAsList(SSL_SETTINGS.caPaths.getKey(), null);
         String truststorePath = SSL_SETTINGS.truststorePath.get(settings).orElse(null);
         if (truststorePath == null && certificateAuthorities == null) {
             return null;
@@ -190,10 +191,10 @@ public class PkiRealm extends Realm {
     }
 
     private static X509TrustManager trustManagersFromCAs(Settings settings, Environment env) {
-        String[] certificateAuthorities = settings.getAsArray(SSL_SETTINGS.caPaths.getKey(), null);
+        List<String> certificateAuthorities = settings.getAsList(SSL_SETTINGS.caPaths.getKey(), null);
         assert certificateAuthorities != null;
         try {
-            Certificate[] certificates = CertUtils.readCertificates(Arrays.asList(certificateAuthorities), env);
+            Certificate[] certificates = CertUtils.readCertificates(certificateAuthorities, env);
             return CertUtils.trustManager(certificates);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load certificate authorities for PKI realm", e);

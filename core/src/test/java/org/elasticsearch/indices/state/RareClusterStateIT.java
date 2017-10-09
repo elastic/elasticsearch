@@ -114,7 +114,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
     public void testAssignmentWithJustAddedNodes() throws Exception {
         internalCluster().startNode();
         final String index = "index";
-        prepareCreate(index).setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).get();
+        prepareCreate(index).setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen(index);
 
         // close to have some unassigned started shards shards..
@@ -176,7 +177,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
-        prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).addMapping("type").get();
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).addMapping("type").get();
         ensureGreen("test");
 
         // now that the cluster is stable, remove publishing timeout
@@ -193,8 +194,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         disruption.startDisrupting();
         logger.info("--> delete index and recreate it");
         assertFalse(client().admin().indices().prepareDelete("test").setTimeout("200ms").get().isAcknowledged());
-        assertFalse(prepareCreate("test").setTimeout("200ms").setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0,
-            IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "0").get().isAcknowledged());
+        assertFalse(prepareCreate("test").setTimeout("200ms").setSettings(Settings.builder().put(IndexMetaData
+                .SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "0")).get().isAcknowledged());
         logger.info("--> letting cluster proceed");
         disruption.stopDisrupting();
         ensureGreen(TimeValue.timeValueMinutes(30), "test");
@@ -405,8 +406,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
         });
 
-        // Wait for document to be indexed on primary
-        assertBusy(() -> assertTrue(client().prepareGet("index", "type", "1").setPreference("_primary").get().isExists()));
+        assertBusy(() -> assertTrue(client().prepareGet("index", "type", "1").get().isExists()));
 
         // The mappings have not been propagated to the replica yet as a consequence the document count not be indexed
         // We wait on purpose to make sure that the document is not indexed because the shard operation is stalled

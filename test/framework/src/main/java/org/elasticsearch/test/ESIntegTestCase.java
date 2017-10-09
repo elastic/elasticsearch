@@ -416,7 +416,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 randomSettingsBuilder.put("index.codec", CodecService.LUCENE_DEFAULT_CODEC);
             }
 
-            for (String setting : randomSettingsBuilder.internalMap().keySet()) {
+            for (String setting : randomSettingsBuilder.keys()) {
                 assertThat("non index. prefix setting set on index template, its a node setting...", setting, startsWith("index."));
             }
             // always default delayed allocation to 0 to make sure we have tests are not delayed
@@ -467,7 +467,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     private static Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
-                random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
+                (random.nextBoolean() ? random.nextDouble() : random.nextBoolean()).toString());
         }
         switch (random.nextInt(4)) {
             case 3:
@@ -548,15 +548,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 if (cluster() != null) {
                     if (currentClusterScope != Scope.TEST) {
                         MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
-                        final Map<String, String> persistent = metaData.persistentSettings().getAsMap();
+                        final Set<String> persistent = metaData.persistentSettings().keySet();
                         assertThat("test leaves persistent cluster metadata behind: " + persistent, persistent.size(), equalTo(0));
-                        final Map<String, String> transientSettings =  new HashMap<>(metaData.transientSettings().getAsMap());
+                        final Set<String> transientSettings =  new HashSet<>(metaData.transientSettings().keySet());
                         if (isInternalCluster() && internalCluster().getAutoManageMinMasterNode()) {
                             // this is set by the test infra
                             transientSettings.remove(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());
                         }
                         assertThat("test leaves transient cluster metadata behind: " + transientSettings,
-                            transientSettings.keySet(), empty());
+                            transientSettings, empty());
                     }
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();

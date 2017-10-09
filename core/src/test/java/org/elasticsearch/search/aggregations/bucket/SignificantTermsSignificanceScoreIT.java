@@ -543,8 +543,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     private void indexEqualTestData() throws ExecutionException, InterruptedException {
-        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping("doc",
-                "text", "type=text,fielddata=true", "class", "type=keyword"));
+        assertAcked(prepareCreate("test")
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+            .addMapping("doc", "text", "type=text,fielddata=true", "class", "type=keyword"));
         createIndex("idx_unmapped");
 
         ensureGreen();

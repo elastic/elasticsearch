@@ -27,8 +27,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 
-import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -48,12 +48,12 @@ public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
     KeepTypesFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
-        final String[] arrayKeepTypes = settings.getAsArray(KEEP_TYPES_KEY, null);
+        final List<String> arrayKeepTypes = settings.getAsList(KEEP_TYPES_KEY, null);
         if ((arrayKeepTypes == null)) {
             throw new IllegalArgumentException("keep_types requires `" + KEEP_TYPES_KEY + "` to be configured");
         }
 
-        this.keepTypes = new HashSet<>(Arrays.asList(arrayKeepTypes));
+        this.keepTypes = new HashSet<>(arrayKeepTypes);
     }
 
     @Override

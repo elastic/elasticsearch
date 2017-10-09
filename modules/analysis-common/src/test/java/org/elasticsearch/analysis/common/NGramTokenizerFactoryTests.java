@@ -78,7 +78,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         final String name = "ngr";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
         final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 4)
-            .putArray("token_chars", new String[0]).build();
+            .putList("token_chars", new String[0]).build();
         Tokenizer tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings)
             .create();
         tokenizer.setReader(new StringReader("1.34"));

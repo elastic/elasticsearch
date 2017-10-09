@@ -98,7 +98,8 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testMappingsPropagatedToMasterNodeImmediatelyMultiType() throws IOException {
-        assertAcked(prepareCreate("index").setSettings("index.version.created", Version.V_5_6_0.id)); // allows for multiple types
+        assertAcked(prepareCreate("index").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
+        // allows for multiple types
 
         // works when the type has been dynamically created
         client().prepareIndex("index", "type", "1").setSource("foo", 3).get();

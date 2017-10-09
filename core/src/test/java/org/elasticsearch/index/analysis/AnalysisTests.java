@@ -29,7 +29,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.CharacterCodingException;
-import java.nio.charset.Charset;
 import java.nio.charset.MalformedInputException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -50,7 +49,7 @@ public class AnalysisTests extends ESTestCase {
         assertThat(set.contains("baz"), is(false));
 
         /* Array */
-        settings = Settings.builder().putArray("stem_exclusion", "foo","bar").build();
+        settings = Settings.builder().putList("stem_exclusion", "foo","bar").build();
         set = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         assertThat(set.contains("foo"), is(true));
         assertThat(set.contains("bar"), is(true));

@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -640,7 +641,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
     public void testGetFieldsComplexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
-                .setSettings("index.refresh_interval", -1)
+                .setSettings(Settings.builder().put("index.refresh_interval", -1))
                 .addMapping("doc", jsonBuilder()
                         .startObject()
                             .startObject("doc")

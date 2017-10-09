@@ -18,22 +18,16 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
-import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
-import static org.hamcrest.Matchers.anyOf;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -71,29 +65,28 @@ public class RecoveryIT extends ESRestTestCase {
 
     private final CLUSTER_TYPE clusterType = CLUSTER_TYPE.parse(System.getProperty("tests.rest.suite"));
 
-    private void assertOK(Response response) {
-        assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    @Override
+    protected Settings restClientSettings() {
+        return Settings.builder().put(super.restClientSettings())
+            // increase the timeout here to 90 seconds to handle long waits for a green
+            // cluster health. the waits for green need to be longer than a minute to
+            // account for delayed shards
+            .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "90s")
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
+            .build();
     }
-
-    private void ensureGreen() throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("wait_for_status", "green");
-        params.put("wait_for_no_relocating_shards", "true");
-        assertOK(client().performRequest("GET", "_cluster/health", params));
-    }
-
-    private void createIndex(String name, Settings settings) throws IOException {
-        assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
-            new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }", ContentType.APPLICATION_JSON)));
-    }
-
 
     public void testHistoryUUIDIsGenerated() throws Exception {
         final String index = "index_history_uuid";
         if (clusterType == CLUSTER_TYPE.OLD) {
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                // if the node with the replica is the first to be restarted, while a replica is still recovering
+                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                // before timing out
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
             createIndex(index, settings.build());
         } else if (clusterType == CLUSTER_TYPE.UPGRADED) {
             ensureGreen();

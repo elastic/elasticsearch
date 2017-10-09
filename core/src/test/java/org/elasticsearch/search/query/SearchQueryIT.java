@@ -263,9 +263,10 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testCommonTermsQuery() throws Exception {
+
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field1", "type=text,analyzer=whitespace")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)).get();
         indexRandom(true, client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
                 client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree") );
@@ -348,7 +349,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                         .put(indexSettings())
                         .put(SETTING_NUMBER_OF_SHARDS,1)
                         .put("index.analysis.filter.syns.type","synonym")
-                        .putArray("index.analysis.filter.syns.synonyms","quick,fast")
+                        .putList("index.analysis.filter.syns.synonyms","quick,fast")
                         .put("index.analysis.analyzer.syns.tokenizer","whitespace")
                         .put("index.analysis.analyzer.syns.filter","syns")
                         )
@@ -554,7 +555,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTypeFilter() throws Exception {
-        assertAcked(prepareCreate("test").setSettings("index.version.created", Version.V_5_6_0.id));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type2", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value1"),
@@ -956,7 +957,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testQuotedQueryStringWithBoost() throws InterruptedException, ExecutionException {
         float boost = 10.0f;
-        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("important", "phrase match", "less_important", "nothing important"),
                 client().prepareIndex("test", "type1", "2").setSource("important", "nothing important", "less_important", "phrase match")
         );
@@ -1219,7 +1220,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testBasicQueryByIdMultiType() throws Exception {
-        assertAcked(prepareCreate("test").setSettings("index.version.created", Version.V_5_6_0.id));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
         client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
@@ -1392,7 +1393,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testMustNot() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test")
                 //issue manifested only with shards>=2
-                .setSettings(SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS)));
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS))));
 
 
         indexRandom(true, client().prepareIndex("test", "test", "1").setSource("description", "foo other anything bar"),
@@ -1571,9 +1572,9 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .put("index.analysis.analyzer.index.filter", "lowercase")
                 .put("index.analysis.analyzer.search.type", "custom")
                 .put("index.analysis.analyzer.search.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
+                .putList("index.analysis.analyzer.search.filter", "lowercase", "synonym")
                 .put("index.analysis.filter.synonym.type", "synonym")
-                .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
+                .putList("index.analysis.filter.synonym.synonyms", "fast, quick"));
         assertAcked(builder.addMapping("test", "text", "type=text,analyzer=index,search_analyzer=search"));
 
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
@@ -1601,9 +1602,9 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .put("index.analysis.analyzer.index.filter", "lowercase")
                 .put("index.analysis.analyzer.search.type", "custom")
                 .put("index.analysis.analyzer.search.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
+                .putList("index.analysis.analyzer.search.filter", "lowercase", "synonym")
                 .put("index.analysis.filter.synonym.type", "synonym")
-                .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
+                .putList("index.analysis.filter.synonym.synonyms", "fast, quick"));
         assertAcked(builder.addMapping("test", "text", "type=text,analyzer=index,search_analyzer=search"));
 
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
@@ -1806,7 +1807,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.type", "nGram")
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.min_gram", "1")
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.max_gram", "10")
-                .putArray("index.analysis.tokenizer.my_ngram_tokenizer.token_chars", new String[0]));
+                .putList("index.analysis.tokenizer.my_ngram_tokenizer.token_chars", new String[0]));
         assertAcked(builder.addMapping("test", "origin", "type=text,copy_to=meta", "meta", "type=text,analyzer=my_ngram_analyzer"));
         // we only have ngrams as the index analyzer so searches will get standard analyzer
 

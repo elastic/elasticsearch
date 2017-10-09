@@ -352,6 +352,7 @@ These are the linux flavors the Vagrantfile currently supports:
 * centos-6
 * centos-7
 * fedora-25
+* fedora-26
 * oel-6 aka Oracle Enterprise Linux 6
 * oel-7 aka Oracle Enterprise Linux 7
 * sles-12
@@ -471,28 +472,30 @@ is tested depends on the branch. On master, this will test against the current
 stable branch. On the stable branch, it will test against the latest release
 branch. Finally, on a release branch, it will test against the most recent release.
 
-=== BWC Testing against a specific branch
+=== BWC Testing against a specific remote/branch
 
 Sometimes a backward compatibility change spans two versions. A common case is a new functionality
 that needs a BWC bridge in and an unreleased versioned of a release branch (for example, 5.x).
-To test the changes, you can instruct gradle to build the BWC version from a local branch instead of
-pulling the release branch from GitHub. You do so using the `tests.bwc.refspec` system property:
+To test the changes, you can instruct gradle to build the BWC version from a another remote/branch combination instead of
+pulling the release branch from GitHub. You do so using the `tests.bwc.remote` and `tests.bwc.refspec` system properties:
 
 -------------------------------------------------
-gradle check -Dtests.bwc.refspec=origin/index_req_bwc_5.x
+gradle check -Dtests.bwc.remote=${remote} -Dtests.bwc.refspec=index_req_bwc_5.x
 -------------------------------------------------
 
-The branch needs to be available on the local clone that the BWC makes of the repository you run the
-tests from. Using the `origin` remote is a handy trick to make sure that a branch is available
-and is up to date in the case of multiple runs.
+The branch needs to be available on the remote that the BWC makes of the
+repository you run the tests from. Using the remote is a handy trick to make
+sure that a branch is available and is up to date in the case of multiple runs.
 
 Example:
 
-Say you need to make a change to `master` and have a BWC layer in `5.x`. You will need to:
-. Create a branch called `index_req_change` off `master`. This will contain your change.
+Say you need to make a change to `master` and have a BWC layer in `5.x`. You
+will need to:
+. Create a branch called `index_req_change` off your remote `${remote}`. This
+will contain your change.
 . Create a branch called `index_req_bwc_5.x` off `5.x`. This will contain your bwc layer.
-. If not running the tests locally, push both branches to your remote repository.
-. Run the tests with `gradle check -Dtests.bwc.refspec=origin/index_req_bwc_5.x`
+. Push both branches to your remote repository.
+. Run the tests with `gradle check -Dtests.bwc.remote=${remote} -Dtests.bwc.refspec=index_req_bwc_5.x`.
 
 == Coverage analysis
 

@@ -42,26 +42,9 @@ import java.util.stream.Collectors;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexingIT extends ESRestTestCase {
-
-    private void assertOK(Response response) {
-        assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
-    }
-
-    private void ensureGreen() throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("wait_for_status", "green");
-        params.put("wait_for_no_relocating_shards", "true");
-        assertOK(client().performRequest("GET", "_cluster/health", params));
-    }
-
-    private void createIndex(String name, Settings settings) throws IOException {
-        assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
-            new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }", ContentType.APPLICATION_JSON)));
-    }
 
     private void updateIndexSetting(String name, Settings.Builder settings) throws IOException {
         updateIndexSetting(name, settings.build());
@@ -188,9 +171,6 @@ public class IndexingIT extends ESRestTestCase {
                 assertVersion(index, 5, "_only_nodes:" + shard.getNode().getNodeName(), finalVersionForDoc5);
                 assertCount(index, "_only_nodes:" + shard.getNode().getNodeName(), 5);
             }
-            // the number of documents on the primary and on the recovered replica should match the number of indexed documents
-            assertCount(index, "_primary", 5);
-            assertCount(index, "_replica", 5);
         }
     }
 
@@ -249,9 +229,10 @@ public class IndexingIT extends ESRestTestCase {
             updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 1));
             ensureGreen();
             assertOK(client().performRequest("POST", index + "/_refresh"));
-            // the number of documents on the primary and on the recovered replica should match the number of indexed documents
-            assertCount(index, "_primary", numDocs);
-            assertCount(index, "_replica", numDocs);
+
+            for (Shard shard : buildShards(index, nodes, newNodeClient)) {
+                assertCount(index, "_only_nodes:" + shard.node.nodeName, numDocs);
+            }
             assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
         }
     }

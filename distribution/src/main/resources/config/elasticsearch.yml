@@ -69,7 +69,7 @@ ${path.logs}
 #
 # Prevent the "split brain" by configuring the majority of nodes (total number of master-eligible nodes / 2 + 1):
 #
-#discovery.zen.minimum_master_nodes: 3
+#discovery.zen.minimum_master_nodes: 
 #
 # For more information, consult the zen discovery module documentation.
 #

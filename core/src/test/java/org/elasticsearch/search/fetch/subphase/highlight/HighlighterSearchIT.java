@@ -1358,9 +1358,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         Builder builder = Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.synonym.tokenizer", "whitespace")
-                .putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
+                .putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
                 .put("index.analysis.filter.synonym.type", "synonym")
-                .putArray("index.analysis.filter.synonym.synonyms", "quick => fast");
+                .putList("index.analysis.filter.synonym.synonyms", "quick => fast");
 
         assertAcked(prepareCreate("first_test_index").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()));
 
@@ -2773,9 +2773,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         Builder builder = Settings.builder()
             .put(indexSettings())
             .put("index.analysis.analyzer.synonym.tokenizer", "whitespace")
-            .putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
+            .putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
             .put("index.analysis.filter.synonym.type", "synonym")
-            .putArray("index.analysis.filter.synonym.synonyms", "fast,quick");
+            .putList("index.analysis.filter.synonym.synonyms", "fast,quick");
 
         assertAcked(prepareCreate("test").setSettings(builder.build())
             .addMapping("type1", "field1",
@@ -2813,7 +2813,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testHighlightQueryRewriteDatesWithNow() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("index-1").addMapping("type", "d", "type=date",
             "field", "type=text,store=true,term_vector=with_positions_offsets")
-            .setSettings("index.number_of_replicas", 0, "index.number_of_shards", 2)
+            .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
             .get());
         DateTime now = new DateTime(ISOChronology.getInstanceUTC());
         indexRandom(true, client().prepareIndex("index-1", "type", "1").setSource("d", now, "field", "hello world"),

@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.EnumSet;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
@@ -70,12 +71,15 @@ public class FilterAllocationDecider extends AllocationDecider {
     private static final String CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX = "cluster.routing.allocation.require";
     private static final String CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX = "cluster.routing.allocation.include";
     private static final String CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX = "cluster.routing.allocation.exclude";
-    public static final Setting<Settings> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING =
-        Setting.groupSetting(CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
-    public static final Setting<Settings> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING =
-        Setting.groupSetting(CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
-    public static final Setting<Settings> CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING =
-        Setting.groupSetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
+    public static final Setting.AffixSetting<String> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING =
+        Setting.prefixKeySetting(CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));
+    public static final Setting.AffixSetting<String> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING =
+        Setting.prefixKeySetting(CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));
+    public static final Setting.AffixSetting<String>CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING =
+        Setting.prefixKeySetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));
 
     /**
      * The set of {@link RecoverySource.Type} values for which the
@@ -94,12 +98,12 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     public FilterAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
-        setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.get(settings));
-        setClusterExcludeFilters(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.get(settings));
-        setClusterIncludeFilters(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters);
+        setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings));
+        setClusterExcludeFilters(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings));
+        setClusterIncludeFilters(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings));
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters, (a,b)-> {}, true);
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, (a,b)-> {}, true);
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters, (a,b)-> {}, true);
     }
 
     @Override
@@ -196,13 +200,13 @@ public class FilterAllocationDecider extends AllocationDecider {
         return null;
     }
 
-    private void setClusterRequireFilters(Settings settings) {
-        clusterRequireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, settings.getAsMap());
+    private void setClusterRequireFilters(Map<String, String> filters) {
+        clusterRequireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, filters);
     }
-    private void setClusterIncludeFilters(Settings settings) {
-        clusterIncludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, settings.getAsMap());
+    private void setClusterIncludeFilters(Map<String, String> filters) {
+        clusterIncludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, filters);
     }
-    private void setClusterExcludeFilters(Settings settings) {
-        clusterExcludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, settings.getAsMap());
+    private void setClusterExcludeFilters(Map<String, String> filters) {
+        clusterExcludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, filters);
     }
 }

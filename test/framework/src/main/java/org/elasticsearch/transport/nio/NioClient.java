@@ -73,7 +73,6 @@ public class NioClient {
             for (int i = 0; i < channels.length; i++) {
                 SocketSelector selector = selectorSupplier.get();
                 NioSocketChannel nioSocketChannel = channelFactory.openNioChannel(address, selector, closeListener);
-                onChannelOpen.accept(nioSocketChannel);
                 openChannels.clientChannelOpened(nioSocketChannel);
                 connections.add(nioSocketChannel);
             }
@@ -90,6 +89,8 @@ public class NioClient {
                         ex = exception;
                         break;
                     }
+                } else {
+                    onChannelOpen.accept(socketChannel);
                 }
             }
 

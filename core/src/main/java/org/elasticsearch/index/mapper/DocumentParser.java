@@ -893,7 +893,7 @@ final class DocumentParser {
                             break;
                         case FALSE:
                            // Should not dynamically create any more mappers so return the last mapper
-                        return new Tuple<Integer, ObjectMapper>(pathsAdded, parent);
+                        return new Tuple<>(pathsAdded, parent);
 
                     }
                 }
@@ -929,7 +929,7 @@ final class DocumentParser {
     }
 
     // looks up a child mapper, but takes into account field names that expand to objects
-    static Mapper getMapper(ObjectMapper objectMapper, String fieldName, String[] subfields) {
+    private static Mapper getMapper(ObjectMapper objectMapper, String fieldName, String[] subfields) {
         for (int i = 0; i < subfields.length - 1; ++i) {
             Mapper mapper = objectMapper.getMapper(subfields[i]);
             if (mapper == null || (mapper instanceof ObjectMapper) == false) {

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
+import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -189,10 +190,27 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
     }
 
     /**
-     * Creates a monitoring alerts index from the current version.
+     * Creates a monitoring alerts index from the specified version.
      */
     protected void createAlertsIndex(final DateTime creationDate, final String version) {
         createIndex(".monitoring-alerts-" + version, creationDate);
+    }
+
+    /**
+     * Creates a watcher history index from the current version.
+     */
+    protected void createWatcherHistoryIndex(final DateTime creationDate) {
+        createWatcherHistoryIndex(creationDate, WatcherIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+    }
+
+    /**
+     * Creates a watcher history index from the specified version.
+     */
+    protected void createWatcherHistoryIndex(final DateTime creationDate, final String version) {
+        final DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC();
+        final String index = ".watcher-history-" + version + "-" + formatter.print(creationDate.getMillis());
+
+        createIndex(index, creationDate);
     }
 
     /**
@@ -215,21 +233,21 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
 
     protected abstract void assertIndicesCount(int count) throws Exception;
 
-    private static TimeValue years(int years) {
+    protected static TimeValue years(int years) {
         DateTime now = now();
         return TimeValue.timeValueMillis(now.getMillis() - now.minusYears(years).getMillis());
     }
 
-    private static TimeValue months(int months) {
+    protected static TimeValue months(int months) {
         DateTime now = now();
         return TimeValue.timeValueMillis(now.getMillis() - now.minusMonths(months).getMillis());
     }
 
-    private static TimeValue days(int days) {
+    protected static TimeValue days(int days) {
         return TimeValue.timeValueHours(days * 24);
     }
 
-    private static DateTime now() {
+    protected static DateTime now() {
         return new DateTime(DateTimeZone.UTC);
     }
 }

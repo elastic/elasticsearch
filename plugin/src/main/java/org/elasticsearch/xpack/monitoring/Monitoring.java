@@ -57,6 +57,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 /**
@@ -89,6 +90,12 @@ public class Monitoring implements ActionPlugin {
                                                                           TimeValue.timeValueHours(7 * 24), // default value (7 days)
                                                                           HISTORY_DURATION_MINIMUM,         // minimum value
                                                                           Setting.Property.Dynamic, Setting.Property.NodeScope);
+    /**
+     * The ability to automatically cleanup ".watcher_history*" indices while also cleaning up Monitoring indices.
+     */
+    public static final Setting<Boolean> CLEAN_WATCHER_HISTORY = boolSetting("xpack.watcher.history.cleaner_service.enabled",
+                                                                             false,
+                                                                             Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private final Settings settings;
     private final XPackLicenseState licenseState;
@@ -172,6 +179,7 @@ public class Monitoring implements ActionPlugin {
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(
                 Arrays.asList(HISTORY_DURATION,
+                              CLEAN_WATCHER_HISTORY,
                               MonitoringService.INTERVAL,
                               Exporters.EXPORTERS_SETTINGS,
                               Collector.INDICES,

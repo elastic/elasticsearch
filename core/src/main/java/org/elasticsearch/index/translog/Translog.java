@@ -436,6 +436,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
+     * Returns the size in bytes of the translog files with ops above the given seqNo
+     */
+    private long sizeOfGensAboveSeqNoInBytes(long minSeqNo) {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            return readersBetweenMinAndMaxSeqNo(minSeqNo, Long.MAX_VALUE).mapToLong(BaseTranslogReader::sizeInBytes).sum();
+        }
+    }
+
+    /**
      * Creates a new translog for the specified generation.
      *
      * @param fileGeneration the translog generation

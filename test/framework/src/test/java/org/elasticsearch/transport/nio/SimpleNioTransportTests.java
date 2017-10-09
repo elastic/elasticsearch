@@ -109,7 +109,7 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase<Nio
     @Override
     protected void close(NioChannel nioChannel) {
         try {
-            nioChannel.getCloseFuture().awaitClose();
+            nioChannel.closeAsync().awaitClose();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

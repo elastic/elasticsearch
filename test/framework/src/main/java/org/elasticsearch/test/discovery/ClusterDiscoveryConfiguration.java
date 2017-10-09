@@ -129,7 +129,7 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
                     unicastHosts[i] = IP_ADDR + ":" + (unicastHostPorts[unicastHostOrdinals[i]]);
                 }
             }
-            builder.putArray("discovery.zen.ping.unicast.hosts", unicastHosts);
+            builder.putList("discovery.zen.ping.unicast.hosts", unicastHosts);
             return builder.put(super.nodeSettings(nodeOrdinal)).build();
         }
 

@@ -59,7 +59,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -137,7 +136,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
                 Settings.builder()
                     .put(settings)
                     // trace zenfd actions but keep the default otherwise
-                    .putArray(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), TransportLivenessAction.NAME)
+                    .putList(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), TransportLivenessAction.NAME)
                     .build(),
                 new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, circuitBreakerService,
                     namedWriteableRegistry, new NetworkService(Collections.emptyList()), version),

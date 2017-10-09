@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -210,7 +211,10 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         logger.info("--> starting the replica node to test recovery");
         internalCluster().startNode();
         ensureGreen("test");
-        assertHitCount(client().prepareSearch("test").setPreference("_replica").setQuery(matchAllQuery()).get(), numDocsToKeep);
+        for (String node : internalCluster().nodesInclude("test")) {
+            SearchRequestBuilder q = client().prepareSearch("test").setPreference("_only_nodes:" + node).setQuery(matchAllQuery());
+            assertHitCount(q.get(), numDocsToKeep);
+        }
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").setActiveOnly(false).get();
         final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates().get("test").stream()
             .filter(recoveryState -> recoveryState.getPrimary() == false).findFirst().get();
@@ -308,7 +312,9 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         logger.info("--> starting the replica node to test recovery");
         internalCluster().startNode();
         ensureGreen("test");
-        assertHitCount(client().prepareSearch("test").setPreference("_replica").setQuery(matchAllQuery()).get(), totalDocs);
+        for (String node : internalCluster().nodesInclude("test")) {
+            assertHitCount(client().prepareSearch("test").setPreference("_only_nodes:" + node).setQuery(matchAllQuery()).get(), totalDocs);
+        }
 
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").setActiveOnly(false).get();
         final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates().get("test").stream()

@@ -282,15 +282,24 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
         PipeWriterServer server = new PipeWriterServer(pipeName, HELLO_WORLD);
         server.start();
         try {
-            InputStream is = NAMED_PIPE_HELPER.openNamedPipeInputStream(pipeName, Duration.ofSeconds(1));
+            // Timeout is 10 seconds for the very rare case of Amazon EBS volumes created from snapshots
+            // being slow the first time a particular disk block is accessed.  The same problem as
+            // https://github.com/elastic/x-pack-elasticsearch/issues/922, which was fixed by
+            // https://github.com/elastic/x-pack-elasticsearch/pull/987, has been observed in CI tests.
+            InputStream is = NAMED_PIPE_HELPER.openNamedPipeInputStream(pipeName, Duration.ofSeconds(10));
             assertNotNull(is);
 
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
                 String line = reader.readLine();
                 assertEquals(HELLO_WORLD, line);
             }
+        } catch (IOException e) {
+            server.interrupt();
+            throw e;
         } finally {
-            server.join();
+            // If this doesn't join quickly then the server thread is probably deadlocked so there's no
+            // point waiting a long time.
+            server.join(1000);
         }
 
         assertNull(server.getException());
@@ -304,15 +313,24 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
         PipeReaderServer server = new PipeReaderServer(pipeName);
         server.start();
         try {
-            OutputStream os = NAMED_PIPE_HELPER.openNamedPipeOutputStream(pipeName, Duration.ofSeconds(1));
+            // Timeout is 10 seconds for the very rare case of Amazon EBS volumes created from snapshots
+            // being slow the first time a particular disk block is accessed.  The same problem as
+            // https://github.com/elastic/x-pack-elasticsearch/issues/922, which was fixed by
+            // https://github.com/elastic/x-pack-elasticsearch/pull/987, has been observed in CI tests.
+            OutputStream os = NAMED_PIPE_HELPER.openNamedPipeOutputStream(pipeName, Duration.ofSeconds(10));
             assertNotNull(os);
 
             try (OutputStreamWriter writer = new OutputStreamWriter(os, StandardCharsets.UTF_8)) {
                 writer.write(GOODBYE_WORLD);
                 writer.write('\n');
             }
+        } catch (IOException e) {
+            server.interrupt();
+            throw e;
         } finally {
-            server.join();
+            // If this doesn't join quickly then the server thread is probably deadlocked so there's no
+            // point waiting a long time.
+            server.join(1000);
         }
 
         assertNull(server.getException());

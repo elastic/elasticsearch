@@ -2624,7 +2624,17 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
     }
 
     public void testChannelCloseWhileConnecting() throws IOException {
-        final MockTransportService service = buildService("service", version0, clusterSettings, Settings.EMPTY, true, true, this::close);
+        /*
+         * We have to keep the first connection open so the handshake succeeds and then we later fail when checking if all the connections
+         * are open.
+         */
+        final AtomicBoolean first = new AtomicBoolean();
+        final MockTransportService service =
+                buildService("service", version0, clusterSettings, Settings.EMPTY, true, true, channel -> {
+                    if (!first.compareAndSet(false, true)) {
+                        close(channel);
+                    }
+                });
         final TcpTransport underlyingTransport = (TcpTransport) service.getOriginalTransport();
 
         final String otherName = "other_service";

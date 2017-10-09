@@ -40,7 +40,7 @@ public abstract class CollectionUtils {
     @SafeVarargs
     @SuppressWarnings("varargs")
     public static <T> List<T> combine(Collection<? extends T>... collections) {
-        if (ObjectUtils.isEmpty(collections)) {
+        if (org.elasticsearch.common.util.CollectionUtils.isEmpty(collections)) {
             return emptyList();
         }
 

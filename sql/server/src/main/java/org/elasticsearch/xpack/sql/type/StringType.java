@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.sql.type;
 
 import java.sql.JDBCType;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-
-import static org.elasticsearch.xpack.sql.util.ObjectUtils.mapCollector;
+import static java.util.stream.Collectors.toMap;
 
 public abstract class StringType implements DataType {
 
@@ -24,11 +24,16 @@ public abstract class StringType implements DataType {
 
         if (docValue || fields.isEmpty()) {
             docValueFields = emptyMap();
-        }
-        else {
+        } else {
             docValueFields = fields.entrySet().stream()
                     .filter(e -> e.getValue().hasDocValues())
-                    .collect(mapCollector());
+                    .collect(toMap(
+                            Map.Entry::getKey,
+                            Map.Entry::getValue,
+                            (k1, k2) -> {
+                                throw new IllegalStateException("Duplicate key " + k1);
+                            },
+                            LinkedHashMap::new));
         }
     }
 

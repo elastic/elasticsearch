@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
+import org.elasticsearch.common.util.CollectionUtils;
+
 import java.sql.JDBCType;
 import java.util.Arrays;
 import java.util.List;
-
-import org.elasticsearch.xpack.sql.util.ObjectUtils;
 
 public class DateType extends AbstractDataType {
 
@@ -32,7 +32,7 @@ public class DateType extends AbstractDataType {
          * and return TIMESTAMP so we more closely conform with H2 and
          * (shudder) Oracle. */
         super(JDBCType.TIMESTAMP, docValues);
-        this.formats = ObjectUtils.isEmpty(formats) ? DEFAULT_FORMAT : Arrays.asList(formats);
+        this.formats = CollectionUtils.isEmpty(formats) ? DEFAULT_FORMAT : Arrays.asList(formats);
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -47,7 +48,6 @@ import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSettings;
 import org.elasticsearch.xpack.sql.type.Schema;
-import org.elasticsearch.xpack.sql.util.ObjectUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -320,7 +320,7 @@ public class Scroller {
         public void onResponse(final SearchResponse response) {
             try {
                 ShardSearchFailure[] failure = response.getShardFailures();
-                if (!ObjectUtils.isEmpty(failure)) {
+                if (!CollectionUtils.isEmpty(failure)) {
                     onFailure(new ExecutionException(failure[0].reason(), failure[0].getCause()));
                 }
                 listener.onResponse(handleResponse(response));

@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.tree;
 
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.util.Assert;
-import org.elasticsearch.xpack.sql.util.ObjectUtils;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -126,7 +126,7 @@ public abstract class NodeUtils {
         // perform discovery (and cache it)
         if (treeNodeInfo == null) {
             Constructor<?>[] constructors = clazz.getConstructors();
-            Assert.isTrue(!ObjectUtils.isEmpty(constructors), "No public constructors found for class %s", clazz);
+            Assert.isTrue(!CollectionUtils.isEmpty(constructors), "No public constructors found for class %s", clazz);
             
             // find the longest constructor
             Constructor<?> ctr = null;

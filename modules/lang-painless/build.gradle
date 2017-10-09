@@ -146,7 +146,7 @@ task regen {
       fileset(dir: outputPath, includes: 'Painless*.java')
     }
     // fix line endings
-    ant.fixcrlf(srcdir: outputPath) {
+    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
       patternset(includes: 'Painless*.java')
     }
   }

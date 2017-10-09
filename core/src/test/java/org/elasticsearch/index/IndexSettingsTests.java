@@ -543,7 +543,7 @@ public class IndexSettingsTests extends ESTestCase {
         );
         assertThat(index.getDefaultFields(), equalTo(Collections.singletonList("body")));
         index.updateIndexMetaData(
-            newIndexMeta("index", Settings.builder().putArray("index.query.default_field", "body", "title").build())
+            newIndexMeta("index", Settings.builder().putList("index.query.default_field", "body", "title").build())
         );
         assertThat(index.getDefaultFields(), equalTo(Arrays.asList("body", "title")));
     }

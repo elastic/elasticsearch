@@ -63,42 +63,44 @@ if (enabled) {
   }
   File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
+  final String remote = System.getProperty("tests.bwc.remote", "elastic")
+
   task createClone(type: LoggedExec) {
     onlyIf { checkoutDir.exists() == false }
     commandLine = ['git', 'clone', rootDir, checkoutDir]
   }
 
-  task findUpstream(type: LoggedExec) {
+  task findRemote(type: LoggedExec) {
     dependsOn createClone
     workingDir = checkoutDir
     commandLine = ['git', 'remote', '-v']
     doLast {
-      project.ext.upstreamExists = false
+      project.ext.remoteExists = false
       output.toString('UTF-8').eachLine {
-        if (it.contains("upstream")) {
-          project.ext.upstreamExists = true
+        if (it.contains("${remote}\thttps://github.com/${remote}/elasticsearch.git")) {
+          project.ext.remoteExists = true
         }
       }
     }
   }
 
-  task addUpstream(type: LoggedExec) {
-    dependsOn findUpstream
-    onlyIf { project.ext.upstreamExists == false }
+  task addRemote(type: LoggedExec) {
+    dependsOn findRemote
+    onlyIf { project.ext.remoteExists == false }
     workingDir = checkoutDir
-    commandLine = ['git', 'remote', 'add', 'upstream', 'https://github.com/elastic/elasticsearch.git']
+    commandLine = ['git', 'remote', 'add', "${remote}", "https://github.com/${remote}/elasticsearch.git"]
   }
 
   task fetchLatest(type: LoggedExec) {
     onlyIf { project.gradle.startParameter.isOffline() == false }
-    dependsOn addUpstream
+    dependsOn addRemote
     workingDir = checkoutDir
     commandLine = ['git', 'fetch', '--all']
   }
 
   String buildMetadataKey = "bwc_refspec_${project.path.substring(1)}"
   task checkoutBwcBranch(type: LoggedExec) {
-    String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(buildMetadataKey, "upstream/${bwcBranch}"))
+    String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(buildMetadataKey, "${remote}/${bwcBranch}"))
     dependsOn fetchLatest
     workingDir = checkoutDir
     commandLine = ['git', 'checkout', refspec]

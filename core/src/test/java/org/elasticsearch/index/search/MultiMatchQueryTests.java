@@ -30,7 +30,6 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -47,7 +46,6 @@ import java.util.Arrays;
 
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class MultiMatchQueryTests extends ESSingleNodeTestCase {
 
@@ -57,7 +55,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
     public void setup() throws IOException {
         Settings settings = Settings.builder()
             .put("index.analysis.filter.syns.type","synonym")
-            .putArray("index.analysis.filter.syns.synonyms","quick,fast")
+            .putList("index.analysis.filter.syns.synonyms","quick,fast")
             .put("index.analysis.analyzer.syns.tokenizer","standard")
             .put("index.analysis.analyzer.syns.filter","syns").build();
         IndexService indexService = createIndex("test", settings);

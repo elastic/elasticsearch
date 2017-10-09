@@ -80,7 +80,7 @@ public class EvilSecurityTests extends ESTestCase {
 
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.resolve("home").toString());
-        settingsBuilder.putArray(Environment.PATH_DATA_SETTING.getKey(), esHome.resolve("data1").toString(),
+        settingsBuilder.putList(Environment.PATH_DATA_SETTING.getKey(), esHome.resolve("data1").toString(),
                 esHome.resolve("data2").toString());
         settingsBuilder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), esHome.resolve("custom").toString());
         settingsBuilder.put(Environment.PATH_LOGS_SETTING.getKey(), esHome.resolve("logs").toString());
@@ -153,7 +153,7 @@ public class EvilSecurityTests extends ESTestCase {
                 Settings
                         .builder()
                         .put(Environment.PATH_HOME_SETTING.getKey(), home.toString())
-                        .putArray(Environment.PATH_DATA_SETTING.getKey(), data.toString(), duplicate.toString())
+                        .putList(Environment.PATH_DATA_SETTING.getKey(), data.toString(), duplicate.toString())
                         .build();
 
         final Environment environment = new Environment(settings);

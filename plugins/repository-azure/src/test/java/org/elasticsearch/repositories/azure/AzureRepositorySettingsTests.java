@@ -39,7 +39,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
     private AzureRepository azureRepository(Settings settings) throws StorageException, IOException, URISyntaxException {
         Settings internalSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
             .put(settings)
             .build();
         return new AzureRepository(new RepositoryMetaData("foo", "azure", internalSettings), new Environment(internalSettings),

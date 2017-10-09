@@ -76,7 +76,7 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
         }
 
         settings = Settings.builder().put(settings)
-                .putArray("index.analysis.filter.non_broken_keep_filter.keep_words", "test")
+                .putList("index.analysis.filter.non_broken_keep_filter.keep_words", "test")
                 .build();
         try {
             // test our none existing setup is picked up

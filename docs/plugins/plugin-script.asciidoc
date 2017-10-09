@@ -79,7 +79,7 @@ To install a plugin from your local file system at `C:\path\to\plugin.zip`, you 
 +
 [source,shell]
 -----------------------------------
-bin\elasticsearch-plugin install file:///C:\path\to\plugin.zip
+bin\elasticsearch-plugin install file:///C:/path/to/plugin.zip
 -----------------------------------
 +
 NOTE: Any path that contains spaces must be wrapped in quotes! 

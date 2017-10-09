@@ -597,8 +597,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     connectTimeout : connectionProfile.getHandshakeTimeout();
                 final Version version = executeHandshake(node, channel, handshakeTimeout);
                 nodeChannels = new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
-                connectionRef.set(nodeChannels);
                 transportService.onConnectionOpened(nodeChannels);
+                connectionRef.set(nodeChannels);
                 if (!Arrays.stream(nodeChannels.channels).allMatch(this::isOpen)) {
                     throw new ConnectTransportException(node, "a channel closed while connecting");
                 }

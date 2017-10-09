@@ -588,7 +588,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                         }
                     }
                 };
-                nodeChannels = connectToChannels(node, connectionProfile, onClose);
+                nodeChannels = connectToChannels(node, connectionProfile, this::onChannelOpen, onClose);
+                if (!Arrays.stream(nodeChannels.channels).allMatch(this::isOpen)) {
+                    throw new ConnectTransportException(node, "a channel closed while connecting");
+                }
                 final Channel channel = nodeChannels.getChannels().get(0); // one channel is guaranteed by the connection profile
                 final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
                     defaultConnectionProfile.getConnectTimeout() :
@@ -615,6 +618,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         } finally {
             closeLock.readLock().unlock();
         }
+    }
+
+    protected void onChannelOpen(final Channel channel) {
+
     }
 
     private void disconnectFromNodeCloseAndNotify(DiscoveryNode node, NodeChannels nodeChannels) {
@@ -1034,7 +1041,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     protected abstract void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener);
 
-    protected abstract NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile connectionProfile,
+    protected abstract NodeChannels connectToChannels(DiscoveryNode node,
+                                                      ConnectionProfile connectionProfile,
+                                                      Consumer<Channel> onChannelOpen,
                                                       Consumer<Channel> onChannelClose) throws IOException;
 
     /**

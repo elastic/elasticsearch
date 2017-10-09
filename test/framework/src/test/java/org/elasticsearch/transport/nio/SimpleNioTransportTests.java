@@ -41,19 +41,22 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
+public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase<NioChannel> {
 
     public static MockTransportService nioFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
-                                                           ClusterSettings clusterSettings, boolean doHandshake) {
+                                                         ClusterSettings clusterSettings, boolean doHandshake,
+                                                         Consumer<NioChannel> onChannelOpen) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
         Transport transport = new NioTransport(settings, threadPool,
@@ -68,6 +71,11 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
                 } else {
                     return version.minimumCompatibilityVersion();
                 }
+            }
+
+            @Override
+            protected void onChannelOpen(NioChannel nioChannel) {
+                onChannelOpen.accept(nioChannel);
             }
 
             @Override
@@ -87,13 +95,24 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
     }
 
     @Override
-    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
+    protected MockTransportService build(
+            Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake, Consumer<NioChannel> onChannelOpen) {
         settings = Settings.builder().put(settings)
             .put(TcpTransport.PORT.getKey(), "0")
             .build();
-        MockTransportService transportService = nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
+        MockTransportService transportService =
+                nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake, onChannelOpen);
         transportService.start();
         return transportService;
+    }
+
+    @Override
+    protected void close(NioChannel nioChannel) {
+        try {
+            nioChannel.getCloseFuture().awaitClose();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     public void testConnectException() throws UnknownHostException {
@@ -120,7 +139,8 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
-            MockTransportService transportService = nioFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true);
+            MockTransportService transportService =
+                    nioFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true, c -> {});
             try {
                 transportService.start();
             } finally {

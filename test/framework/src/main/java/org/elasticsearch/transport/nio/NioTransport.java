@@ -151,11 +151,12 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile, Consumer<NioChannel> onChannelClose)
+    protected NodeChannels connectToChannels(
+            DiscoveryNode node, ConnectionProfile profile, Consumer<NioChannel> onChannelOpen, Consumer<NioChannel> onChannelClose)
         throws IOException {
         NioSocketChannel[] channels = new NioSocketChannel[profile.getNumConnections()];
         ClientChannelCloseListener closeListener = new ClientChannelCloseListener(onChannelClose);
-        boolean connected = client.connectToChannels(node, channels, profile.getConnectTimeout(), closeListener);
+        boolean connected = client.connectToChannels(node, channels, profile.getConnectTimeout(), onChannelOpen, closeListener);
         if (connected == false) {
             throw new ElasticsearchException("client is shutdown");
         }

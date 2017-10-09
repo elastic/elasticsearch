@@ -30,11 +30,15 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.function.Consumer;
 
-public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
+public class MockTcpTransportTests extends AbstractSimpleTransportTestCase<MockTcpTransport.MockChannel> {
+
     @Override
-    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
+    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake,
+                                         Consumer<MockTcpTransport.MockChannel> onChannelOpen) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version) {
@@ -47,10 +51,25 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
                     return version.minimumCompatibilityVersion();
                 }
             }
+
+            @Override
+            protected void onChannelOpen(MockChannel mockChannel) {
+                onChannelOpen.accept(mockChannel);
+            }
         };
         MockTransportService mockTransportService =
             MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings);
         mockTransportService.start();
         return mockTransportService;
     }
+
+    @Override
+    protected void close(MockTcpTransport.MockChannel mockChannel) {
+        try {
+            mockChannel.close();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
 }

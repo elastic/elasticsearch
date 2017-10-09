@@ -45,7 +45,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasToString;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -189,19 +188,15 @@ public class BootstrapChecksTests extends ESTestCase {
         final AtomicLong maxFileDescriptorCount = new AtomicLong(randomIntBetween(1, limit - 1));
         final BootstrapChecks.FileDescriptorCheck check;
         if (osX) {
-            check = new BootstrapChecks.OsXFileDescriptorCheck() {
-                @Override
-                long getMaxFileDescriptorCount() {
-                    return maxFileDescriptorCount.get();
-                }
-            };
+            check =
+                    () -> {
+                        return maxFileDescriptorCount.get();
+                    };
         } else {
-            check = new BootstrapChecks.FileDescriptorCheck() {
-                @Override
-                long getMaxFileDescriptorCount() {
-                    return maxFileDescriptorCount.get();
-                }
-            };
+            check =
+                    () -> {
+                        return maxFileDescriptorCount.get();
+                    };
         }
 
         final NodeValidationException e =
@@ -249,12 +244,10 @@ public class BootstrapChecksTests extends ESTestCase {
         testCases.add(new MlockallCheckTestCase(false, false, false));
 
         for (final MlockallCheckTestCase testCase : testCases) {
-            final BootstrapChecks.MlockallCheck check = new BootstrapChecks.MlockallCheck() {
-                @Override
-                boolean isMemoryLocked() {
-                    return testCase.isMemoryLocked;
-                }
-            };
+            final BootstrapChecks.MlockallCheck check =
+                    () -> {
+                        return testCase.isMemoryLocked;
+                    };
             BootstrapContext bootstrapContext = new BootstrapContext(
                 Settings.builder().put("bootstrap.memory_lock", testCase.mlockallSet).build(), null);
             if (testCase.shouldFail) {
@@ -279,12 +272,10 @@ public class BootstrapChecksTests extends ESTestCase {
     public void testMaxNumberOfThreadsCheck() throws NodeValidationException {
         final int limit = 1 << 11;
         final AtomicLong maxNumberOfThreads = new AtomicLong(randomIntBetween(1, limit - 1));
-        final BootstrapChecks.MaxNumberOfThreadsCheck check = new BootstrapChecks.MaxNumberOfThreadsCheck() {
-            @Override
-            long getMaxNumberOfThreads() {
-                return maxNumberOfThreads.get();
-            }
-        };
+        final BootstrapChecks.MaxNumberOfThreadsCheck check =
+                () -> {
+                    return maxNumberOfThreads.get();
+                };
 
         final NodeValidationException e = expectThrows(
                 NodeValidationException.class,
@@ -362,12 +353,10 @@ public class BootstrapChecksTests extends ESTestCase {
     public void testMaxMapCountCheck() throws NodeValidationException {
         final int limit = 1 << 18;
         final AtomicLong maxMapCount = new AtomicLong(randomIntBetween(1, limit - 1));
-        final BootstrapChecks.MaxMapCountCheck check = new BootstrapChecks.MaxMapCountCheck() {
-            @Override
-            long getMaxMapCount() {
-                return maxMapCount.get();
-            }
-        };
+        final BootstrapChecks.MaxMapCountCheck check =
+                () -> {
+                    return maxMapCount.get();
+                };
 
         final NodeValidationException e = expectThrows(
                 NodeValidationException.class,
@@ -386,12 +375,10 @@ public class BootstrapChecksTests extends ESTestCase {
 
     public void testClientJvmCheck() throws NodeValidationException {
         final AtomicReference<String> vmName = new AtomicReference<>("Java HotSpot(TM) 32-Bit Client VM");
-        final BootstrapCheck check = new BootstrapChecks.ClientJvmCheck() {
-            @Override
-            String getVmName() {
-                return vmName.get();
-            }
-        };
+        final BootstrapCheck check =
+                () -> {
+                    return vmName.get();
+                };
 
         final NodeValidationException e = expectThrows(
                 NodeValidationException.class,
@@ -407,12 +394,10 @@ public class BootstrapChecksTests extends ESTestCase {
 
     public void testUseSerialGCCheck() throws NodeValidationException {
         final AtomicReference<String> useSerialGC = new AtomicReference<>("true");
-        final BootstrapCheck check = new BootstrapChecks.UseSerialGCCheck() {
-            @Override
-            String getUseSerialGC() {
-                return useSerialGC.get();
-            }
-        };
+        final BootstrapCheck check =
+                () -> {
+                    return useSerialGC.get();
+                };
 
         final NodeValidationException e = expectThrows(
             NodeValidationException.class,
@@ -431,12 +416,10 @@ public class BootstrapChecksTests extends ESTestCase {
         BootstrapContext context = randomBoolean() ? new BootstrapContext(Settings.builder().put("bootstrap.system_call_filter", true)
             .build(), null) : defaultContext;
 
-        final BootstrapChecks.SystemCallFilterCheck systemCallFilterEnabledCheck = new BootstrapChecks.SystemCallFilterCheck() {
-            @Override
-            boolean isSystemCallFilterInstalled() {
-                return isSystemCallFilterInstalled.get();
-            }
-        };
+        final BootstrapChecks.SystemCallFilterCheck systemCallFilterEnabledCheck =
+                () -> {
+                    return isSystemCallFilterInstalled.get();
+                };
 
         final NodeValidationException e = expectThrows(
             NodeValidationException.class,
@@ -450,12 +433,10 @@ public class BootstrapChecksTests extends ESTestCase {
         isSystemCallFilterInstalled.set(true);
         BootstrapChecks.check(context, true, Collections.singletonList(systemCallFilterEnabledCheck), "testSystemCallFilterCheck");
         BootstrapContext context_1 = new BootstrapContext(Settings.builder().put("bootstrap.system_call_filter", false).build(), null);
-        final BootstrapChecks.SystemCallFilterCheck systemCallFilterNotEnabledCheck = new BootstrapChecks.SystemCallFilterCheck() {
-            @Override
-            boolean isSystemCallFilterInstalled() {
-                return isSystemCallFilterInstalled.get();
-            }
-        };
+        final BootstrapChecks.SystemCallFilterCheck systemCallFilterNotEnabledCheck =
+                () -> {
+                    return isSystemCallFilterInstalled.get();
+                };
         isSystemCallFilterInstalled.set(false);
         BootstrapChecks.check(context_1, true, Collections.singletonList(systemCallFilterNotEnabledCheck), "testSystemCallFilterCheck");
         isSystemCallFilterInstalled.set(true);
@@ -665,26 +646,18 @@ public class BootstrapChecksTests extends ESTestCase {
         jvmVersion.set(String.format(Locale.ROOT, "25.%d-b%d", randomIntBetween(40, 112), randomIntBetween(1, 128)));
         BootstrapChecks.check(defaultContext, true, Collections.singletonList(g1GCCheck), "testG1GCCheck");
 
-        final BootstrapChecks.G1GCCheck nonOracleCheck = new BootstrapChecks.G1GCCheck() {
-
-            @Override
-            String jvmVendor() {
-                return randomAlphaOfLength(8);
-            }
-
-        };
+        final BootstrapChecks.G1GCCheck nonOracleCheck =
+                () -> {
+                    return randomAlphaOfLength(8);
+                };
 
         // if not on an Oracle JVM, nothing should happen
         BootstrapChecks.check(defaultContext, true, Collections.singletonList(nonOracleCheck), "testG1GCCheck");
 
-        final BootstrapChecks.G1GCCheck nonJava8Check = new BootstrapChecks.G1GCCheck() {
-
-            @Override
-            boolean isJava8() {
-                return false;
-            }
-
-        };
+        final BootstrapChecks.G1GCCheck nonJava8Check =
+                () -> {
+                    return false;
+                };
 
         // if not Java 8, nothing should happen
         BootstrapChecks.check(defaultContext, true, Collections.singletonList(nonJava8Check), "testG1GCCheck");

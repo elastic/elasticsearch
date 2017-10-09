@@ -133,12 +133,10 @@ public class OsProbeTests extends ESTestCase {
     public void testGetSystemLoadAverage() {
         assumeTrue("test runs on Linux only", Constants.LINUX);
 
-        final OsProbe probe = new OsProbe() {
-            @Override
-            String readProcLoadavg() {
-                return "1.51 1.69 1.99 3/417 23251";
-            }
-        };
+        final OsProbe probe =
+                () -> {
+                    return "1.51 1.69 1.99 3/417 23251";
+                };
 
         final double[] systemLoadAverage = probe.getSystemLoadAverage();
 

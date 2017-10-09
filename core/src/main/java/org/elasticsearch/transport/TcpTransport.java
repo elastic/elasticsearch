@@ -599,7 +599,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 nodeChannels = new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
                 transportService.onConnectionOpened(nodeChannels);
                 connectionRef.set(nodeChannels);
-                if (!Arrays.stream(nodeChannels.channels).allMatch(this::isOpen)) {
+                if (Arrays.stream(nodeChannels.channels).allMatch(this::isOpen) == false) {
                     throw new ConnectTransportException(node, "a channel closed while connecting");
                 }
                 success = true;

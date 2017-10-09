@@ -165,12 +165,14 @@ public class SearchModuleTests extends ModuleTestCase {
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupePipelineAggregation));
 
-        SearchPlugin registersDupeRescorer = new SearchPlugin() {
-            public List<RescorerSpec<?>> getRescorers() {
-                return singletonList(
-                        new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
-            }
-        };
+        SearchPlugin registersDupeRescorer =
+                () -> {
+                    return singletonList(
+                            new RescorerSpec<>(
+                                    QueryRescorerBuilder.NAME,
+                                    QueryRescorerBuilder::new,
+                                    QueryRescorerBuilder::fromXContent));
+                };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeRescorer));
     }
 

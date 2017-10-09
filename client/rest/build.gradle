@@ -19,31 +19,6 @@
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 
-/**
- * The rest client is a shaded jar. It contains the source of the rest client, as well as all the dependencies,
- * shaded to the `org.elasticsearch.client` package. 2 artifacts come out of this build process. The shading process
- * only modifies the imports and class names and locations. It does not do any processing on the files. The classes used
- * to interact with the rest client are no different from the dependencies in the shade configuration, besides in name.
- *
- * IDEs do not like removing artifacts and changing configurations on the fly, so the bits that make the build use the
- * actual shaded jar (2) are only executed on the cli. Tests run in an IDE rely on the deps (1) jar.
- *
- * 1) A jar that contains *only* the `org.elasticsearch.client` shaded dependencies. This is a jar that is built before
- *    the src is compiled. This jar is only used by the rest client so will compile. There exists a chicken-egg
- *    situation where the src needs compilation and depends on `org.elasticsearch.client` shaded classes, so an
- *    intermediary jar needs to exist to satisfy the compile. The `deps` classifier is added to this jar.
- * 2) The *actual* jar that will be used by clients. This has no classifier, contains the rest client src and
- *    `org.elasticsearch.client`. This jar is the only actual output artifact of this job.
- */
-buildscript {
-    repositories {
-        jcenter()
-    }
-    dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.1'
-    }
-}
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'ru.vyarus.animalsniffer'
 apply plugin: 'nebula.maven-base-publish'
@@ -63,74 +38,15 @@ publishing {
   }
 }
 
-configurations {
-  shade {
-    transitive = false
-  }
-}
-
-// Useful for build time dependencies, as it is generated before compilation of the source in the rest client.
-// This cannot be used as the final shaded jar, as it will contain the compiled source and dependencies
-File shadedDir = file("${buildDir}/shaded")
-// This directory exists so that the shadeDeps task would produce an output, so we can add it (below) to the source set.
-File shadedSrcDir = file("${buildDir}/generated-dummy-shaded")
-task shadeDeps(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
-  destinationDir = shadedDir
-  configurations = [project.configurations.shade]
-  classifier = 'deps'
-  relocate 'org.apache', 'org.elasticsearch.client'
-
-  doLast {
-    shadedSrcDir.mkdir()
-  }
-}
-
-jar {
-  from zipTree(shadeDeps.outputs.files.singleFile)
-  dependsOn shadeDeps
-}
-
-// remove the deps jar from the classpath to avoid jarHell
-if (isIdea == false && isEclipse == false) {
-  // cleanup to remove the deps jar from the classpath
-  if (gradle.gradleVersion == "3.3") {
-    configurations.runtime.extendsFrom -= [configurations.compile]
-  } else if (gradle.gradleVersion > "3.3") {
-    configurations.runtimeElements.extendsFrom = []
-  }
-}
-
-if (isEclipse) {
-  // in eclipse the project is under a fake root, we need to change around the source sets
-  sourceSets {
-    if (project.path == ":client:rest") {
-      main.java.srcDirs = ['java']
-      //main.resources.srcDirs = ['resources']
-    } else {
-      test.java.srcDirs = ['java']
-      test.resources.srcDirs = ['resources']
-    }
-  }
-}
-// adds a dependency to compile, so the -deps jar is built first
-sourceSets.main.output.dir(shadedSrcDir, builtBy: 'shadeDeps')
-
 dependencies {
-  shade "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  shade "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  shade "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-  shade "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
-  shade "commons-codec:commons-codec:${versions.commonscodec}"
-  shade "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+  compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
 
-  compile shadeDeps.outputs.files
-
-  if (isEclipse == false || project.path == ":client:rest-tests") {
-    testCompile("org.elasticsearch.client:test:${version}") {
-      // tests use the locally compiled version of core
-      exclude group: 'org.elasticsearch', module: 'elasticsearch'
-    }
-  }
+  testCompile "org.elasticsearch.client:test:${version}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
@@ -139,16 +55,6 @@ dependencies {
   testCompile "org.codehaus.mojo:animal-sniffer-annotations:1.15"
   signature "org.codehaus.mojo.signature:java17:1.0@signature"
 }
-
-// Set the exported=true for the generated rest client deps since it is used by other projects in eclipse.
-// https://docs.gradle.org/3.3/userguide/eclipse_plugin.html#sec:eclipse_modify_domain_objects
-eclipse.classpath.file {
-    whenMerged { classpath ->
-        classpath.entries.findAll { entry -> entry.path.contains("elasticsearch-rest-client") }*.exported = true
-    }
-}
-
-dependencyLicenses.dependencies = project.configurations.shade
 
 forbiddenApisMain {
   //client does not depend on core, so only jdk and http signatures should be checked
@@ -166,7 +72,7 @@ forbiddenApisTest {
 }
 
 //JarHell is part of es core, which we don't want to pull in
-jarHell.enabled = false
+jarHell.enabled=false
 
 namingConventions {
   testClass = 'org.elasticsearch.client.RestClientTestCase'
@@ -176,13 +82,13 @@ namingConventions {
 
 thirdPartyAudit.excludes = [
   //commons-logging optional dependencies
-  'org.elasticsearch.client.avalon.framework.logger.Logger',
-  'org.elasticsearch.client.log.Hierarchy',
-  'org.elasticsearch.client.log.Logger',
-  'org.elasticsearch.client.log4j.Category',
-  'org.elasticsearch.client.log4j.Level',
-  'org.elasticsearch.client.log4j.Logger',
-  'org.elasticsearch.client.log4j.Priority',
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
+  'org.apache.log.Logger',
+  'org.apache.log4j.Category',
+  'org.apache.log4j.Level',
+  'org.apache.log4j.Logger',
+  'org.apache.log4j.Priority',
   //commons-logging provided dependencies
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener'

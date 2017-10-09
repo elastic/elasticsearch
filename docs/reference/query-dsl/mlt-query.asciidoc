@@ -111,9 +111,10 @@ analyzes it, usually using the same analyzer at the field, then selects the
 top K terms with highest tf-idf to form a disjunctive query of these terms.
 
 IMPORTANT: The fields on which to perform MLT must be indexed and of type
-`string`. Additionally, when using `like` with documents, either `_source`
-must be enabled or the fields must be `stored` or store `term_vector`. In
-order to speed up analysis, it could help to store term vectors at index time.
+`text` or `keyword``. Additionally, when using `like` with documents, either
+`_source` must be enabled or the fields must be `stored` or store
+`term_vector`. In order to speed up analysis, it could help to store term
+vectors at index time.
 
 For example, if we wish to perform MLT on the "title" and "tags.raw" fields,
 we can explicitly store their `term_vector` at index time. We can still
@@ -181,8 +182,7 @@ for documents `like: "Apple"`, but `unlike: "cake crumble tree"`. The syntax
 is the same as `like`.
 
 `fields`::
-A list of fields to fetch and analyze the text from. Defaults to the `_all`
-field for free text and to all possible fields for document inputs.
+A list of fields to fetch and analyze the text from.
 
 `like_text`::
 The text to find documents like it.

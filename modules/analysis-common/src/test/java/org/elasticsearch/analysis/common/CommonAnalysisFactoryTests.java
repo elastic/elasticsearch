@@ -67,6 +67,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("uppercase", UpperCaseTokenFilterFactory.class);
         filters.put("ngram", NGramTokenFilterFactory.class);
         filters.put("edgengram", EdgeNGramTokenFilterFactory.class);
+        filters.put("bengalistem", StemmerTokenFilterFactory.class);
         filters.put("bulgarianstem", StemmerTokenFilterFactory.class);
         filters.put("englishminimalstem", StemmerTokenFilterFactory.class);
         filters.put("englishpossessive", StemmerTokenFilterFactory.class);
@@ -106,6 +107,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("patternreplace", PatternReplaceTokenFilterFactory.class);
         filters.put("patterncapturegroup", PatternCaptureGroupTokenFilterFactory.class);
         filters.put("arabicnormalization", ArabicNormalizationFilterFactory.class);
+        filters.put("bengalinormalization", BengaliNormalizationFilterFactory.class);
         filters.put("germannormalization", GermanNormalizationFilterFactory.class);
         filters.put("hindinormalization", HindiNormalizationFilterFactory.class);
         filters.put("indicnormalization", IndicNormalizationFilterFactory.class);
@@ -124,6 +126,10 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("fingerprint", FingerprintTokenFilterFactory.class);
         filters.put("minhash", MinHashTokenFilterFactory.class);
         filters.put("scandinavianfolding", ScandinavianFoldingFilterFactory.class);
+        filters.put("arabicstem", ArabicStemTokenFilterFactory.class);
+        filters.put("brazilianstem", BrazilianStemTokenFilterFactory.class);
+        filters.put("czechstem", CzechStemTokenFilterFactory.class);
+        filters.put("germanstem", GermanStemTokenFilterFactory.class);
         return filters;
     }
 
@@ -155,6 +161,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("arabic_normalization", null);
         filters.put("arabic_stem", null);
         filters.put("asciifolding", null);
+        filters.put("bengali_normalization", null);
         filters.put("brazilian_stem", null);
         filters.put("cjk_bigram", null);
         filters.put("cjk_width", null);

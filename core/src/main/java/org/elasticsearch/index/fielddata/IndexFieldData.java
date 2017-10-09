@@ -36,6 +36,7 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -99,6 +100,24 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     // on another node (we don't have the custom source them...)
     abstract class XFieldComparatorSource extends FieldComparatorSource {
 
+        protected final MultiValueMode sortMode;
+        protected final Object missingValue;
+        protected final Nested nested;
+
+        public XFieldComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
+            this.sortMode = sortMode;
+            this.missingValue = missingValue;
+            this.nested = nested;
+        }
+
+        public MultiValueMode sortMode() {
+            return this.sortMode;
+        }
+
+        public Nested nested() {
+            return this.nested;
+        }
+
         /**
          * Simple wrapper class around a filter that matches parent documents
          * and a filter that matches child documents. For every root document R,
@@ -114,6 +133,14 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
             public Nested(BitSetProducer rootFilter, Query innerQuery) {
                 this.rootFilter = rootFilter;
                 this.innerQuery = innerQuery;
+            }
+
+            public Query getInnerQuery() {
+                return innerQuery;
+            }
+
+            public BitSetProducer getRootFilter() {
+                return rootFilter;
             }
 
             /**

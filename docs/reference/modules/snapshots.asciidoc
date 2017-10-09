@@ -1,39 +1,55 @@
 [[modules-snapshots]]
 == Snapshot And Restore
 
-The snapshot and restore module allows to create snapshots of individual
-indices or an entire cluster into a remote repository like shared file system,
-S3, or HDFS. These snapshots are great for backups because they can be restored
-relatively quickly but they are not archival because they can only be restored
-to versions of Elasticsearch that can read the index. That means that:
+You can store snapshots of individual indices or an entire cluster in
+a remote repository like a shared file system, S3, or HDFS. These snapshots
+are great for backups because they can be restored relatively quickly. However,
+snapshots can only be restored to versions of Elasticsearch that can read the
+indices:
 
+* A snapshot of an index created in 5.x can be restored to 6.x.
 * A snapshot of an index created in 2.x can be restored to 5.x.
 * A snapshot of an index created in 1.x can be restored to 2.x.
-* A snapshot of an index created in 1.x can **not** be restored to 5.x.
 
-To restore a snapshot of an index created in 1.x to 5.x you can restore it to
-a 2.x cluster and use <<reindex-from-remote,reindex-from-remote>> to rebuild
-the index in a 5.x cluster. This is as time consuming as restoring from
-archival copies of the original data.
+Conversely, snapshots of indices created in 1.x **cannot** be restored to
+5.x or 6.x, and snapshots of indices created in 2.x **cannot** be restored
+to 6.x.
 
-Note: If a repository is connected to a 2.x cluster, and you want to connect
-a 5.x cluster to the same repository, you will have to either first set the 2.x 
-repository to `readonly` mode (see below for details on `readonly` mode) or create
-the 5.x repository in `readonly` mode.  A 5.x cluster will update the repository 
-to conform to 5.x specific formats, which will mean that any new snapshots written 
-via the 2.x cluster will not be visible to the 5.x cluster, and vice versa.  
-In fact, as a general rule, only one cluster should connect to the same repository
-location with write access; all other clusters connected to the same repository
-should be set to `readonly` mode.  While setting all but one repositories to 
-`readonly` should work with multiple clusters differing by one major version, 
-it is not a supported configuration.
+Snapshots are incremental and can contain indices created in various
+versions of Elasticsearch. If any indices in a snapshot were created in an
+incompatible version, you will not be able restore the snapshot.
 
+IMPORTANT: When backing up your data prior to an upgrade, keep in mind that you
+won't be able to restore snapshots after you upgrade if they contain indices
+created in a version that's incompatible with the upgrade version.
+
+If you end up in a situation where you need to restore a snapshot of an index
+that is incompatible with the version of the cluster you are currently running,
+you can restore it on the latest compatible version and use
+<<reindex-from-remote,reindex-from-remote>> to rebuild the index on the current
+version. Reindexing from remote is only possible if the original index has
+source enabled. Retrieving and reindexing the data can take significantly longer
+than simply restoring a snapshot. If you have a large amount of data, we
+recommend testing the reindex from remote process with a subset of your data to
+understand the time requirements before proceeding.
 
 [float]
 === Repositories
 
-Before any snapshot or restore operation can be performed, a snapshot repository should be registered in
-Elasticsearch. The repository settings are repository-type specific. See below for details.
+You must register a snapshot repository before you can perform snapshot and
+restore operations. We recommend creating a new snapshot repository for each
+major version. The valid repository settings depend on the repository type.
+
+If you register same snapshot repository with multiple clusters, only
+one cluster should have write access to the repository. All other clusters
+connected to that repository should set the repository to `readonly` mode.
+
+NOTE: The snapshot format can change across major versions, so if you have
+clusters on different major versions trying to write the same repository,
+new snapshots written by one version will not be visible to the other. While
+setting the repository to `readonly` on all but one of the clusters should work
+with multiple clusters differing by one major version, it is not a supported
+configuration.
 
 [source,js]
 -----------------------------------
@@ -48,7 +64,7 @@ PUT /_snapshot/my_backup
 // CONSOLE
 // TESTSETUP
 
-Once a repository is registered, its information can be obtained using the following command:
+To retrieve information about a registered repository, use a GET request:
 
 [source,js]
 -----------------------------------
@@ -71,9 +87,11 @@ which returns:
 -----------------------------------
 // TESTRESPONSE
 
-Information about multiple repositories can be fetched in one go by using a comma-delimited list of repository names.
-Star wildcards are supported as well. For example, information about repositories that start with `repo` or that contain `backup`
-can be obtained using the following command:
+To retrieve information about multiple repositories, specify a
+a comma-delimited list of repositories. You can also use the * wildcard when
+specifying repository names. For example, the following request retrieves
+information about all of the snapshot repositories that start with `repo` or
+contain `backup`:
 
 [source,js]
 -----------------------------------
@@ -81,8 +99,8 @@ GET /_snapshot/repo*,*backup*
 -----------------------------------
 // CONSOLE
 
-If a repository name is not specified, or `_all` is used as repository name Elasticsearch will return information about
-all repositories currently registered in the cluster:
+To retrieve information about all registered snapshot repositories, omit the
+repository name or specify `_all`:
 
 [source,js]
 -----------------------------------

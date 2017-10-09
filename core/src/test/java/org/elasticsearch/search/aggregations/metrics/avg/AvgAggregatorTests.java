@@ -34,6 +34,9 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator;
+import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 
 import java.io.IOException;
 import java.util.Arrays;

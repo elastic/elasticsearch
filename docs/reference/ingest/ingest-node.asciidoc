@@ -752,7 +752,7 @@ Accepts a single value or an array of values.
 --------------------------------------------------
 {
   "append": {
-    "field": "field1"
+    "field": "field1",
     "value": ["item2", "item3", "item4"]
   }
 }
@@ -2005,14 +2005,14 @@ into:
 --------------------------------------------------
 {
   "foo" : {
-     "bar" : "value"
+    "bar" : "value"
   }
 }
 --------------------------------------------------
 // NOTCONSOLE
 
 If there is already a `bar` field nested under `foo` then
-this processor merges the the `foo.bar` field into it. If the field is
+this processor merges the `foo.bar` field into it. If the field is
 a scalar value then it will turn that field into an array field.
 
 For example, the following document:
@@ -2054,7 +2054,7 @@ Consider the following document:
 --------------------------------------------------
 // NOTCONSOLE
 
-Then the the `foo` needs to be renamed first before the `dot_expander`
+Then the `foo` needs to be renamed first before the `dot_expander`
 processor is applied. So in order for the `foo.bar` field to properly
 be expanded into the `bar` field under the `foo` field the following
 pipeline should be used:
@@ -2081,3 +2081,27 @@ pipeline should be used:
 
 The reason for this is that Ingest doesn't know how to automatically cast
 a scalar field to an object field.
+
+[[urldecode-processor]]
+=== URL Decode Processor
+URL-decodes a string
+
+[[urldecode-options]]
+.URL Decode Options
+[options="header"]
+|======
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The field to decode
+| `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "urldecode": {
+    "field": "my_url_to_decode"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

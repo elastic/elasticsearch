@@ -20,6 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -31,17 +32,18 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -51,16 +53,10 @@ import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.function.Function;
 
-import static org.elasticsearch.action.DocWriteRequest.OpType;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.test.InternalSettingsPlugin;
-
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -461,14 +457,14 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
      */
     public void testBulkUpdateChildMissingParentRouting() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings("index.version.created", Version.V_5_6_0.id) // allows for multiple types
+                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)) // allows for multiple types
                 .addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
                 .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON));
         ensureGreen();
 
         BulkRequestBuilder builder = client().prepareBulk();
 
-        byte[] addParent = new BytesArray(
+        byte[] addParent = (
                 "{" +
                 "  \"index\" : {" +
                 "    \"_index\" : \"test\"," +
@@ -480,9 +476,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 "{" +
                 "  \"field1\" : \"value1\"" +
                 "}" +
-                "\n").array();
+                "\n").getBytes(StandardCharsets.UTF_8);
 
-        byte[] addChildOK = new BytesArray(
+        byte[] addChildOK = (
                 "{" +
                 "  \"index\" : {" +
                 "    \"_index\" : \"test\"," +
@@ -495,9 +491,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 "{" +
                 "  \"field1\" : \"value1\"" +
                 "}" +
-                "\n").array();
+                "\n").getBytes(StandardCharsets.UTF_8);
 
-        byte[] addChildMissingRouting = new BytesArray(
+        byte[] addChildMissingRouting = (
                 "{" +
                 "  \"index\" : {" +
                 "    \"_index\" : \"test\"," +
@@ -509,7 +505,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 "{" +
                 "  \"field1\" : \"value1\"" +
                 "}" +
-                "\n").array();
+                "\n").getBytes(StandardCharsets.UTF_8);
 
         builder.add(addParent, 0, addParent.length, XContentType.JSON);
         builder.add(addChildOK, 0, addChildOK.length, XContentType.JSON);

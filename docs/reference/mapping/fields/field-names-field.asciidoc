@@ -35,3 +35,25 @@ GET my_index/_search
 // CONSOLE
 
 <1> Querying on the `_field_names` field (also see the <<query-dsl-exists-query,`exists`>> query)
+
+
+==== Disabling `_field_names`
+
+Because `_field_names` introduce some index-time overhead, you might want to
+disable this field if you want to optimize for indexing speed and do not need
+`exists` queries.
+
+[source,js]
+--------------------------------------------------
+PUT tweets
+{
+  "mappings": {
+    "tweet": {
+      "_field_names": {
+        "enabled": false
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE

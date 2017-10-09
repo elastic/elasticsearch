@@ -1,0 +1,12 @@
+[[breaking_70_indices_changes]]
+=== Indices changes
+
+==== `:` is no longer allowed in index name
+
+Due to cross-cluster search using `:` to separate a cluster and index name,
+index names may no longer contain `:`.
+
+==== `index.unassigned.node_left.delayed_timeout` may no longer be negative
+
+Negative values were interpreted as zero in earlier versions but are no
+longer accepted.

@@ -20,6 +20,7 @@
 package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -42,17 +43,18 @@ public class QueryStringWithAnalyzersTests extends ESIntegTestCase {
      */
     public void testCustomWordDelimiterQueryString() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings("analysis.analyzer.my_analyzer.type", "custom",
-                        "analysis.analyzer.my_analyzer.tokenizer", "whitespace",
-                        "analysis.analyzer.my_analyzer.filter", "custom_word_delimiter",
-                        "analysis.filter.custom_word_delimiter.type", "word_delimiter",
-                        "analysis.filter.custom_word_delimiter.generate_word_parts", "true",
-                        "analysis.filter.custom_word_delimiter.generate_number_parts", "false",
-                        "analysis.filter.custom_word_delimiter.catenate_numbers", "true",
-                        "analysis.filter.custom_word_delimiter.catenate_words", "false",
-                        "analysis.filter.custom_word_delimiter.split_on_case_change", "false",
-                        "analysis.filter.custom_word_delimiter.split_on_numerics", "false",
-                        "analysis.filter.custom_word_delimiter.stem_english_possessive", "false")
+                .setSettings(Settings.builder()
+                        .put("analysis.analyzer.my_analyzer.type", "custom")
+                        .put("analysis.analyzer.my_analyzer.tokenizer", "whitespace")
+                        .put("analysis.analyzer.my_analyzer.filter", "custom_word_delimiter")
+                        .put("analysis.filter.custom_word_delimiter.type", "word_delimiter")
+                        .put("analysis.filter.custom_word_delimiter.generate_word_parts", "true")
+                        .put("analysis.filter.custom_word_delimiter.generate_number_parts", "false")
+                        .put("analysis.filter.custom_word_delimiter.catenate_numbers", "true")
+                        .put("analysis.filter.custom_word_delimiter.catenate_words", "false")
+                        .put("analysis.filter.custom_word_delimiter.split_on_case_change", "false")
+                        .put("analysis.filter.custom_word_delimiter.split_on_numerics", "false")
+                        .put("analysis.filter.custom_word_delimiter.stem_english_possessive", "false"))
                 .addMapping("type1",
                         "field1", "type=text,analyzer=my_analyzer",
                         "field2", "type=text,analyzer=my_analyzer"));

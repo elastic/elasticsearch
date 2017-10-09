@@ -48,13 +48,11 @@ class NestedAggregatorFactory extends AggregatorFactory<NestedAggregatorFactory>
     @Override
     public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, context, parent);
-        }
         if (childObjectMapper == null) {
             return new Unmapped(name, context, parent, pipelineAggregators, metaData);
         }
-        return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, context, parent, pipelineAggregators, metaData);
+        return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, context, parent,
+            pipelineAggregators, metaData, collectsFromSingleBucket);
     }
 
     private static final class Unmapped extends NonCollectingAggregator {

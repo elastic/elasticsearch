@@ -147,10 +147,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * A simplified version of settings that takes key value pairs settings.
+     * The settings to create the index with.
      */
-    public CreateIndexRequest settings(Object... settings) {
-        this.settings = Settings.builder().put(settings).build();
+    public CreateIndexRequest settings(Settings.Builder settings) {
+        this.settings = settings.build();
         return this;
     }
 
@@ -159,14 +159,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest settings(Settings settings) {
         this.settings = settings;
-        return this;
-    }
-
-    /**
-     * The settings to create the index with.
-     */
-    public CreateIndexRequest settings(Settings.Builder settings) {
-        this.settings = settings.build();
         return this;
     }
 
@@ -382,37 +374,31 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     @SuppressWarnings("unchecked")
     public CreateIndexRequest source(Map<String, ?> source) {
-        boolean found = false;
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (name.equals("settings")) {
-                found = true;
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("mappings")) {
-                found = true;
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
             } else if (name.equals("aliases")) {
-                found = true;
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 // maybe custom?
                 IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
                 if (proto != null) {
-                    found = true;
                     try {
                         customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
                     } catch (IOException e) {
                         throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
                     }
+                } else {
+                    // found a key which is neither custom defined nor one of the supported ones
+                    throw new ElasticsearchParseException("unknown key [{}] for create index", name);
                 }
             }
-        }
-        if (!found) {
-            // the top level are settings, use them
-            settings(source);
         }
         return this;
     }
@@ -487,7 +473,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         cause = in.readString();
         index = in.readString();
         settings = readSettingsFromStream(in);
-        readTimeout(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             final String type = in.readString();
@@ -518,7 +503,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         out.writeString(cause);
         out.writeString(index);
         writeSettingsToStream(settings, out);
-        writeTimeout(out);
         out.writeVInt(mappings.size());
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
             out.writeString(entry.getKey());

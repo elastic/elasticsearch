@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
@@ -38,7 +37,7 @@ import java.util.Objects;
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
-public abstract class InternalAggregation implements Aggregation, ToXContent, NamedWriteable {
+public abstract class InternalAggregation implements Aggregation, NamedWriteable {
 
     public static class ReduceContext {
 
@@ -203,9 +202,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
      * Opportunity for subclasses to the {@link #hashCode()} for this
      * class.
      **/
-    protected int doHashCode() {
-        return System.identityHashCode(this);
-    }
+    protected abstract int doHashCode();
 
     @Override
     public boolean equals(Object obj) {
@@ -222,7 +219,6 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
                 doEquals(obj);
     }
 
-    // norelease: make this abstract when all InternalAggregations implement this method
     /**
      * Opportunity for subclasses to add criteria to the {@link #equals(Object)}
      * method for this class.
@@ -231,9 +227,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
      * {@link #equals(Object)} method checks that <code>obj</code> is the same
      * class as <code>this</code>
      */
-    protected boolean doEquals(Object obj) {
-        return this == obj;
-    }
+    protected abstract boolean doEquals(Object obj);
 
     @Override
     public String toString() {

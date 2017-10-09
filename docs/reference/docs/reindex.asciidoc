@@ -440,6 +440,10 @@ version.
 To enable queries sent to older versions of Elasticsearch the `query` parameter
 is sent directly to the remote host without validation or modification.
 
+NOTE: Reindexing from remote clusters does not support
+<<docs-reindex-manual-slice, manual>> or
+<<docs-reindex-automatic-slice, automatic slicing>>.
+
 Reindexing from a remote server uses an on-heap buffer that defaults to a
 maximum size of 100mb. If the remote index includes very large documents you'll
 need to use a smaller batch size. The example below sets the batch size `10`
@@ -530,41 +534,86 @@ shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
 
 `requests_per_second` can be set to any positive decimal number (`1.4`, `6`,
-`1000`, etc) and throttles the number of requests per second that the reindex
-issues or it can be set to `-1` to disabled throttling. The throttling is done
-waiting between bulk batches so that it can manipulate the scroll timeout. The
-wait time is the difference between the time it took the batch to complete and
-the time `requests_per_second * requests_in_the_batch`. Since the batch isn't
-broken into multiple bulk requests large batch sizes will cause Elasticsearch
-to create many requests and then wait for a while before starting the next set.
-This is "bursty" instead of "smooth". The default is `-1`.
+`1000`, etc) and throttles rate at which reindex issues batches of index
+operations by padding each batch with a wait time. The throttling can be
+disabled by setting `requests_per_second` to `-1`.
+
+The throttling is done by waiting between batches so that scroll that reindex
+uses internally can be given a timeout that takes into account the padding.
+The padding time is the difference between the batch size divided by the
+`requests_per_second` and the time spent writing. By default the batch size is
+`1000`, so if the `requests_per_second` is set to `500`:
+
+[source,txt]
+--------------------------------------------------
+target_time = 1000 / 500 per second = 2 seconds
+wait_time = target_time - write_time = 2 seconds - .5 seconds = 1.5 seconds
+--------------------------------------------------
+
+Since the batch is issued as a single `_bulk` request large batch sizes will
+cause Elasticsearch to create many requests and then wait for a while before
+starting the next set. This is "bursty" instead of "smooth". The default is `-1`.
 
 [float]
 [[docs-reindex-response-body]]
 === Response body
+
+//////////////////////////
+[source,js]
+--------------------------------------------------
+POST /_reindex?wait_for_completion
+{
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+//////////////////////////
 
 The JSON response looks like this:
 
 [source,js]
 --------------------------------------------------
 {
-  "took" : 639,
+  "took": 639,
+  "timed_out": false,
+  "total": 5,
   "updated": 0,
-  "created": 123,
+  "created": 5,
+  "deleted": 0,
   "batches": 1,
+  "noops": 0,
   "version_conflicts": 2,
   "retries": {
     "bulk": 0,
     "search": 0
-  }
+  },
   "throttled_millis": 0,
-  "failures" : [ ]
+  "requests_per_second": 1,
+  "throttled_until_millis": 0,
+  "failures": [ ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/: [0-9]+/: $body.$_path/]
 
 `took`::
 
 The number of milliseconds from start to end of the whole operation.
+
+`timed_out`::
+
+This flag is set to `true` if any of the requests executed during the
+reindex has timed out.
+
+`total`::
+
+The number of documents that were successfully processed.
 
 `updated`::
 
@@ -574,9 +623,18 @@ The number of documents that were successfully updated.
 
 The number of documents that were successfully created.
 
+`deleted`::
+
+The number of documents that were successfully deleted.
+
 `batches`::
 
-The number of scroll responses pulled back by the the reindex.
+The number of scroll responses pulled back by the reindex.
+
+`noops`::
+
+The number of documents that were ignored because the script used for
+the reindex returned a `noop` value for `ctx.op`.
 
 `version_conflicts`::
 
@@ -590,6 +648,17 @@ actions retried and `search` is the number of search actions retried.
 `throttled_millis`::
 
 Number of milliseconds the request slept to conform to `requests_per_second`.
+
+`requests_per_second`::
+
+The number of requests per second effectively executed during the reindex.
+
+`throttled_until_millis`::
+
+This field should always be equal to zero in a delete by query response. It only
+has meaning when using the <<docs-reindex-task-api, Task API>>, where it
+indicates the next time (in milliseconds since epoch) a throttled request will be
+executed again in order to conform to `requests_per_second`.
 
 `failures`::
 
@@ -652,6 +721,8 @@ The responses looks like:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
+// We can't test tasks output
 
 <1> this object contains the actual status. It is just like the response json
 with the important addition of the `total` field. `total` is the total number
@@ -784,10 +855,18 @@ and it'll look like:
 Or you can search by `tag` or whatever you want.
 
 [float]
+[[docs-reindex-slice]]
+=== Slicing
+
+Reindex supports <<sliced-scroll>> to parallelize the reindexing process.
+This parallelization can improve efficiency and provide a convenient way to
+break the request down into smaller parts.
+
+[float]
 [[docs-reindex-manual-slice]]
 ==== Manual slicing
-Reindex supports <<sliced-scroll>>, allowing you to manually parallelize the
-process relatively easily:
+Slice a reindex request manually by providing a slice id and total number of
+slices to each request:
 
 [source,js]
 ----------------------------------------------------------------
@@ -845,10 +924,10 @@ Which results in a sensible `total` like this one:
 
 [float]
 [[docs-reindex-automatic-slice]]
-=== Automatic slicing
+==== Automatic slicing
 
 You can also let reindex automatically parallelize using <<sliced-scroll>> to
-slice on `_uid`:
+slice on `_uid`. Use `slices` to specify the number of slices to use:
 
 [source,js]
 ----------------------------------------------------------------
@@ -886,6 +965,11 @@ Which results in a sensible `total` like this one:
 ----------------------------------------------------------------
 // TESTRESPONSE
 
+Setting `slices` to `auto` will let Elasticsearch choose the number of slices
+to use. This setting will use one slice per shard, up to a certain limit. If
+there are multiple source indices, it will choose the number of slices based
+on the index with the smallest number of shards.
+
 Adding `slices` to `_reindex` just automates the manual process used in the
 section above, creating sub-requests which means it has some quirks:
 
@@ -911,21 +995,23 @@ though these are all taken at approximately the same time.
 
 [float]
 [[docs-reindex-picking-slices]]
-=== Picking the number of slices
+===== Picking the number of slices
 
-At this point we have a few recommendations around the number of `slices` to
-use (the `max` parameter in the slice API if manually parallelizing):
+If slicing automatically, setting `slices` to `auto` will choose a reasonable
+number for most indices. If you're slicing manually or otherwise tuning
+automatic slicing, use these guidelines.
 
-* Don't use large numbers. `500` creates fairly massive CPU thrash.
-* It is more efficient from a query performance standpoint to use some multiple
-of the number of shards in the source index.
-* Using exactly as many shards as are in the source index is the most efficient
-from a query performance standpoint.
-* Indexing performance should scale linearly across available resources with
-the number of `slices`.
-* Whether indexing or query performance dominates that process depends on lots
-of factors like the documents being reindexed and the cluster doing the
-reindexing.
+Query performance is most efficient when the number of `slices` is equal to the
+number of shards in the index. If that number is large, (for example,
+500) choose a lower number as too many `slices` will hurt performance. Setting
+`slices` higher than the number of shards generally does not improve efficiency
+and adds overhead.
+
+Indexing performance scales linearly across available resources with the
+number of slices.
+
+Whether query or indexing performance dominates the runtime depends on the
+documents being reindexed and cluster resources.
 
 [float]
 === Reindex daily indices

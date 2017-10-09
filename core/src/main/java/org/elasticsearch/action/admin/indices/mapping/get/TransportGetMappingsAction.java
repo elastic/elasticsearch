@@ -39,7 +39,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     @Inject
     public TransportGetMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetMappingsRequest::new);
+        super(settings, GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetMappingsRequest::new, indexNameExpressionResolver);
     }
 
     @Override

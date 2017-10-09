@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -59,7 +60,7 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals("0xdeadbeef", settings.getUUID());
 
         assertFalse(settings.updateIndexMetaData(metaData));
-        assertEquals(metaData.getSettings().getAsMap(), settings.getSettings().getAsMap());
+        assertEquals(metaData.getSettings(), settings.getSettings());
         assertEquals(0, integer.get());
         assertTrue(settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(theSettings).put("index.test.setting.int", 42)
             .build())));
@@ -82,7 +83,7 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals("0xdeadbeef", settings.getUUID());
 
         assertFalse(settings.updateIndexMetaData(metaData));
-        assertEquals(metaData.getSettings().getAsMap(), settings.getSettings().getAsMap());
+        assertEquals(metaData.getSettings(), settings.getSettings());
         assertEquals(0, integer.get());
         expectThrows(IllegalArgumentException.class, () -> settings.updateIndexMetaData(newIndexMeta("index",
             Settings.builder().put(theSettings).put("index.test.setting.int", 42).build())));
@@ -155,7 +156,7 @@ public class IndexSettingsTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertEquals("uuid mismatch on settings update expected: 0xdeadbeef but was: _na_", ex.getMessage());
         }
-        assertEquals(metaData.getSettings().getAsMap(), settings.getSettings().getAsMap());
+        assertEquals(metaData.getSettings(), settings.getSettings());
     }
 
     public IndexSettings newIndexSettings(IndexMetaData metaData, Settings nodeSettings, Setting<?>... settings) {
@@ -289,6 +290,58 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxResultWindow());
     }
 
+    public void testMaxInnerResultWindow() {
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 200)
+            .build());
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(200, settings.getMaxInnerResultWindow());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(),
+            50).build()));
+        assertEquals(50, settings.getMaxInnerResultWindow());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxInnerResultWindow());
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxInnerResultWindow());
+    }
+
+    public void testMaxDocvalueFields() {
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey(), 200).build());
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(200, settings.getMaxDocvalueFields());
+        settings.updateIndexMetaData(
+                newIndexMeta("index", Settings.builder().put(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey(), 50).build()));
+        assertEquals(50, settings.getMaxDocvalueFields());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxDocvalueFields());
+
+        metaData = newIndexMeta("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxDocvalueFields());
+    }
+
+    public void testMaxScriptFields() {
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey(), 100).build());
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(100, settings.getMaxScriptFields());
+        settings.updateIndexMetaData(
+                newIndexMeta("index", Settings.builder().put(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey(), 20).build()));
+        assertEquals(20, settings.getMaxScriptFields());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxScriptFields());
+
+        metaData = newIndexMeta("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxScriptFields());
+    }
+
     public void testMaxAdjacencyMatrixFiltersSetting() {
         IndexMetaData metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -327,7 +380,7 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(TimeValue.parseTimeValue(newGCDeleteSetting.getStringRep(), new TimeValue(1, TimeUnit.DAYS),
             IndexSettings.INDEX_GC_DELETES_SETTING.getKey()).getMillis(), settings.getGcDeletesInMillis());
         settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(),
-            randomBoolean() ? -1 : new TimeValue(-1, TimeUnit.MILLISECONDS)).build()));
+            (randomBoolean() ? -1 : new TimeValue(-1, TimeUnit.MILLISECONDS)).toString()).build()));
         assertEquals(-1, settings.getGcDeletesInMillis());
     }
 
@@ -478,5 +531,20 @@ public class IndexSettingsTests extends ESTestCase {
                 // all is well
             }
         }
+    }
+
+    public void testQueryDefaultField() {
+        IndexSettings index = newIndexSettings(
+            newIndexMeta("index", Settings.EMPTY), Settings.EMPTY
+        );
+        assertThat(index.getDefaultFields(), equalTo(Collections.singletonList("*")));
+        index = newIndexSettings(
+            newIndexMeta("index", Settings.EMPTY), Settings.builder().put("index.query.default_field", "body").build()
+        );
+        assertThat(index.getDefaultFields(), equalTo(Collections.singletonList("body")));
+        index.updateIndexMetaData(
+            newIndexMeta("index", Settings.builder().putList("index.query.default_field", "body", "title").build())
+        );
+        assertThat(index.getDefaultFields(), equalTo(Arrays.asList("body", "title")));
     }
 }

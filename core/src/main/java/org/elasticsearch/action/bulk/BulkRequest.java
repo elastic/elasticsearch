@@ -518,6 +518,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                 return i;
             }
         }
+        if (from != length) {
+            throw new IllegalArgumentException("The bulk request must be terminated by a newline [\n]");
+        }
         return -1;
     }
 

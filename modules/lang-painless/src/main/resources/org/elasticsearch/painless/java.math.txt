@@ -24,12 +24,12 @@
 
 #### Classes
 
-class BigDecimal -> java.math.BigDecimal extends Number,Comparable,Object {
+class BigDecimal -> java.math.BigDecimal {
   BigDecimal ONE
   BigDecimal TEN
   BigDecimal ZERO
-  BigDecimal <init>(String)
-  BigDecimal <init>(String,MathContext)
+  (String)
+  (String,MathContext)
   BigDecimal abs()
   BigDecimal abs(MathContext)
   BigDecimal add(BigDecimal)
@@ -77,12 +77,12 @@ class BigDecimal -> java.math.BigDecimal extends Number,Comparable,Object {
   BigDecimal valueOf(double)
 }
 
-class BigInteger -> java.math.BigInteger extends Number,Comparable,Object {
+class BigInteger -> java.math.BigInteger {
   BigInteger ONE
   BigInteger TEN
   BigInteger ZERO
-  BigInteger <init>(String)
-  BigInteger <init>(String,int)
+  (String)
+  (String,int)
   BigInteger abs()
   BigInteger add(BigInteger)
   BigInteger and(BigInteger)
@@ -123,20 +123,20 @@ class BigInteger -> java.math.BigInteger extends Number,Comparable,Object {
   BigInteger xor(BigInteger)
 }
 
-class MathContext -> java.math.MathContext extends Object {
+class MathContext -> java.math.MathContext {
   MathContext DECIMAL128
   MathContext DECIMAL32
   MathContext DECIMAL64
   MathContext UNLIMITED
-  MathContext <init>(int)
-  MathContext <init>(int,RoundingMode)
+  (int)
+  (int,RoundingMode)
   int getPrecision()
   RoundingMode getRoundingMode()
 }
 
 #### Enums
 
-class RoundingMode -> java.math.RoundingMode extends Enum,Object {
+class RoundingMode -> java.math.RoundingMode {
   RoundingMode CEILING
   RoundingMode DOWN
   RoundingMode FLOOR

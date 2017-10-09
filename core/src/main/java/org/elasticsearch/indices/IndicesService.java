@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -375,12 +374,15 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * Creates a new {@link IndexService} for the given metadata.
-     * @param indexMetaData the index metadata to create the index for
-     * @param builtInListeners a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with the per-index listeners
+     *
+     * @param indexMetaData          the index metadata to create the index for
+     * @param builtInListeners       a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with the
+     *                               per-index listeners
      * @throws ResourceAlreadyExistsException if the index already exists.
      */
     @Override
-    public synchronized IndexService createIndex(IndexMetaData indexMetaData, List<IndexEventListener> builtInListeners) throws IOException {
+    public synchronized IndexService createIndex(
+            final IndexMetaData indexMetaData, final List<IndexEventListener> builtInListeners) throws IOException {
         ensureChangesAllowed();
         if (indexMetaData.getIndexUUID().equals(IndexMetaData.INDEX_UUID_NA_VALUE)) {
             throw new IllegalArgumentException("index must have a real UUID found value: [" + indexMetaData.getIndexUUID() + "]");
@@ -399,13 +401,13 @@ public class IndicesService extends AbstractLifecycleComponent
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
         final IndexService indexService =
-            createIndexService(
-                "create index",
-                indexMetaData,
-                indicesQueryCache,
-                indicesFieldDataCache,
-                finalListeners,
-                    indexingMemoryController);
+                createIndexService(
+                        "create index",
+                        indexMetaData,
+                        indicesQueryCache,
+                        indicesFieldDataCache,
+                        finalListeners,
+                        indexingMemoryController);
         boolean success = false;
         try {
             indexService.getIndexEventListener().afterIndexCreated(indexService);
@@ -423,7 +425,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * This creates a new IndexService without registering it
      */
     private synchronized IndexService createIndexService(final String reason,
-                                                         IndexMetaData indexMetaData, IndicesQueryCache indicesQueryCache,
+                                                         IndexMetaData indexMetaData,
+                                                         IndicesQueryCache indicesQueryCache,
                                                          IndicesFieldDataCache indicesFieldDataCache,
                                                          List<IndexEventListener> builtInListeners,
                                                          IndexingOperationListener... indexingOperationListeners) throws IOException {
@@ -454,7 +457,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesQueryCache,
                 mapperRegistry,
                 indicesFieldDataCache,
-                namedWriteableRegistry);
+                namedWriteableRegistry
+        );
     }
 
     /**
@@ -467,7 +471,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopeSetting);
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry);
         pluginsService.onIndexModule(indexModule);
-        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry);
+        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }
 
     /**
@@ -499,10 +503,11 @@ public class IndicesService extends AbstractLifecycleComponent
     @Override
     public IndexShard createShard(ShardRouting shardRouting, RecoveryState recoveryState, PeerRecoveryTargetService recoveryTargetService,
                                   PeerRecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
-                                  Consumer<IndexShard.ShardFailure> onShardFailure) throws IOException {
+                                  Consumer<IndexShard.ShardFailure> onShardFailure,
+                                  Consumer<ShardId> globalCheckpointSyncer) throws IOException {
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
-        IndexShard indexShard = indexService.createShard(shardRouting);
+        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService,
             (type, mapping) -> {

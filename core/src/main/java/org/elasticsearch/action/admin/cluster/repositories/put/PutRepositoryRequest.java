@@ -220,7 +220,6 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         name = in.readString();
         type = in.readString();
         settings = readSettingsFromStream(in);
-        readTimeout(in);
         verify = in.readBoolean();
     }
 
@@ -230,7 +229,6 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         out.writeString(name);
         out.writeString(type);
         writeSettingsToStream(settings, out);
-        writeTimeout(out);
         out.writeBoolean(verify);
     }
 }

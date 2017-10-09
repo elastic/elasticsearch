@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -33,7 +34,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -43,12 +45,12 @@ import java.util.Objects;
 /**
  * Holds additional information as to why the shard is in unassigned state.
  */
-public final class UnassignedInfo implements ToXContent, Writeable {
+public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
     public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
 
     public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING =
-        Setting.timeSetting("index.unassigned.node_left.delayed_timeout", TimeValue.timeValueMinutes(1), Property.Dynamic,
+        Setting.positiveTimeSetting("index.unassigned.node_left.delayed_timeout", TimeValue.timeValueMinutes(1), Property.Dynamic,
             Property.IndexScope);
     /**
      * Reason why the shard is in unassigned state.
@@ -112,7 +114,11 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         /**
          * Unassigned after forcing an empty primary
          */
-        FORCED_EMPTY_PRIMARY
+        FORCED_EMPTY_PRIMARY,
+        /**
+         * Forced manually to allocate
+         */
+        MANUAL_ALLOCATION
     }
 
     /**
@@ -261,7 +267,11 @@ public final class UnassignedInfo implements ToXContent, Writeable {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeByte((byte) reason.ordinal());
+        if (out.getVersion().before(Version.V_6_0_0_beta2) && reason == Reason.MANUAL_ALLOCATION) {
+            out.writeByte((byte) Reason.ALLOCATION_FAILED.ordinal());
+        } else {
+            out.writeByte((byte) reason.ordinal());
+        }
         out.writeLong(unassignedTimeMillis);
         // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeBoolean(delayed);

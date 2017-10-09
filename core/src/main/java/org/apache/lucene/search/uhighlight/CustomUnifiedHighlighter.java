@@ -35,9 +35,9 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -205,11 +205,10 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                 tqs.add(new TermQuery(term));
             }
             return tqs;
-        } else if (query instanceof AllTermQuery) {
-            AllTermQuery atq = (AllTermQuery) query;
-            return Collections.singletonList(new TermQuery(atq.getTerm()));
         } else if (query instanceof FunctionScoreQuery) {
             return Collections.singletonList(((FunctionScoreQuery) query).getSubQuery());
+        } else if (query instanceof ESToParentBlockJoinQuery) {
+            return Collections.singletonList(((ESToParentBlockJoinQuery) query).getChildQuery());
         } else {
             return null;
         }

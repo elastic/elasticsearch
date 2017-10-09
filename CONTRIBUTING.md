@@ -91,6 +91,10 @@ Make sure you have [Gradle](http://gradle.org) installed, as
 Elasticsearch uses it as its build system. Gradle must be at least
 version 3.3 in order to build successfully.
 
+We support development in the Eclipse and IntelliJ IDEs. For Eclipse, the
+minimum version that we support is [Eclipse Oxygen][eclipse] (version 4.7). For
+IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
+
 Eclipse users can automatically configure their IDE: `gradle eclipse`
 then `File: Import: Existing Projects into Workspace`. Select the
 option `Search for nested projects`. Additionally you will want to
@@ -102,10 +106,16 @@ then `File->New Project From Existing Sources`. Point to the root of
 the source directory, select
 `Import project from external model->Gradle`, enable
 `Use auto-import`. Additionally, in order to run tests directly from 
-IDEA 2017.1 and above it is required to disable IDEA run launcher, 
-which can be achieved by adding `-Didea.no.launcher=true` 
-[JVM option](https://intellij-support.jetbrains.com/hc/en-us/articles/206544869-Configuring-JVM-options-and-platform-properties) 
-
+IDEA 2017.2 and above it is required to disable IDEA run launcher to avoid
+finding yourself in "jar hell", which can be achieved by adding the
+`-Didea.no.launcher=true` [JVM
+option](https://intellij-support.jetbrains.com/hc/en-us/articles/206544869-Configuring-JVM-options-and-platform-properties)
+or by adding `idea.no.launcher=true` to the
+`idea.properties`[https://www.jetbrains.com/help/idea/file-idea-properties.html]
+file which can be accessed under Help > Edit Custom Properties within IDEA. You
+may also need to [remove `ant-javafx.jar` from your
+classpath][https://github.com/elastic/elasticsearch/issues/14348] if that is
+reported as a source of jar hell.
 
 The Elasticsearch codebase makes heavy use of Java `assert`s and the
 test runner requires that assertions be enabled within the JVM. This
@@ -172,3 +182,6 @@ especially when they are unlikely to become long time contributors.
 Finally, we require that you run `gradle check` before submitting a
 non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
+
+[eclipse]: http://www.eclipse.org/community/eclipse_newsletter/2017/june/
+[intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/

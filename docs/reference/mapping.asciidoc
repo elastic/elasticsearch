@@ -9,8 +9,6 @@ are stored and indexed.  For instance, use mappings to define:
 
 * which string fields should be treated as full text fields.
 * which fields contain numbers, dates, or geolocations.
-* whether the values of all fields in the document should be
-  indexed into the catch-all <<mapping-all-field,`_all`>> field.
 * the <<mapping-date-format,format>> of date values.
 * custom rules to control the mapping for
   <<dynamic-mapping,dynamically added fields>>.

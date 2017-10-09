@@ -36,6 +36,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -66,6 +67,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -119,6 +121,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -170,8 +173,23 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 flushResponseFuture = client.admin().indices().prepareFlush(indices).execute();
             }
         }
+
+        final String[] indicesToSnapshot = {"test-idx-*", "-test-idx-3"};
+
+        logger.info("--> capturing history UUIDs");
+        final Map<ShardId, String> historyUUIDs = new HashMap<>();
+        for (ShardStats shardStats: client().admin().indices().prepareStats(indicesToSnapshot).clear().get().getShards()) {
+            String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);
+            ShardId shardId = shardStats.getShardRouting().shardId();
+            if (historyUUIDs.containsKey(shardId)) {
+                assertThat(shardStats.getShardRouting() + " has a different history uuid", historyUUID, equalTo(historyUUIDs.get(shardId)));
+            } else {
+                historyUUIDs.put(shardId, historyUUID);
+            }
+        }
+
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices(indicesToSnapshot).get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
@@ -211,6 +229,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertHitCount(client.prepareSearch("test-idx-3").setSize(0).get(), 50L);
         }
 
+        for (ShardStats shardStats: client().admin().indices().prepareStats(indicesToSnapshot).clear().get().getShards()) {
+            String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);
+            ShardId shardId = shardStats.getShardRouting().shardId();
+            assertThat(shardStats.getShardRouting() + " doesn't have a history uuid", historyUUID, notNullValue());
+            assertThat(shardStats.getShardRouting() + " doesn't have a new history", historyUUID, not(equalTo(historyUUIDs.get(shardId))));
+        }
+
         // Test restore after index deletion
         logger.info("--> delete indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2");
@@ -225,6 +250,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
+
+        for (ShardStats shardStats: client().admin().indices().prepareStats(indicesToSnapshot).clear().get().getShards()) {
+            String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);
+            ShardId shardId = shardStats.getShardRouting().shardId();
+            assertThat(shardStats.getShardRouting() + " doesn't have a history uuid", historyUUID, notNullValue());
+            assertThat(shardStats.getShardRouting() + " doesn't have a new history", historyUUID, not(equalTo(historyUUIDs.get(shardId))));
+        }
 
         if (flushResponseFuture != null) {
             // Finish flush
@@ -932,7 +964,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("location", randomRepoPath())));
 
         logger.info("-->  creating index that cannot be allocated");
-        prepareCreate("test-idx", 2, Settings.builder().put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + ".tag", "nowhere").put("index.number_of_shards", 3)).setWaitForActiveShards(ActiveShardCount.NONE).get();
+        prepareCreate("test-idx", 2, Settings.builder().put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag", "nowhere").put("index.number_of_shards", 3)).setWaitForActiveShards(ActiveShardCount.NONE).get();
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").get();
@@ -1795,7 +1827,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s")
                 .put("index.analysis.analyzer.my_analyzer.type", "custom")
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonym")
+                .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonym")
                 .put("index.analysis.filter.my_synonym.type", "synonym")
                 .put("index.analysis.filter.my_synonym.synonyms", "foo => bar");
 
@@ -1917,7 +1949,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 initialSettingsBuilder.put(blockSetting, true);
             }
             Settings initialSettings = initialSettingsBuilder.build();
-            logger.info("--> using initial block settings {}", initialSettings.getAsMap());
+            logger.info("--> using initial block settings {}", initialSettings);
 
             if (!initialSettings.isEmpty()) {
                 logger.info("--> apply initial blocks to index");
@@ -1946,7 +1978,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 changedSettingsBuilder.put(blockSetting, randomBoolean());
             }
             Settings changedSettings = changedSettingsBuilder.build();
-            logger.info("--> applying changed block settings {}", changedSettings.getAsMap());
+            logger.info("--> applying changed block settings {}", changedSettings);
 
             RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()
                     .prepareRestoreSnapshot("test-repo", "test-snap")
@@ -1960,7 +1992,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                     .put(initialSettings)
                     .put(changedSettings)
                     .build();
-            logger.info("--> merged block settings {}", mergedSettings.getAsMap());
+            logger.info("--> merged block settings {}", mergedSettings);
 
             logger.info("--> checking consistency between settings and blocks");
             assertThat(mergedSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_METADATA, false),

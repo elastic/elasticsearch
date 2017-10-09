@@ -24,8 +24,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.lucene.all.AllEntries;
-import org.elasticsearch.common.lucene.all.AllTokenStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -75,10 +73,7 @@ public class CompoundAnalysisTests extends ESTestCase {
         IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
         Analyzer analyzer = indexAnalyzers.get(analyzerName).analyzer();
 
-        AllEntries allEntries = new AllEntries();
-        allEntries.addText("field1", text, 1.0f);
-
-        TokenStream stream = AllTokenStream.allTokenStream("_all", text, 1.0f, analyzer);
+        TokenStream stream = analyzer.tokenStream("" , text);
         stream.reset();
         CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
 
@@ -103,7 +98,7 @@ public class CompoundAnalysisTests extends ESTestCase {
     private Settings getJsonSettings() throws IOException {
         String json = "/org/elasticsearch/analysis/common/test1.json";
         return Settings.builder()
-                .loadFromStream(json, getClass().getResourceAsStream(json))
+                .loadFromStream(json, getClass().getResourceAsStream(json), false)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
@@ -112,7 +107,7 @@ public class CompoundAnalysisTests extends ESTestCase {
     private Settings getYamlSettings() throws IOException {
         String yaml = "/org/elasticsearch/analysis/common/test1.yml";
         return Settings.builder()
-                .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
+                .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();

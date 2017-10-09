@@ -191,7 +191,7 @@ public class IndexModuleTests extends ESTestCase {
         module.addIndexEventListener(eventListener);
         IndexService indexService = newIndexService(module);
         IndexSettings x = indexService.getIndexSettings();
-        assertEquals(x.getSettings().getAsMap(), indexSettings.getSettings().getAsMap());
+        assertEquals(x.getSettings(), indexSettings.getSettings());
         assertEquals(x.getIndex(), index);
         indexService.getIndexEventListener().beforeIndexRemoved(null, null);
         assertTrue(atomicBoolean.get());
@@ -284,7 +284,7 @@ public class IndexModuleTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), emptyAnalysisRegistry);
-        module.addSimilarity("test_similarity", (string, providerSettings, indexLevelSettings) -> new SimilarityProvider() {
+        module.addSimilarity("test_similarity", (string, providerSettings, indexLevelSettings, scriptService) -> new SimilarityProvider() {
             @Override
             public String name() {
                 return string;

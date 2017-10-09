@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.open;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,22 +31,41 @@ import java.io.IOException;
  */
 public class OpenIndexResponse extends AcknowledgedResponse {
 
+    private boolean shardsAcknowledged;
+
     OpenIndexResponse() {
     }
 
-    OpenIndexResponse(boolean acknowledged) {
+    OpenIndexResponse(boolean acknowledged, boolean shardsAcknowledged) {
         super(acknowledged);
+        assert acknowledged || shardsAcknowledged == false; // if its not acknowledged, then shards acked should be false too
+        this.shardsAcknowledged = shardsAcknowledged;
+    }
+
+    /**
+     * Returns true if the requisite number of shards were started before
+     * returning from the indices opening operation.  If {@link #isAcknowledged()}
+     * is false, then this also returns false.
+     */
+    public boolean isShardsAcknowledged() {
+        return shardsAcknowledged;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         readAcknowledged(in);
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            shardsAcknowledged = in.readBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeBoolean(shardsAcknowledged);
+        }
     }
 }

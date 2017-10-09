@@ -275,7 +275,7 @@
 ---
 "junk in slices fails":
   - do:
-      catch: /Failed to parse int parameter \[slices\] with value \[junk\]/
+      catch: /\[slices\] must be a positive integer or the string "auto"/
       reindex:
         slices: junk
         body:
@@ -287,7 +287,7 @@
 ---
 "zero slices fails":
   - do:
-      catch: /\[slices\] must be at least 1/
+      catch: /\[slices\] must be a positive integer or the string "auto"/
       reindex:
         slices: 0
         body:

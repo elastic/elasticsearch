@@ -25,14 +25,18 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -267,6 +271,21 @@ public final class Script implements ToXContentObject, Writeable {
      */
     public static Script parse(XContentParser parser) throws IOException {
         return parse(parser, DEFAULT_SCRIPT_LANG);
+    }
+
+    /**
+     * Parse the script configured in the given settings.
+     */
+    public static Script parse(Settings settings) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()){
+            builder.startObject();
+            settings.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            return parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, builder.bytes()));
+        } catch (IOException e) {
+            // it should not happen since we are not actually reading from a stream but an in-memory byte[]
+            throw new IllegalStateException(e);
+        }
     }
 
     /**

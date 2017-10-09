@@ -35,7 +35,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 import java.util.List;
@@ -78,8 +78,8 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         public static SequenceIDFields emptySeqID() {
-            return new SequenceIDFields(new LongPoint(NAME, SequenceNumbersService.UNASSIGNED_SEQ_NO),
-                    new NumericDocValuesField(NAME, SequenceNumbersService.UNASSIGNED_SEQ_NO),
+            return new SequenceIDFields(new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
+                    new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
                     new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
         }
     }
@@ -126,7 +126,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class SeqNoFieldType extends MappedFieldType {
+    static final class SeqNoFieldType extends SimpleMappedFieldType {
 
         SeqNoFieldType() {
         }
@@ -204,7 +204,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
         }

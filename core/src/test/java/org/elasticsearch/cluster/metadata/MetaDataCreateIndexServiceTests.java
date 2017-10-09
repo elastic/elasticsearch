@@ -166,7 +166,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 .put("index.similarity.default.type", "BM25")
                 .put("index.version.created", version)
                 .put("index.version.upgraded", upgraded)
-                .put("index.version.minimum_compatible", minCompat.luceneVersion)
+                .put("index.version.minimum_compatible", minCompat.luceneVersion.toString())
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "keyword")
                 .build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
@@ -212,6 +212,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
         validateIndexName("..", "must not be '.' or '..'");
 
+        validateIndexName("foo:bar", "must not contain ':'");
     }
 
     private void validateIndexName(String indexName, String errorMessage) {

@@ -22,7 +22,6 @@ package org.elasticsearch.node;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -53,7 +53,7 @@ public class ResponseCollectorServiceTests extends ESTestCase {
         threadpool = new TestThreadPool("response_collector_tests");
         clusterService = new ClusterService(Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadpool);
+                threadpool, Collections.emptyMap());
         collector = new ResponseCollectorService(Settings.EMPTY, clusterService);
     }
 
@@ -67,7 +67,7 @@ public class ResponseCollectorServiceTests extends ESTestCase {
         collector.addNodeStatistics("node1", 1, 100, 10);
         Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats = collector.getAllNodeStatistics();
         assertTrue(nodeStats.containsKey("node1"));
-        assertThat(nodeStats.get("node1").queueSize, equalTo(1.0));
+        assertThat(nodeStats.get("node1").queueSize, equalTo(1));
         assertThat(nodeStats.get("node1").responseTime, equalTo(100.0));
         assertThat(nodeStats.get("node1").serviceTime, equalTo(10.0));
     }
@@ -113,7 +113,7 @@ public class ResponseCollectorServiceTests extends ESTestCase {
         logger.info("--> got stats: {}", nodeStats);
         for (String nodeId : nodes) {
             if (nodeStats.containsKey(nodeId)) {
-                assertThat(nodeStats.get(nodeId).queueSize, greaterThan(0.0));
+                assertThat(nodeStats.get(nodeId).queueSize, greaterThan(0));
                 assertThat(nodeStats.get(nodeId).responseTime, greaterThan(0.0));
                 assertThat(nodeStats.get(nodeId).serviceTime, greaterThan(0.0));
             }

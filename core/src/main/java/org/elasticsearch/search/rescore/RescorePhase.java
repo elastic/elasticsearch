@@ -19,6 +19,9 @@
 
 package org.elasticsearch.search.rescore;
 
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -45,12 +48,33 @@ public class RescorePhase extends AbstractComponent implements SearchPhase {
     public void execute(SearchContext context) {
         try {
             TopDocs topDocs = context.queryResult().topDocs();
-            for (RescoreSearchContext ctx : context.rescore()) {
-                topDocs = ctx.rescorer().rescore(topDocs, context, ctx);
+            for (RescoreContext ctx : context.rescore()) {
+                topDocs = ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
+                // It is the responsibility of the rescorer to sort the resulted top docs,
+                // here we only assert that this condition is met.
+                assert context.sort() == null && topDocsSortedByScore(topDocs): "topdocs should be sorted after rescore";
             }
             context.queryResult().topDocs(topDocs, context.queryResult().sortValueFormats());
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
         }
+    }
+
+    /**
+     * Returns true if the provided docs are sorted by score.
+     */
+    private boolean topDocsSortedByScore(TopDocs topDocs) {
+        if (topDocs == null || topDocs.scoreDocs == null || topDocs.scoreDocs.length < 2) {
+            return true;
+        }
+        float lastScore = topDocs.scoreDocs[0].score;
+        for (int i = 1; i < topDocs.scoreDocs.length; i++) {
+            ScoreDoc doc = topDocs.scoreDocs[i];
+            if (Float.compare(doc.score, lastScore) > 0) {
+                return false;
+            }
+            lastScore = doc.score;
+        }
+        return true;
     }
 }

@@ -23,9 +23,7 @@ import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,27 +37,23 @@ import org.elasticsearch.indices.IndicesService;
 import java.util.Arrays;
 import java.util.Map;
 
-public class Gateway extends AbstractComponent implements ClusterStateApplier {
+public class Gateway extends AbstractComponent {
 
     private final ClusterService clusterService;
-
-    private final GatewayMetaState metaState;
 
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
     private final int minimumMasterNodes;
     private final IndicesService indicesService;
 
-    public Gateway(Settings settings, ClusterService clusterService, GatewayMetaState metaState,
+    public Gateway(Settings settings, ClusterService clusterService,
                    TransportNodesListGatewayMetaState listGatewayMetaState,
                    IndicesService indicesService) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
-        this.metaState = metaState;
         this.listGatewayMetaState = listGatewayMetaState;
         this.minimumMasterNodes = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
-        clusterService.addLowPriorityApplier(this);
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
@@ -155,7 +149,7 @@ public class Gateway extends AbstractComponent implements ClusterStateApplier {
                 metaDataBuilder.transientSettings(),
                 e -> logUnknownSetting("transient", e),
                 (e, ex) -> logInvalidSetting("transient", e, ex)));
-        ClusterState.Builder builder = ClusterState.builder(clusterService.getClusterName());
+        ClusterState.Builder builder = clusterService.newClusterStateBuilder();
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
     }
@@ -172,13 +166,6 @@ public class Gateway extends AbstractComponent implements ClusterStateApplier {
                     e.getKey(),
                     e.getValue()),
             ex);
-    }
-
-    @Override
-    public void applyClusterState(final ClusterChangedEvent event) {
-        // order is important, first metaState, and then shardsState
-        // so dangling indices will be recorded
-        metaState.applyClusterState(event);
     }
 
     public interface GatewayStateRecoveredListener {

@@ -31,7 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
  * Implementation of delete-by-query using scrolling and bulk.
  */
 public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest> {
-    public AsyncDeleteByQueryAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+    public AsyncDeleteByQueryAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                     ThreadPool threadPool, DeleteByQueryRequest request, ScriptService scriptService,
                                     ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
         super(task, logger, client, threadPool, request, scriptService, clusterState, listener);

@@ -31,7 +31,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -117,19 +119,19 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
         @Override
         public boolean hasChanged(Settings current, Settings previous) {
-            return current.filter(loggerPredicate).getAsMap().equals(previous.filter(loggerPredicate).getAsMap()) == false;
+            return current.filter(loggerPredicate).equals(previous.filter(loggerPredicate)) == false;
         }
 
         @Override
         public Settings getValue(Settings current, Settings previous) {
             Settings.Builder builder = Settings.builder();
-            builder.put(current.filter(loggerPredicate).getAsMap());
-            for (String key : previous.getAsMap().keySet()) {
-                if (loggerPredicate.test(key) && builder.internalMap().containsKey(key) == false) {
+            builder.put(current.filter(loggerPredicate));
+            for (String key : previous.keySet()) {
+                if (loggerPredicate.test(key) && builder.keys().contains(key) == false) {
                     if (ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
                         builder.putNull(key);
                     } else {
-                        builder.put(key, ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings));
+                        builder.put(key, ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).toString());
                     }
                 }
             }
@@ -138,7 +140,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
         @Override
         public void apply(Settings value, Settings current, Settings previous) {
-            for (String key : value.getAsMap().keySet()) {
+            for (String key : value.keySet()) {
                 assert loggerPredicate.test(key);
                 String component = key.substring("logger.".length());
                 if ("level".equals(component)) {
@@ -244,6 +246,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
                     HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH,
                     HttpTransportSettings.SETTING_HTTP_RESET_COOKIES,
+                    HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY,
+                    HttpTransportSettings.SETTING_HTTP_TCP_KEEP_ALIVE,
+                    HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS,
+                    HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
+                    HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
                     HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
@@ -309,7 +316,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
                     ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
                     ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
-                    ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE,
+                    ScriptService.SCRIPT_MAX_COMPILATIONS_RATE,
                     ScriptService.TYPES_ALLOWED_SETTING,
                     ScriptService.CONTEXTS_ALLOWED_SETTING,
                     IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
@@ -349,6 +356,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT,
                     SearchService.DEFAULT_KEEPALIVE_SETTING,
                     SearchService.KEEPALIVE_INTERVAL_SETTING,
+                    SearchService.MAX_KEEPALIVE_SETTING,
                     SearchService.LOW_LEVEL_CANCELLATION_SETTING,
                     Node.WRITE_PORTS_FILE_SETTING,
                     Node.NODE_NAME_SETTING,
@@ -390,6 +398,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     BootstrapSettings.MEMORY_LOCK_SETTING,
                     BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
                     BootstrapSettings.CTRLHANDLER_SETTING,
+                    KeyStoreWrapper.SEED_SETTING,
                     IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,
@@ -402,6 +411,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
                     ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
                     FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
-                    Node.BREAKER_TYPE_KEY
+                    Node.BREAKER_TYPE_KEY,
+                    OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                    IndexGraveyard.SETTING_MAX_TOMBSTONES
             )));
 }

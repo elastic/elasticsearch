@@ -34,6 +34,7 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
@@ -169,6 +170,21 @@ public class MultiSearchRequestTests extends ESTestCase {
         request.maxConcurrentSearchRequests(randomIntBetween(1, Integer.MAX_VALUE));
         expectThrows(IllegalArgumentException.class, () ->
                 request.maxConcurrentSearchRequests(randomIntBetween(Integer.MIN_VALUE, 0)));
+    }
+
+    public void testMsearchTerminatedByNewline() throws Exception {
+        String mserchAction = StreamsUtils.copyToStringFromClasspath("/org/elasticsearch/action/search/simple-msearch5.json");
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+                .withContent(new BytesArray(mserchAction.getBytes(StandardCharsets.UTF_8)), XContentType.JSON).build();
+        IllegalArgumentException expectThrows = expectThrows(IllegalArgumentException.class,
+                () -> RestMultiSearchAction.parseRequest(restRequest, true));
+        assertEquals("The msearch request must be terminated by a newline [\n]", expectThrows.getMessage());
+
+        String mserchActionWithNewLine = mserchAction + "\n";
+        RestRequest restRequestWithNewLine = new FakeRestRequest.Builder(xContentRegistry())
+                .withContent(new BytesArray(mserchActionWithNewLine.getBytes(StandardCharsets.UTF_8)), XContentType.JSON).build();
+        MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(restRequestWithNewLine, true);
+        assertEquals(3, msearchRequest.requests().size());
     }
 
     private MultiSearchRequest parseMultiSearchRequest(String sample) throws IOException {

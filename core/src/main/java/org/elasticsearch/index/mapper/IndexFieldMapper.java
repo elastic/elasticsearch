@@ -77,10 +77,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha3)) {
-                throw new MapperParsingException(NAME + " is not configurable");
-            }
-            return new Builder(parserContext.mapperService().fullName(NAME));
+            throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override
@@ -157,8 +154,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
-            return new ConstantIndexFieldData.Builder(mapperService -> mapperService.index().getName());
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName);
         }
     }
 

@@ -152,8 +152,8 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
-     * a custom value, which guarantees that the same order will be used across different requests.
+     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * will be used across different requests.
      */
     public GetRequest preference(String preference) {
         this.preference = preference;

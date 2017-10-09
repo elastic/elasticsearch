@@ -35,6 +35,24 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
+    public ClusterInfoRequest() {
+    }
+
+    public ClusterInfoRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        types = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(indices);
+        out.writeStringArray(types);
+        indicesOptions.writeIndicesOptions(out);
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public Request indices(String... indices) {
@@ -70,17 +88,11 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        // TODO(talevy): once all ClusterInfoRequest objects are converted, remove this
         super.readFrom(in);
         indices = in.readStringArray();
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        out.writeStringArray(types);
-        indicesOptions.writeIndicesOptions(out);
+        // throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

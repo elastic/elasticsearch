@@ -284,8 +284,9 @@ public class Netty4Transport extends TcpTransport<Channel> {
                     if (!future.isSuccess()) {
                         throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", future.cause());
                     }
-                    onChannelOpen.accept(future.channel());
-                    channels[i] = future.channel();
+                    final Channel channel = future.channel();
+                    onChannelOpen.accept(channel);
+                    channels[i] = channel;
                     channels[i].closeFuture().addListener(closeListener);
                 }
                 assert iterator.hasNext() == false : "not all created connection have been consumed";

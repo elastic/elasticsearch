@@ -19,6 +19,21 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,22 +57,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.isOneOf;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for the cluster allocation explanation
@@ -369,11 +368,17 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("allocate_explanation", parser.currentName());
             parser.nextToken();
-            if (allocationDecision.equals("awaiting_info")) {
-                assertEquals("cannot allocate because information about existing shard data is still being retrieved " +
-                                 "from some of the nodes", parser.text());
-            } else {
-                assertEquals("cannot allocate because allocation is not permitted to any of the nodes", parser.text());
+            switch (allocationDecision) {
+                case "awaiting_info":
+                    assertEquals(
+                            "cannot allocate because information about existing shard data is still being retrieved "
+                                    + "from some of the nodes",
+                            parser.text());
+                    break;
+                default:
+                    assertEquals(
+                            "cannot allocate because allocation is not permitted to any of the nodes",
+                            parser.text());
             }
             Map<String, AllocationDecision> nodeDecisions = new HashMap<>();
             for (String nodeName : internalCluster().getNodeNames()) {
@@ -461,11 +466,17 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("allocate_explanation", parser.currentName());
             parser.nextToken();
-            if (allocationDecision.equals("awaiting_info")) {
-                assertEquals("cannot allocate because information about existing shard data is still being retrieved " +
-                                 "from some of the nodes", parser.text());
-            } else {
-                assertEquals("cannot allocate because allocation is not permitted to any of the nodes", parser.text());
+            switch (allocationDecision) {
+                case "awaiting_info":
+                    assertEquals(
+                            "cannot allocate because information about existing shard data is still being retrieved "
+                                    + "from some of the nodes",
+                            parser.text());
+                    break;
+                default:
+                    assertEquals(
+                            "cannot allocate because allocation is not permitted to any of the nodes",
+                            parser.text());
             }
             Map<String, AllocationDecision> nodeDecisions = new HashMap<>();
             for (String nodeName : internalCluster().getNodeNames()) {

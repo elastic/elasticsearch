@@ -19,6 +19,9 @@
 
 package org.elasticsearch.search.basic;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -26,9 +29,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * This test basically verifies that search with a single shard active (cause we indexed to it) and other
@@ -72,14 +72,26 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
         assertThat(refreshResponse.getSuccessfulShards(), greaterThanOrEqualTo(1)); // at least one shard should be successful when refreshing
 
         logger.info("using preference {}", preference);
-        // we want to make sure that while recovery happens, and a replica gets recovered, its properly refreshed
-        ClusterHealthStatus status = client().admin().cluster().prepareHealth("test").get().getStatus();;
+        // we want to make sure that while recovery happens, and a replica gets recovered, its
+        // properly refreshed
+        ClusterHealthStatus status =
+                client().admin().cluster().prepareHealth("test").get().getStatus();
+        ;
         while (status != ClusterHealthStatus.GREEN) {
             // first, verify that search normal search works
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
+            SearchResponse searchResponse =
+                    client().prepareSearch("test")
+                            .setQuery(QueryBuilders.termQuery("field", "test"))
+                            .execute()
+                            .actionGet();
             assertHitCount(searchResponse, 1);
             Client client = client();
-            searchResponse = client.prepareSearch("test").setPreference(preference + Integer.toString(counter++)).setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
+            searchResponse =
+                    client.prepareSearch("test")
+                            .setPreference(preference + Integer.toString(counter++))
+                            .setQuery(QueryBuilders.termQuery("field", "test"))
+                            .execute()
+                            .actionGet();
             if (searchResponse.getHits().getTotalHits() != 1) {
                 refresh();
                 SearchResponse searchResponseAfterRefresh = client.prepareSearch("test").setPreference(preference).setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();

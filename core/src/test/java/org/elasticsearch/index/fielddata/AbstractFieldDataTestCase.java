@@ -19,6 +19,13 @@
 
 package org.elasticsearch.index.fielddata;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -31,7 +38,6 @@ import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -43,7 +49,6 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
@@ -57,14 +62,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.After;
 import org.junit.Before;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.sameInstance;
 
 public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
@@ -98,38 +95,86 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
     public <IFD extends IndexFieldData<?>> IFD getForField(String type, String fieldName, boolean docValues) {
         final MappedFieldType fieldType;
         final BuilderContext context = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        if (type.equals("string")) {
-            if (docValues) {
-                fieldType = new KeywordFieldMapper.Builder(fieldName).build(context).fieldType();
-            } else {
-                fieldType = new TextFieldMapper.Builder(fieldName).fielddata(true).build(context).fieldType();
-            }
-        } else if (type.equals("float")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.FLOAT)
-                    .docValues(docValues).build(context).fieldType();
-        } else if (type.equals("double")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE)
-                    .docValues(docValues).build(context).fieldType();
-        } else if (type.equals("long")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.LONG)
-                    .docValues(docValues).build(context).fieldType();
-        } else if (type.equals("int")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER)
-                    .docValues(docValues).build(context).fieldType();
-        } else if (type.equals("short")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.SHORT)
-                    .docValues(docValues).build(context).fieldType();
-        } else if (type.equals("byte")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.BYTE)
-                    .docValues(docValues).build(context).fieldType();
-        } else if (type.equals("geo_point")) {
-            fieldType = new GeoPointFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
-        } else if (type.equals("_parent")) {
-            fieldType = new ParentFieldMapper.Builder("_type").type(fieldName).build(context).fieldType();
-        } else if (type.equals("binary")) {
-            fieldType = new BinaryFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
-        } else {
-            throw new UnsupportedOperationException(type);
+        switch (type) {
+            case "string":
+                if (docValues) {
+                    fieldType =
+                            new KeywordFieldMapper.Builder(fieldName).build(context).fieldType();
+                } else {
+                    fieldType =
+                            new TextFieldMapper.Builder(fieldName)
+                                    .fielddata(true)
+                                    .build(context)
+                                    .fieldType();
+                }
+                break;
+            case "float":
+                fieldType =
+                        new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.FLOAT)
+                                .docValues(docValues)
+                                .build(context)
+                                .fieldType();
+                break;
+            case "double":
+                fieldType =
+                        new NumberFieldMapper.Builder(
+                                        fieldName, NumberFieldMapper.NumberType.DOUBLE)
+                                .docValues(docValues)
+                                .build(context)
+                                .fieldType();
+                break;
+            case "long":
+                fieldType =
+                        new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.LONG)
+                                .docValues(docValues)
+                                .build(context)
+                                .fieldType();
+                break;
+            case "int":
+                fieldType =
+                        new NumberFieldMapper.Builder(
+                                        fieldName, NumberFieldMapper.NumberType.INTEGER)
+                                .docValues(docValues)
+                                .build(context)
+                                .fieldType();
+                break;
+            case "short":
+                fieldType =
+                        new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.SHORT)
+                                .docValues(docValues)
+                                .build(context)
+                                .fieldType();
+                break;
+            case "byte":
+                fieldType =
+                        new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.BYTE)
+                                .docValues(docValues)
+                                .build(context)
+                                .fieldType();
+                break;
+            case "geo_point":
+                fieldType =
+                        new GeoPointFieldMapper.Builder(fieldName)
+                                .docValues(docValues)
+                                .build(context)
+                                .fieldType();
+                break;
+            case "_parent":
+                fieldType =
+                        new ParentFieldMapper.Builder("_type")
+                                .type(fieldName)
+                                .build(context)
+                                .fieldType();
+                break;
+            case "binary":
+                fieldType =
+                        new BinaryFieldMapper.Builder(fieldName)
+                                .docValues(docValues)
+                                .build(context)
+                                .fieldType();
+                break;
+            default:
+                throw new UnsupportedOperationException(type);
         }
         return shardContext.getForField(fieldType);
     }

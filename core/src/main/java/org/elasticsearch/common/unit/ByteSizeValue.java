@@ -19,15 +19,14 @@
 
 package org.elasticsearch.common.unit;
 
+import java.io.IOException;
+import java.util.Locale;
+import java.util.Objects;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-
-import java.io.IOException;
-import java.util.Locale;
-import java.util.Objects;
 
 public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
 
@@ -164,18 +163,23 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
                 bytes = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 2)) * ByteSizeUnit.C5);
             } else if (lowerSValue.endsWith("b")) {
                 bytes = Long.parseLong(lowerSValue.substring(0, lowerSValue.length() - 1).trim());
-            } else if (lowerSValue.equals("-1")) {
-                // Allow this special value to be unit-less:
-                bytes = -1;
-            } else if (lowerSValue.equals("0")) {
-                // Allow this special value to be unit-less:
-                bytes = 0;
-            } else {
-                // Missing units:
-                throw new ElasticsearchParseException(
-                        "failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized",
-                        settingName, sValue);
-            }
+            } else
+                switch (lowerSValue) {
+                    case "-1":
+                        // Allow this special value to be unit-less:
+                        bytes = -1;
+                        break;
+                    case "0":
+                        // Allow this special value to be unit-less:
+                        bytes = 0;
+                        break;
+                    default:
+                        // Missing units:
+                        throw new ElasticsearchParseException(
+                                "failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized",
+                                settingName,
+                                sValue);
+                }
         } catch (NumberFormatException e) {
             throw new ElasticsearchParseException("failed to parse [{}]", e, sValue);
         }

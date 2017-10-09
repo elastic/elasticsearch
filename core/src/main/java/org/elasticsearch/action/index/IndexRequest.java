@@ -19,6 +19,13 @@
 
 package org.elasticsearch.action.index;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -43,17 +50,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
@@ -420,12 +418,16 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public IndexRequest opType(String opType) {
         String op = opType.toLowerCase(Locale.ROOT);
-        if (op.equals("create")) {
-            opType(OpType.CREATE);
-        } else if (op.equals("index")) {
-            opType(OpType.INDEX);
-        } else {
-            throw new IllegalArgumentException("opType must be 'create' or 'index', found: [" + opType + "]");
+        switch (op) {
+            case "create":
+                opType(OpType.CREATE);
+                break;
+            case "index":
+                opType(OpType.INDEX);
+                break;
+            default:
+                throw new IllegalArgumentException(
+                        "opType must be 'create' or 'index', found: [" + opType + "]");
         }
         return this;
     }

@@ -19,10 +19,9 @@
 
 package org.elasticsearch.plugins;
 
-import org.apache.lucene.util.Constants;
-
 import java.nio.file.Path;
 import java.util.Locale;
+import org.apache.lucene.util.Constants;
 
 /**
  * Encapsulates platform-dependent methods for handling native components of plugins.
@@ -60,20 +59,26 @@ public class Platforms {
         final String normalizedOs;
         if (lowerCaseOs.startsWith("windows")) {
             normalizedOs = "windows";
-        } else if (lowerCaseOs.equals("mac os x")) {
-            normalizedOs = "darwin";
-        } else {
-            normalizedOs = lowerCaseOs;
-        }
+        } else
+            switch (lowerCaseOs) {
+                case "mac os x":
+                    normalizedOs = "darwin";
+                    break;
+                default:
+                    normalizedOs = lowerCaseOs;
+            }
 
         final String lowerCaseArch = osArch.toLowerCase(Locale.ROOT);
         final String normalizedArch;
-        if (lowerCaseArch.equals("amd64")) {
-            normalizedArch = "x86_64";
-        } else if (lowerCaseArch.equals("i386")) {
-            normalizedArch = "x86";
-        } else {
-            normalizedArch = lowerCaseArch;
+        switch (lowerCaseArch) {
+            case "amd64":
+                normalizedArch = "x86_64";
+                break;
+            case "i386":
+                normalizedArch = "x86";
+                break;
+            default:
+                normalizedArch = lowerCaseArch;
         }
 
         return normalizedOs + "-" + normalizedArch;

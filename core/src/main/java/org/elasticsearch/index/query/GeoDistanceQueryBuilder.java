@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import java.io.IOException;
+import java.util.Locale;
+import java.util.Objects;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -37,10 +40,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-
-import java.io.IOException;
-import java.util.Locale;
-import java.util.Objects;
 
 /**
  * Filter results of a query to include only those within a specific distance to some
@@ -298,15 +297,22 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentName = parser.currentName();
                     } else if (token.isValue()) {
-                        if (currentName.equals("lat")) {
-                            point.resetLat(parser.doubleValue());
-                        } else if (currentName.equals("lon")) {
-                            point.resetLon(parser.doubleValue());
-                        } else if (currentName.equals("geohash")) {
-                            point.resetFromGeoHash(parser.text());
-                        } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[geo_distance] query does not support [" + currentFieldName + "]");
+                        switch (currentName) {
+                            case "lat":
+                                point.resetLat(parser.doubleValue());
+                                break;
+                            case "lon":
+                                point.resetLon(parser.doubleValue());
+                                break;
+                            case "geohash":
+                                point.resetFromGeoHash(parser.text());
+                                break;
+                            default:
+                                throw new ParsingException(
+                                        parser.getTokenLocation(),
+                                        "[geo_distance] query does not support ["
+                                                + currentFieldName
+                                                + "]");
                         }
                     }
                 }

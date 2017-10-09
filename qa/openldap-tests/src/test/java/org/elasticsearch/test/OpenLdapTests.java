@@ -15,6 +15,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory;
 import org.elasticsearch.xpack.security.authc.ldap.LdapTestUtils;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.ssl.VerificationMode;
+import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -49,7 +52,18 @@ public class OpenLdapTests extends ESTestCase {
 
     private boolean useGlobalSSL;
     private SSLService sslService;
+    private ThreadPool threadPool;
     private Settings globalSettings;
+
+    @Before
+    public void init() throws Exception {
+        threadPool = new TestThreadPool("OpenLdapTests thread pool");
+    }
+
+    @After
+    public void shutdown() throws InterruptedException {
+        terminate(threadPool);
+    }
 
     @Override
     public boolean enableWarningsCheck() {
@@ -95,7 +109,7 @@ public class OpenLdapTests extends ESTestCase {
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         RealmConfig config = new RealmConfig("oldap-test", buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
                 LdapSearchScope.ONE_LEVEL), globalSettings, new ThreadContext(Settings.EMPTY));
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService);
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
         for (String user : users) {
@@ -113,7 +127,7 @@ public class OpenLdapTests extends ESTestCase {
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         RealmConfig config = new RealmConfig("oldap-test", buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
                 LdapSearchScope.BASE), globalSettings, new ThreadContext(Settings.EMPTY));
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService);
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
         for (String user : users) {
@@ -132,7 +146,7 @@ public class OpenLdapTests extends ESTestCase {
                 .put("group_search.user_attribute", "uid")
                 .build();
         RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, new ThreadContext(Settings.EMPTY));
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService);
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         try (LdapSession ldap = session(sessionFactory, "selvig", PASSWORD_SECURE_STRING)){
             assertThat(groups(ldap), hasItem(containsString("Geniuses")));
@@ -150,7 +164,7 @@ public class OpenLdapTests extends ESTestCase {
                 .put(SessionFactory.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
                 .build();
         RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, new ThreadContext(Settings.EMPTY));
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService);
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         LDAPException expected = expectThrows(LDAPException.class,
                 () -> session(sessionFactory, "thor", PASSWORD_SECURE_STRING).groups(new PlainActionFuture<>()));
@@ -167,7 +181,7 @@ public class OpenLdapTests extends ESTestCase {
                 .build();
 
         RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, new ThreadContext(Settings.EMPTY));
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService);
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         String user = "blackwidow";
         UncategorizedExecutionException e = expectThrows(UncategorizedExecutionException.class,

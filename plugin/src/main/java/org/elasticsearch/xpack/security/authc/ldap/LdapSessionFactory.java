@@ -8,14 +8,15 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
@@ -52,8 +53,8 @@ public class LdapSessionFactory extends SessionFactory {
     private final GroupsResolver groupResolver;
     private final LdapMetaDataResolver metaDataResolver;
 
-    public LdapSessionFactory(RealmConfig config, SSLService sslService) {
-        super(config, sslService);
+    public LdapSessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) {
+        super(config, sslService, threadPool);
         Settings settings = config.settings();
         userDnTemplates = USER_DN_TEMPLATES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
         if (userDnTemplates.length == 0) {
@@ -73,48 +74,51 @@ public class LdapSessionFactory extends SessionFactory {
      */
     @Override
     public void session(String username, SecureString password, ActionListener<LdapSession> listener) {
-        LDAPException lastException = null;
-        LDAPConnection connection = null;
-        LdapSession ldapSession = null;
-        final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
-        boolean success = false;
         try {
-            connection = LdapUtils.privilegedConnect(serverSet::getConnection);
-            for (String template : userDnTemplates) {
-                String dn = buildDnFromTemplate(username, template);
-                try {
-                    connection.bind(new SimpleBindRequest(dn, passwordBytes));
-                    ldapSession = new LdapSession(logger, config, connection, dn, groupResolver, metaDataResolver, timeout, null);
-                    success = true;
-                    break;
-                } catch (LDAPException e) {
-                    // we catch the ldapException here since we expect it can happen and we shouldn't be logging this all the time otherwise
-                    // it is just noise
-                    logger.trace((Supplier<?>) () -> new ParameterizedMessage(
-                            "failed LDAP authentication with user template [{}] and DN [{}]", template, dn), e);
-                    if (lastException == null) {
-                        lastException = e;
+            new AbstractRunnable() {
+                final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
+                final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
+                Exception containerException = null;
+                int loopIndex = 0;
+
+                @Override
+                protected void doRun() throws Exception {
+                    listener.onResponse(
+                            (new LdapSession(logger, config, connection, ((SimpleBindRequest) connection.getLastBindRequest()).getBindDN(),
+                                    groupResolver, metaDataResolver, timeout, null)));
+                    Arrays.fill(passwordBytes, (byte) 0);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // record failure
+                    if (containerException == null) {
+                        containerException = e;
                     } else {
-                        lastException.addSuppressed(e);
+                        containerException.addSuppressed(e);
+                    }
+
+                    if (loopIndex > userDnTemplates.length) {
+                        listener.onFailure(new IllegalStateException("User DN template iteration index out of bounds."));
+                    } else if (loopIndex == userDnTemplates.length) {
+                        // loop break
+                        IOUtils.closeWhileHandlingException(connection);
+                        Arrays.fill(passwordBytes, (byte) 0);
+                        listener.onFailure(containerException);
+                    } else {
+                        loop();
                     }
                 }
-            }
-        } catch (LDAPException e) {
-            assert lastException == null : "if we catch a LDAPException here, we should have never seen another exception";
-            assert ldapSession == null : "LDAPSession should not have been established due to a connection failure";
-            lastException = e;
-        } finally {
-            Arrays.fill(passwordBytes, (byte) 0);
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(connection);
-            }
-        }
 
-        if (ldapSession != null) {
-            listener.onResponse(ldapSession);
-        } else {
-            assert lastException != null : "if there is not LDAPSession, then we must have a exception";
-            listener.onFailure(lastException);
+                // loop body
+                void loop() {
+                    final String template = userDnTemplates[loopIndex++];
+                    final SimpleBindRequest bind = new SimpleBindRequest(buildDnFromTemplate(username, template), passwordBytes);
+                    LdapUtils.maybeForkThenBind(connection, bind, threadPool, this);
+                }
+            }.loop();
+        } catch (LDAPException e) {
+            listener.onFailure(e);
         }
     }
 

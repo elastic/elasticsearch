@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
-import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -101,6 +100,7 @@ class SearchGroupsResolver implements GroupsResolver {
         }, listener::onFailure));
     }
 
+    @Override
     public String[] attributes() {
         if (Strings.hasLength(userAttribute)) {
             return new String[] { userAttribute };

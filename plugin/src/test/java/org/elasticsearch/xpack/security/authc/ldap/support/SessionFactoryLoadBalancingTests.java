@@ -15,8 +15,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -35,6 +39,18 @@ import static org.hamcrest.Matchers.not;
  */
 @TestLogging("org.elasticsearch.xpack.security.authc.ldap.support:DEBUG")
 public class SessionFactoryLoadBalancingTests extends LdapTestCase {
+
+    private ThreadPool threadPool;
+
+    @Before
+    public void init() throws Exception {
+        threadPool = new TestThreadPool("SessionFactoryLoadBalancingTests thread pool");
+    }
+
+    @After
+    public void shutdown() throws InterruptedException {
+        terminate(threadPool);
+    }
 
     public void testRoundRobin() throws Exception {
         TestSessionFactory testSessionFactory = createSessionFactory(LdapLoadBalancing.ROUND_ROBIN);
@@ -208,13 +224,13 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 LdapSearchScope.SUB_TREE, loadBalancing);
         RealmConfig config = new RealmConfig("test-session-factory", settings, Settings.builder().put("path.home",
                 createTempDir()).build(), new ThreadContext(Settings.EMPTY));
-        return new TestSessionFactory(config, new SSLService(Settings.EMPTY, new Environment(config.globalSettings())));
+        return new TestSessionFactory(config, new SSLService(Settings.EMPTY, new Environment(config.globalSettings())), threadPool);
     }
 
     static class TestSessionFactory extends SessionFactory {
 
-        protected TestSessionFactory(RealmConfig config, SSLService sslService) {
-            super(config, sslService);
+        protected TestSessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) {
+            super(config, sslService, threadPool);
         }
 
         @Override

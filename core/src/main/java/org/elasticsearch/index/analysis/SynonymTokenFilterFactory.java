@@ -62,7 +62,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     protected Reader getRulesFromSettings(Environment env) {
         Reader rulesReader;
-        if (settings.getAsArray("synonyms", null) != null) {
+        if (settings.getAsList("synonyms", null) != null) {
             List<String> rulesList = Analysis.getWordList(env, settings, "synonyms");
             StringBuilder sb = new StringBuilder();
             for (String line : rulesList) {

@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.TemplateScript;
@@ -173,7 +172,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.analysis.analyzer.biword.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.biword.filter", "shingler", "lowercase")
+                .putList("index.analysis.analyzer.biword.filter", "shingler", "lowercase")
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 3));
@@ -253,7 +252,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.biword.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.biword.filter", "shingler", "lowercase")
+                .putList("index.analysis.analyzer.biword.filter", "shingler", "lowercase")
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 3));
@@ -427,7 +426,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("typ1", "body", "type=text,analyzer=stopwd").setSettings(
                 Settings.builder()
                         .put("index.analysis.analyzer.stopwd.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.stopwd.filter", "stop")
+                        .putList("index.analysis.analyzer.stopwd.filter", "stop")
         ));
         ensureGreen();
         index("test", "typ1", "1", "body", "this is a test");
@@ -444,9 +443,9 @@ public class SuggestSearchIT extends ESIntegTestCase {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.body.filter", "lowercase")
+                .putList("index.analysis.analyzer.body.filter", "lowercase")
                 .put("index.analysis.analyzer.bigram.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase")
+                .putList("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase")
                 .put("index.analysis.filter.my_shingle.type", "shingle")
                 .put("index.analysis.filter.my_shingle.output_unigrams", false)
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
@@ -482,9 +481,9 @@ public class SuggestSearchIT extends ESIntegTestCase {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.body.filter", "lowercase")
+                .putList("index.analysis.analyzer.body.filter", "lowercase")
                 .put("index.analysis.analyzer.bigram.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase")
+                .putList("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase")
                 .put("index.analysis.filter.my_shingle.type", "shingle")
                 .put("index.analysis.filter.my_shingle.output_unigrams", false)
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
@@ -615,9 +614,9 @@ public class SuggestSearchIT extends ESIntegTestCase {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.body.filter", "lowercase")
+                .putList("index.analysis.analyzer.body.filter", "lowercase")
                 .put("index.analysis.analyzer.bigram.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase")
+                .putList("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase")
                 .put("index.analysis.filter.my_shingle.type", "shingle")
                 .put("index.analysis.filter.my_shingle.output_unigrams", false)
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
@@ -685,7 +684,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
+                .putList("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 5)
@@ -745,7 +744,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
+                .putList("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 5)
@@ -781,7 +780,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.body.filter", "lowercase", "my_shingle")
+                .putList("index.analysis.analyzer.body.filter", "lowercase", "my_shingle")
                 .put("index.analysis.filter.my_shingle.type", "shingle")
                 .put("index.analysis.filter.my_shingle.output_unigrams", true)
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
@@ -836,7 +835,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
                 .put("index.analysis.analyzer.text.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.text.filter", "lowercase", "my_shingle")
+                .putList("index.analysis.analyzer.text.filter", "lowercase", "my_shingle")
                 .put("index.analysis.filter.my_shingle.type", "shingle")
                 .put("index.analysis.filter.my_shingle.output_unigrams", true)
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
@@ -1026,7 +1025,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
                 .put("index.analysis.analyzer.text.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.text.filter", "lowercase", "my_shingle")
+                .putList("index.analysis.analyzer.text.filter", "lowercase", "my_shingle")
                 .put("index.analysis.filter.my_shingle.type", "shingle")
                 .put("index.analysis.filter.my_shingle.output_unigrams", true)
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)

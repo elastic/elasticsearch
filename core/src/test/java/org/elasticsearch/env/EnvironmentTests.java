@@ -42,7 +42,7 @@ public class EnvironmentTests extends ESTestCase {
         Settings build = Settings.builder()
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
         return new Environment(build);
     }
 
@@ -50,7 +50,7 @@ public class EnvironmentTests extends ESTestCase {
         Environment environment = newEnvironment();
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), nullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), nullValue());
-        environment = newEnvironment(Settings.builder().putArray(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other").build());
+        environment = newEnvironment(Settings.builder().putList(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other").build());
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/another/repos/repo1"), notNullValue());

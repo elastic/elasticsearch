@@ -27,6 +27,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
+import java.util.List;
 import java.util.regex.Pattern;
 
 public class PatternCaptureGroupTokenFilterFactory extends AbstractTokenFilterFactory {
@@ -37,13 +38,13 @@ public class PatternCaptureGroupTokenFilterFactory extends AbstractTokenFilterFa
 
     PatternCaptureGroupTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        String[] regexes = settings.getAsArray(PATTERNS_KEY, null, false);
+        List<String> regexes = settings.getAsList(PATTERNS_KEY, null, false);
         if (regexes == null) {
             throw new IllegalArgumentException("required setting '" + PATTERNS_KEY + "' is missing for token filter [" + name + "]");
         }
-        patterns = new Pattern[regexes.length];
-        for (int i = 0; i < regexes.length; i++) {
-            patterns[i] = Pattern.compile(regexes[i]);
+        patterns = new Pattern[regexes.size()];
+        for (int i = 0; i < regexes.size(); i++) {
+            patterns[i] = Pattern.compile(regexes.get(i));
         }
 
         preserveOriginal = settings.getAsBoolean(PRESERVE_ORIG_KEY, true);

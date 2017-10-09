@@ -26,6 +26,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractCharFilterFactory;
 
 import java.io.Reader;
+import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
@@ -36,8 +37,8 @@ public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
 
     HtmlStripCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name);
-        String[] escapedTags = settings.getAsArray("escaped_tags");
-        if (escapedTags.length > 0) {
+        List<String> escapedTags = settings.getAsList("escaped_tags");
+        if (escapedTags.size() > 0) {
             this.escapedTags = unmodifiableSet(newHashSet(escapedTags));
         } else {
             this.escapedTags = null;

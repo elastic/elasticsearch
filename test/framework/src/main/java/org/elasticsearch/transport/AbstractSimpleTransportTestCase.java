@@ -2455,8 +2455,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .put("transport.profiles.some_profile.port", "8900-9000")
             .put("transport.profiles.some_profile.bind_host", "_local:ipv4_")
             .put("transport.profiles.some_other_profile.port", "8700-8800")
-            .putArray("transport.profiles.some_other_profile.bind_host", hosts)
-            .putArray("transport.profiles.some_other_profile.publish_host", "_local:ipv4_")
+            .putList("transport.profiles.some_other_profile.bind_host", hosts)
+            .putList("transport.profiles.some_other_profile.publish_host", "_local:ipv4_")
             .build(), version0, null, true)) {
 
             serviceC.start();

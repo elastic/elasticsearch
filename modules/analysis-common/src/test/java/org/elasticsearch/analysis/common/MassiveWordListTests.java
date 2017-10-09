@@ -42,9 +42,9 @@ public class MassiveWordListTests extends ESSingleNodeTestCase {
             .put("index.number_of_shards", 1)
             .put("analysis.analyzer.test_analyzer.type", "custom")
             .put("analysis.analyzer.test_analyzer.tokenizer", "standard")
-            .putArray("analysis.analyzer.test_analyzer.filter", "dictionary_decompounder", "lowercase")
+            .putList("analysis.analyzer.test_analyzer.filter", "dictionary_decompounder", "lowercase")
             .put("analysis.filter.dictionary_decompounder.type", "dictionary_decompounder")
-            .putArray("analysis.filter.dictionary_decompounder.word_list", wordList)
+            .putList("analysis.filter.dictionary_decompounder.word_list", wordList)
         ).get();
     }
 }

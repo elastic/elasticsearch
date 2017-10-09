@@ -228,8 +228,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         zeroTermsQuery = MatchQuery.ZeroTermsQuery.readFromStream(in);
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             autoGenerateSynonymsPhraseQuery = in.readBoolean();
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             fuzzyTranspositions = in.readBoolean();
         }
     }
@@ -258,8 +256,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         zeroTermsQuery.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeBoolean(autoGenerateSynonymsPhraseQuery);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeBoolean(fuzzyTranspositions);
         }
     }

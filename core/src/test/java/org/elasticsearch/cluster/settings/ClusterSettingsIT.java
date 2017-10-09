@@ -34,6 +34,8 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 
+import java.util.Arrays;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.containsString;
@@ -242,11 +244,11 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     public void testCanUpdateTracerSettings() {
         ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putArray("transport.tracer.include", "internal:index/shard/recovery/*",
+            .setTransientSettings(Settings.builder().putList("transport.tracer.include", "internal:index/shard/recovery/*",
                 "internal:gateway/local*"))
             .get();
-        assertArrayEquals(clusterUpdateSettingsResponse.getTransientSettings().getAsArray("transport.tracer.include"), new String[] {"internal:index/shard/recovery/*",
-            "internal:gateway/local*"});
+        assertEquals(clusterUpdateSettingsResponse.getTransientSettings().getAsList("transport.tracer.include"),
+            Arrays.asList("internal:index/shard/recovery/*", "internal:gateway/local*"));
     }
 
     public void testUpdateDiscoveryPublishTimeout() {

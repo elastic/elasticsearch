@@ -38,9 +38,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -159,9 +157,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
     public void testMoreDocs() throws Exception {
         Builder builder = Settings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
-        builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
+        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
         builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
+        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
@@ -237,9 +235,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
     public void testSmallRescoreWindow() throws Exception {
         Builder builder = Settings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
-        builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
+        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
         builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
+        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
@@ -309,9 +307,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
     public void testRescorerMadeScoresWorse() throws Exception {
         Builder builder = Settings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
-        builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
+        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
         builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
+        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")

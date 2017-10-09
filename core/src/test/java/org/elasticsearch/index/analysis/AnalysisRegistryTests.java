@@ -129,9 +129,9 @@ public class AnalysisRegistryTests extends ESTestCase {
                 .put("index.analysis.filter.testFilter.type", "mock")
                 .put("index.analysis.filter.test_filter.type", "mock")
                 .put("index.analysis.analyzer.custom_analyzer_with_camel_case.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.custom_analyzer_with_camel_case.filter", "lowercase", "testFilter")
+                .putList("index.analysis.analyzer.custom_analyzer_with_camel_case.filter", "lowercase", "testFilter")
                 .put("index.analysis.analyzer.custom_analyzer_with_snake_case.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.custom_analyzer_with_snake_case.filter", "lowercase", "test_filter").build();
+                .putList("index.analysis.analyzer.custom_analyzer_with_snake_case.filter", "lowercase", "test_filter").build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
 
@@ -209,8 +209,8 @@ public class AnalysisRegistryTests extends ESTestCase {
             .builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, version)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .putArray("index.analysis.analyzer.test_analyzer.filter", new String[] {"lowercase", "stop", "shingle"})
-            .putArray("index.analysis.analyzer.test_analyzer.char_filter", new String[] {"html_strip"})
+            .putList("index.analysis.analyzer.test_analyzer.filter", new String[] {"lowercase", "stop", "shingle"})
+            .putList("index.analysis.analyzer.test_analyzer.char_filter", new String[] {"html_strip"})
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 

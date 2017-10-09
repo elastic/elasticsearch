@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -45,7 +46,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -163,99 +164,99 @@ public class SettingsTests extends ESTestCase {
     public void testThatArraysAreOverriddenCorrectly() throws IOException {
         // overriding a single value with an array
         Settings settings = Settings.builder()
-                .put(Settings.builder().putArray("value", "1").build())
-                .put(Settings.builder().putArray("value", "2", "3").build())
+                .put(Settings.builder().putList("value", "1").build())
+                .put(Settings.builder().putList("value", "2", "3").build())
                 .build();
-        assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
+        assertThat(settings.getAsList("value"), contains("2", "3"));
 
         settings = Settings.builder()
                 .put(Settings.builder().put("value", "1").build())
-                .put(Settings.builder().putArray("value", "2", "3").build())
+                .put(Settings.builder().putList("value", "2", "3").build())
                 .build();
-        assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
+        assertThat(settings.getAsList("value"), contains("2", "3"));
         settings = Settings.builder().loadFromSource("value: 1", XContentType.YAML)
             .loadFromSource("value: [ 2, 3 ]", XContentType.YAML)
             .build();
-        assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
+        assertThat(settings.getAsList("value"), contains("2", "3"));
 
         settings = Settings.builder()
                 .put(Settings.builder().put("value.with.deep.key", "1").build())
-                .put(Settings.builder().putArray("value.with.deep.key", "2", "3").build())
+                .put(Settings.builder().putList("value.with.deep.key", "2", "3").build())
                 .build();
-        assertThat(settings.getAsArray("value.with.deep.key"), arrayContaining("2", "3"));
+        assertThat(settings.getAsList("value.with.deep.key"), contains("2", "3"));
 
         // overriding an array with a shorter array
         settings = Settings.builder()
-                .put(Settings.builder().putArray("value", "1", "2").build())
-                .put(Settings.builder().putArray("value", "3").build())
+                .put(Settings.builder().putList("value", "1", "2").build())
+                .put(Settings.builder().putList("value", "3").build())
                 .build();
-        assertThat(settings.getAsArray("value"), arrayContaining("3"));
+        assertThat(settings.getAsList("value"), contains("3"));
 
         settings = Settings.builder()
-                .put(Settings.builder().putArray("value", "1", "2", "3").build())
-                .put(Settings.builder().putArray("value", "4", "5").build())
+                .put(Settings.builder().putList("value", "1", "2", "3").build())
+                .put(Settings.builder().putList("value", "4", "5").build())
                 .build();
-        assertThat(settings.getAsArray("value"), arrayContaining("4", "5"));
+        assertThat(settings.getAsList("value"), contains("4", "5"));
 
         settings = Settings.builder()
-                .put(Settings.builder().putArray("value.deep.key", "1", "2", "3").build())
-                .put(Settings.builder().putArray("value.deep.key", "4", "5").build())
+                .put(Settings.builder().putList("value.deep.key", "1", "2", "3").build())
+                .put(Settings.builder().putList("value.deep.key", "4", "5").build())
                 .build();
-        assertThat(settings.getAsArray("value.deep.key"), arrayContaining("4", "5"));
+        assertThat(settings.getAsList("value.deep.key"), contains("4", "5"));
 
         // overriding an array with a longer array
         settings = Settings.builder()
-                .put(Settings.builder().putArray("value", "1", "2").build())
-                .put(Settings.builder().putArray("value", "3", "4", "5").build())
+                .put(Settings.builder().putList("value", "1", "2").build())
+                .put(Settings.builder().putList("value", "3", "4", "5").build())
                 .build();
-        assertThat(settings.getAsArray("value"), arrayContaining("3", "4", "5"));
+        assertThat(settings.getAsList("value"), contains("3", "4", "5"));
 
         settings = Settings.builder()
-                .put(Settings.builder().putArray("value.deep.key", "1", "2", "3").build())
-                .put(Settings.builder().putArray("value.deep.key", "4", "5").build())
+                .put(Settings.builder().putList("value.deep.key", "1", "2", "3").build())
+                .put(Settings.builder().putList("value.deep.key", "4", "5").build())
                 .build();
-        assertThat(settings.getAsArray("value.deep.key"), arrayContaining("4", "5"));
+        assertThat(settings.getAsList("value.deep.key"), contains("4", "5"));
 
         // overriding an array with a single value
         settings = Settings.builder()
-                .put(Settings.builder().putArray("value", "1", "2").build())
+                .put(Settings.builder().putList("value", "1", "2").build())
                 .put(Settings.builder().put("value", "3").build())
                 .build();
-        assertThat(settings.getAsArray("value"), arrayContaining("3"));
+        assertThat(settings.getAsList("value"), contains("3"));
 
         settings = Settings.builder()
-                .put(Settings.builder().putArray("value.deep.key", "1", "2").build())
+                .put(Settings.builder().putList("value.deep.key", "1", "2").build())
                 .put(Settings.builder().put("value.deep.key", "3").build())
                 .build();
-        assertThat(settings.getAsArray("value.deep.key"), arrayContaining("3"));
+        assertThat(settings.getAsList("value.deep.key"), contains("3"));
 
         // test that other arrays are not overridden
         settings = Settings.builder()
-                .put(Settings.builder().putArray("value", "1", "2", "3").putArray("a", "b", "c").build())
-                .put(Settings.builder().putArray("value", "4", "5").putArray("d", "e", "f").build())
+                .put(Settings.builder().putList("value", "1", "2", "3").putList("a", "b", "c").build())
+                .put(Settings.builder().putList("value", "4", "5").putList("d", "e", "f").build())
                 .build();
-        assertThat(settings.getAsArray("value"), arrayContaining("4", "5"));
-        assertThat(settings.getAsArray("a"), arrayContaining("b", "c"));
-        assertThat(settings.getAsArray("d"), arrayContaining("e", "f"));
+        assertThat(settings.getAsList("value"), contains("4", "5"));
+        assertThat(settings.getAsList("a"), contains("b", "c"));
+        assertThat(settings.getAsList("d"), contains("e", "f"));
 
         settings = Settings.builder()
-                .put(Settings.builder().putArray("value.deep.key", "1", "2", "3").putArray("a", "b", "c").build())
-                .put(Settings.builder().putArray("value.deep.key", "4", "5").putArray("d", "e", "f").build())
+                .put(Settings.builder().putList("value.deep.key", "1", "2", "3").putList("a", "b", "c").build())
+                .put(Settings.builder().putList("value.deep.key", "4", "5").putList("d", "e", "f").build())
                 .build();
-        assertThat(settings.getAsArray("value.deep.key"), arrayContaining("4", "5"));
-        assertThat(settings.getAsArray("a"), notNullValue());
-        assertThat(settings.getAsArray("d"), notNullValue());
+        assertThat(settings.getAsList("value.deep.key"), contains("4", "5"));
+        assertThat(settings.getAsList("a"), notNullValue());
+        assertThat(settings.getAsList("d"), notNullValue());
 
         // overriding a deeper structure with an array
         settings = Settings.builder()
                 .put(Settings.builder().put("value.data", "1").build())
-                .put(Settings.builder().putArray("value", "4", "5").build())
+                .put(Settings.builder().putList("value", "4", "5").build())
                 .build();
-        assertThat(settings.getAsArray("value"), arrayContaining("4", "5"));
+        assertThat(settings.getAsList("value"), contains("4", "5"));
 
         // overriding an array with a deeper structure
         settings = Settings.builder()
-                .put(Settings.builder().putArray("value", "4", "5").build())
+                .put(Settings.builder().putList("value", "4", "5").build())
                 .put(Settings.builder().put("value.data", "1").build())
                 .build();
         assertThat(settings.get("value.data"), is("1"));
@@ -475,7 +476,7 @@ public class SettingsTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         builder.put("test.key1.baz", "blah1");
         builder.putNull("test.key3.bar");
-        builder.putArray("test.key4.foo", "1", "2");
+        builder.putList("test.key4.foo", "1", "2");
         builder.setSecureSettings(secureSettings);
         assertEquals(7, builder.build().size());
         Settings.writeSettingsToStream(builder.build(), out);
@@ -485,7 +486,7 @@ public class SettingsTests extends ESTestCase {
         assertEquals("blah1", settings.get("test.key1.baz"));
         assertNull(settings.get("test.key3.bar"));
         assertTrue(settings.keySet().contains("test.key3.bar"));
-        assertArrayEquals(new String[] {"1", "2"}, settings.getAsArray("test.key4.foo"));
+        assertEquals(Arrays.asList("1", "2"), settings.getAsList("test.key4.foo"));
     }
 
     public void testSecureSettingConflict() {
@@ -506,7 +507,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testToAndFromXContent() throws IOException {
         Settings settings = Settings.builder()
-            .putArray("foo.bar.baz", "1", "2", "3")
+            .putList("foo.bar.baz", "1", "2", "3")
             .put("foo.foobar", 2)
             .put("rootfoo", "test")
             .put("foo.baz", "1,2,3,4")
@@ -520,7 +521,7 @@ public class SettingsTests extends ESTestCase {
         XContentParser parser = createParser(builder);
         Settings build = Settings.fromXContent(parser);
         assertEquals(5, build.size());
-        assertArrayEquals(new String[] {"1", "2", "3"}, build.getAsArray("foo.bar.baz"));
+        assertEquals(Arrays.asList("1", "2", "3"), build.getAsList("foo.bar.baz"));
         assertEquals(2, build.getAsInt("foo.foobar", 0).intValue());
         assertEquals("test", build.get("rootfoo"));
         assertEquals("1,2,3,4", build.get("foo.baz"));
@@ -540,9 +541,9 @@ public class SettingsTests extends ESTestCase {
         // check array
         assertNull(settings.get("test1.test3.0"));
         assertNull(settings.get("test1.test3.1"));
-        assertThat(settings.getAsArray("test1.test3").length, equalTo(2));
-        assertThat(settings.getAsArray("test1.test3")[0], equalTo("test3-1"));
-        assertThat(settings.getAsArray("test1.test3")[1], equalTo("test3-2"));
+        assertThat(settings.getAsList("test1.test3").size(), equalTo(2));
+        assertThat(settings.getAsList("test1.test3").get(0), equalTo("test3-1"));
+        assertThat(settings.getAsList("test1.test3").get(1), equalTo("test3-2"));
     }
 
     public void testDuplicateKeysThrowsException() {
@@ -573,14 +574,14 @@ public class SettingsTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         // this is just terrible but it's the existing behavior!
-        Settings test = Settings.builder().putArray("foo.bar", "1", "2", "3").put("foo.bar.baz", "test").build();
+        Settings test = Settings.builder().putList("foo.bar", "1", "2", "3").put("foo.bar.baz", "test").build();
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
         builder.endObject();
         assertEquals("{\"foo\":{\"bar.baz\":\"test\",\"bar\":[\"1\",\"2\",\"3\"]}}", builder.string());
 
-        test = Settings.builder().putArray("foo.bar", "1", "2", "3").build();
+        test = Settings.builder().putList("foo.bar", "1", "2", "3").build();
         builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
@@ -613,9 +614,18 @@ public class SettingsTests extends ESTestCase {
         // check array
         assertNull(settings.get("test1.test3.0"));
         assertNull(settings.get("test1.test3.1"));
-        assertThat(settings.getAsArray("test1.test3").length, equalTo(2));
-        assertThat(settings.getAsArray("test1.test3")[0], equalTo("test3-1"));
-        assertThat(settings.getAsArray("test1.test3")[1], equalTo("test3-2"));
+        assertThat(settings.getAsList("test1.test3").size(), equalTo(2));
+        assertThat(settings.getAsList("test1.test3").get(0), equalTo("test3-1"));
+        assertThat(settings.getAsList("test1.test3").get(1), equalTo("test3-2"));
+    }
+
+    public void testYamlLegacyList() throws IOException {
+        Settings settings = Settings.builder()
+            .loadFromStream("foo.yml", new ByteArrayInputStream("foo.bar.baz.0: 1\nfoo.bar.baz.1: 2".getBytes(StandardCharsets.UTF_8)),
+                false).build();
+        assertThat(settings.getAsList("foo.bar.baz").size(), equalTo(2));
+        assertThat(settings.getAsList("foo.bar.baz").get(0), equalTo("1"));
+        assertThat(settings.getAsList("foo.bar.baz").get(1), equalTo("2"));
     }
 
     public void testIndentation() throws Exception {
@@ -648,7 +658,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testReadLegacyFromStream() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(VersionUtils.getPreviousVersion(Version.CURRENT));
+        output.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
         output.writeVInt(5);
         output.writeString("foo.bar.1");
         output.writeOptionalString("1");
@@ -661,17 +671,17 @@ public class SettingsTests extends ESTestCase {
         output.writeString("foo.bar.baz");
         output.writeOptionalString("baz");
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
-        in.setVersion(VersionUtils.getPreviousVersion(Version.CURRENT));
+        in.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
         Settings settings = Settings.readSettingsFromStream(in);
         assertEquals(2, settings.size());
-        assertArrayEquals(new String[]{"0", "1", "2", "3"}, settings.getAsArray("foo.bar"));
+        assertEquals(Arrays.asList("0", "1", "2", "3"), settings.getAsList("foo.bar"));
         assertEquals("baz", settings.get("foo.bar.baz"));
     }
 
     public void testWriteLegacyOutput() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(VersionUtils.getPreviousVersion(Version.CURRENT));
-        Settings settings = Settings.builder().putArray("foo.bar", "0", "1", "2", "3")
+        output.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
+        Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3")
             .put("foo.bar.baz", "baz").putNull("foo.null").build();
         Settings.writeSettingsToStream(settings, output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
@@ -692,7 +702,7 @@ public class SettingsTests extends ESTestCase {
         in.setVersion(output.getVersion());
         Settings readSettings = Settings.readSettingsFromStream(in);
         assertEquals(3, readSettings.size());
-        assertArrayEquals(new String[] {"0", "1", "2", "3"}, readSettings.getAsArray("foo.bar"));
+        assertEquals(Arrays.asList("0", "1", "2", "3"), readSettings.getAsList("foo.bar"));
         assertEquals(readSettings.get("foo.bar.baz"), "baz");
         assertTrue(readSettings.keySet().contains("foo.null"));
         assertNull(readSettings.get("foo.null"));
@@ -700,19 +710,19 @@ public class SettingsTests extends ESTestCase {
 
     public void testReadWriteArray() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(Version.CURRENT);
-        Settings settings = Settings.builder().putArray("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
+        output.setVersion(randomFrom(Version.CURRENT, Version.V_6_1_0));
+        Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
         Settings.writeSettingsToStream(settings, output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
         Settings build = Settings.readSettingsFromStream(in);
         assertEquals(2, build.size());
-        assertArrayEquals(build.getAsArray("foo.bar"), new String[] {"0", "1", "2", "3"});
+        assertEquals(build.getAsList("foo.bar"), Arrays.asList("0", "1", "2", "3"));
         assertEquals(build.get("foo.bar.baz"), "baz");
     }
 
     public void testCopy() {
-        Settings settings = Settings.builder().putArray("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").putNull("test").build();
-        assertArrayEquals(new String[] {"0", "1", "2", "3"}, Settings.builder().copy("foo.bar", settings).build().getAsArray("foo.bar"));
+        Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").putNull("test").build();
+        assertEquals(Arrays.asList("0", "1", "2", "3"), Settings.builder().copy("foo.bar", settings).build().getAsList("foo.bar"));
         assertEquals("baz", Settings.builder().copy("foo.bar.baz", settings).build().get("foo.bar.baz"));
         assertNull(Settings.builder().copy("foo.bar.baz", settings).build().get("test"));
         assertTrue(Settings.builder().copy("test", settings).build().keySet().contains("test"));

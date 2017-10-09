@@ -183,7 +183,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
 
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
-    private static final int PING_DATA_SIZE = -1;
+    public static final int PING_DATA_SIZE = -1;
     private final CircuitBreakerService circuitBreakerService;
     // package visibility for tests
     protected final ScheduledPing scheduledPing;

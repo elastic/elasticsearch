@@ -620,6 +620,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
+    /**
+     * Callback invoked when a channel is opened.
+     *
+     * @param channel the opened channel
+     */
     protected void onChannelOpen(final Channel channel) {
 
     }
@@ -1041,6 +1046,17 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     protected abstract void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener);
 
+    /**
+     * Connect to the node with channels as defined by the specified connection profile. Implementations must invoke the specified channel
+     * open and close callbacks when a channel is successfully opened or a channel is subsequently closed.
+     *
+     * @param node              the node to connect to
+     * @param connectionProfile the connection profile
+     * @param onChannelOpen     callback to invoke when a channel is opened
+     * @param onChannelClose    callback to invoke when a channel is closed
+     * @return the channels
+     * @throws IOException if an I/O exception occurs while opening channels
+     */
     protected abstract NodeChannels connectToChannels(DiscoveryNode node,
                                                       ConnectionProfile connectionProfile,
                                                       Consumer<Channel> onChannelOpen,

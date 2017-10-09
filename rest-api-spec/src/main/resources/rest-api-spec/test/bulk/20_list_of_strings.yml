@@ -1,5 +1,10 @@
 ---
 "List of strings":
+  - skip:
+      version: " - 6.0.99"
+      reason:  '[_primary] shard preference deprecated in 6.1+'
+      features: "warnings"
+
   - do:
       bulk:
         refresh: true
@@ -14,6 +19,9 @@
         # we count through the primary in case there is a replica that has not yet fully recovered
         preference: _primary
         index: test_index
+      warnings:
+        - "[_primary] has been deprecated in 6.1+, and will be removed in 7.0; use [_only_nodes] or [_prefer_nodes]"
+
 
   - match: {count: 2}
 

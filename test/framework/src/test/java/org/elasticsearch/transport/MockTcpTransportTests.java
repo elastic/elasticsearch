@@ -72,4 +72,9 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase<MockT
         }
     }
 
+    @Override
+    protected boolean opensMultipleChannels() {
+        return false;
+    }
+
 }

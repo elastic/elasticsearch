@@ -2626,15 +2626,38 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
     public void testChannelCloseWhileConnecting() throws IOException {
         /*
          * We have to keep the first connection open so the handshake succeeds and then we later fail when checking if all the connections
-         * are open.
+         * are open. For mock TCP transport there is only a single connection that is open so we have to defer closing it until immediately
+         * after the handshake is complete to simulate a channel closing while we are connecting.
          */
-        final AtomicBoolean first = new AtomicBoolean();
-        final MockTransportService service =
-                buildService("service", version0, clusterSettings, Settings.EMPTY, true, true, channel -> {
-                    if (!first.compareAndSet(false, true)) {
-                        close(channel);
-                    }
-                });
+        final MockTransportService service;
+        if (opensMultipleChannels()) {
+            final AtomicBoolean first = new AtomicBoolean();
+            service =
+                    buildService("service", version0, clusterSettings, Settings.EMPTY, true, true, channel -> {
+                        if (!first.compareAndSet(false, true)) {
+                            close(channel);
+                        }
+                    });
+        } else {
+            final NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+            final NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+            final NetworkService networkService = new NetworkService(Collections.emptyList());
+            final Transport transport =
+                    new MockTcpTransport(
+                            Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE, circuitBreakerService, registry, networkService) {
+                        @Override
+                        protected Version executeHandshake(
+                                DiscoveryNode node, MockChannel mockChannel, TimeValue timeout) throws IOException, InterruptedException {
+                            final Version version = super.executeHandshake(node, mockChannel, timeout);
+                            mockChannel.close();
+                            return version;
+                        }
+                    };
+            service =
+                    MockTransportService.createNewService(Settings.EMPTY, transport, version0, threadPool, clusterSettings);
+            service.start();
+        }
+
         final TcpTransport underlyingTransport = (TcpTransport) service.getOriginalTransport();
 
         final String otherName = "other_service";
@@ -2646,6 +2669,10 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
             assertThat(e, hasToString(containsString("a channel closed while connecting")));
         }
         service.close();
+    }
+
+    protected boolean opensMultipleChannels() {
+        return true;
     }
 
     protected abstract void close(Channel channel);

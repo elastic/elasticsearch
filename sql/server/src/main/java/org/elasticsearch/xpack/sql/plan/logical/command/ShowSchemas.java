@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.session.RowSet;
@@ -29,8 +30,8 @@ public class ShowSchemas extends Command {
     }
 
     @Override
-    protected RowSet execute(SqlSession session) {
-        return Rows.empty(output());
+    public void execute(SqlSession session, ActionListener<RowSet> listener) {
+        listener.onResponse(Rows.empty(output()));
     }
 
     @Override

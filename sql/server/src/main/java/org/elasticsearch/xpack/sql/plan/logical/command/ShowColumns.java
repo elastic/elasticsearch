@@ -59,11 +59,6 @@ public class ShowColumns extends Command {
         ));
     }
 
-    @Override
-    protected RowSet execute(SqlSession session) {
-        throw new UnsupportedOperationException("No synchronous exec");
-    }
-
     private void fillInRows(Map<String, DataType> mapping, String prefix, List<List<?>> rows) {
         for (Entry<String, DataType> e : mapping.entrySet()) {
             DataType dt = e.getValue();

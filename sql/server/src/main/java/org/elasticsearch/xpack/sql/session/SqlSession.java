@@ -93,13 +93,6 @@ public class SqlSession {
         }, listener::onFailure));
     }
 
-    /**
-     * Get an index. Prefer not to use this method as it cannot be made to work with cross cluster search.
-     */
-    public EsIndex getIndexSync(String index) {
-        return catalog.getIndex(index).get();
-    }
-
     public Planner planner() {
         return planner;
     }

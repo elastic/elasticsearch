@@ -55,11 +55,6 @@ public class ShowTables extends Command {
     }
 
     @Override
-    protected RowSet execute(SqlSession session) {
-        throw new UnsupportedOperationException("No synchronous exec");
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(pattern);
     }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.FunctionDefinition;
@@ -42,13 +43,13 @@ public class ShowFunctions extends Command {
     }
 
     @Override
-    protected RowSet execute(SqlSession session) {
+    public void execute(SqlSession session, ActionListener<RowSet> listener) {
         FunctionRegistry registry = session.functionRegistry();
         Collection<FunctionDefinition> functions = registry.listFunctions(pattern);
         
-        return Rows.of(output(), functions.stream()
+        listener.onResponse(Rows.of(output(), functions.stream()
                 .map(f -> asList(f.name(), f.type().name()))
-                .collect(toList()));
+                .collect(toList())));
     }
 
     @Override

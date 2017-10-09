@@ -5,11 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.session.Executable;
-import org.elasticsearch.xpack.sql.session.RowSet;
-import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 import static java.util.Collections.emptyList;
@@ -24,11 +21,4 @@ public abstract class Command extends LogicalPlan implements Executable {
     public boolean expressionsResolved() {
         return true;
     }
-
-    @Override
-    public void execute(SqlSession session, ActionListener<RowSet> listener) {
-        listener.onResponse(execute(session));
-    }
-
-    protected abstract RowSet execute(SqlSession session);
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.plan.QueryPlan;
@@ -71,7 +72,7 @@ public class Explain extends Command {
     }
 
     @Override
-    protected RowSet execute(SqlSession session) {
+    public void execute(SqlSession session, ActionListener<RowSet> listener) {
         String planString = null;
         String planName = "Parsed";
 
@@ -164,7 +165,7 @@ public class Explain extends Command {
             planString = (format == Format.TEXT ? queryPlan.toString() : Graphviz.dot(planName, queryPlan));
         }
 
-        return Rows.singleton(output(), planString);
+        listener.onResponse(Rows.singleton(output(), planString));
     }
 
     @Override

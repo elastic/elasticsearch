@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
@@ -68,7 +69,7 @@ public class Debug extends Command {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
-    protected RowSet execute(SqlSession session) {
+    public void execute(SqlSession session, ActionListener<RowSet> listener) {
         String planString = null;
 
         ExecutionInfo info = null;
@@ -131,7 +132,7 @@ public class Debug extends Command {
             }
         }
 
-        return Rows.singleton(output(), planString);
+        listener.onResponse(Rows.singleton(output(), planString));
     }
 
     @Override

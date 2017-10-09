@@ -149,7 +149,7 @@ And now we are ready to start our node and single cluster:
 
 == Instalation with Homebrew
 
-Elastisearch can also be installed via Homebrew:
+Elasticsearch can also be installed via Homebrew:
 
 --------------------------------------------------
 brew install elasticsearch

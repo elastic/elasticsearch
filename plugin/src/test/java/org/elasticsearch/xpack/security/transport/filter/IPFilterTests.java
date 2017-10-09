@@ -96,7 +96,7 @@ public class IPFilterTests extends ESTestCase {
         // 1234:0db8:85a3:0000:0000:8a2e:0370:7334 becomes 1234:db8:85a3:0:0:8a2e:370:7334
         Settings settings = Settings.builder()
                 .put("xpack.security.transport.filter.allow", "2001:0db8:1234::/48")
-                .putArray("xpack.security.transport.filter.deny", "1234:db8:85a3:0:0:8a2e:370:7334", "4321:db8:1234::/48")
+                .putList("xpack.security.transport.filter.deny", "1234:db8:85a3:0:0:8a2e:370:7334", "4321:db8:1234::/48")
                 .build();
         ipFilter = new IPFilter(settings, auditTrail, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
@@ -154,7 +154,7 @@ public class IPFilterTests extends ESTestCase {
                 .build();
         ipFilter = new IPFilter(settings, auditTrail, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
-        Settings newSettings = Settings.builder().putArray("transport.profiles.client.xpack.security.filter.allow", "192.168.0.1",
+        Settings newSettings = Settings.builder().putList("transport.profiles.client.xpack.security.filter.allow", "192.168.0.1",
                 "192.168.0.2")
                 .put("transport.profiles.client.xpack.security.filter.deny", "192.168.0.3").build();
         Settings.Builder updatedSettingsBuilder = Settings.builder();
@@ -220,7 +220,7 @@ public class IPFilterTests extends ESTestCase {
 
         Settings settings;
         if (randomBoolean()) {
-            settings = Settings.builder().putArray("xpack.security.transport.filter.deny",
+            settings = Settings.builder().putList("xpack.security.transport.filter.deny",
                     addressStrings.toArray(new String[addressStrings.size()])).build();
         } else {
             settings = Settings.builder().put("xpack.security.transport.filter.deny", "_all").build();

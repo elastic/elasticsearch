@@ -226,7 +226,7 @@ public class ExecutableJiraActionTests extends ESTestCase {
 
     public void testExecutionFieldsStringArrays() throws Exception {
         Settings build = Settings.builder()
-                .putArray("k0", "a", "b", "c")
+                .putList("k0", "a", "b", "c")
                 .put("k1", "v1")
                 .build();
         Map<String, String> defaults = build.keySet().stream().collect(Collectors.toMap(Function.identity(), k -> build.get(k)));
@@ -244,7 +244,7 @@ public class ExecutableJiraActionTests extends ESTestCase {
 
     public void testExecutionFieldsStringArraysNotOverridden() throws Exception {
         Settings build = Settings.builder()
-                .putArray("k0", "a", "b", "c")
+                .putList("k0", "a", "b", "c")
                 .build();
         Map<String, String> defaults = build.keySet().stream().collect(Collectors.toMap(Function.identity(), k -> build.get(k)));
         Map<String, Object> fields = new HashMap<>();

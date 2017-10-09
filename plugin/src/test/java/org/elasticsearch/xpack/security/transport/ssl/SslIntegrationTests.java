@@ -61,7 +61,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
-                .putArray("xpack.ssl.cipher_suites", "TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA")
+                .putList("xpack.ssl.cipher_suites", "TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA")
                 .build())) {
 
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
@@ -80,7 +80,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
-                .putArray("xpack.ssl.supported_protocols", new String[]{"SSLv3"})
+                .putList("xpack.ssl.supported_protocols", new String[]{"SSLv3"})
                 .build())) {
 
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());

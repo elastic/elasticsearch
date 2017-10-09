@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
@@ -69,11 +70,12 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
      * @param poolingEnabled the setting that should be used to determine if connection pooling is enabled
      * @param bindRequestSupplier the supplier for a bind requests that should be used for pooled connections
      * @param healthCheckDNSupplier a supplier for the dn to query for health checks
+     * @param threadPool a thread pool used for async queries execution
      */
     PoolingSessionFactory(RealmConfig config, SSLService sslService, LdapSession.GroupsResolver groupResolver,
-                          Setting<Boolean> poolingEnabled, Supplier<BindRequest> bindRequestSupplier,
-                          Supplier<String> healthCheckDNSupplier) throws LDAPException {
-        super(config, sslService);
+            Setting<Boolean> poolingEnabled, Supplier<BindRequest> bindRequestSupplier, Supplier<String> healthCheckDNSupplier,
+            ThreadPool threadPool) throws LDAPException {
+        super(config, sslService, threadPool);
         this.groupResolver = groupResolver;
         this.metaDataResolver = new LdapMetaDataResolver(config.settings(), ignoreReferralErrors);
         this.useConnectionPool = poolingEnabled.get(config.settings());
@@ -176,6 +178,15 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
         if (connectionPool != null) {
             connectionPool.close();
         }
+    }
+
+    /**
+     * For tests use only
+     *
+     * @return the connection pool for LDAP queries
+     */
+    LDAPConnectionPool getConnectionPool() {
+        return connectionPool;
     }
 
     public static Set<Setting<?>> getSettings() {

@@ -530,12 +530,12 @@ public class Email implements ToXContentObject {
         }
 
         public static AddressList parse(Settings settings, String name) {
-            String[] addresses = settings.getAsArray(name);
-            if (addresses == null || addresses.length == 0) {
+            List<String> addresses = settings.getAsList(name);
+            if (addresses == null || addresses.isEmpty()) {
                 return null;
             }
             try {
-                List<Address> list = new ArrayList<>(addresses.length);
+                List<Address> list = new ArrayList<>(addresses.size());
                 for (String address : addresses) {
                     list.add(new Address(address));
                 }

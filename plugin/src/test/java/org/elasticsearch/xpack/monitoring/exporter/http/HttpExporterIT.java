@@ -151,7 +151,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 .put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", includeOldTemplates)
                 .put("xpack.monitoring.exporters._http.headers.X-Cloud-Cluster", headerValue)
                 .put("xpack.monitoring.exporters._http.headers.X-Found-Cluster", headerValue)
-                .putArray("xpack.monitoring.exporters._http.headers.Array-Check", array)
+                .putList("xpack.monitoring.exporters._http.headers.Array-Check", array)
                 .build();
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
@@ -210,7 +210,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         if (useHeaders) {
             builder.put("xpack.monitoring.exporters._http.headers.X-Cloud-Cluster", headerValue)
                     .put("xpack.monitoring.exporters._http.headers.X-Found-Cluster", headerValue)
-                    .putArray("xpack.monitoring.exporters._http.headers.Array-Check", array);
+                    .putList("xpack.monitoring.exporters._http.headers.Array-Check", array);
         }
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
@@ -254,7 +254,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
             final Settings newSettings = Settings.builder()
                     .put(settings)
-                    .putArray("xpack.monitoring.exporters._http.host", getFormattedAddress(secondWebServer))
+                    .putList("xpack.monitoring.exporters._http.host", getFormattedAddress(secondWebServer))
                     .build();
 
             enqueueGetClusterVersionResponse(secondWebServer, Version.CURRENT);

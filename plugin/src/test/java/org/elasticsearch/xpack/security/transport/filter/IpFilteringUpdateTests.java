@@ -15,6 +15,7 @@ import org.junit.BeforeClass;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.Locale;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -61,8 +62,8 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         assertConnectionRejected("default", "127.0.0.8");
 
         settings = Settings.builder()
-                .putArray("xpack.security.http.filter.allow", "127.0.0.1")
-                .putArray("xpack.security.http.filter.deny", "127.0.0.8")
+                .putList("xpack.security.http.filter.allow", "127.0.0.1")
+                .putList("xpack.security.http.filter.deny", "127.0.0.8")
                 .build();
         updateSettings(settings);
         assertConnectionRejected("default", "127.0.0.8");
@@ -81,8 +82,8 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         assertThat(clusterState.metaData().settings().get("xpack.security.transport.filter.allow"), is("127.0.0.1"));
         assertThat(clusterState.metaData().settings().get("xpack.security.transport.filter.deny"), is("127.0.0.8"));
-        assertArrayEquals(new String[] {"127.0.0.1"},clusterState.metaData().settings().getAsArray("xpack.security.http.filter.allow"));
-        assertArrayEquals(new String[] {"127.0.0.8"},clusterState.metaData().settings().getAsArray("xpack.security.http.filter.deny"));
+        assertEquals(Arrays.asList("127.0.0.1"), clusterState.metaData().settings().getAsList("xpack.security.http.filter.allow"));
+        assertEquals(Arrays.asList("127.0.0.8"), clusterState.metaData().settings().getAsList("xpack.security.http.filter.deny"));
         assertThat(clusterState.metaData().settings().get("transport.profiles.client.xpack.security.filter.allow"), is("127.0.0.1"));
         assertThat(clusterState.metaData().settings().get("transport.profiles.client.xpack.security.filter.deny"), is("127.0.0.8"));
 
@@ -99,8 +100,8 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         clusterState = client().admin().cluster().prepareState().get().getState();
         assertThat(clusterState.metaData().settings().get("xpack.security.transport.filter.allow"), is("127.0.0.1"));
         assertThat(clusterState.metaData().settings().get("xpack.security.transport.filter.deny"), is("127.0.0.8"));
-        assertArrayEquals(new String[] {"127.0.0.1"},clusterState.metaData().settings().getAsArray("xpack.security.http.filter.allow"));
-        assertArrayEquals(new String[] {"127.0.0.8"},clusterState.metaData().settings().getAsArray("xpack.security.http.filter.deny"));
+        assertEquals(Arrays.asList("127.0.0.1"), clusterState.metaData().settings().getAsList("xpack.security.http.filter.allow"));
+        assertEquals(Arrays.asList("127.0.0.8"), clusterState.metaData().settings().getAsList("xpack.security.http.filter.deny"));
         assertThat(clusterState.metaData().settings().get("transport.profiles.client.xpack.security.filter.allow"), is("127.0.0.1"));
         assertThat(clusterState.metaData().settings().get("transport.profiles.client.xpack.security.filter.deny"), is("127.0.0.8"));
 

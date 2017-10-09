@@ -85,7 +85,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         nodeSSL = Settings.builder()
                 .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.security.transport.ssl.verification_mode", "certificate")
-                .putArray("xpack.ssl.certificate_authorities", ca.getCertPath().toString())
+                .putList("xpack.ssl.certificate_authorities", ca.getCertPath().toString())
                 .put("xpack.ssl.key", trustedCert.getKeyPath())
                 .put("xpack.ssl.certificate", trustedCert.getCertPath())
                 .build();
@@ -183,7 +183,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
                 .put("path.home", createTempDir())
                 .put("xpack.ssl.key", certificate.getKeyPath())
                 .put("xpack.ssl.certificate", certificate.getCertPath())
-                .putArray("xpack.ssl.certificate_authorities", ca.getCertPath().toString())
+                .putList("xpack.ssl.certificate_authorities", ca.getCertPath().toString())
                 .put("xpack.ssl.verification_mode", "certificate")
                 .build();
 

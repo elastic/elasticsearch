@@ -77,7 +77,7 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
     protected void withCollectionIndices(final String[] collectionIndices) {
         final String key = Collector.INDICES.getKey();
         if (collectionIndices != null) {
-            withCollectionSetting(builder -> builder.putArray(key, collectionIndices));
+            withCollectionSetting(builder -> builder.putList(key, collectionIndices));
         } else {
             withCollectionSetting(builder -> builder.putNull(key));
         }

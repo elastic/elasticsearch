@@ -9,7 +9,6 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import java.util.Arrays;
 
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -60,7 +59,7 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.supportedProtocols.match("ssl.supported_protocols"), is(true));
 
         final Settings settings = Settings.builder()
-                .putArray("ssl.supported_protocols", "SSLv3", "SSLv2Hello", "SSLv2")
+                .putList("ssl.supported_protocols", "SSLv3", "SSLv2Hello", "SSLv2")
                 .build();
         assertThat(ssl.supportedProtocols.get(settings), is(Arrays.asList("SSLv3", "SSLv2Hello", "SSLv2")));
     }

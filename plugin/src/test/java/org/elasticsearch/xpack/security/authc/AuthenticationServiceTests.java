@@ -48,7 +48,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -476,7 +475,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testAnonymousUserRest() throws Exception {
         String username = randomBoolean() ? AnonymousUser.DEFAULT_ANONYMOUS_USERNAME : "user1";
         Settings.Builder builder = Settings.builder()
-                .putArray(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3");
+                .putList(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3");
         if (username.equals(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME) == false) {
             builder.put(AnonymousUser.USERNAME_SETTING.getKey(), username);
         }
@@ -497,7 +496,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testAnonymousUserTransportNoDefaultUser() throws Exception {
         Settings settings = Settings.builder()
-                .putArray(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3")
+                .putList(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3")
                 .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         service = new AuthenticationService(settings, realms, auditTrail,
@@ -512,7 +511,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testAnonymousUserTransportWithDefaultUser() throws Exception {
         Settings settings = Settings.builder()
-                .putArray(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3")
+                .putList(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3")
                 .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         service = new AuthenticationService(settings, realms, auditTrail,

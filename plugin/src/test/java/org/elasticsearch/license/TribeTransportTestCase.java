@@ -43,7 +43,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -172,9 +171,9 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
         tribe1Defaults.normalizePrefix("tribe.t1.");
         tribe2Defaults.normalizePrefix("tribe.t2.");
         // give each tribe it's unicast hosts to connect to
-        tribe1Defaults.putArray("tribe.t1." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
+        tribe1Defaults.putList("tribe.t1." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
                 getUnicastHosts(internalCluster().client()));
-        tribe1Defaults.putArray("tribe.t2." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
+        tribe1Defaults.putList("tribe.t2." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
                 getUnicastHosts(cluster2.client()));
 
         Settings merged = Settings.builder()

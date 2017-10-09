@@ -51,7 +51,7 @@ public class IncidentEventDefaultsTests extends ESTestCase {
             for (int i = 0; i < to.length; i++) {
                 to[i] = randomAlphaOfLength(10);
             }
-            settings.putArray("to", to);
+            settings.putList("to", to);
         }
         if (randomBoolean()) {
             settings.put("text", randomAlphaOfLength(10));

@@ -141,6 +141,10 @@ forbiddenPatterns {
   exclude '**/*.zip'
 }
 
+forbiddenApisMain {
+  signaturesURLs += file('forbidden/ldap-signatures.txt').toURI().toURL()
+}
+
 task extractNativeLicenses(type: Copy) {
   dependsOn configurations.nativeBundle
   into "${buildDir}"

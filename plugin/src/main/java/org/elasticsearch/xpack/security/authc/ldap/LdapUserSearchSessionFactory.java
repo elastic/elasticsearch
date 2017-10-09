@@ -14,9 +14,12 @@ import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
@@ -55,7 +58,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
     private final LdapSearchScope scope;
     private final String searchFilter;
 
-    LdapUserSearchSessionFactory(RealmConfig config, SSLService sslService) throws LDAPException {
+    LdapUserSearchSessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) throws LDAPException {
         super(config, sslService, groupResolver(config.settings()), POOL_ENABLED,
                 () -> LdapUserSearchSessionFactory.bindRequest(config.settings()),
                 () -> {
@@ -64,7 +67,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
                     } else {
                         return SEARCH_BASE_DN.get(config.settings());
                     }
-                });
+                }, threadPool);
         Settings settings = config.settings();
         if (SEARCH_BASE_DN.exists(settings)) {
             userSearchBaseDn = SEARCH_BASE_DN.get(settings);
@@ -100,15 +103,21 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
             } else {
                 final String dn = entry.getDN();
                 final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
-                try {
-                    LdapUtils.privilegedConnect(() -> connectionPool.bindAndRevertAuthentication(new SimpleBindRequest(dn, passwordBytes)));
-                    listener.onResponse(new LdapSession(logger, config, connectionPool, dn, groupResolver, metaDataResolver, timeout,
-                            entry.getAttributes()));
-                } catch (LDAPException e) {
-                    listener.onFailure(e);
-                } finally {
-                    Arrays.fill(passwordBytes, (byte) 0);
-                }
+                SimpleBindRequest bind = new SimpleBindRequest(dn, passwordBytes);
+                LdapUtils.maybeForkThenBind(connectionPool, bind, threadPool, new ActionRunnable<LdapSession>(listener) {
+                    @Override
+                    protected void doRun() throws Exception {
+                        listener.onResponse(new LdapSession(logger, config, connectionPool, dn, groupResolver, metaDataResolver, timeout,
+                                entry.getAttributes()));
+                        Arrays.fill(passwordBytes, (byte) 0);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        Arrays.fill(passwordBytes, (byte) 0);
+                        listener.onFailure(e);
+                    }
+                });
             }
         }, listener::onFailure));
     }
@@ -127,53 +136,49 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
      */
     @Override
     void getSessionWithoutPool(String user, SecureString password, ActionListener<LdapSession> listener) {
-        boolean success = false;
-        LDAPConnection connection = null;
         try {
-            connection = LdapUtils.privilegedConnect(serverSet::getConnection);
+            final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
             final SimpleBindRequest bind = bindRequest(config.settings());
-            connection.bind(bind);
-            final LDAPConnection finalConnection = connection;
-            findUser(user, connection, ActionListener.wrap((entry) -> {
-                        // close the existing connection since we are executing in this handler of the previous request and cannot bind here
-                        // so we need to open a new connection to bind on and use for the session
-                        IOUtils.close(finalConnection);
+            LdapUtils.maybeForkThenBind(connection, bind, threadPool, new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
+                    findUser(user, connection, ActionListener.wrap((entry) -> {
                         if (entry == null) {
+                            IOUtils.close(connection);
                             listener.onResponse(null);
                         } else {
                             final String dn = entry.getDN();
-                            boolean sessionCreated = false;
-                            LDAPConnection userConnection = null;
                             final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
-                            try {
-                                userConnection = LdapUtils.privilegedConnect(serverSet::getConnection);
-                                userConnection.bind(new SimpleBindRequest(dn, passwordBytes));
-                                LdapSession session = new LdapSession(logger, config, userConnection, dn, groupResolver,
-                                        metaDataResolver, timeout, entry.getAttributes());
-                                sessionCreated = true;
-                                listener.onResponse(session);
-                            } catch (Exception e) {
-                                listener.onFailure(e);
-                            } finally {
-                                Arrays.fill(passwordBytes, (byte) 0);
-                                if (sessionCreated == false) {
-                                    IOUtils.close(userConnection);
+                            final SimpleBindRequest userBind = new SimpleBindRequest(dn, passwordBytes);
+                            LdapUtils.maybeForkThenBind(connection, userBind, threadPool, new AbstractRunnable() {
+                                @Override
+                                protected void doRun() throws Exception {
+                                    listener.onResponse(new LdapSession(logger, config, connection, dn, groupResolver, metaDataResolver,
+                                            timeout, entry.getAttributes()));
+                                    Arrays.fill(passwordBytes, (byte) 0);
                                 }
-                            }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    Arrays.fill(passwordBytes, (byte) 0);
+                                    IOUtils.closeWhileHandlingException(connection);
+                                    listener.onFailure(e);
+                                }
+                            });
                         }
-                    },
-                    (e) -> {
-                        IOUtils.closeWhileHandlingException(finalConnection);
+                    }, e -> {
+                        IOUtils.closeWhileHandlingException(connection);
                         listener.onFailure(e);
                     }));
-            success = true;
+                }
+                @Override
+                public void onFailure(Exception e) {
+                    IOUtils.closeWhileHandlingException(connection);
+                    listener.onFailure(e);
+                }
+            });
         } catch (LDAPException e) {
             listener.onFailure(e);
-        } finally {
-            // need the success flag since the search is async and we don't want to close it if it is in progress
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(connection);
-            }
         }
     }
 
@@ -198,38 +203,34 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
 
     @Override
     void getUnauthenticatedSessionWithoutPool(String user, ActionListener<LdapSession> listener) {
-        LDAPConnection connection = null;
-        boolean success = false;
         try {
-            connection = LdapUtils.privilegedConnect(serverSet::getConnection);
-            connection.bind(bindRequest(config.settings()));
-            final LDAPConnection finalConnection = connection;
-
-            findUser(user, finalConnection, ActionListener.wrap((entry) -> {
-                if (entry == null) {
-                    listener.onResponse(null);
-                } else {
-                    boolean sessionCreated = false;
-                    try {
-                        final String dn = entry.getDN();
-                        LdapSession session = new LdapSession(logger, config, finalConnection, dn, groupResolver, metaDataResolver, timeout,
-                                entry.getAttributes());
-                        sessionCreated = true;
-                        listener.onResponse(session);
-                    } finally {
-                        if (sessionCreated == false) {
-                            IOUtils.close(finalConnection);
+            final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
+            final SimpleBindRequest bind = bindRequest(config.settings());
+            LdapUtils.maybeForkThenBind(connection, bind, threadPool, new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
+                    findUser(user, connection, ActionListener.wrap((entry) -> {
+                        if (entry == null) {
+                            IOUtils.close(connection);
+                            listener.onResponse(null);
+                        } else {
+                            listener.onResponse(new LdapSession(logger, config, connection, entry.getDN(), groupResolver, metaDataResolver,
+                                    timeout, entry.getAttributes()));
                         }
-                    }
+                    }, e -> {
+                        IOUtils.closeWhileHandlingException(connection);
+                        listener.onFailure(e);
+                    }));
                 }
-            }, listener::onFailure));
-            success = true;
+
+                @Override
+                public void onFailure(Exception e) {
+                    IOUtils.closeWhileHandlingException(connection);
+                    listener.onFailure(e);
+                }
+            });
         } catch (LDAPException e) {
             listener.onFailure(e);
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(connection);
-            }
         }
     }
 

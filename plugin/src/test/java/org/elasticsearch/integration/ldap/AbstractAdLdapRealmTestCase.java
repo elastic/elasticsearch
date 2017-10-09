@@ -389,7 +389,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL
                                 + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? SUB_TREE : ONE_LEVEL)
-                        .putArray(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
+                        .putList(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
                                 "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
                         .build()),
 
@@ -397,7 +397,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
                 Settings.builder()
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.LDAP_TYPE)
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
-                        .putArray(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
+                        .putList(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
                                 "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
                         .build());
 

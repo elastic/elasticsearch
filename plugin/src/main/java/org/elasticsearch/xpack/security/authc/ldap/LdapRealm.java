@@ -67,7 +67,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                      ResourceWatcherService watcherService,
                      NativeRoleMappingStore nativeRoleMappingStore, ThreadPool threadPool)
             throws LDAPException {
-        this(type, config, sessionFactory(config, sslService, type),
+        this(type, config, sessionFactory(config, sslService, threadPool, type),
                 new CompositeRoleMapper(type, config, watcherService, nativeRoleMappingStore),
                 threadPool);
     }
@@ -83,12 +83,12 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         roleMapper.refreshRealmOnChange(this);
     }
 
-    static SessionFactory sessionFactory(RealmConfig config, SSLService sslService, String type)
+    static SessionFactory sessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool, String type)
             throws LDAPException {
 
         final SessionFactory sessionFactory;
         if (AD_TYPE.equals(type)) {
-            sessionFactory = new ActiveDirectorySessionFactory(config, sslService);
+            sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         } else {
             assert LDAP_TYPE.equals(type) : "type [" + type + "] is unknown. expected one of [" + AD_TYPE + ", " + LDAP_TYPE + "]";
             final boolean hasSearchSettings = LdapUserSearchSessionFactory.hasUserSearchSettings(config);
@@ -103,7 +103,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                             "Please provide the settings for the mode you wish to use. For more details refer to the ldap " +
                             "authentication section of the X-Pack guide.");
                 }
-                sessionFactory = new LdapSessionFactory(config, sslService);
+                sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
             } else if (hasTemplates) {
                 throw new IllegalArgumentException("settings were found for both user search [" +
                         RealmSettings.getFullSettingKey(config, LdapUserSearchSessionFactory.SEARCH_PREFIX) +
@@ -113,7 +113,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                         "Please remove the settings for the mode you do not wish to use. For more details refer to the ldap " +
                         "authentication section of the X-Pack guide.");
             } else {
-                sessionFactory = new LdapUserSearchSessionFactory(config, sslService);
+                sessionFactory = new LdapUserSearchSessionFactory(config, sslService, threadPool);
             }
         }
         return sessionFactory;

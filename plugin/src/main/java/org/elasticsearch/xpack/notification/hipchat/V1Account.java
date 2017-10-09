@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.notification.hipchat;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
@@ -128,7 +128,8 @@ public class V1Account extends HipChatAccount {
         @Nullable final Boolean notify;
 
         Defaults(Settings settings) {
-            this.rooms = settings.getAsArray(DEFAULT_ROOM_SETTING, null);
+            List<String> rooms = settings.getAsList(DEFAULT_ROOM_SETTING, null);
+            this.rooms = rooms == null ? null : rooms.toArray(Strings.EMPTY_ARRAY);
             this.from = settings.get(DEFAULT_FROM_SETTING);
             this.format = Format.resolve(settings, DEFAULT_FORMAT_SETTING, null);
             this.color = Color.resolve(settings, DEFAULT_COLOR_SETTING, null);

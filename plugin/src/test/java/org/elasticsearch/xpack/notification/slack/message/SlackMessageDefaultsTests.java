@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.xpack.notification.slack.message;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 
@@ -16,7 +19,8 @@ public class SlackMessageDefaultsTests extends ESTestCase {
         Settings settings = randomSettings();
         SlackMessageDefaults defaults = new SlackMessageDefaults(settings);
         assertThat(defaults.from, is(settings.get("from", null)));
-        assertThat(defaults.to, is(settings.getAsArray("to", null)));
+        List<String> to = settings.getAsList("to", null);
+        assertThat(defaults.to, is(to == null ? null : to.toArray(Strings.EMPTY_ARRAY)));
         assertThat(defaults.text, is(settings.get("text", null)));
         assertThat(defaults.icon, is(settings.get("icon", null)));
         assertThat(defaults.attachment.fallback, is(settings.get("attachment.fallback", null)));
@@ -33,7 +37,7 @@ public class SlackMessageDefaultsTests extends ESTestCase {
         assertThat(defaults.attachment.field.title, is(settings.get("attachment.field.title", null)));
         assertThat(defaults.attachment.field.value, is(settings.get("attachment.field.value", null)));
         assertThat(defaults.attachment.field.isShort, is(settings.getAsBoolean("attachment.field.short", null)));
-        assertThat(defaults.attachment.markdownSupportedFields, is(settings.getAsArray("attachment.mrkdwn_in", null)));
+        assertThat(defaults.attachment.markdownSupportedFields, is(settings.getAsList("attachment.mrkdwn_in", null)));
     }
 
     public static Settings randomSettings() {
@@ -46,7 +50,7 @@ public class SlackMessageDefaultsTests extends ESTestCase {
             for (int i = 0; i < to.length; i++) {
                 to[i] = randomAlphaOfLength(10);
             }
-            settings.putArray("to", to);
+            settings.putList("to", to);
         }
         if (randomBoolean()) {
             settings.put("text", randomAlphaOfLength(10));
@@ -98,7 +102,7 @@ public class SlackMessageDefaultsTests extends ESTestCase {
         }
         if (randomBoolean()) {
             if (randomBoolean()) {
-                settings.putArray("attachment.mrkdwn_in", "foo", "bar");
+                settings.putList("attachment.mrkdwn_in", "foo", "bar");
             } else {
                 settings.put("attachment.mrkdwn_in", "foo,bar");
             }

@@ -315,7 +315,7 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.ssl.keystore.path", testnodeStore)
                 .put("xpack.ssl.keystore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
-                .putArray("xpack.ssl.ciphers", ciphers.toArray(new String[ciphers.size()]))
+                .putList("xpack.ssl.ciphers", ciphers.toArray(new String[ciphers.size()]))
                 .build();
         SSLService sslService = new SSLService(settings, env);
         SSLEngine engine = sslService.createSSLEngine(Settings.EMPTY, Settings.EMPTY);
@@ -332,7 +332,7 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.ssl.keystore.path", testnodeStore)
                 .put("xpack.ssl.keystore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
-                .putArray("xpack.ssl.cipher_suites", new String[]{"foo", "bar"})
+                .putList("xpack.ssl.cipher_suites", new String[]{"foo", "bar"})
                 .build();
         IllegalArgumentException e =
                 expectThrows(IllegalArgumentException.class, () -> new SSLService(settings, env));

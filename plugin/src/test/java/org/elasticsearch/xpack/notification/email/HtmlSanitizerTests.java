@@ -104,7 +104,7 @@ public class HtmlSanitizerTests extends ESTestCase {
 
     public void testAllowStyles() {
         String html = "<table border=\"1\" cellpadding=\"6\" style=\"color:red\"></table>";
-        Settings settings = Settings.builder().putArray("xpack.notification.email.html.sanitization.allow", "_tables", "_styles").build();
+        Settings settings = Settings.builder().putList("xpack.notification.email.html.sanitization.allow", "_tables", "_styles").build();
         HtmlSanitizer sanitizer = new HtmlSanitizer(settings);
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo(html));

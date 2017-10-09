@@ -12,12 +12,14 @@ import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
@@ -28,6 +30,7 @@ import javax.net.SocketFactory;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -66,12 +69,13 @@ public abstract class SessionFactory {
     protected final RealmConfig config;
     protected final TimeValue timeout;
     protected final SSLService sslService;
+    protected final ThreadPool threadPool;
 
     protected final ServerSet serverSet;
     protected final boolean sslUsed;
     protected final boolean ignoreReferralErrors;
 
-    protected SessionFactory(RealmConfig config, SSLService sslService) {
+    protected SessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) {
         this.config = config;
         this.logger = config.logger(getClass());
         final Settings settings = config.settings();
@@ -84,6 +88,7 @@ public abstract class SessionFactory {
         }
         this.timeout = searchTimeout;
         this.sslService = sslService;
+        this.threadPool = threadPool;
         LDAPServers ldapServers = ldapServers(settings);
         this.serverSet = serverSet(config, sslService, ldapServers);
         this.sslUsed = ldapServers.ssl;
@@ -171,15 +176,15 @@ public abstract class SessionFactory {
 
     private LDAPServers ldapServers(Settings settings) {
         // Parse LDAP urls
-        String[] ldapUrls = settings.getAsArray(URLS_SETTING, getDefaultLdapUrls(settings));
-        if (ldapUrls == null || ldapUrls.length == 0) {
+        List<String> ldapUrls = settings.getAsList(URLS_SETTING, getDefaultLdapUrls(settings));
+        if (ldapUrls == null || ldapUrls.isEmpty()) {
             throw new IllegalArgumentException("missing required LDAP setting [" + URLS_SETTING +
                     "]");
         }
-        return new LDAPServers(ldapUrls);
+        return new LDAPServers(ldapUrls.toArray(new String[ldapUrls.size()]));
     }
 
-    protected String[] getDefaultLdapUrls(Settings settings) {
+    protected List<String> getDefaultLdapUrls(Settings settings) {
         return null;
     }
 

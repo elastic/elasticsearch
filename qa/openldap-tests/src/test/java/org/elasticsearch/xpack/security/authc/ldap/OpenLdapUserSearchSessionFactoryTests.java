@@ -14,12 +14,15 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.OpenLdapTests;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -38,11 +41,11 @@ import static org.hamcrest.Matchers.is;
 public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
 
     private Settings globalSettings;
+    private ThreadPool threadPool;
 
     @Before
-    public void initializeSslSocketFactory() throws Exception {
+    public void init() throws Exception {
         Path keystore = getDataPath(LDAPTRUST_PATH);
-
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
@@ -53,6 +56,12 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
                 .put("xpack.ssl.truststore.path", keystore)
                 .setSecureSettings(newSecureSettings("xpack.ssl.truststore.secure_password", "changeit"))
                 .build();
+        threadPool = new TestThreadPool("LdapUserSearchSessionFactoryTests");
+    }
+
+    @After
+    public void shutdown() throws InterruptedException {
+        terminate(threadPool);
     }
 
     public void testUserSearchwithBindUserOpenLDAP() throws Exception {
@@ -75,7 +84,7 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
 
 
         String[] users = new String[] { "cap", "hawkeye", "hulk", "ironman", "thor" };
-        try (LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService)) {
+        try (LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService, threadPool)) {
             for (String user : users) {
                 //auth
                 try (LdapSession ldap = session(sessionFactory, user, new SecureString(OpenLdapTests.PASSWORD))) {

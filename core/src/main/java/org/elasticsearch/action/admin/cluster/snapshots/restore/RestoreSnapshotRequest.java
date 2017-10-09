@@ -19,6 +19,16 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -30,17 +40,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Restore snapshot request
@@ -508,54 +507,63 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     public RestoreSnapshotRequest source(Map<String, Object> source) {
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
-            if (name.equals("indices")) {
-                if (entry.getValue() instanceof String) {
-                    indices(Strings.splitStringByCommaToArray((String) entry.getValue()));
-                } else if (entry.getValue() instanceof ArrayList) {
-                    indices((ArrayList<String>) entry.getValue());
-                } else {
-                    throw new IllegalArgumentException("malformed indices section, should be an array of strings");
-                }
-            } else if (name.equals("partial")) {
-                partial(nodeBooleanValue(entry.getValue(), "partial"));
-            } else if (name.equals("settings")) {
-                if (!(entry.getValue() instanceof Map)) {
-                    throw new IllegalArgumentException("malformed settings section");
-                }
-                settings((Map<String, Object>) entry.getValue());
-            } else if (name.equals("include_global_state")) {
-                includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
-            } else if (name.equals("include_aliases")) {
-                includeAliases = nodeBooleanValue(entry.getValue(), "include_aliases");
-            } else if (name.equals("rename_pattern")) {
-                if (entry.getValue() instanceof String) {
-                    renamePattern((String) entry.getValue());
-                } else {
-                    throw new IllegalArgumentException("malformed rename_pattern");
-                }
-            } else if (name.equals("rename_replacement")) {
-                if (entry.getValue() instanceof String) {
-                    renameReplacement((String) entry.getValue());
-                } else {
-                    throw new IllegalArgumentException("malformed rename_replacement");
-                }
-            } else if (name.equals("index_settings")) {
-                if (!(entry.getValue() instanceof Map)) {
-                    throw new IllegalArgumentException("malformed index_settings section");
-                }
-                indexSettings((Map<String, Object>) entry.getValue());
-            } else if (name.equals("ignore_index_settings")) {
+            switch (name) {
+                case "indices":
                     if (entry.getValue() instanceof String) {
-                        ignoreIndexSettings(Strings.splitStringByCommaToArray((String) entry.getValue()));
-                    } else if (entry.getValue() instanceof List) {
-                        ignoreIndexSettings((List<String>) entry.getValue());
+                        indices(Strings.splitStringByCommaToArray((String) entry.getValue()));
+                    } else if (entry.getValue() instanceof ArrayList) {
+                        indices((ArrayList<String>) entry.getValue());
                     } else {
-                        throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
+                        throw new IllegalArgumentException(
+                                "malformed indices section, should be an array of strings");
                     }
-            } else {
-                if (IndicesOptions.isIndicesOptions(name) == false) {
-                    throw new IllegalArgumentException("Unknown parameter " + name);
-                }
+                    break;
+                case "partial":
+                    partial(nodeBooleanValue(entry.getValue(), "partial"));
+                    break;
+                default:
+                    if (name.equals("settings")) {
+                        if (!(entry.getValue() instanceof Map)) {
+                            throw new IllegalArgumentException("malformed settings section");
+                        }
+                        settings((Map<String, Object>) entry.getValue());
+                    } else if (name.equals("include_global_state")) {
+                        includeGlobalState =
+                                nodeBooleanValue(entry.getValue(), "include_global_state");
+                    } else if (name.equals("include_aliases")) {
+                        includeAliases = nodeBooleanValue(entry.getValue(), "include_aliases");
+                    } else if (name.equals("rename_pattern")) {
+                        if (entry.getValue() instanceof String) {
+                            renamePattern((String) entry.getValue());
+                        } else {
+                            throw new IllegalArgumentException("malformed rename_pattern");
+                        }
+                    } else if (name.equals("rename_replacement")) {
+                        if (entry.getValue() instanceof String) {
+                            renameReplacement((String) entry.getValue());
+                        } else {
+                            throw new IllegalArgumentException("malformed rename_replacement");
+                        }
+                    } else if (name.equals("index_settings")) {
+                        if (!(entry.getValue() instanceof Map)) {
+                            throw new IllegalArgumentException("malformed index_settings section");
+                        }
+                        indexSettings((Map<String, Object>) entry.getValue());
+                    } else if (name.equals("ignore_index_settings")) {
+                        if (entry.getValue() instanceof String) {
+                            ignoreIndexSettings(
+                                    Strings.splitStringByCommaToArray((String) entry.getValue()));
+                        } else if (entry.getValue() instanceof List) {
+                            ignoreIndexSettings((List<String>) entry.getValue());
+                        } else {
+                            throw new IllegalArgumentException(
+                                    "malformed ignore_index_settings section, should be an array of strings");
+                        }
+                    } else {
+                        if (IndicesOptions.isIndicesOptions(name) == false) {
+                            throw new IllegalArgumentException("Unknown parameter " + name);
+                        }
+                    }
             }
         }
         indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));

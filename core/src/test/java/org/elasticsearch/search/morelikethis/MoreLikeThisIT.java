@@ -19,31 +19,6 @@
 
 package org.elasticsearch.search.morelikethis;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
-import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -61,6 +36,30 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 public class MoreLikeThisIT extends ESIntegTestCase {
 
@@ -460,10 +459,12 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             SearchResponse response = client().prepareSearch("test").setTypes("type1")
                     .setQuery(mltQuery).get();
             assertSearchResponse(response);
-            if (minimumShouldMatch.equals("0%")) {
-                assertHitCount(response, 10);
-            } else {
-                assertHitCount(response, 11 - i);
+            switch (minimumShouldMatch) {
+                case "0%":
+                    assertHitCount(response, 10);
+                    break;
+                default:
+                    assertHitCount(response, 11 - i);
             }
         }
     }

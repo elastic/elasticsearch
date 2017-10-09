@@ -18,6 +18,21 @@
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -43,22 +58,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index template.
@@ -308,55 +307,72 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         Map<String, Object> source = templateSource;
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
-            if (name.equals("template")) {
-                // This is needed to allow for bwc (beats, logstash) with pre-5.0 templates (#21009)
-                if(entry.getValue() instanceof String) {
-                    DEPRECATION_LOGGER.deprecated("Deprecated field [template] used, replaced by [index_patterns]");
-                    patterns(Collections.singletonList((String) entry.getValue()));
-                }
-            } else if (name.equals("index_patterns")) {
-                if(entry.getValue() instanceof String) {
-                    patterns(Collections.singletonList((String) entry.getValue()));
-                } else if (entry.getValue() instanceof List) {
-                    List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).collect(Collectors.toList());
-                    patterns(elements);
-                } else {
-                    throw new IllegalArgumentException("Malformed [template] value, should be a string or a list of strings");
-                }
-            } else if (name.equals("order")) {
-                order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
-            } else if ("version".equals(name)) {
-                if ((entry.getValue() instanceof Integer) == false) {
-                    throw new IllegalArgumentException("Malformed [version] value, should be an integer");
-                }
-                version((Integer)entry.getValue());
-            } else if (name.equals("settings")) {
-                if ((entry.getValue() instanceof Map) == false) {
-                    throw new IllegalArgumentException("Malformed [settings] section, should include an inner object");
-                }
-                settings((Map<String, Object>) entry.getValue());
-            } else if (name.equals("mappings")) {
-                Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
-                for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
-                    if (!(entry1.getValue() instanceof Map)) {
+            switch (name) {
+                case "template":
+                    if (entry.getValue() instanceof String) {
+                        DEPRECATION_LOGGER.deprecated(
+                                "Deprecated field [template] used, replaced by [index_patterns]");
+                        patterns(Collections.singletonList((String) entry.getValue()));
+                    }
+                    break;
+                case "index_patterns":
+                    if (entry.getValue() instanceof String) {
+                        patterns(Collections.singletonList((String) entry.getValue()));
+                    } else if (entry.getValue() instanceof List) {
+                        List<String> elements =
+                                ((List<?>) entry.getValue())
+                                        .stream()
+                                        .map(Object::toString)
+                                        .collect(Collectors.toList());
+                        patterns(elements);
+                    } else {
                         throw new IllegalArgumentException(
-                            "Malformed [mappings] section for type [" + entry1.getKey() +
-                                "], should include an inner object describing the mapping");
+                                "Malformed [template] value, should be a string or a list of strings");
                     }
-                    mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
-                }
-            } else if (name.equals("aliases")) {
-                aliases((Map<String, Object>) entry.getValue());
-            } else {
-                // maybe custom?
-                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
-                if (proto != null) {
-                    try {
-                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
-                    } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
+                    break;
+                case "order":
+                    order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
+                    break;
+                default:
+                    if ("version".equals(name)) {
+                        if ((entry.getValue() instanceof Integer) == false) {
+                            throw new IllegalArgumentException(
+                                    "Malformed [version] value, should be an integer");
+                        }
+                        version((Integer) entry.getValue());
+                    } else if (name.equals("settings")) {
+                        if ((entry.getValue() instanceof Map) == false) {
+                            throw new IllegalArgumentException(
+                                    "Malformed [settings] section, should include an inner object");
+                        }
+                        settings((Map<String, Object>) entry.getValue());
+                    } else if (name.equals("mappings")) {
+                        Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
+                        for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
+                            if (!(entry1.getValue() instanceof Map)) {
+                                throw new IllegalArgumentException(
+                                        "Malformed [mappings] section for type ["
+                                                + entry1.getKey()
+                                                + "], should include an inner object describing the mapping");
+                            }
+                            mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
+                        }
+                    } else if (name.equals("aliases")) {
+                        aliases((Map<String, Object>) entry.getValue());
+                    } else {
+                        // maybe custom?
+                        IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
+                        if (proto != null) {
+                            try {
+                                customs.put(
+                                        name,
+                                        proto.fromMap((Map<String, Object>) entry.getValue()));
+                            } catch (IOException e) {
+                                throw new ElasticsearchParseException(
+                                        "failed to parse custom metadata for [{}]", name);
+                            }
+                        }
                     }
-                }
             }
         }
         return this;

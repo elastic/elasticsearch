@@ -19,8 +19,18 @@
 
 package org.elasticsearch.index.mapper;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -32,17 +42,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     @ParametersFactory
@@ -192,20 +191,27 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         assertThat(foundIds, containsInAnyOrder(ids));
         for (SearchHit hit : result.getHits()) {
             String id = hit.getId();
-            if (id.equals("single")) {
-                assertSearchHit(hit, new int[]{4}, new int[]{4});
-            } else if (id.equals("bulk1")) {
-                assertSearchHit(hit, new int[]{3}, new int[]{3});
-            } else if (id.equals("bulk2")) {
-                assertSearchHit(hit, new int[]{5}, new int[]{4});
-            } else if (id.equals("multi")) {
-                assertSearchHit(hit, new int[]{2, 7}, new int[]{2, 7});
-            } else if (id.equals("multibulk1")) {
-                assertSearchHit(hit, new int[]{1, 8}, new int[]{1, 8});
-            } else if (id.equals("multibulk2")) {
-                assertSearchHit(hit, new int[]{6, 10}, new int[]{3, 9});
-            } else {
-                throw new ElasticsearchException("Unexpected response!");
+            switch (id) {
+                case "single":
+                    assertSearchHit(hit, new int[] {4}, new int[] {4});
+                    break;
+                case "bulk1":
+                    assertSearchHit(hit, new int[] {3}, new int[] {3});
+                    break;
+                case "bulk2":
+                    assertSearchHit(hit, new int[] {5}, new int[] {4});
+                    break;
+                case "multi":
+                    assertSearchHit(hit, new int[] {2, 7}, new int[] {2, 7});
+                    break;
+                case "multibulk1":
+                    assertSearchHit(hit, new int[] {1, 8}, new int[] {1, 8});
+                    break;
+                case "multibulk2":
+                    assertSearchHit(hit, new int[] {6, 10}, new int[] {3, 9});
+                    break;
+                default:
+                    throw new ElasticsearchException("Unexpected response!");
             }
         }
     }

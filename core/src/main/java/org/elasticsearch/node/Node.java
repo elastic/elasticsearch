@@ -19,6 +19,32 @@
 
 package org.elasticsearch.node;
 
+import static java.util.stream.Collectors.toList;
+
+import java.io.BufferedWriter;
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
@@ -100,7 +126,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -138,33 +163,6 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
-
-import java.io.BufferedWriter;
-import java.io.Closeable;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.net.Inet6Address;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toList;
 
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
@@ -882,12 +880,15 @@ public class Node implements Closeable {
      */
     public static CircuitBreakerService createCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
         String type = BREAKER_TYPE_KEY.get(settings);
-        if (type.equals("hierarchy")) {
-            return new HierarchyCircuitBreakerService(settings, clusterSettings);
-        } else if (type.equals("none")) {
-            return new NoneCircuitBreakerService();
-        } else {
-            throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
+        switch (type) {
+            case "hierarchy":
+                return new HierarchyCircuitBreakerService(settings, clusterSettings);
+                break;
+            case "none":
+                return new NoneCircuitBreakerService();
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
         }
     }
 

@@ -19,6 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+
+import java.io.IOException;
+import java.util.Map;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -28,14 +35,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-
-import java.io.IOException;
-import java.util.Map;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * Register repository request.
@@ -200,15 +199,19 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
     public PutRepositoryRequest source(Map<String, Object> repositoryDefinition) {
         for (Map.Entry<String, Object> entry : repositoryDefinition.entrySet()) {
             String name = entry.getKey();
-            if (name.equals("type")) {
-                type(entry.getValue().toString());
-            } else if (name.equals("settings")) {
-                if (!(entry.getValue() instanceof Map)) {
-                    throw new IllegalArgumentException("Malformed settings section, should include an inner object");
-                }
-                @SuppressWarnings("unchecked")
-                Map<String, Object> sub = (Map<String, Object>) entry.getValue();
-                settings(sub);
+            switch (name) {
+                case "type":
+                        type(entry.getValue().toString());
+                        break;'
+                case "settings":
+                            if (!(entry.getValue() instanceof Map)) {
+                                throw new IllegalArgumentException(
+                                        "Malformed settings section, should include an inner object");
+                            }
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> sub = (Map<String, Object>) entry.getValue();
+                            settings(sub);
+                        break;
             }
         }
         return this;

@@ -19,17 +19,15 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.ConfigurationUtils;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-
-import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.ConfigurationUtils;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
 
 public final class GrokProcessor extends AbstractProcessor {
 
@@ -116,10 +114,12 @@ public final class GrokProcessor extends AbstractProcessor {
                 } else {
                     valueWrap = "(?:" + patterns.get(i) + ")";
                 }
-                if (combinedPattern.equals("")) {
-                    combinedPattern = valueWrap;
-                } else {
-                    combinedPattern = combinedPattern + "|" + valueWrap;
+                switch (combinedPattern) {
+                    case "":
+                        combinedPattern = valueWrap;
+                        break;
+                    default:
+                        combinedPattern = combinedPattern + "|" + valueWrap;
                 }
             }
         }  else {

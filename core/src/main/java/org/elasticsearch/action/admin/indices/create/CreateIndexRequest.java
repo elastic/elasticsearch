@@ -19,6 +19,18 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -42,19 +54,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
@@ -376,28 +375,37 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     public CreateIndexRequest source(Map<String, ?> source) {
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
-            if (name.equals("settings")) {
-                settings((Map<String, Object>) entry.getValue());
-            } else if (name.equals("mappings")) {
-                Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
-                for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
-                    mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
-                }
-            } else if (name.equals("aliases")) {
-                aliases((Map<String, Object>) entry.getValue());
-            } else {
-                // maybe custom?
-                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
-                if (proto != null) {
-                    try {
-                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
-                    } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
+            switch (name) {
+                case "settings":
+                    settings((Map<String, Object>) entry.getValue());
+                    break;
+                default:
+                    if (name.equals("mappings")) {
+                        Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
+                        for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
+                            mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
+                        }
+                    } else if (name.equals("aliases")) {
+                        aliases((Map<String, Object>) entry.getValue());
+                    } else {
+                        // maybe custom?
+                        IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
+                        if (proto != null) {
+                            try {
+                                customs.put(
+                                        name,
+                                        proto.fromMap((Map<String, Object>) entry.getValue()));
+                            } catch (IOException e) {
+                                throw new ElasticsearchParseException(
+                                        "failed to parse custom metadata for [{}]", name);
+                            }
+                        } else {
+                            // found a key which is neither custom defined nor one of the supported
+                            // ones
+                            throw new ElasticsearchParseException(
+                                    "unknown key [{}] for create index", name);
+                        }
                     }
-                } else {
-                    // found a key which is neither custom defined nor one of the supported ones
-                    throw new ElasticsearchParseException("unknown key [{}] for create index", name);
-                }
             }
         }
         return this;

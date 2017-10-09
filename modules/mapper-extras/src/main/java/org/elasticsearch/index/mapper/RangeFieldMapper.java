@@ -18,6 +18,22 @@
  */
 package org.elasticsearch.index.mapper;
 
+import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
+import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
+import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
+import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
+import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import org.apache.lucene.document.DoubleRange;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatRange;
@@ -51,23 +67,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.joda.time.DateTimeZone;
-
-import java.io.IOException;
-import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-
-import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
-import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
-import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
-import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
-import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 
 /** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
 public class RangeFieldMapper extends FieldMapper {
@@ -173,26 +172,37 @@ public class RangeFieldMapper extends FieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
                 Object propNode = entry.getValue();
-                if (propName.equals("null_value")) {
-                    throw new MapperParsingException("Property [null_value] is not supported for [" + this.type.name
-                            + "] field types.");
-                } else if (propName.equals("coerce")) {
-                    builder.coerce(TypeParsers.nodeBooleanValue(name, "coerce", propNode, parserContext));
-                    iterator.remove();
-                } else if (propName.equals("locale")) {
-                    Locale locale;
-                    if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_beta2)) {
-                        locale = LocaleUtils.parse(propNode.toString());
-                    } else {
-                        locale = LocaleUtils.parse5x(propNode.toString());
-                    }
-                    builder.locale(locale);
-                    iterator.remove();
-                } else if (propName.equals("format")) {
-                    builder.dateTimeFormatter(parseDateTimeFormatter(propNode));
-                    iterator.remove();
-                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
-                    iterator.remove();
+                switch (propName) {
+                    case "null_value":
+                        throw new MapperParsingException(
+                                "Property [null_value] is not supported for ["
+                                        + this.type.name
+                                        + "] field types.");
+                        break;
+                    default:
+                        if (propName.equals("coerce")) {
+                            builder.coerce(
+                                    TypeParsers.nodeBooleanValue(
+                                            name, "coerce", propNode, parserContext));
+                            iterator.remove();
+                        } else if (propName.equals("locale")) {
+                            Locale locale;
+                            if (parserContext
+                                    .indexVersionCreated()
+                                    .onOrAfter(Version.V_6_0_0_beta2)) {
+                                locale = LocaleUtils.parse(propNode.toString());
+                            } else {
+                                locale = LocaleUtils.parse5x(propNode.toString());
+                            }
+                            builder.locale(locale);
+                            iterator.remove();
+                        } else if (propName.equals("format")) {
+                            builder.dateTimeFormatter(parseDateTimeFormatter(propNode));
+                            iterator.remove();
+                        } else if (TypeParsers.parseMultiField(
+                                builder, name, parserContext, propName, propNode)) {
+                            iterator.remove();
+                        }
                 }
             }
             return builder;

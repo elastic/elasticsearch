@@ -19,7 +19,10 @@
 
 package org.elasticsearch.action.support;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
+
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import java.io.IOException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -27,10 +30,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-
-import java.io.IOException;
-
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 
 /**
  * A class whose instances represent a value for counting the number
@@ -107,17 +106,20 @@ public final class ActiveShardCount implements Writeable {
     public static ActiveShardCount parseString(final String str) {
         if (str == null) {
             return ActiveShardCount.DEFAULT;
-        } else if (str.equals("all")) {
-            return ActiveShardCount.ALL;
-        } else {
-            int val;
-            try {
-                val = Integer.parseInt(str);
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("cannot parse ActiveShardCount[" + str + "]", e);
+        } else
+            switch (str) {
+                case "all":
+                    return ActiveShardCount.ALL;
+                default:
+                    int val;
+                    try {
+                        val = Integer.parseInt(str);
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException(
+                                "cannot parse ActiveShardCount[" + str + "]", e);
+                    }
+                    return ActiveShardCount.from(val);
             }
-            return ActiveShardCount.from(val);
-        }
     }
 
     /**

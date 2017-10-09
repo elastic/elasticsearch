@@ -18,13 +18,7 @@
  */
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import static org.hamcrest.Matchers.hasSize;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -33,8 +27,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-
-import static org.hamcrest.Matchers.hasSize;
+import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.ESTestCase;
 
 public class ObjectParserTests extends ESTestCase {
 
@@ -126,16 +125,20 @@ public class ObjectParserTests extends ESTestCase {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         fieldName = parser.currentName();
                     } else if (token == XContentParser.Token.VALUE_STRING){
-                        if (fieldName.equals("host")) {
-                            host = parser.text();
-                        } else {
-                            throw new IllegalStateException("boom");
+                        switch (fieldName) {
+                            case "host":
+                                host = parser.text();
+                                break;
+                            default:
+                                throw new IllegalStateException("boom");
                         }
                     } else if (token == XContentParser.Token.VALUE_NUMBER){
-                        if (fieldName.equals("port")) {
-                            port = parser.intValue();
-                        } else {
-                            throw new IllegalStateException("boom");
+                        switch (fieldName) {
+                            case "port":
+                                port = parser.intValue();
+                                break;
+                            default:
+                                throw new IllegalStateException("boom");
                         }
                     }
                     parser.nextToken();

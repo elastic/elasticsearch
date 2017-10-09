@@ -576,7 +576,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
         context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putArray("index.query.default_field",
+            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                 STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
         );
         Query query = new SimpleQueryStringBuilder("hello")
@@ -591,7 +591,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         // Reset the default value
         context.getIndexSettings().updateIndexMetaData(
             newIndexMeta("index",
-                context.getIndexSettings().getSettings(), Settings.builder().putArray("index.query.default_field", "*").build())
+                context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
         );
     }
 

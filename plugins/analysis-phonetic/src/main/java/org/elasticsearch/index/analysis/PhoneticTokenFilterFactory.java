@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 
 import org.apache.commons.codec.Encoder;
 import org.apache.commons.codec.language.Caverphone1;
@@ -50,7 +50,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     private final Encoder encoder;
     private final boolean replace;
     private int maxcodelength;
-    private String[] languageset;
+    private List<String> languageset;
     private NameType nametype;
     private RuleType ruletype;
 
@@ -82,7 +82,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             this.maxcodelength = settings.getAsInt("max_code_len", 4);
         } else if ("bm".equalsIgnoreCase(encodername) || "beider_morse".equalsIgnoreCase(encodername) || "beidermorse".equalsIgnoreCase(encodername)) {
             this.encoder = null;
-            this.languageset = settings.getAsArray("languageset");
+            this.languageset = settings.getAsList("languageset");
             String ruleType = settings.get("rule_type", "approx");
             if ("approx".equalsIgnoreCase(ruleType)) {
                 ruletype = RuleType.APPROX;
@@ -117,7 +117,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         if (encoder == null) {
             if (ruletype != null && nametype != null) {
                 if (languageset != null) {
-                    final LanguageSet languages = LanguageSet.from(new HashSet<>(Arrays.asList(languageset)));
+                    final LanguageSet languages = LanguageSet.from(new HashSet<>(languageset));
                     return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true), languages);
                 }
                 return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true));

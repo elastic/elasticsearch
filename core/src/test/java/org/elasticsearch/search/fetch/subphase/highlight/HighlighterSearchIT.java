@@ -1358,9 +1358,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         Builder builder = Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.synonym.tokenizer", "whitespace")
-                .putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
+                .putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
                 .put("index.analysis.filter.synonym.type", "synonym")
-                .putArray("index.analysis.filter.synonym.synonyms", "quick => fast");
+                .putList("index.analysis.filter.synonym.synonyms", "quick => fast");
 
         assertAcked(prepareCreate("first_test_index").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()));
 
@@ -2773,9 +2773,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         Builder builder = Settings.builder()
             .put(indexSettings())
             .put("index.analysis.analyzer.synonym.tokenizer", "whitespace")
-            .putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
+            .putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
             .put("index.analysis.filter.synonym.type", "synonym")
-            .putArray("index.analysis.filter.synonym.synonyms", "fast,quick");
+            .putList("index.analysis.filter.synonym.synonyms", "fast,quick");
 
         assertAcked(prepareCreate("test").setSettings(builder.build())
             .addMapping("type1", "field1",

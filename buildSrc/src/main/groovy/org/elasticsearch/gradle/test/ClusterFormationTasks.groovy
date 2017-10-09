@@ -311,13 +311,14 @@ class ClusterFormationTasks {
                 // Define a node attribute so we can test that it exists
                 'node.attr.testattr'           : 'test'
         ]
-        // we set min master nodes to the total number of nodes in the cluster and
-        // basically skip initial state recovery to allow the cluster to form using a realistic master election
-        // this means all nodes must be up, join the seed node and do a master election. This will also allow new and
-        // old nodes in the BWC case to become the master
-        if (node.config.useMinimumMasterNodes && node.config.numNodes > 1) {
-            esConfig['discovery.zen.minimum_master_nodes'] = node.config.numNodes
-            esConfig['discovery.initial_state_timeout'] = '0s' // don't wait for state.. just start up quickly
+        int minimumMasterNodes = node.config.minimumMasterNodes.call()
+        if (minimumMasterNodes > 0) {
+            esConfig['discovery.zen.minimum_master_nodes'] = minimumMasterNodes
+        }
+        if (node.config.numNodes > 1) {
+            // don't wait for state.. just start up quickly
+            // this will also allow new and old nodes in the BWC case to become the master
+            esConfig['discovery.initial_state_timeout'] = '0s'
         }
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort

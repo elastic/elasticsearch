@@ -63,13 +63,11 @@ class ClusterConfiguration {
     boolean debug = false
 
     /**
-     * if <code>true</code> each node will be configured with <tt>discovery.zen.minimum_master_nodes</tt> set
-     * to the total number of nodes in the cluster. This will also cause that each node has `0s` state recovery
-     * timeout which can lead to issues if for instance an existing clusterstate is expected to be recovered
-     * before any tests start
+     * Configuration of the setting <tt>discovery.zen.minimum_master_nodes</tt> on the nodes.
+     * In case of more than one node, this defaults to (number of nodes / 2) + 1
      */
     @Input
-    boolean useMinimumMasterNodes = true
+    Closure<Integer> minimumMasterNodes = { getNumNodes() > 1 ? getNumNodes().intdiv(2) + 1 : -1 }
 
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +

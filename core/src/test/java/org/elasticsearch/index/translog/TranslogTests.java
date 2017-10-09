@@ -2501,10 +2501,10 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
-    public void testGetSnapshotBetweenAPI() throws IOException {
+    public void testGetSnapshotBetween() throws IOException {
         final int numOperations = randomIntBetween(2, 8196);
         final List<Integer> sequenceNumbers = IntStream.range(0, numOperations).boxed().collect(Collectors.toList());
-        Collections.shuffle(sequenceNumbers);
+        Collections.shuffle(sequenceNumbers, random());
         for (Integer sequenceNumber : sequenceNumbers) {
             translog.add(new Translog.NoOp(sequenceNumber, 0, "test"));
             if (rarely()) {

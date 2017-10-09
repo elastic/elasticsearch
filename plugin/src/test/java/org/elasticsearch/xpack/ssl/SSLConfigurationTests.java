@@ -342,7 +342,7 @@ public class SSLConfigurationTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("key", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
             .put("certificate", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-            .putArray("certificate_authorities",
+            .putList("certificate_authorities",
                       getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt").toString(),
                       getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt").toString())
             .setSecureSettings(secureSettings)
@@ -366,7 +366,7 @@ public class SSLConfigurationTests extends ESTestCase {
             .put("key", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
             .put("key_passphrase", "testnode")
             .put("certificate", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-            .putArray("certificate_authorities",
+            .putList("certificate_authorities",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt").toString(),
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt").toString())
             .build();

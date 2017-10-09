@@ -108,8 +108,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     }
 
     @Override
-    protected String[] getDefaultLdapUrls(Settings settings) {
-        return new String[] {"ldap://" + settings.get(AD_DOMAIN_NAME_SETTING) + ":389"};
+    protected List<String> getDefaultLdapUrls(Settings settings) {
+        return Collections.singletonList("ldap://" + settings.get(AD_DOMAIN_NAME_SETTING) + ":389");
     }
 
     @Override

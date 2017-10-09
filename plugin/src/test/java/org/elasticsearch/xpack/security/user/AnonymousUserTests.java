@@ -18,14 +18,14 @@ public class AnonymousUserTests extends ESTestCase {
     public void testResolveAnonymousUser() throws Exception {
         Settings settings = Settings.builder()
                 .put(AnonymousUser.USERNAME_SETTING.getKey(), "anonym1")
-                .putArray(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3")
+                .putList(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3")
                 .build();
         AnonymousUser user = new AnonymousUser(settings);
         assertThat(user.principal(), equalTo("anonym1"));
         assertThat(user.roles(), arrayContainingInAnyOrder("r1", "r2", "r3"));
 
         settings = Settings.builder()
-                .putArray(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3")
+                .putList(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3")
                 .build();
         user = new AnonymousUser(settings);
         assertThat(user.principal(), equalTo(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME));
@@ -40,7 +40,7 @@ public class AnonymousUserTests extends ESTestCase {
     }
 
     public void testAnonymous() throws Exception {
-        Settings settings = Settings.builder().putArray(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3").build();
+        Settings settings = Settings.builder().putList(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3").build();
         if (randomBoolean()) {
             settings = Settings.builder().put(settings).put(AnonymousUser.USERNAME_SETTING.getKey(), "anon").build();
         }

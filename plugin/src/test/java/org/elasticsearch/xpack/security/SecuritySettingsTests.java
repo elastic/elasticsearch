@@ -5,18 +5,19 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 
+import java.util.Collections;
+
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.not;
 
 public class SecuritySettingsTests extends ESTestCase {
@@ -54,7 +55,7 @@ public class SecuritySettingsTests extends ESTestCase {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .put(TRIBE_T1_SECURITY_ENABLED, false)
                 .put("tribe.t2.cluster.name", "non_existing")
-                .putArray("tribe.t1.plugin.mandatory", "test_plugin", XPackPlugin.NAME).build();
+                .putList("tribe.t1.plugin.mandatory", "test_plugin", XPackPlugin.NAME).build();
 
         try {
             Security.additionalSettings(settings, false);
@@ -71,20 +72,20 @@ public class SecuritySettingsTests extends ESTestCase {
                 .put("tribe.on_conflict", "prefer_" + randomFrom("t1", "t2"))
                 .put("xpack.security.foo", "bar")
                 .put("xpack.security.bar", "foo")
-                .putArray("xpack.security.something.else.here", new String[] { "foo", "bar" })
+                .putList("xpack.security.something.else.here", new String[] { "foo", "bar" })
                 .build();
 
         Settings additionalSettings = Security.additionalSettings(settings, false);
 
         assertThat(additionalSettings.get("xpack.security.foo"), nullValue());
         assertThat(additionalSettings.get("xpack.security.bar"), nullValue());
-        assertThat(additionalSettings.getAsArray("xpack.security.something.else.here"), is(Strings.EMPTY_ARRAY));
+        assertThat(additionalSettings.getAsList("xpack.security.something.else.here"), is(Collections.emptyList()));
         assertThat(additionalSettings.get("tribe.t1.xpack.security.foo"), is("bar"));
         assertThat(additionalSettings.get("tribe.t1.xpack.security.bar"), is("foo"));
-        assertThat(additionalSettings.getAsArray("tribe.t1.xpack.security.something.else.here"), arrayContaining("foo", "bar"));
+        assertThat(additionalSettings.getAsList("tribe.t1.xpack.security.something.else.here"), contains("foo", "bar"));
         assertThat(additionalSettings.get("tribe.t2.xpack.security.foo"), is("bar"));
         assertThat(additionalSettings.get("tribe.t2.xpack.security.bar"), is("foo"));
-        assertThat(additionalSettings.getAsArray("tribe.t2.xpack.security.something.else.here"), arrayContaining("foo", "bar"));
+        assertThat(additionalSettings.getAsList("tribe.t2.xpack.security.something.else.here"), contains("foo", "bar"));
         assertThat(additionalSettings.get("tribe.on_conflict"), nullValue());
         assertThat(additionalSettings.get("tribe.t1.on_conflict"), nullValue());
         assertThat(additionalSettings.get("tribe.t2.on_conflict"), nullValue());

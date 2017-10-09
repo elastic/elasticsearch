@@ -142,7 +142,7 @@ public class RealmSettingsTests extends ESTestCase {
             builder.put("user_search.pool.health_check.dn", randomAlphaOfLength(32));
             builder.put("user_search.pool.health_check.interval", randomPositiveTimeValue());
         } else {
-            builder.putArray("user_dn_templates",
+            builder.putList("user_dn_templates",
                     "cn={0}, ou=staff, o=people, dc=example, dc=com",
                     "cn={0}, ou=visitors, o=people, dc=example, dc=com");
         }
@@ -175,7 +175,7 @@ public class RealmSettingsTests extends ESTestCase {
 
     private Settings.Builder commonLdapSettings(String type, boolean configureSSL) {
         final Settings.Builder builder = baseSettings(type, true)
-                .putArray("url", "ldap://dir1.internal:9876", "ldap://dir2.internal:9876", "ldap://dir3.internal:9876")
+                .putList("url", "ldap://dir1.internal:9876", "ldap://dir2.internal:9876", "ldap://dir3.internal:9876")
                 .put("load_balance.type", "round_robin")
                 .put("load_balance.cache_ttl", randomTimeValue())
                 .put("unmapped_groups_as_roles", randomBoolean())
@@ -205,7 +205,7 @@ public class RealmSettingsTests extends ESTestCase {
             });
             builder.put("truststore.algorithm", randomAlphaOfLengthBetween(6, 10));
         } else {
-            builder.putArray("certificate_authorities", generateRandomStringArray(5, 32, false, false));
+            builder.putList("certificate_authorities", generateRandomStringArray(5, 32, false, false));
         }
         return builder;
     }
@@ -234,8 +234,8 @@ public class RealmSettingsTests extends ESTestCase {
         }
 
         builder.put(prefix + "verification_mode", "full");
-        builder.putArray(prefix + "supported_protocols", randomSubsetOf(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS));
-        builder.putArray(prefix + "cipher_suites", randomSubsetOf(XPackSettings.DEFAULT_CIPHERS));
+        builder.putList(prefix + "supported_protocols", randomSubsetOf(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS));
+        builder.putList(prefix + "cipher_suites", randomSubsetOf(XPackSettings.DEFAULT_CIPHERS));
 
         return builder;
     }

@@ -14,7 +14,8 @@ import org.elasticsearch.xpack.ssl.SSLClientAuth;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map.Entry;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 
@@ -35,15 +36,14 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
         settings = builder.build();
 
         // The default Unicast test behavior is to use 'localhost' with the port number. For this test we need to use IP
-        String[] unicastAddresses = settings.getAsArray("discovery.zen.ping.unicast.hosts");
-        for (int i = 0; i < unicastAddresses.length; i++) {
-            String address = unicastAddresses[i];
-            unicastAddresses[i] = address.replace("localhost", "127.0.0.1");
-        }
+         List<String> newUnicastAddresses = new ArrayList<>();
+         for (String address : settings.getAsList("discovery.zen.ping.unicast.hosts")) {
+             newUnicastAddresses.add(address.replace("localhost", "127.0.0.1"));
+         }
 
         Settings.Builder settingsBuilder = Settings.builder()
                 .put(settings)
-                .putArray("discovery.zen.ping.unicast.hosts", unicastAddresses);
+                .putList("discovery.zen.ping.unicast.hosts", newUnicastAddresses);
 
         try {
             //This keystore uses a cert with a CN of "Elasticsearch Test Node" and IPv4+IPv6 ip addresses as SubjectAlternativeNames

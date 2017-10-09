@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.authc.support;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -26,10 +25,8 @@ import com.unboundid.ldap.sdk.LDAPException;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -39,7 +36,6 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
-import org.yaml.snakeyaml.error.YAMLException;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -134,7 +130,7 @@ public class DnRoleMapper implements UserRoleMapper {
             Map<DN, Set<String>> dnToRoles = new HashMap<>();
             Set<String> roles = settings.names();
             for (String role : roles) {
-                for (String providedDn : settings.getAsArray(role)) {
+                for (String providedDn : settings.getAsList(role)) {
                     try {
                         DN dn = new DN(providedDn);
                         Set<String> dnRoles = dnToRoles.get(dn);

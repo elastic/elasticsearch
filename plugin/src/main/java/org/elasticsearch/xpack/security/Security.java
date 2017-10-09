@@ -528,7 +528,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
     
     public List<String> getSettingsFilter(@Nullable XPackExtensionsService extensionsService) {
         ArrayList<String> settingsFilter = new ArrayList<>();
-        String[] asArray = settings.getAsArray(setting("hide_settings"));
+        List<String> asArray = settings.getAsList(setting("hide_settings"));
         for (String pattern : asArray) {
             settingsFilter.add(pattern);
         }

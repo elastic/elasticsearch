@@ -104,8 +104,8 @@ public abstract class LdapTestCase extends ESTestCase {
                                              LdapLoadBalancing serverSetType,
                                              boolean ignoreReferralErrors) {
         Settings.Builder builder = Settings.builder()
-                .putArray(URLS_SETTING, ldapUrl)
-                .putArray(USER_DN_TEMPLATES_SETTING_KEY, userTemplate)
+                .putList(URLS_SETTING, ldapUrl)
+                .putList(USER_DN_TEMPLATES_SETTING_KEY, userTemplate)
                 .put(SessionFactory.TIMEOUT_TCP_CONNECTION_SETTING, TimeValue.timeValueSeconds(1L))
                 .put(SessionFactory.IGNORE_REFERRAL_ERRORS_SETTING.getKey(), ignoreReferralErrors)
                 .put("group_search.base_dn", groupSearchBase)
@@ -120,8 +120,8 @@ public abstract class LdapTestCase extends ESTestCase {
 
     public static Settings buildLdapSettings(String[] ldapUrl, String userTemplate, boolean hostnameVerification) {
         Settings.Builder builder = Settings.builder()
-                .putArray(URLS_SETTING, ldapUrl)
-                .putArray(USER_DN_TEMPLATES_SETTING_KEY, userTemplate);
+                .putList(URLS_SETTING, ldapUrl)
+                .putList(USER_DN_TEMPLATES_SETTING_KEY, userTemplate);
         if (randomBoolean()) {
             builder.put("ssl.verification_mode", hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
         } else {

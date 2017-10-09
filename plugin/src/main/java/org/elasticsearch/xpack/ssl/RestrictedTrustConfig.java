@@ -7,11 +7,8 @@ package org.elasticsearch.xpack.ssl;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -84,7 +81,7 @@ public final class RestrictedTrustConfig extends TrustConfig {
 
     private CertificateTrustRestrictions readTrustGroup(Path path) throws IOException {
         Settings settings = Settings.builder().loadFromPath(path).build();
-        final String[] trustNodeNames = settings.getAsArray(RESTRICTIONS_KEY_SUBJECT_NAME);
-        return new CertificateTrustRestrictions(Arrays.asList(trustNodeNames));
+        final List<String> trustNodeNames = settings.getAsList(RESTRICTIONS_KEY_SUBJECT_NAME);
+        return new CertificateTrustRestrictions(trustNodeNames);
     }
 }

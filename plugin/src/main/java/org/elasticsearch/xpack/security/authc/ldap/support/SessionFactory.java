@@ -30,6 +30,7 @@ import javax.net.SocketFactory;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -175,15 +176,15 @@ public abstract class SessionFactory {
 
     private LDAPServers ldapServers(Settings settings) {
         // Parse LDAP urls
-        String[] ldapUrls = settings.getAsArray(URLS_SETTING, getDefaultLdapUrls(settings));
-        if (ldapUrls == null || ldapUrls.length == 0) {
+        List<String> ldapUrls = settings.getAsList(URLS_SETTING, getDefaultLdapUrls(settings));
+        if (ldapUrls == null || ldapUrls.isEmpty()) {
             throw new IllegalArgumentException("missing required LDAP setting [" + URLS_SETTING +
                     "]");
         }
-        return new LDAPServers(ldapUrls);
+        return new LDAPServers(ldapUrls.toArray(new String[ldapUrls.size()]));
     }
 
-    protected String[] getDefaultLdapUrls(Settings settings) {
+    protected List<String> getDefaultLdapUrls(Settings settings) {
         return null;
     }
 

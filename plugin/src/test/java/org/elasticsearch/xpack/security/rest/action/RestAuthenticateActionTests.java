@@ -42,7 +42,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
 
         if (anonymousEnabled) {
             builder.put(AnonymousUser.USERNAME_SETTING.getKey(), "anon")
-                   .putArray(AnonymousUser.ROLES_SETTING.getKey(), SecuritySettingsSource.TEST_ROLE, "foo")
+                   .putList(AnonymousUser.ROLES_SETTING.getKey(), SecuritySettingsSource.TEST_ROLE, "foo")
                    .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false);
         }
         return builder.build();

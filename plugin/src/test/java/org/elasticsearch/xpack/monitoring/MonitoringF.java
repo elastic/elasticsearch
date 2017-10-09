@@ -33,7 +33,7 @@ public class MonitoringF {
         settings.put("cluster.name", MonitoringF.class.getSimpleName());
         settings.put("xpack.monitoring.collection.interval", "1s");
         if (!CollectionUtils.isEmpty(args)) {
-            settings.putArray("xpack.monitoring.collection.collectors", args);
+            settings.putList("xpack.monitoring.collection.collectors", args);
         }
 
         final CountDownLatch latch = new CountDownLatch(1);

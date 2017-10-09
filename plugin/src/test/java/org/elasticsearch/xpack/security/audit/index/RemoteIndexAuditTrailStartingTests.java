@@ -98,7 +98,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
                         .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                         .put("xpack.security.audit.enabled", true)
                         .put("xpack.security.audit.outputs", randomFrom("index", "index,logfile"))
-                        .putArray("xpack.security.audit.index.client.hosts", addresses.toArray(new String[addresses.size()]))
+                        .putList("xpack.security.audit.index.client.hosts", addresses.toArray(new String[addresses.size()]))
                         .put("xpack.security.audit.index.client.cluster.name", clusterName)
                         .put("xpack.security.audit.index.client.xpack.security.user", TEST_USER_NAME + ":" + TEST_PASSWORD);
 

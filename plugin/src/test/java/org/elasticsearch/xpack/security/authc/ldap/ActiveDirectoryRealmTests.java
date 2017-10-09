@@ -348,7 +348,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
     private Settings settings(Settings extraSettings) throws Exception {
         Settings.Builder builder = Settings.builder()
-                .putArray(URLS_SETTING, ldapUrls())
+                .putList(URLS_SETTING, ldapUrls())
                 .put(ActiveDirectorySessionFactory.AD_DOMAIN_NAME_SETTING, "ad.test.elasticsearch.com")
                 .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.getKey(), true);
         if (randomBoolean()) {

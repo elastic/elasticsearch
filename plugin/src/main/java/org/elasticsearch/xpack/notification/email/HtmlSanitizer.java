@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.notification.email;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.owasp.html.CssSchema;
 import org.owasp.html.ElementPolicy;
@@ -31,9 +30,9 @@ public class HtmlSanitizer {
     static final String[] TABLE_TAGS = new String[] {
             "table", "th", "tr", "td", "caption", "col", "colgroup", "thead", "tbody", "tfoot"
     };
-    static final String[] DEFAULT_ALLOWED = new String[] {
+    static final List<String> DEFAULT_ALLOWED = Arrays.asList(
             "body", "head", "_tables", "_links", "_blocks", "_formatting", "img:embedded"
-    };
+    );
 
     private final boolean enabled;
     @SuppressForbidden( reason = "PolicyFactory uses guava Function")
@@ -41,8 +40,8 @@ public class HtmlSanitizer {
     
     public HtmlSanitizer(Settings settings) {
         enabled = settings.getAsBoolean("xpack.notification.email.html.sanitization.enabled", true);
-        String[] allow = settings.getAsArray("xpack.notification.email.html.sanitization.allow", DEFAULT_ALLOWED);
-        String[] disallow = settings.getAsArray("xpack.notification.email.html.sanitization.disallow", Strings.EMPTY_ARRAY);
+        List<String> allow = settings.getAsList("xpack.notification.email.html.sanitization.allow", DEFAULT_ALLOWED);
+        List<String> disallow = settings.getAsList("xpack.notification.email.html.sanitization.disallow");
         policy = createCommonPolicy(allow, disallow);
     }
 
@@ -54,10 +53,10 @@ public class HtmlSanitizer {
     }
 
     @SuppressForbidden( reason = "PolicyFactory uses guava Function")
-    static PolicyFactory createCommonPolicy(String[] allow, String[] disallow) {
+    static PolicyFactory createCommonPolicy(List<String> allow, List<String> disallow) {
         HtmlPolicyBuilder policyBuilder = new HtmlPolicyBuilder();
 
-        if (Arrays.stream(allow).anyMatch("_all"::equals)) {
+        if (allow.stream().anyMatch("_all"::equals)) {
             return policyBuilder
                     .allowElements(TABLE_TAGS)
                     .allowAttributes("span").onElements("col")

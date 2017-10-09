@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.notification.slack.message;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 public class SlackMessageDefaults {
@@ -26,7 +28,8 @@ public class SlackMessageDefaults {
 
     public SlackMessageDefaults(Settings settings) {
         from = settings.get(FROM_SETTING, null);
-        to = settings.getAsArray(TO_SETTING, null);
+        List<String> to = settings.getAsList(TO_SETTING, null);
+        this.to = to == null ? null : to.toArray(Strings.EMPTY_ARRAY);
         icon = settings.get(ICON_SETTING, null);
         text = settings.get(TEXT_SETTING, null);
         attachment = new AttachmentDefaults(settings.getAsSettings(ATTACHMENT_SETTING));
@@ -78,7 +81,7 @@ public class SlackMessageDefaults {
         final String text;
         final String imageUrl;
         final String thumbUrl;
-        final String[] markdownSupportedFields;
+        final List<String> markdownSupportedFields;
         final FieldDefaults field;
 
         AttachmentDefaults(Settings settings) {
@@ -93,7 +96,7 @@ public class SlackMessageDefaults {
             text = settings.get(TEXT_SETTING, null);
             imageUrl = settings.get(IMAGE_URL_SETTING, null);
             thumbUrl = settings.get(THUMB_URL_SETTING, null);
-            markdownSupportedFields = settings.getAsArray(MARKDOWN_IN_SETTING, null);
+            markdownSupportedFields = settings.getAsList(MARKDOWN_IN_SETTING, null);
             field = new FieldDefaults(settings.getAsSettings(FIELD_SETTING));
         }
 
@@ -110,7 +113,7 @@ public class SlackMessageDefaults {
                     Objects.equals(title, that.title) && Objects.equals(titleLink, that.titleLink) &&
                     Objects.equals(text, that.text) && Objects.equals(imageUrl, that.imageUrl) &&
                     Objects.equals(thumbUrl, that.thumbUrl) && Objects.equals(field, that.field) &&
-                    Arrays.equals(markdownSupportedFields, that.markdownSupportedFields);
+                    Objects.equals(markdownSupportedFields, that.markdownSupportedFields);
         }
 
         @Override

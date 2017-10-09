@@ -143,7 +143,7 @@ public class HttpExporterTests extends ESTestCase {
         if (randomBoolean()) {
             builder.put("xpack.monitoring.exporters._http.host", "");
         } else if (randomBoolean()) {
-            builder.putArray("xpack.monitoring.exporters._http.host");
+            builder.putList("xpack.monitoring.exporters._http.host");
         } else if (randomBoolean()) {
             builder.putNull("xpack.monitoring.exporters._http.host");
         }
@@ -159,7 +159,7 @@ public class HttpExporterTests extends ESTestCase {
     public void testExporterWithInconsistentSchemes() {
         final Settings.Builder builder = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
-                .putArray("xpack.monitoring.exporters._http.host", "http://localhost:9200", "https://localhost:9201");
+                .putList("xpack.monitoring.exporters._http.host", "http://localhost:9200", "https://localhost:9201");
 
         final Config config = createConfig(builder.build());
 
@@ -179,9 +179,9 @@ public class HttpExporterTests extends ESTestCase {
         // sometimes add a valid URL with it
         if (randomBoolean()) {
             if (randomBoolean()) {
-                builder.putArray("xpack.monitoring.exporters._http.host", "localhost:9200", invalidHost);
+                builder.putList("xpack.monitoring.exporters._http.host", "localhost:9200", invalidHost);
             } else {
-                builder.putArray("xpack.monitoring.exporters._http.host", invalidHost, "localhost:9200");
+                builder.putList("xpack.monitoring.exporters._http.host", invalidHost, "localhost:9200");
             }
         } else {
             builder.put("xpack.monitoring.exporters._http.host", invalidHost);

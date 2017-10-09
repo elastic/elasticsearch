@@ -84,7 +84,7 @@ PUT my_index/doc/2?refresh
 // CONSOLE
 // TEST[continued]
 
-<1> This document is a `my_parent` document.
+<1> This document is a `question` document.
 
 When indexing a child, the name of the relation as well as the parent id of the document
 must be added in the `_source`.

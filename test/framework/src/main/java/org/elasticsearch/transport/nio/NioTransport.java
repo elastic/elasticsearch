@@ -151,8 +151,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    protected NodeChannels connectToChannels(
-            DiscoveryNode node, ConnectionProfile profile, Consumer<NioChannel> onChannelClose)
+    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile, Consumer<NioChannel> onChannelClose)
         throws IOException {
         NioSocketChannel[] channels = new NioSocketChannel[profile.getNumConnections()];
         ClientChannelCloseListener closeListener = new ClientChannelCloseListener(onChannelClose);

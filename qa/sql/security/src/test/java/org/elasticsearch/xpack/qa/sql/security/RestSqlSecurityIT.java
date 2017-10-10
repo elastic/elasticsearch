@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -94,7 +93,7 @@ public class RestSqlSecurityIT extends ESRestTestCase {
      * are likely audit log events and will cause the tests to
      * hang at best and at worst. Then remove all audit logs.
      */
-    @After
+    @Before
     public void cleanAuditLog() throws Exception {
         assertBusy(() -> {
             Set<String> bulks = new HashSet<>();

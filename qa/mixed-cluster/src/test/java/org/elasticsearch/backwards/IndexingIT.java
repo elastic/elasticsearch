@@ -171,9 +171,6 @@ public class IndexingIT extends ESRestTestCase {
                 assertVersion(index, 5, "_only_nodes:" + shard.getNode().getNodeName(), finalVersionForDoc5);
                 assertCount(index, "_only_nodes:" + shard.getNode().getNodeName(), 5);
             }
-            // the number of documents on the primary and on the recovered replica should match the number of indexed documents
-            assertCount(index, "_primary", 5);
-            assertCount(index, "_replica", 5);
         }
     }
 
@@ -232,9 +229,10 @@ public class IndexingIT extends ESRestTestCase {
             updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 1));
             ensureGreen();
             assertOK(client().performRequest("POST", index + "/_refresh"));
-            // the number of documents on the primary and on the recovered replica should match the number of indexed documents
-            assertCount(index, "_primary", numDocs);
-            assertCount(index, "_replica", numDocs);
+
+            for (Shard shard : buildShards(index, nodes, newNodeClient)) {
+                assertCount(index, "_only_nodes:" + shard.node.nodeName, numDocs);
+            }
             assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
         }
     }

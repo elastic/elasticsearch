@@ -152,7 +152,7 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
                 .field("analyzer", "payload_test").endObject().endObject().endObject().endObject();
         Settings setting =  Settings.builder()
             .put("index.analysis.analyzer.payload_test.tokenizer", "whitespace")
-            .putArray("index.analysis.analyzer.payload_test.filter", "my_delimited_payload_filter")
+            .putList("index.analysis.analyzer.payload_test.filter", "my_delimited_payload_filter")
             .put("index.analysis.filter.my_delimited_payload_filter.delimiter", delimiter)
             .put("index.analysis.filter.my_delimited_payload_filter.encoding", encodingString)
             .put("index.analysis.filter.my_delimited_payload_filter.type", "mock_payload_filter").build();

@@ -180,9 +180,9 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(
                 Settings.builder().put(indexSettings())
                         .put("index.analysis.filter.syns.type", "synonym")
-                        .putArray("index.analysis.filter.syns.synonyms", "one,two")
+                        .putList("index.analysis.filter.syns.synonyms", "one,two")
                         .put("index.analysis.analyzer.syns.tokenizer", "standard")
-                        .putArray("index.analysis.analyzer.syns.filter", "syns")
+                        .putList("index.analysis.analyzer.syns.filter", "syns")
                     ).addMapping("test", "field","type=text,analyzer=syns"));
         ensureGreen();
 

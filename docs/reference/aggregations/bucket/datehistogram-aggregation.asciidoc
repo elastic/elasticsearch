@@ -402,7 +402,7 @@ deprecated[6.0.0, Use `_key` instead of `_time` to order buckets by their dates/
 
 There are some cases where date histogram can't help us, like for example, when we need
 to aggregate the results by day of the week.
-In this case to overcame the problem, we can use a script that returns the day of the week:
+In this case to overcome the problem, we can use a script that returns the day of the week:
 
 
 [source,js]

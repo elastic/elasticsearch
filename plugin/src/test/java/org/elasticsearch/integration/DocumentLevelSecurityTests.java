@@ -23,6 +23,8 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -37,8 +39,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -52,6 +52,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
@@ -658,7 +659,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testParentChild_joinField() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder mapping = jsonBuilder().startObject()
                 .startObject("properties")
                     .startObject("join_field")
                         .field("type", "join")
@@ -901,6 +902,46 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .add(new UpdateRequest("test", "type", "1").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value3"))
                 .get();
         assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value3"));
+    }
+
+    public void testNestedInnerHits() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field1", "type=text", "nested_field", "type=nested")
+        );
+        client().prepareIndex("test", "type1", "1")
+                .setSource(jsonBuilder().startObject()
+                            .field("field1", "value1")
+                            .startArray("nested_field")
+                                .startObject()
+                                    .field("field2", "value2")
+                                .endObject()
+                            .endArray()
+                        .endObject())
+                .get();
+        client().prepareIndex("test", "type1", "2")
+                .setSource(jsonBuilder().startObject()
+                            .field("field1", "value2")
+                            .startArray("nested_field")
+                                .startObject()
+                                    .field("field2", "value2")
+                                .endObject()
+                            .endArray()
+                        .endObject())
+                .get();
+        refresh("test");
+
+        SearchResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(QueryBuilders.nestedQuery("nested_field", QueryBuilders.termQuery("nested_field.field2", "value2"),
+                        ScoreMode.None).innerHit(new InnerHitBuilder()))
+                .get();
+        assertHitCount(response, 1);
+        assertSearchHits(response, "1");
+        assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(0).getId(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(0).getSourceAsString(),
+                equalTo("{\"nested_field\":{\"field2\":\"value2\"}}"));
     }
 
 }

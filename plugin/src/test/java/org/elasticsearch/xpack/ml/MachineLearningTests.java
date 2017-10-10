@@ -30,12 +30,11 @@ public class MachineLearningTests extends ESTestCase {
         assertNotNull(machineLearning.additionalSettings());
     }
 
-    public void testNoAttributes_givenSame() {
+    public void testNoAttributes_givenSameAndMlEnabled() {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
-            boolean enabled = randomBoolean();
-            builder.put("xpack.ml.enabled", enabled);
-            builder.put("node.attr.ml.enabled", enabled);
+            builder.put("xpack.ml.enabled", true);
+            builder.put("node.attr.ml.enabled", true);
         }
         if (randomBoolean()) {
             int maxOpenJobs = randomIntBetween(5, 15);

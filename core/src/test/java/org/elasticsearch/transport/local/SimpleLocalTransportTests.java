@@ -24,6 +24,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.transport.Transport;
+
+import java.io.IOException;
 
 public class SimpleLocalTransportTests extends AbstractSimpleTransportTestCase {
 
@@ -34,4 +37,15 @@ public class SimpleLocalTransportTests extends AbstractSimpleTransportTestCase {
         transportService.start();
         return transportService;
     }
+
+    @Override
+    public void testChannelCloseWhileConnecting() throws IOException {
+        // this test does not apply to local transport
+    }
+
+    @Override
+    protected void closeConnectionChannel(final Transport transport, final Transport.Connection connection) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
 }

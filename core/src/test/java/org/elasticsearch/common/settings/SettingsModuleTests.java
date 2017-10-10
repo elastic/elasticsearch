@@ -23,7 +23,11 @@ import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Setting.Property;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 
 public class SettingsModuleTests extends ModuleTestCase {
@@ -116,6 +120,31 @@ public class SettingsModuleTests extends ModuleTestCase {
         assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().containsKey("bar.baz"));
         assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().get("bar.baz").equals("false"));
 
+    }
+
+    public void testRegisterListSettingsFilter() {
+        final Settings settings = Settings.builder()
+                                          .put("foo.bar", true)
+                                          .put("foo.baz", "one")
+                                          .putArray("foo.qux", Arrays.asList("two", "three", "four"))
+                                          .build();
+
+        final List<Setting<?>> additionalSettings = Arrays.asList(
+            Setting.simpleString("foo.bar", Property.NodeScope),
+            Setting.simpleString("foo.baz", Property.NodeScope, Property.Filtered),
+            Setting.listSetting("foo.qux", singletonList("default"), String::toString, Property.NodeScope, Property.Filtered)
+        );
+
+        final SettingsModule module = new SettingsModule(settings, additionalSettings, emptyList());
+
+        final Set<String> filters = module.getSettingsFilter().getPatterns();
+        assertEquals(3, filters.size());
+        assertTrue(filters.contains("foo.baz"));
+        assertTrue(filters.contains("foo.qux"));
+        assertTrue(filters.contains("foo.qux.*"));
+
+        assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).size() == 1);
+        assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().containsKey("foo.bar"));
     }
 
     public void testMutuallyExclusiveScopes() {

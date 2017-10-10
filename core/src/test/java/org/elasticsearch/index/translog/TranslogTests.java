@@ -76,6 +76,7 @@ import org.junit.Before;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
@@ -88,6 +89,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -104,7 +106,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomLongBetween;
 import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
@@ -891,7 +895,7 @@ public class TranslogTests extends ESTestCase {
                         // these are what we expect the snapshot to return (and potentially some more).
                         Set<Translog.Operation> expectedOps = new HashSet<>(writtenOps.keySet());
                         expectedOps.removeIf(op -> op.seqNo() <= committedLocalCheckpointAtView);
-                        try (Translog.Snapshot snapshot = translog.newSnapshotFromMinSeqNo(committedLocalCheckpointAtView + 1L)) {
+                        try (Translog.Snapshot snapshot = translog.newSnapshotFrom(committedLocalCheckpointAtView + 1L)) {
                             Translog.Operation op;
                             while ((op = snapshot.next()) != null) {
                                 expectedOps.remove(op);
@@ -2484,7 +2488,7 @@ public class TranslogTests extends ESTestCase {
             }
             assertThat(translog.estimateTotalOperationsFromMinSeq(seqNo), equalTo(expectedSnapshotOps));
             int readFromSnapshot = 0;
-            try (Translog.Snapshot snapshot = translog.newSnapshotFromMinSeqNo(seqNo)) {
+            try (Translog.Snapshot snapshot = translog.newSnapshotFrom(seqNo)) {
                 assertThat(snapshot.totalOperations(), equalTo(expectedSnapshotOps));
                 Translog.Operation op;
                 while ((op = snapshot.next()) != null) {
@@ -2497,6 +2501,38 @@ public class TranslogTests extends ESTestCase {
             final Set<Tuple<Long, Long>> expected = seqNos.stream().filter(t -> t.v1() >= seqNoLowerBound).collect(Collectors.toSet());
             seenSeqNos.retainAll(expected);
             assertThat(seenSeqNos, equalTo(expected));
+        }
+    }
+
+    public void testGetSnapshotBetween() throws IOException {
+        final int numOperations = randomIntBetween(2, 8196);
+        final List<Integer> sequenceNumbers = IntStream.range(0, numOperations).boxed().collect(Collectors.toList());
+        Collections.shuffle(sequenceNumbers, random());
+        for (Integer sequenceNumber : sequenceNumbers) {
+            translog.add(new Translog.NoOp(sequenceNumber, 0, "test"));
+            if (rarely()) {
+                translog.rollGeneration();
+            }
+        }
+        translog.rollGeneration();
+
+        final int iters = randomIntBetween(8, 32);
+        for (int iter = 0; iter < iters; iter++) {
+            int min = randomIntBetween(0, numOperations - 1);
+            int max = randomIntBetween(min, numOperations);
+            try (Translog.Snapshot snapshot = translog.getSnapshotBetween(min, max)) {
+                final List<Translog.Operation> operations = new ArrayList<>();
+                for (Translog.Operation operation = snapshot.next(); operation != null; operation = snapshot.next()) {
+                    if (operation.seqNo() >= min && operation.seqNo() <= max) {
+                        operations.add(operation);
+                    }
+                }
+                operations.sort(Comparator.comparingLong(Translog.Operation::seqNo));
+                Iterator<Translog.Operation> iterator = operations.iterator();
+                for (long expectedSeqNo = min; expectedSeqNo < max; expectedSeqNo++) {
+                    assertThat(iterator.next().seqNo(), equalTo(expectedSeqNo));
+                }
+            }
         }
     }
 

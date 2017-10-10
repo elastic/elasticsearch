@@ -210,7 +210,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     @Override
     public Mapper parse(ParseContext context) throws IOException {
-        // we parse in post parse
+        // Adding values to the _field_names field is handled by the mappers for each field type
         return null;
     }
 

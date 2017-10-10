@@ -34,13 +34,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.Objects;
 
 /**
@@ -150,44 +147,36 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
         if (fields.size() == 1) {
             String field = fields.iterator().next();
-            MappedFieldType fieldType = context.getMapperService().fullName(field);
-            if (fieldType == null) {
-                // The field does not exist as a leaf but could be an object so check for an object mapper
-                if (context.getObjectMapper(field) != null) {
-                    return newObjectFieldExistsQuery(context, field);
-                }
-                return Queries.newMatchNoDocsQuery("No field \"" + field + "\" exists in mappings.");
-            }
-            Query filter = fieldType.existsQuery(context);
-            return new ConstantScoreQuery(filter);
+            return newFieldExistsQuery(context, field);
         }
 
         BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
         for (String field : fields) {
-            MappedFieldType fieldType = context.getMapperService().fullName(field);
-            if (fieldType == null) {
-                // The field does not exist as a leaf but could be an object so check for an object mapper
-                if (context.getObjectMapper(field) != null) {
-                    boolFilterBuilder.add(newObjectFieldExistsQuery(context, field), BooleanClause.Occur.SHOULD);
-                }
-            } else {
-                Query filter = fieldType.existsQuery(context);
-                boolFilterBuilder.add(filter, BooleanClause.Occur.SHOULD);
-            }
+            boolFilterBuilder.add(newFieldExistsQuery(context, field), BooleanClause.Occur.SHOULD);
         }
         return new ConstantScoreQuery(boolFilterBuilder.build());
     }
 
-    private static Query newObjectFieldExistsQuery(QueryShardContext context, String field) {
-        BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
-        for (Iterator<Mapper> itr = context.getObjectMapper(field).iterator(); itr.hasNext();) {
-            Mapper childField = itr.next();
-            if (childField instanceof ObjectMapper) {
-                booleanQuery.add(newObjectFieldExistsQuery(context, childField.name()), Occur.SHOULD);
-            } else {
-                Query existsQuery = context.getMapperService().fullName(childField.name()).existsQuery(context);
-                booleanQuery.add(existsQuery, Occur.SHOULD);
+    private static Query newFieldExistsQuery(QueryShardContext context, String field) {
+        MappedFieldType fieldType = context.getMapperService().fullName(field);
+        if (fieldType == null) {
+            // The field does not exist as a leaf but could be an object so
+            // check for an object mapper
+            if (context.getObjectMapper(field) != null) {
+                return newObjectFieldExistsQuery(context, field);
             }
+            return Queries.newMatchNoDocsQuery("No field \"" + field + "\" exists in mappings.");
+        }
+        Query filter = fieldType.existsQuery(context);
+        return new ConstantScoreQuery(filter);
+    }
+
+    private static Query newObjectFieldExistsQuery(QueryShardContext context, String objField) {
+        BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
+        Collection<String> fields = context.simpleMatchToIndexNames(objField + ".*");
+        for (String field : fields) {
+            Query existsQuery = context.getMapperService().fullName(field).existsQuery(context);
+            booleanQuery.add(existsQuery, Occur.SHOULD);
         }
         return new ConstantScoreQuery(booleanQuery.build());
     }

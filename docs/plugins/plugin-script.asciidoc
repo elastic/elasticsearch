@@ -64,8 +64,8 @@ sudo bin/elasticsearch-plugin install [url] <1>
 -----------------------------------
 <1> must be a valid URL, the plugin name is determined from its descriptor.
 
+--
 Unix::
-+
 To install a plugin from your local file system at `/path/to/plugin.zip`, you could run:
 +
 [source,shell]
@@ -74,7 +74,6 @@ sudo bin/elasticsearch-plugin install file:///path/to/plugin.zip
 -----------------------------------
 
 Windows::
-+
 To install a plugin from your local file system at `C:\path\to\plugin.zip`, you could run:
 +
 [source,shell]
@@ -82,9 +81,10 @@ To install a plugin from your local file system at `C:\path\to\plugin.zip`, you 
 bin\elasticsearch-plugin install file:///C:/path/to/plugin.zip
 -----------------------------------
 +
-NOTE: Any path that contains spaces must be wrapped in quotes! 
+NOTE: Any path that contains spaces must be wrapped in quotes!
 
 HTTP::
+To install a plugin from a HTTP URL:
 +
 [source,shell]
 -----------------------------------
@@ -99,6 +99,7 @@ to a local Java truststore and pass the location to the script as follows:
 -----------------------------------
 sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://host/plugin.zip
 -----------------------------------
+--
 
 [[listing-removing-updating]]
 === Listing, Removing and Updating Installed Plugins

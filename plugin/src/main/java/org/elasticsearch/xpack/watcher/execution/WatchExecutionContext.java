@@ -202,25 +202,27 @@ public abstract class WatchExecutionContext {
         return Collections.unmodifiableMap(actionsResults);
     }
 
-    public WatchRecord abortBeforeExecution(ExecutionState state, String message) {
+    WatchRecord abortBeforeExecution(ExecutionState state, String message) {
         assert !phase.sealed();
         phase = ExecutionPhase.ABORTED;
         return new WatchRecord.MessageWatchRecord(id, triggerEvent, state, message, getNodeId());
     }
 
-    public WatchRecord abortFailedExecution(String message) {
+    WatchRecord abortFailedExecution(String message) {
         assert !phase.sealed();
         phase = ExecutionPhase.ABORTED;
         long executionTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - relativeStartTime);
         WatchExecutionResult result = new WatchExecutionResult(this, executionTime);
+        watch().status().setExecutionState(WatchRecord.getState(result));
         return new WatchRecord.MessageWatchRecord(this, result, message);
     }
 
-    public WatchRecord abortFailedExecution(Exception e) {
+    WatchRecord abortFailedExecution(Exception e) {
         assert !phase.sealed();
         phase = ExecutionPhase.ABORTED;
         long executionTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - relativeStartTime);
         WatchExecutionResult result = new WatchExecutionResult(this, executionTime);
+        watch().status().setExecutionState(WatchRecord.getState(result));
         return new WatchRecord.ExceptionWatchRecord(this, result, e);
     }
 
@@ -229,10 +231,11 @@ public abstract class WatchExecutionContext {
         phase = ExecutionPhase.FINISHED;
         long executionTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - relativeStartTime);
         WatchExecutionResult result = new WatchExecutionResult(this, executionTime);
+        watch().status().setExecutionState(WatchRecord.getState(result));
         return new WatchRecord.MessageWatchRecord(this, result);
     }
 
-    public WatchExecutionSnapshot createSnapshot(Thread executionThread) {
+    WatchExecutionSnapshot createSnapshot(Thread executionThread) {
         return new WatchExecutionSnapshot(this, executionThread.getStackTrace());
     }
 }

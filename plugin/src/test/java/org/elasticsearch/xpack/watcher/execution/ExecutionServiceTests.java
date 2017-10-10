@@ -813,6 +813,8 @@ public class ExecutionServiceTests extends ESTestCase {
     public void testThatTriggeredWatchDeletionWorksOnExecutionRejection() throws Exception {
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("foo");
+        WatchStatus status = new WatchStatus(DateTime.now(UTC), Collections.emptyMap());
+        when(watch.status()).thenReturn(status);
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(true);
         when(getResponse.getId()).thenReturn("foo");

@@ -63,7 +63,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
 
-        document = new IngestDocument("_index", "_type", "_id", null, null,
+        document = new IngestDocument("_index", "_type", "_id", null, null, null, null,
                 Collections.singletonMap("_field", 1000500L));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));

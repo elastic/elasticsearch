@@ -32,13 +32,11 @@ import org.elasticsearch.test.transport.MockTransportService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
-import java.util.function.Consumer;
 
-public class MockTcpTransportTests extends AbstractSimpleTransportTestCase<MockTcpTransport.MockChannel> {
+public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
-    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake,
-                                         Consumer<MockTcpTransport.MockChannel> onChannelOpen) {
+    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version) {
@@ -51,11 +49,6 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase<MockT
                     return version.minimumCompatibilityVersion();
                 }
             }
-
-            @Override
-            protected void onChannelOpen(MockChannel mockChannel) {
-                onChannelOpen.accept(mockChannel);
-            }
         };
         MockTransportService mockTransportService =
             MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings);
@@ -64,17 +57,11 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase<MockT
     }
 
     @Override
-    protected void close(MockTcpTransport.MockChannel mockChannel) {
-        try {
-            mockChannel.close();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    @Override
-    protected boolean opensMultipleChannels() {
-        return false;
+    protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
+        final MockTcpTransport t = (MockTcpTransport) transport;
+        @SuppressWarnings("unchecked") final TcpTransport<MockTcpTransport.MockChannel>.NodeChannels channels =
+                (TcpTransport<MockTcpTransport.MockChannel>.NodeChannels) connection;
+        t.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true, false);
     }
 
 }

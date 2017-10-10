@@ -178,7 +178,6 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     @Override
     protected NodeChannels connectToChannels(DiscoveryNode node,
                                              ConnectionProfile profile,
-                                             Consumer<MockChannel> onChannelOpen,
                                              Consumer<MockChannel> onChannelClose) throws IOException {
         final MockChannel[] mockChannels = new MockChannel[1];
         final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, LIGHT_PROFILE); // we always use light here
@@ -195,7 +194,6 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                 throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", ex);
             }
             MockChannel channel = new MockChannel(socket, address, "none", onChannelClose);
-            onChannelOpen.accept(channel);
             channel.loopRead(executor);
             mockChannels[0] = channel;
             success = true;

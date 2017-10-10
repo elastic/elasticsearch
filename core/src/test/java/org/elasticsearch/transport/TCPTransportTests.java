@@ -37,7 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.channels.Channel;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -225,16 +224,9 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected NodeChannels connectToChannels(DiscoveryNode node,
-                                                         ConnectionProfile profile,
-                                                         Consumer onChannelOpen,
-                                                         Consumer onChannelClose) throws IOException {
-
-                    final Object[] objects = new Object[profile.getNumConnections()];
-                    for (int i = 0; i < objects.length; i++) {
-                        onChannelOpen.accept(objects[i]);
-                    }
-                    return new NodeChannels(node, objects, profile);
+                protected NodeChannels connectToChannels(
+                        DiscoveryNode node, ConnectionProfile profile, Consumer onChannelClose) throws IOException {
+                    return new NodeChannels(node, new Object[profile.getNumConnections()], profile);
                 }
 
                 @Override

@@ -588,7 +588,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                         }
                     }
                 };
-                nodeChannels = connectToChannels(node, connectionProfile, this::onChannelOpen, onClose);
+                nodeChannels = connectToChannels(node, connectionProfile, onClose);
                 final Channel channel = nodeChannels.getChannels().get(0); // one channel is guaranteed by the connection profile
                 final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
                     defaultConnectionProfile.getConnectTimeout() :
@@ -618,15 +618,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         } finally {
             closeLock.readLock().unlock();
         }
-    }
-
-    /**
-     * Callback invoked when a channel is opened.
-     *
-     * @param channel the opened channel
-     */
-    protected void onChannelOpen(final Channel channel) {
-
     }
 
     private void disconnectFromNodeCloseAndNotify(DiscoveryNode node, NodeChannels nodeChannels) {
@@ -1048,18 +1039,16 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     /**
      * Connect to the node with channels as defined by the specified connection profile. Implementations must invoke the specified channel
-     * open and close callbacks when a channel is successfully opened or a channel is subsequently closed.
+     * close callback when a channel is closed.
      *
      * @param node              the node to connect to
      * @param connectionProfile the connection profile
-     * @param onChannelOpen     callback to invoke when a channel is opened
      * @param onChannelClose    callback to invoke when a channel is closed
      * @return the channels
      * @throws IOException if an I/O exception occurs while opening channels
      */
     protected abstract NodeChannels connectToChannels(DiscoveryNode node,
                                                       ConnectionProfile connectionProfile,
-                                                      Consumer<Channel> onChannelOpen,
                                                       Consumer<Channel> onChannelClose) throws IOException;
 
     /**

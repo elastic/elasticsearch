@@ -59,7 +59,6 @@ public class NioClient {
     public boolean connectToChannels(DiscoveryNode node,
                                      NioSocketChannel[] channels,
                                      TimeValue connectTimeout,
-                                     Consumer<NioChannel> onChannelOpen,
                                      Consumer<NioChannel> closeListener) throws IOException {
         boolean allowedToConnect = semaphore.tryAcquire();
         if (allowedToConnect == false) {
@@ -89,8 +88,6 @@ public class NioClient {
                         ex = exception;
                         break;
                     }
-                } else {
-                    onChannelOpen.accept(socketChannel);
                 }
             }
 

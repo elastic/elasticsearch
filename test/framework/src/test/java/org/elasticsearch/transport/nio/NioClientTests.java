@@ -84,7 +84,7 @@ public class NioClientTests extends ESTestCase {
         when(connectFuture1.awaitConnectionComplete(5, TimeUnit.MILLISECONDS)).thenReturn(true);
         when(connectFuture2.awaitConnectionComplete(5, TimeUnit.MILLISECONDS)).thenReturn(true);
 
-        client.connectToChannels(node, channels,  TimeValue.timeValueMillis(5), c -> {}, listener);
+        client.connectToChannels(node, channels,  TimeValue.timeValueMillis(5), listener);
 
         assertEquals(channel1, channels[0]);
         assertEquals(channel2, channels[1]);
@@ -99,7 +99,7 @@ public class NioClientTests extends ESTestCase {
         when(connectFuture1.awaitConnectionComplete(3, TimeUnit.MILLISECONDS)).thenReturn(true);
 
         channels = new NioSocketChannel[1];
-        client.connectToChannels(node, channels,  TimeValue.timeValueMillis(3), c -> {}, listener);
+        client.connectToChannels(node, channels,  TimeValue.timeValueMillis(3), listener);
 
         assertEquals(channel1, channels[0]);
     }
@@ -121,7 +121,7 @@ public class NioClientTests extends ESTestCase {
         when(connectFuture2.awaitConnectionComplete(5, TimeUnit.MILLISECONDS)).thenReturn(false);
 
         try {
-            client.connectToChannels(node, channels,  TimeValue.timeValueMillis(5), c -> {}, listener);
+            client.connectToChannels(node, channels,  TimeValue.timeValueMillis(5), listener);
             fail("Should have thrown ConnectTransportException");
         } catch (ConnectTransportException e) {
             assertTrue(e.getMessage().contains("connect_timeout[5ms]"));
@@ -149,7 +149,7 @@ public class NioClientTests extends ESTestCase {
         when(connectFuture2.getException()).thenReturn(ioException);
 
         try {
-            client.connectToChannels(node, channels,  TimeValue.timeValueMillis(5), c -> {}, listener);
+            client.connectToChannels(node, channels,  TimeValue.timeValueMillis(5), listener);
             fail("Should have thrown ConnectTransportException");
         } catch (ConnectTransportException e) {
             assertTrue(e.getMessage().contains("connect_exception"));
@@ -166,7 +166,7 @@ public class NioClientTests extends ESTestCase {
     public void testCloseDoesNotAllowConnections() throws IOException {
         client.close();
 
-        assertFalse(client.connectToChannels(node, channels,  TimeValue.timeValueMillis(5), c -> {}, listener));
+        assertFalse(client.connectToChannels(node, channels,  TimeValue.timeValueMillis(5), listener));
 
         for (NioSocketChannel channel : channels) {
             assertNull(channel);

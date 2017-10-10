@@ -79,7 +79,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -92,7 +91,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCase {
+public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     protected ThreadPool threadPool;
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
@@ -108,8 +107,7 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
     protected volatile DiscoveryNode nodeB;
     protected volatile MockTransportService serviceB;
 
-    protected abstract MockTransportService build(
-            Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake, Consumer<Channel> onChannelOpen);
+    protected abstract MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake);
 
     @Override
     @Before
@@ -150,21 +148,15 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
 
     private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
                                               Settings settings, boolean acceptRequests, boolean doHandshake) {
-        return buildService(name, version, clusterSettings, settings, acceptRequests, doHandshake, c -> {});
-    }
-
-    private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
-                                              Settings settings, boolean acceptRequests, boolean doHandshake,
-                                              Consumer<Channel> onChannelOpen) {
         MockTransportService service = build(
-            Settings.builder()
-                .put(settings)
-                .put(Node.NODE_NAME_SETTING.getKey(), name)
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-                .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-                .build(),
-            version,
-            clusterSettings, doHandshake, onChannelOpen);
+                Settings.builder()
+                        .put(settings)
+                        .put(Node.NODE_NAME_SETTING.getKey(), name)
+                        .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+                        .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+                        .build(),
+                version,
+                clusterSettings, doHandshake);
         if (acceptRequests) {
             service.acceptIncomingRequests();
         }
@@ -1702,7 +1694,7 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
                 .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .build(),
             version0,
-            null, true, c -> {});
+            null, true);
         DiscoveryNode nodeC = serviceC.getLocalNode();
         serviceC.acceptIncomingRequests();
 
@@ -2135,7 +2127,7 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
     public void testHandlerIsInvokedOnConnectionClose() throws IOException, InterruptedException {
         List<String> executors = new ArrayList<>(ThreadPool.THREAD_POOL_TYPES.keySet());
         CollectionUtil.timSort(executors); // makes sure it's reproducible
-        TransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true, c -> {});
+        TransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
         serviceC.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
             (request, channel) -> {
                 // do nothing
@@ -2193,7 +2185,7 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
     }
 
     public void testConcurrentDisconnectOnNonPublishedConnection() throws IOException, InterruptedException {
-        MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true, c -> {});
+        MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
         serviceC.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
@@ -2261,7 +2253,7 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
     }
 
     public void testTransportStats() throws Exception {
-        MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true, c -> {});
+        MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
         serviceB.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
@@ -2354,7 +2346,7 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
     }
 
     public void testTransportStatsWithException() throws Exception {
-        MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true, c -> {});
+        MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
         Exception ex = new RuntimeException("boom");
@@ -2467,7 +2459,7 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
             .put("transport.profiles.some_other_profile.port", "8700-8800")
             .putList("transport.profiles.some_other_profile.bind_host", hosts)
             .putList("transport.profiles.some_other_profile.publish_host", "_local:ipv4_")
-            .build(), version0, null, true, c -> {})) {
+            .build(), version0, null, true)) {
 
             serviceC.start();
             serviceC.acceptIncomingRequests();
@@ -2624,60 +2616,31 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
     }
 
     public void testChannelCloseWhileConnecting() throws IOException {
-        /*
-         * We have to keep the first connection open so the handshake succeeds and then we later fail when checking if all the connections
-         * are open. For mock TCP transport there is only a single connection that is open so we have to defer closing it until immediately
-         * after the handshake is complete to simulate a channel closing while we are connecting.
-         */
-        final MockTransportService service;
-        if (opensMultipleChannels()) {
-            final AtomicBoolean first = new AtomicBoolean(true);
-            service =
-                    buildService("service", version0, clusterSettings, Settings.EMPTY, true, true, channel -> {
-                        if (first.compareAndSet(true, false) == false) {
-                            close(channel);
+                try (MockTransportService service = build(Settings.builder().put("name", "close").build(), version0, null, true)) {
+                    service.setExecutorName(ThreadPool.Names.SAME); // make sure stuff is executed in a blocking fashion
+                    service.addConnectionListener(new TransportConnectionListener() {
+                        @Override
+                        public void onConnectionOpened(final Transport.Connection connection) {
+                            try {
+                                closeConnectionChannel(service.getOriginalTransport(), connection);
+                            } catch (final IOException e) {
+                                throw new AssertionError(e);
+                            }
                         }
                     });
-        } else {
-            final NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-            final NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
-            final NetworkService networkService = new NetworkService(Collections.emptyList());
-            final Transport transport =
-                    new MockTcpTransport(
-                            Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE, circuitBreakerService, registry, networkService) {
-                        @Override
-                        protected Version executeHandshake(
-                                DiscoveryNode node, MockChannel mockChannel, TimeValue timeout) throws IOException, InterruptedException {
-                            final Version version = super.executeHandshake(node, mockChannel, timeout);
-                            mockChannel.close();
-                            return version;
-                        }
-                    };
-            service =
-                    MockTransportService.createNewService(Settings.EMPTY, transport, version0, threadPool, clusterSettings);
-        }
-
-        try {
-            service.start();
-            final TcpTransport underlyingTransport = (TcpTransport) service.getOriginalTransport();
-
-            final String otherName = "other_service";
-            try (TransportService otherService = buildService(otherName, Version.CURRENT, null)) {
-                final TransportAddress publishAddress = otherService.boundAddress().publishAddress();
-                final DiscoveryNode node = new DiscoveryNode(otherName, otherName, publishAddress, emptyMap(), emptySet(), version0);
-                final ConnectTransportException e =
-                        expectThrows(ConnectTransportException.class, () -> underlyingTransport.openConnection(node, null));
-                assertThat(e, hasToString(containsString("a channel closed while connecting")));
-            }
-        } finally {
-            service.close();
+                    final ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+                    builder.addConnections(1,
+                            TransportRequestOptions.Type.BULK,
+                            TransportRequestOptions.Type.PING,
+                            TransportRequestOptions.Type.RECOVERY,
+                            TransportRequestOptions.Type.REG,
+                            TransportRequestOptions.Type.STATE);
+                    final ConnectTransportException e =
+                            expectThrows(ConnectTransportException.class, () -> service.openConnection(nodeA, builder.build()));
+                    assertThat(e, hasToString(containsString(("a channel closed while connecting"))));
         }
     }
 
-    protected boolean opensMultipleChannels() {
-        return true;
-    }
-
-    protected abstract void close(Channel channel);
+    protected abstract void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException;
 
 }

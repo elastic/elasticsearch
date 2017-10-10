@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -45,16 +44,15 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
-import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
-public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase<Channel> {
+public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase {
 
     public static MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
-            ClusterSettings clusterSettings, boolean doHandshake, Consumer<Channel> onChannelOpen) {
+                                                           ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Transport transport = new Netty4Transport(settings, threadPool, new NetworkService(Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
@@ -70,11 +68,6 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase<
             }
 
             @Override
-            protected void onChannelOpen(Channel channel) {
-                onChannelOpen.accept(channel);
-            }
-
-            @Override
             protected Version getCurrentVersion() {
                 return version;
             }
@@ -87,18 +80,19 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase<
 
     @Override
     protected MockTransportService build(
-            Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake, Consumer<Channel> onChannelOpen) {
+            Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         settings = Settings.builder().put(settings).put(TcpTransport.PORT.getKey(), "0").build();
         MockTransportService transportService =
-                nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake, onChannelOpen);
+                nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
         transportService.start();
         return transportService;
     }
 
     @Override
-    protected void close(Channel channel) {
-        final ChannelFuture future = channel.close();
-        future.awaitUninterruptibly();
+    protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
+        final Netty4Transport t = (Netty4Transport) transport;
+        @SuppressWarnings("unchecked") final TcpTransport<Channel>.NodeChannels channels = (TcpTransport<Channel>.NodeChannels) connection;
+        t.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true, false);
     }
 
     public void testConnectException() throws UnknownHostException {
@@ -124,7 +118,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase<
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
             MockTransportService transportService =
-                    nettyFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true, c -> {});
+                    nettyFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true);
             try {
                 transportService.start();
             } finally {

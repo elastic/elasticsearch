@@ -253,7 +253,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
     @Override
     protected NodeChannels connectToChannels(
-            DiscoveryNode node, ConnectionProfile profile, Consumer<Channel> onChannelOpen, Consumer<Channel> onChannelClose) {
+            DiscoveryNode node, ConnectionProfile profile, Consumer<Channel> onChannelClose) {
         final Channel[] channels = new Channel[profile.getNumConnections()];
         final NodeChannels nodeChannels = new NodeChannels(node, channels, profile);
         boolean success = false;
@@ -285,7 +285,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
                         throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", future.cause());
                     }
                     final Channel channel = future.channel();
-                    onChannelOpen.accept(channel);
                     channels[i] = channel;
                     channels[i].closeFuture().addListener(closeListener);
                 }

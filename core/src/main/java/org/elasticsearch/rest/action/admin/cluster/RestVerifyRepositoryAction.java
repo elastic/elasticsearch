@@ -39,6 +39,11 @@ public class RestVerifyRepositoryAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "verify_repository_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         VerifyRepositoryRequest verifyRepositoryRequest = verifyRepositoryRequest(request.param("repository"));
         verifyRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", verifyRepositoryRequest.masterNodeTimeout()));

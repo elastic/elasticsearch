@@ -20,28 +20,26 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
+import org.elasticsearch.action.bulk.TransportShardBulkAction.ReplicaItemExecutionMode;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.elasticsearch.action.support.replication.TransportWriteAction.WritePrimaryResult;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -52,18 +50,20 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.action.bulk.TransportShardBulkAction;
-import org.elasticsearch.action.bulk.MappingUpdatePerformer;
-import org.elasticsearch.action.bulk.BulkItemResultHolder;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongSupplier;
 
+import static org.elasticsearch.action.bulk.TransportShardBulkAction.replicaItemExecutionMode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyLong;
@@ -93,29 +93,41 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         // Successful index request should be replicated
         DocWriteRequest writeRequest = new IndexRequest("index", "type", "id")
                 .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
-        DocWriteResponse response = new IndexResponse(shardId, "type", "id", 1, 1, randomBoolean());
+        DocWriteResponse response = new IndexResponse(shardId, "type", "id", 1, 17, 1, randomBoolean());
         BulkItemRequest request = new BulkItemRequest(0, writeRequest);
         request.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, response));
-        assertTrue(TransportShardBulkAction.shouldExecuteReplicaItem(request, 0));
+        assertThat(replicaItemExecutionMode(request, 0),
+                equalTo(ReplicaItemExecutionMode.NORMAL));
 
-        // Failed index requests should not be replicated (for now!)
+        // Failed index requests without sequence no should not be replicated
         writeRequest = new IndexRequest("index", "type", "id")
                 .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
-        response = new IndexResponse(shardId, "type", "id", 1, 1, randomBoolean());
         request = new BulkItemRequest(0, writeRequest);
         request.setPrimaryResponse(
                 new BulkItemResponse(0, DocWriteRequest.OpType.INDEX,
                         new BulkItemResponse.Failure("index", "type", "id",
                                                      new IllegalArgumentException("i died"))));
-        assertFalse(TransportShardBulkAction.shouldExecuteReplicaItem(request, 0));
+        assertThat(replicaItemExecutionMode(request, 0),
+                equalTo(ReplicaItemExecutionMode.NOOP));
 
+        // Failed index requests with sequence no should be replicated
+        request = new BulkItemRequest(0, writeRequest);
+        request.setPrimaryResponse(
+                new BulkItemResponse(0, DocWriteRequest.OpType.INDEX,
+                        new BulkItemResponse.Failure("index", "type", "id",
+                                new IllegalArgumentException(
+                                        "i died after sequence no was generated"),
+                                1)));
+        assertThat(replicaItemExecutionMode(request, 0),
+                equalTo(ReplicaItemExecutionMode.FAILURE));
         // NOOP requests should not be replicated
         writeRequest = new UpdateRequest("index", "type", "id");
         response = new UpdateResponse(shardId, "type", "id", 1, DocWriteResponse.Result.NOOP);
         request = new BulkItemRequest(0, writeRequest);
         request.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.UPDATE,
                         response));
-        assertFalse(TransportShardBulkAction.shouldExecuteReplicaItem(request, 0));
+        assertThat(replicaItemExecutionMode(request, 0),
+                equalTo(ReplicaItemExecutionMode.NOOP));
     }
 
 
@@ -195,6 +207,56 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testSkipBulkIndexRequestIfAborted() throws Exception {
+        IndexShard shard = newStartedShard(true);
+
+        BulkItemRequest[] items = new BulkItemRequest[randomIntBetween(2, 5)];
+        for (int i = 0; i < items.length; i++) {
+            DocWriteRequest writeRequest = new IndexRequest("index", "type", "id_" + i)
+                .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar-" + i)
+                .opType(DocWriteRequest.OpType.INDEX);
+            items[i] = new BulkItemRequest(i, writeRequest);
+        }
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        // Preemptively abort one of the bulk items, but allow the others to proceed
+        BulkItemRequest rejectItem = randomFrom(items);
+        RestStatus rejectionStatus = randomFrom(RestStatus.BAD_REQUEST, RestStatus.CONFLICT, RestStatus.FORBIDDEN, RestStatus.LOCKED);
+        final ElasticsearchStatusException rejectionCause = new ElasticsearchStatusException("testing rejection", rejectionStatus);
+        rejectItem.abort("index", rejectionCause);
+
+        UpdateHelper updateHelper = null;
+        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer());
+
+        // since at least 1 item passed, the tran log location should exist,
+        assertThat(result.location, notNullValue());
+        // and the response should exist and match the item count
+        assertThat(result.finalResponseIfSuccessful, notNullValue());
+        assertThat(result.finalResponseIfSuccessful.getResponses(), arrayWithSize(items.length));
+
+        // check each response matches the input item, including the rejection
+        for (int i = 0; i < items.length; i++) {
+            BulkItemResponse response = result.finalResponseIfSuccessful.getResponses()[i];
+            assertThat(response.getItemId(), equalTo(i));
+            assertThat(response.getIndex(), equalTo("index"));
+            assertThat(response.getType(), equalTo("type"));
+            assertThat(response.getId(), equalTo("id_" + i));
+            assertThat(response.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+            if (response.getItemId() == rejectItem.id()) {
+                assertTrue(response.isFailed());
+                assertThat(response.getFailure().getCause(), equalTo(rejectionCause));
+                assertThat(response.status(), equalTo(rejectionStatus));
+            } else {
+                assertFalse(response.isFailed());
+            }
+        }
+
+        // Check that the non-rejected updates made it to the shard
+        assertDocCount(shard, items.length - 1);
+        closeShards(shard);
+    }
+
     public void testExecuteBulkIndexRequestWithRejection() throws Exception {
         IndexMetaData metaData = indexMetaData();
         IndexShard shard = newStartedShard(true);
@@ -209,13 +271,13 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Translog.Location location = new Translog.Location(0, 0, 0);
         UpdateHelper updateHelper = null;
 
-        // Pretend the mappings haven't made it to the node yet, and throw  a rejection
-        Exception err = new ReplicationOperation.RetryOnPrimaryException(shardId, "rejection");
+        // Pretend the mappings haven't made it to the node yet, and throw a rejection
+        RuntimeException err = new ReplicationOperation.RetryOnPrimaryException(shardId, "rejection");
 
         try {
             TransportShardBulkAction.executeBulkItemRequest(metaData, shard, bulkShardRequest,
                     location, 0, updateHelper, threadPool::absoluteTimeInMillis,
-                    new ThrowingMappingUpdatePerformer(err));
+                    new ThrowingVerifyingMappingUpdatePerformer(err));
             fail("should have thrown a retry exception");
         } catch (ReplicationOperation.RetryOnPrimaryException e) {
             assertThat(e, equalTo(err));
@@ -239,7 +301,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         UpdateHelper updateHelper = null;
 
         // Return a mapping conflict (IAE) when trying to update the mapping
-        Exception err = new IllegalArgumentException("mapping conflict");
+        RuntimeException err = new IllegalArgumentException("mapping conflict");
 
         Translog.Location newLocation = TransportShardBulkAction.executeBulkItemRequest(metaData,
                 shard, bulkShardRequest, location, 0, updateHelper,
@@ -467,7 +529,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         boolean created = randomBoolean();
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult indexResult = new FakeResult(1, 1, created, resultLocation);
-        DocWriteResponse indexResponse = new IndexResponse(shardId, "index", "id", 1, 1, created);
+        DocWriteResponse indexResponse = new IndexResponse(shardId, "index", "id", 1, 17, 1, created);
         BulkItemResultHolder goodResults =
                 new BulkItemResultHolder(indexResponse, indexResult, replicaRequest);
 
@@ -505,14 +567,41 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 equalTo(original));
 
         boolean created = randomBoolean();
-        DocWriteResponse indexResponse = new IndexResponse(shardId, "index", "id", 1, 1, created);
+        DocWriteResponse indexResponse = new IndexResponse(shardId, "index", "id", 1, 17, 1, created);
         Translog.Location newLocation = new Translog.Location(1, 1, 1);
-        Engine.IndexResult indexResult = new IndexResultWithLocation(randomNonNegativeLong(),
-                randomNonNegativeLong(), created, newLocation);
+        final long version = randomNonNegativeLong();
+        final long seqNo = randomNonNegativeLong();
+        Engine.IndexResult indexResult = new IndexResultWithLocation(version, seqNo, created, newLocation);
         results = new BulkItemResultHolder(indexResponse, indexResult, replicaRequest);
         assertThat(TransportShardBulkAction.calculateTranslogLocation(original, results),
                 equalTo(newLocation));
 
+    }
+
+    public void testNoOpReplicationOnPrimaryDocumentFailure() throws Exception {
+        final IndexShard shard = spy(newStartedShard(false));
+        BulkItemRequest itemRequest = new BulkItemRequest(0,
+                new IndexRequest("index", "type")
+                        .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar")
+        );
+        final String failureMessage = "simulated primary failure";
+        final IOException exception = new IOException(failureMessage);
+        itemRequest.setPrimaryResponse(new BulkItemResponse(0,
+                randomFrom(
+                        DocWriteRequest.OpType.CREATE,
+                        DocWriteRequest.OpType.DELETE,
+                        DocWriteRequest.OpType.INDEX
+                ),
+                new BulkItemResponse.Failure("index", "type", "1",
+                    exception, 1L)
+        ));
+        BulkItemRequest[] itemRequests = new BulkItemRequest[1];
+        itemRequests[0] = itemRequest;
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                shard.shardId(), RefreshPolicy.NONE, itemRequests);
+        TransportShardBulkAction.performOnReplica(bulkShardRequest, shard);
+        verify(shard, times(1)).markSeqNoAsNoop(1, exception.toString());
+        closeShards(shard);
     }
 
     public void testMappingUpdateParsesCorrectNumberOfTimes() throws Exception {
@@ -528,16 +617,14 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         TransportShardBulkAction.executeIndexRequestOnPrimary(request, shard,
                 new MappingUpdatePerformer() {
                     @Override
-                    public void updateMappings(Mapping update, ShardId shardId,
-                                               String type) throws Exception {
+                    public void updateMappings(Mapping update, ShardId shardId, String type) {
                         // There should indeed be a mapping update
                         assertNotNull(update);
                         updateCalled.incrementAndGet();
                     }
 
                     @Override
-                    public void verifyMappings(Engine.Index operation,
-                                               ShardId shardId) throws Exception {
+                    public void verifyMappings(Mapping update, ShardId shardId) {
                         // No-op, will be called
                         logger.info("--> verifying mappings noop");
                         verifyCalled.incrementAndGet();
@@ -547,9 +634,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat("mappings were \"updated\" once", updateCalled.get(), equalTo(1));
         assertThat("mappings were \"verified\" once", verifyCalled.get(), equalTo(1));
 
-        // Verify that the shard "prepared" the operation twice
-        verify(shard, times(2)).prepareIndexOnPrimary(any(), anyLong(), any(),
-                anyLong(), anyBoolean());
+        // Verify that the shard "executed" the operation twice
+        verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean(), any());
 
         // Update the mapping, so the next mapping updater doesn't do anything
         final MapperService mapperService = shard.mapperService();
@@ -559,30 +645,26 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         TransportShardBulkAction.executeIndexRequestOnPrimary(request, shard,
                 new MappingUpdatePerformer() {
                     @Override
-                    public void updateMappings(Mapping update, ShardId shardId,
-                                               String type) throws Exception {
+                    public void updateMappings(Mapping update, ShardId shardId, String type) {
                         fail("should not have had to update the mappings");
                     }
 
                     @Override
-                    public void verifyMappings(Engine.Index operation,
-                                               ShardId shardId) throws Exception {
+                    public void verifyMappings(Mapping update, ShardId shardId) {
                         fail("should not have had to update the mappings");
                     }
         });
 
-        // Verify that the shard "prepared" the operation only once (2 for previous invocations plus
+        // Verify that the shard "executed" the operation only once (2 for previous invocations plus
         // 1 for this execution)
-        verify(shard, times(3)).prepareIndexOnPrimary(any(), anyLong(), any(),
-                anyLong(), anyBoolean());
+        verify(shard, times(3)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean(), any());
 
         closeShards(shard);
     }
 
     public class IndexResultWithLocation extends Engine.IndexResult {
         private final Translog.Location location;
-        public IndexResultWithLocation(long version, long seqNo, boolean created,
-                                       Translog.Location newLocation) {
+        public IndexResultWithLocation(long version, long seqNo, boolean created, Translog.Location newLocation) {
             super(version, seqNo, created);
             this.location = newLocation;
         }
@@ -593,23 +675,196 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         }
     }
 
-    public void testPrepareIndexOpOnReplica() throws Exception {
-        IndexMetaData metaData = indexMetaData();
+    public void testProcessUpdateResponse() throws Exception {
         IndexShard shard = newStartedShard(false);
 
-        DocWriteResponse primaryResponse = new IndexResponse(shardId, "index", "id",
-                1, 1, randomBoolean());
-        IndexRequest request = new IndexRequest("index", "type", "id")
-                .source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
+        BulkItemRequest request = new BulkItemRequest(0, updateRequest);
+        Exception err = new VersionConflictEngineException(shardId, "type", "id",
+                "I'm conflicted <(;_;)>");
+        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0);
+        Engine.DeleteResult deleteResult = new Engine.DeleteResult(1, 1, true);
+        DocWriteResponse.Result docWriteResult = DocWriteResponse.Result.CREATED;
+        DocWriteResponse.Result deleteWriteResult = DocWriteResponse.Result.DELETED;
+        IndexRequest indexRequest = new IndexRequest("index", "type", "id");
+        DeleteRequest deleteRequest = new DeleteRequest("index", "type", "id");
+        UpdateHelper.Result translate = new UpdateHelper.Result(indexRequest, docWriteResult,
+                new HashMap<String, Object>(), XContentType.JSON);
+        UpdateHelper.Result translateDelete = new UpdateHelper.Result(deleteRequest, deleteWriteResult,
+                new HashMap<String, Object>(), XContentType.JSON);
 
-        Engine.Index op = TransportShardBulkAction.prepareIndexOperationOnReplica(
-                primaryResponse, request, shard);
+        BulkItemRequest[] itemRequests = new BulkItemRequest[1];
+        itemRequests[0] = request;
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, itemRequests);
 
-        assertThat(op.version(), equalTo(primaryResponse.getVersion()));
-        assertThat(op.seqNo(), equalTo(primaryResponse.getSeqNo()));
-        assertThat(op.versionType(), equalTo(VersionType.EXTERNAL));
+        BulkItemResultHolder holder = TransportShardBulkAction.processUpdateResponse(updateRequest,
+                "index", indexResult, translate, shard, 7);
+
+        assertTrue(holder.isVersionConflict());
+        assertThat(holder.response, instanceOf(UpdateResponse.class));
+        UpdateResponse updateResp = (UpdateResponse) holder.response;
+        assertThat(updateResp.getGetResult(), equalTo(null));
+        assertThat(holder.operationResult, equalTo(indexResult));
+        BulkItemRequest replicaBulkRequest = holder.replicaRequest;
+        assertThat(replicaBulkRequest.id(), equalTo(7));
+        DocWriteRequest replicaRequest = replicaBulkRequest.request();
+        assertThat(replicaRequest, instanceOf(IndexRequest.class));
+        assertThat(replicaRequest, equalTo(indexRequest));
+
+        BulkItemResultHolder deleteHolder = TransportShardBulkAction.processUpdateResponse(updateRequest,
+                "index", deleteResult, translateDelete, shard, 8);
+
+        assertFalse(deleteHolder.isVersionConflict());
+        assertThat(deleteHolder.response, instanceOf(UpdateResponse.class));
+        UpdateResponse delUpdateResp = (UpdateResponse) deleteHolder.response;
+        assertThat(delUpdateResp.getGetResult(), equalTo(null));
+        assertThat(deleteHolder.operationResult, equalTo(deleteResult));
+        BulkItemRequest delReplicaBulkRequest = deleteHolder.replicaRequest;
+        assertThat(delReplicaBulkRequest.id(), equalTo(8));
+        DocWriteRequest delReplicaRequest = delReplicaBulkRequest.request();
+        assertThat(delReplicaRequest, instanceOf(DeleteRequest.class));
+        assertThat(delReplicaRequest, equalTo(deleteRequest));
 
         closeShards(shard);
+    }
+
+    public void testExecuteUpdateRequestOnce() throws Exception {
+        IndexMetaData metaData = indexMetaData();
+        IndexShard shard = newStartedShard(true);
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("foo", "bar");
+        BulkItemRequest[] items = new BulkItemRequest[1];
+        boolean create = randomBoolean();
+        DocWriteRequest writeRequest = new IndexRequest("index", "type", "id")
+                .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar")
+                .create(create);
+        BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
+        items[0] = primaryRequest;
+        BulkShardRequest bulkShardRequest =
+                new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        Translog.Location location = new Translog.Location(0, 0, 0);
+        IndexRequest indexRequest = new IndexRequest("index", "type", "id");
+        indexRequest.source(source);
+
+        DocWriteResponse.Result docWriteResult = DocWriteResponse.Result.CREATED;
+        UpdateHelper.Result translate = new UpdateHelper.Result(indexRequest, docWriteResult,
+                new HashMap<String, Object>(), XContentType.JSON);
+        UpdateHelper updateHelper = new MockUpdateHelper(translate);
+        UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
+        updateRequest.upsert(source);
+
+        BulkItemResultHolder holder = TransportShardBulkAction.executeUpdateRequestOnce(updateRequest, shard, metaData,
+                "index", updateHelper, threadPool::absoluteTimeInMillis, primaryRequest, 0, new NoopMappingUpdatePerformer());
+
+        assertFalse(holder.isVersionConflict());
+        assertNotNull(holder.response);
+        assertNotNull(holder.operationResult);
+        assertNotNull(holder.replicaRequest);
+
+        assertThat(holder.response, instanceOf(UpdateResponse.class));
+        UpdateResponse updateResp = (UpdateResponse) holder.response;
+        assertThat(updateResp.getGetResult(), equalTo(null));
+        BulkItemRequest replicaBulkRequest = holder.replicaRequest;
+        assertThat(replicaBulkRequest.id(), equalTo(0));
+        DocWriteRequest replicaRequest = replicaBulkRequest.request();
+        assertThat(replicaRequest, instanceOf(IndexRequest.class));
+        assertThat(replicaRequest, equalTo(indexRequest));
+
+        // Assert that the document actually made it there
+        assertDocCount(shard, 1);
+        closeShards(shard);
+    }
+
+    public void testExecuteUpdateRequestOnceWithFailure() throws Exception {
+        IndexMetaData metaData = indexMetaData();
+        IndexShard shard = newStartedShard(true);
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("foo", "bar");
+        BulkItemRequest[] items = new BulkItemRequest[1];
+        boolean create = randomBoolean();
+        DocWriteRequest writeRequest = new IndexRequest("index", "type", "id")
+                .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar")
+                .create(create);
+        BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
+        items[0] = primaryRequest;
+        BulkShardRequest bulkShardRequest =
+                new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        Translog.Location location = new Translog.Location(0, 0, 0);
+        IndexRequest indexRequest = new IndexRequest("index", "type", "id");
+        indexRequest.source(source);
+
+        DocWriteResponse.Result docWriteResult = DocWriteResponse.Result.CREATED;
+        Exception prepareFailure = new IllegalArgumentException("I failed to do something!");
+        UpdateHelper updateHelper = new FailingUpdateHelper(prepareFailure);
+        UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
+        updateRequest.upsert(source);
+
+        BulkItemResultHolder holder = TransportShardBulkAction.executeUpdateRequestOnce(updateRequest, shard, metaData,
+                "index", updateHelper, threadPool::absoluteTimeInMillis, primaryRequest, 0, new NoopMappingUpdatePerformer());
+
+        assertFalse(holder.isVersionConflict());
+        assertNull(holder.response);
+        assertNotNull(holder.operationResult);
+        assertNotNull(holder.replicaRequest);
+
+        Engine.IndexResult opResult = (Engine.IndexResult) holder.operationResult;
+        assertTrue(opResult.hasFailure());
+        assertFalse(opResult.isCreated());
+        Exception e = opResult.getFailure();
+        assertThat(e.getMessage(), containsString("I failed to do something!"));
+
+        BulkItemRequest replicaBulkRequest = holder.replicaRequest;
+        assertThat(replicaBulkRequest.id(), equalTo(0));
+        assertThat(replicaBulkRequest.request(), instanceOf(IndexRequest.class));
+        IndexRequest replicaRequest = (IndexRequest) replicaBulkRequest.request();
+        assertThat(replicaRequest.index(), equalTo("index"));
+        assertThat(replicaRequest.type(), equalTo("type"));
+        assertThat(replicaRequest.id(), equalTo("id"));
+        assertThat(replicaRequest.sourceAsMap(), equalTo(source));
+
+        // Assert that the document did not make it there, since it should have failed
+        assertDocCount(shard, 0);
+        closeShards(shard);
+    }
+
+    /**
+     * Fake UpdateHelper that always returns whatever result you give it
+     */
+    private static class MockUpdateHelper extends UpdateHelper {
+        private final UpdateHelper.Result result;
+
+        MockUpdateHelper(UpdateHelper.Result result) {
+            super(Settings.EMPTY, null);
+            this.result = result;
+        }
+
+        @Override
+        public UpdateHelper.Result prepare(UpdateRequest u, IndexShard s, LongSupplier n) {
+            logger.info("--> preparing update for {} - {}", s, u);
+            return result;
+        }
+    }
+
+    /**
+     * An update helper that always fails to prepare the update
+     */
+    private static class FailingUpdateHelper extends UpdateHelper {
+        private final Exception e;
+
+        FailingUpdateHelper(Exception failure) {
+            super(Settings.EMPTY, null);
+            this.e = failure;
+        }
+
+        @Override
+        public UpdateHelper.Result prepare(UpdateRequest u, IndexShard s, LongSupplier n) {
+            logger.info("--> preparing failing update for {} - {}", s, u);
+            throw new ElasticsearchException(e);
+        }
     }
 
     /**
@@ -619,8 +874,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         private final Translog.Location location;
 
-        protected FakeResult(long version, long seqNo, boolean created,
-                             Translog.Location location) {
+        protected FakeResult(long version, long seqNo, boolean created, Translog.Location location) {
             super(version, seqNo, created);
             this.location = location;
         }
@@ -633,40 +887,40 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     /** Doesn't perform any mapping updates */
     public static class NoopMappingUpdatePerformer implements MappingUpdatePerformer {
-        public void updateMappings(Mapping update, ShardId shardId, String type) throws Exception {
+        public void updateMappings(Mapping update, ShardId shardId, String type) {
         }
 
-        public void verifyMappings(Engine.Index operation, ShardId shardId) throws Exception {
+        public void verifyMappings(Mapping update, ShardId shardId) {
         }
     }
 
     /** Always throw the given exception */
     private class ThrowingMappingUpdatePerformer implements MappingUpdatePerformer {
-        private final Exception e;
-        ThrowingMappingUpdatePerformer(Exception e) {
+        private final RuntimeException e;
+        ThrowingMappingUpdatePerformer(RuntimeException e) {
             this.e = e;
         }
 
-        public void updateMappings(Mapping update, ShardId shardId, String type) throws Exception {
+        public void updateMappings(Mapping update, ShardId shardId, String type) {
             throw e;
         }
 
-        public void verifyMappings(Engine.Index operation, ShardId shardId) throws Exception {
+        public void verifyMappings(Mapping update, ShardId shardId) {
             fail("should not have gotten to this point");
         }
     }
 
     /** Always throw the given exception */
     private class ThrowingVerifyingMappingUpdatePerformer implements MappingUpdatePerformer {
-        private final Exception e;
-        ThrowingVerifyingMappingUpdatePerformer(Exception e) {
+        private final RuntimeException e;
+        ThrowingVerifyingMappingUpdatePerformer(RuntimeException e) {
             this.e = e;
         }
 
-        public void updateMappings(Mapping update, ShardId shardId, String type) throws Exception {
+        public void updateMappings(Mapping update, ShardId shardId, String type) {
         }
 
-        public void verifyMappings(Engine.Index operation, ShardId shardId) throws Exception {
+        public void verifyMappings(Mapping update, ShardId shardId) {
             throw e;
         }
     }

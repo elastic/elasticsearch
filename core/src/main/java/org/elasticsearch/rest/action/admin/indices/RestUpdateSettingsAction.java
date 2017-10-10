@@ -46,6 +46,11 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "update_settings_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
@@ -54,18 +59,16 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
 
         Map<String, Object> settings = new HashMap<>();
-        if (request.hasContent()) {
-            try (XContentParser parser = request.contentParser()) {
-                Map<String, Object> bodySettings = parser.map();
-                Object innerBodySettings = bodySettings.get("settings");
-                // clean up in case the body is wrapped with "settings" : { ... }
-                if (innerBodySettings instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> innerBodySettingsMap = (Map<String, Object>) innerBodySettings;
-                    settings.putAll(innerBodySettingsMap);
-                } else {
-                    settings.putAll(bodySettings);
-                }
+        try (XContentParser parser = request.contentParser()) {
+            Map<String, Object> bodySettings = parser.map();
+            Object innerBodySettings = bodySettings.get("settings");
+            // clean up in case the body is wrapped with "settings" : { ... }
+            if (innerBodySettings instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> innerBodySettingsMap = (Map<String, Object>) innerBodySettings;
+                settings.putAll(innerBodySettingsMap);
+            } else {
+                settings.putAll(bodySettings);
             }
         }
         updateSettingsRequest.settings(settings);

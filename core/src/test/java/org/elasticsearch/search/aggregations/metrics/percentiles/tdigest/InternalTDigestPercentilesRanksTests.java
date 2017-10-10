@@ -21,26 +21,26 @@ package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentilesRanksTestCase;
+import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentiles;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class InternalTDigestPercentilesRanksTests extends InternalAggregationTestCase<InternalTDigestPercentileRanks> {
+public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRanksTestCase<InternalTDigestPercentileRanks> {
 
     @Override
-    protected InternalTDigestPercentileRanks createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        double[] cdfValues = new double[] { 0.5 };
-        TDigestState state = new TDigestState(100);
-        int numValues = randomInt(100);
-        for (int i = 0; i < numValues; ++i) {
-            state.add(randomDouble());
-        }
-        boolean keyed = false;
-        DocValueFormat format = DocValueFormat.RAW;
-        return new InternalTDigestPercentileRanks(name, cdfValues, state, keyed, format, pipelineAggregators, metaData);
+    protected InternalTDigestPercentileRanks createTestInstance(String name, List<PipelineAggregator> aggregators,
+                                                                Map<String, Object> metadata,
+                                                                boolean keyed, DocValueFormat format, double[] percents, double[] values) {
+        final TDigestState state = new TDigestState(100);
+        Arrays.stream(values).forEach(state::add);
+
+        assertEquals(state.centroidCount(), values.length);
+        return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, aggregators, metadata);
     }
 
     @Override
@@ -71,4 +71,51 @@ public class InternalTDigestPercentilesRanksTests extends InternalAggregationTes
         return InternalTDigestPercentileRanks::new;
     }
 
+    @Override
+    protected Class<? extends ParsedPercentiles> implementationClass() {
+        return ParsedTDigestPercentileRanks.class;
+    }
+
+    @Override
+    protected InternalTDigestPercentileRanks mutateInstance(InternalTDigestPercentileRanks instance) {
+        String name = instance.getName();
+        double[] percents = instance.keys;
+        TDigestState state = instance.state;
+        boolean keyed = instance.keyed;
+        DocValueFormat formatter = instance.formatter();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 4)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            percents = Arrays.copyOf(percents, percents.length + 1);
+            percents[percents.length - 1] = randomDouble() * 100;
+            Arrays.sort(percents);
+            break;
+        case 2:
+            TDigestState newState = new TDigestState(state.compression());
+            newState.add(state);
+            for (int i = 0; i < between(10, 100); i++) {
+                newState.add(randomDouble());
+            }
+            state = newState;
+            break;
+        case 3:
+            keyed = keyed == false;
+            break;
+        case 4:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalTDigestPercentileRanks(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
+    }
 }

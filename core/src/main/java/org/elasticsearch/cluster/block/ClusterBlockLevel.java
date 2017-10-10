@@ -23,34 +23,11 @@ package org.elasticsearch.cluster.block;
 import java.util.EnumSet;
 
 public enum ClusterBlockLevel {
-    READ(0),
-    WRITE(1),
-    METADATA_READ(2),
-    METADATA_WRITE(3);
+    READ,
+    WRITE,
+    METADATA_READ,
+    METADATA_WRITE;
 
-    public static final EnumSet<ClusterBlockLevel> ALL = EnumSet.of(READ, WRITE, METADATA_READ, METADATA_WRITE);
+    public static final EnumSet<ClusterBlockLevel> ALL = EnumSet.allOf(ClusterBlockLevel.class);
     public static final EnumSet<ClusterBlockLevel> READ_WRITE = EnumSet.of(READ, WRITE);
-
-    private final int id;
-
-    ClusterBlockLevel(int id) {
-        this.id = id;
-    }
-
-    public int id() {
-        return this.id;
-    }
-
-    static ClusterBlockLevel fromId(int id) {
-        if (id == 0) {
-            return READ;
-        } else if (id == 1) {
-            return WRITE;
-        } else if (id == 2) {
-            return METADATA_READ;
-        } else if (id == 3) {
-            return METADATA_WRITE;
-        }
-        throw new IllegalArgumentException("No cluster block level matching [" + id + "]");
-    }
 }

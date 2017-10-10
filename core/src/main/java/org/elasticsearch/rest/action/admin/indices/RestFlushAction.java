@@ -51,6 +51,11 @@ public class RestFlushAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "flush_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         FlushRequest flushRequest = new FlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
         flushRequest.indicesOptions(IndicesOptions.fromRequest(request, flushRequest.indicesOptions()));

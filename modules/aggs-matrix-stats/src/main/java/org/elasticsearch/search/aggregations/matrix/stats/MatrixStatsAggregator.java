@@ -41,14 +41,14 @@ import java.util.Map;
 /**
  * Metric Aggregation for computing the pearson product correlation coefficient between multiple fields
  **/
-public class MatrixStatsAggregator extends MetricsAggregator {
+final class MatrixStatsAggregator extends MetricsAggregator {
     /** Multiple ValuesSource with field names */
-    final NumericMultiValuesSource valuesSources;
+    private final NumericMultiValuesSource valuesSources;
 
     /** array of descriptive stats, per shard, needed to compute the correlation */
     ObjectArray<RunningStats> stats;
 
-    public MatrixStatsAggregator(String name, Map<String, ValuesSource.Numeric> valuesSources, SearchContext context,
+    MatrixStatsAggregator(String name, Map<String, ValuesSource.Numeric> valuesSources, SearchContext context,
                                  Aggregator parent, MultiValueMode multiValueMode, List<PipelineAggregator> pipelineAggregators,
                                  Map<String,Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);

@@ -49,6 +49,11 @@ public class RestRecoveryAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "recovery_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
         final RecoveryRequest recoveryRequest = new RecoveryRequest(Strings.splitStringByCommaToArray(request.param("index")));

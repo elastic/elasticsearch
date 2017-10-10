@@ -25,7 +25,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.FieldValueQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -64,7 +64,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
-        testCase(new FieldValueQuery("number"), iw -> {
+        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 1)));
         }, card -> {
@@ -73,7 +73,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        testCase(new FieldValueQuery("number"), iw -> {
+        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, card -> {
@@ -118,13 +118,13 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
                 NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
-        try (CardinalityAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher,
-                fieldType)) {
-            aggregator.preCollection();
-            indexSearcher.search(query, aggregator);
-            aggregator.postCollection();
-            verify.accept((InternalCardinality) aggregator.buildAggregation(0L));
-        }
+        CardinalityAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher,
+            fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(query, aggregator);
+        aggregator.postCollection();
+        verify.accept((InternalCardinality) aggregator.buildAggregation(0L));
+
         indexReader.close();
         directory.close();
     }

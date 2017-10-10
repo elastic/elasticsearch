@@ -112,12 +112,13 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
         fieldType.setHasDocValues(true);
         fieldType.setName(FIELD_NAME);
-        try (Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
-            aggregator.preCollection();
-            indexSearcher.search(query, aggregator);
-            aggregator.postCollection();
-            verify.accept((InternalGeoHashGrid) aggregator.buildAggregation(0L));
-        }
+
+        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(query, aggregator);
+        aggregator.postCollection();
+        verify.accept((InternalGeoHashGrid) aggregator.buildAggregation(0L));
+
         indexReader.close();
         directory.close();
     }

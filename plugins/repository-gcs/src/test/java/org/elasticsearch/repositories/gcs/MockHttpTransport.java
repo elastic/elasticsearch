@@ -30,7 +30,6 @@ import com.google.api.services.storage.Storage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.path.PathTrie;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
@@ -291,16 +290,13 @@ public class MockHttpTransport extends com.google.api.client.testing.http.MockHt
             try (ByteArrayOutputStream os = new ByteArrayOutputStream((int) req.getContentLength())) {
                 req.getStreamingContent().writeTo(os);
 
-                Streams.readAllLines(new ByteArrayInputStream(os.toByteArray()), new Callback<String>() {
-                    @Override
-                    public void handle(String line) {
-                        Handler handler = handlers.retrieve(line, params);
-                        if (handler != null) {
-                            try {
-                                responses.add(handler.execute(line, params, req));
-                            } catch (IOException e) {
-                                responses.add(newMockError(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
-                            }
+                Streams.readAllLines(new ByteArrayInputStream(os.toByteArray()), line -> {
+                    Handler handler = handlers.retrieve(line, params);
+                    if (handler != null) {
+                        try {
+                            responses.add(handler.execute(line, params, req));
+                        } catch (IOException e) {
+                            responses.add(newMockError(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
                         }
                     }
                 });

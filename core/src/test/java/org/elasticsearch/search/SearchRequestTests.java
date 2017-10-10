@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,8 +43,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             searchRequest.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                SearchRequest deserializedRequest = new SearchRequest();
-                deserializedRequest.readFrom(in);
+                SearchRequest deserializedRequest = new SearchRequest(in);
                 assertEquals(deserializedRequest, searchRequest);
                 assertEquals(deserializedRequest.hashCode(), searchRequest.hashCode());
                 assertNotSame(deserializedRequest, searchRequest);
@@ -80,6 +81,37 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertEquals("keepAlive must not be null", e.getMessage());
     }
 
+    public void testValidate() throws IOException {
+
+        {
+            // if scroll isn't set, validate should never add errors
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            searchRequest.scroll((Scroll) null);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNull(validationErrors);
+        }
+        {
+        // disabeling `track_total_hits` isn't valid in scroll context
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            searchRequest.scroll(new TimeValue(1000));
+            searchRequest.source().trackTotalHits(false);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("disabling [track_total_hits] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // scroll and `from` isn't valid
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            searchRequest.scroll(new TimeValue(1000));
+            searchRequest.source().from(10);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("using [from] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
+        }
+    }
+
     public void testEqualsAndHashcode() throws IOException {
         checkEqualsAndHashCode(createSearchRequest(), SearchRequestTests::copyRequest, this::mutate);
     }
@@ -96,7 +128,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.requestCache((randomValueOtherThan(searchRequest.requestCache(), () -> randomBoolean()))));
         mutators.add(() -> mutation
                 .scroll(randomValueOtherThan(searchRequest.scroll(), () -> new Scroll(new TimeValue(randomNonNegativeLong() % 100000)))));
-        mutators.add(() -> mutation.searchType(randomValueOtherThan(searchRequest.searchType(), () -> randomFrom(SearchType.values()))));
+        mutators.add(() -> mutation.searchType(randomValueOtherThan(searchRequest.searchType(),
+            () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))));
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
         randomFrom(mutators).run();
         return mutation;

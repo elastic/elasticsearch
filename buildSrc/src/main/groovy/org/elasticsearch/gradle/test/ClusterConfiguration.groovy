@@ -46,11 +46,11 @@ class ClusterConfiguration {
     int transportPort = 0
 
     /**
-     * An override of the data directory. This may only be used with a single node.
-     * The value is lazily evaluated at runtime as a String path.
+     * An override of the data directory. Input is the node number and output
+     * is the override data directory.
      */
     @Input
-    Object dataDir = null
+    Closure<String> dataDir = null
 
     /** Optional override of the cluster name. */
     @Input
@@ -63,18 +63,24 @@ class ClusterConfiguration {
     boolean debug = false
 
     /**
-     * if <code>true</code> each node will be configured with <tt>discovery.zen.minimum_master_nodes</tt> set
-     * to the total number of nodes in the cluster. This will also cause that each node has `0s` state recovery
-     * timeout which can lead to issues if for instance an existing clusterstate is expected to be recovered
-     * before any tests start
+     * Configuration of the setting <tt>discovery.zen.minimum_master_nodes</tt> on the nodes.
+     * In case of more than one node, this defaults to (number of nodes / 2) + 1
      */
     @Input
-    boolean useMinimumMasterNodes = true
+    Closure<Integer> minimumMasterNodes = { getNumNodes() > 1 ? getNumNodes().intdiv(2) + 1 : -1 }
 
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
         " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
         " " + System.getProperty('tests.jvm.argline', '')
+
+    /**
+     * Should the shared environment be cleaned on cluster startup? Defaults
+     * to {@code true} so we run with a clean cluster but some tests wish to
+     * preserve snapshots between clusters so they set this to true.
+     */
+    @Input
+    boolean cleanShared = true
 
     /**
      * A closure to call which returns the unicast host to connect to for cluster formation.

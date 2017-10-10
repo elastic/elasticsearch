@@ -3,8 +3,9 @@
 
 See {ref}/query-dsl-wildcard-query.html[Wildcard Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = wildcardQuery("user", "k?mc*");
+include-tagged::{query-dsl-test}[wildcard]
 --------------------------------------------------
-
+<1> field
+<2> wildcard expression

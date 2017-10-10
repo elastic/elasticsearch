@@ -30,9 +30,9 @@ import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats.Bounds;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -214,7 +214,6 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getSum(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10));
         assertThat(stats.getSumAsString(), equalTo("0055.0"));
         assertThat(stats.getCount(), equalTo(10L));
-        assertThat(stats.getCountAsString(), equalTo("0010.0"));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1 + 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100));
         assertThat(stats.getSumOfSquaresAsString(), equalTo("0385.0"));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
@@ -596,7 +595,8 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
     @Override
     public void testOrderByEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(terms("terms").field("value").order(Order.compound(Order.aggregation("filter>extendedStats.avg", true)))
+                .addAggregation(terms("terms").field("value")
+                    .order(BucketOrder.compound(BucketOrder.aggregation("filter>extendedStats.avg", true)))
                         .subAggregation(
                                 filter("filter", termQuery("value", 100)).subAggregation(extendedStats("extendedStats").field("value"))))
                 .get();
@@ -605,7 +605,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
 
         Terms terms = searchResponse.getAggregations().get("terms");
         assertThat(terms, notNullValue());
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets, notNullValue());
         assertThat(buckets.size(), equalTo(10));
 

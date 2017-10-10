@@ -111,6 +111,6 @@ public class SizeMappingIT extends ESIntegTestCase {
                 client().prepareIndex("test", "type", "1").setSource(source, XContentType.JSON));
         GetResponse getResponse = client().prepareGet("test", "type", "1").setStoredFields("_size").get();
         assertNotNull(getResponse.getField("_size"));
-        assertEquals(source.length(), getResponse.getField("_size").getValue());
+        assertEquals(source.length(), (int) getResponse.getField("_size").getValue());
     }
 }

@@ -34,6 +34,10 @@ apply plugin: 'com.github.johnrengelman.shadow'
 // have the shadow plugin provide the runShadow task
 apply plugin: 'application'
 
+// Not published so no need to assemble
+tasks.remove(assemble)
+build.dependsOn.remove('assemble')
+
 archivesBaseName = 'elasticsearch-benchmarks'
 mainClassName = 'org.openjdk.jmh.Main'
 

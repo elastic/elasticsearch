@@ -36,8 +36,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class CompletionSuggestionOptionTests extends ESTestCase {
@@ -67,17 +69,31 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
+        doTestFromXContent(false);
+    }
+
+    public void testFromXContentWithRandomFields() throws IOException {
+        doTestFromXContent(true);
+    }
+
+    private void doTestFromXContent(boolean addRandomFields) throws IOException {
         Option option = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(option, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        if (randomBoolean()) {
-            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-                originalBytes = shuffleXContent(parser, randomBoolean()).bytes();
-            }
+        BytesReference mutated;
+        if (addRandomFields) {
+            // "contexts" is an object consisting of key/array pairs, we shouldn't add anything random there
+            // also there can be inner search hits fields inside this option, we need to exclude another couple of paths
+            // where we cannot add random stuff
+            Predicate<String> excludeFilter = (path) -> (path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
+                    || path.endsWith("highlight") || path.endsWith("fields") || path.contains("_source") || path.contains("inner_hits"));
+            mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
+        } else {
+            mutated = originalBytes;
         }
         Option parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             parsed = Option.fromXContent(parser);
             assertNull(parser.nextToken());
         }

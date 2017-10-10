@@ -294,8 +294,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across
-     * shards. Can be set to <tt>_local</tt> to prefer local shards,
-     * <tt>_primary</tt> to execute only on primary shards, or a custom value,
+     * shards. Can be set to <tt>_local</tt> to prefer local shards or a custom value,
      * which guarantees that the same order will be used across different
      * requests.
      */
@@ -499,7 +498,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
         if (in.readBoolean()) {
             doc = in.readBytesReference();
-            if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
                 xContentType = XContentType.readFrom(in);
             } else {
                 xContentType = XContentFactory.xContentType(doc);
@@ -544,7 +543,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeBoolean(doc != null);
         if (doc != null) {
             out.writeBytesReference(doc);
-            if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
                 xContentType.writeTo(out);
             }
         }

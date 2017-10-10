@@ -52,15 +52,15 @@ public class MatchQueryIT extends ESIntegTestCase {
             Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.filter.syns.type", "synonym")
-                .putArray("index.analysis.filter.syns.synonyms", "wtf, what the fudge", "foo, bar baz")
+                .putList("index.analysis.filter.syns.synonyms", "wtf, what the fudge", "foo, bar baz")
                 .put("index.analysis.analyzer.lower_syns.type", "custom")
                 .put("index.analysis.analyzer.lower_syns.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.lower_syns.filter", "lowercase", "syns")
+                .putList("index.analysis.analyzer.lower_syns.filter", "lowercase", "syns")
                 .put("index.analysis.filter.graphsyns.type", "synonym_graph")
-                .putArray("index.analysis.filter.graphsyns.synonyms", "wtf, what the fudge", "foo, bar baz")
+                .putList("index.analysis.filter.graphsyns.synonyms", "wtf, what the fudge", "foo, bar baz")
                 .put("index.analysis.analyzer.lower_graphsyns.type", "custom")
                 .put("index.analysis.analyzer.lower_graphsyns.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.lower_graphsyns.filter", "lowercase", "graphsyns")
+                .putList("index.analysis.analyzer.lower_graphsyns.filter", "lowercase", "graphsyns")
         );
 
         assertAcked(builder.addMapping(INDEX, createMapping()));
@@ -141,8 +141,12 @@ public class MatchQueryIT extends ESIntegTestCase {
         indexRandom(true, false, getDocs());
 
         // no min should match
-        SearchResponse searchResponse = client().prepareSearch(INDEX).setQuery(QueryBuilders.matchQuery("field", "three what the fudge foo")
-            .operator(Operator.OR).analyzer("lower_graphsyns")).get();
+        SearchResponse searchResponse = client().prepareSearch(INDEX)
+            .setQuery(
+                QueryBuilders.matchQuery("field", "three what the fudge foo")
+                    .operator(Operator.OR).analyzer("lower_graphsyns").autoGenerateSynonymsPhraseQuery(false)
+            )
+            .get();
 
         assertHitCount(searchResponse, 6L);
         assertSearchHits(searchResponse, "1", "2", "3", "4", "5", "6");
@@ -157,6 +161,19 @@ public class MatchQueryIT extends ESIntegTestCase {
         // three what the fudge bar baz = 4 terms, match #2
         assertHitCount(searchResponse, 3L);
         assertSearchHits(searchResponse, "1", "2", "6");
+    }
+
+    public void testMultiTermsSynonymsPhrase() throws ExecutionException, InterruptedException {
+        List<IndexRequestBuilder> builders = getDocs();
+        indexRandom(true, false, builders);
+        SearchResponse searchResponse = client().prepareSearch(INDEX)
+            .setQuery(
+                QueryBuilders.matchQuery("field", "wtf")
+                    .analyzer("lower_graphsyns")
+                    .operator(Operator.AND))
+            .get();
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse, "1", "2", "3");
     }
 
     public void testPhrasePrefix() throws ExecutionException, InterruptedException {

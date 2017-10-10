@@ -26,7 +26,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.FieldValueQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -69,7 +69,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
-        testCase(new FieldValueQuery(FIELD_NAME), ValueType.NUMERIC, iw -> {
+        testCase(new DocValuesFieldExistsQuery(FIELD_NAME), ValueType.NUMERIC, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 1)));
@@ -77,7 +77,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        testCase(new FieldValueQuery(FIELD_NAME), ValueType.NUMBER, iw -> {
+        testCase(new DocValuesFieldExistsQuery(FIELD_NAME), ValueType.NUMBER, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
         }, count -> assertEquals(2L, count.getValue()));
@@ -120,13 +120,11 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
                 ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name", valueType);
                 aggregationBuilder.field(FIELD_NAME);
 
-                try (ValueCountAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
-                    aggregator.preCollection();
-                    indexSearcher.search(query, aggregator);
-                    aggregator.postCollection();
-
-                    verify.accept((ValueCount) aggregator.buildAggregation(0L));
-                }
+                ValueCountAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+                aggregator.preCollection();
+                indexSearcher.search(query, aggregator);
+                aggregator.postCollection();
+                verify.accept((ValueCount) aggregator.buildAggregation(0L));
             }
         }
     }

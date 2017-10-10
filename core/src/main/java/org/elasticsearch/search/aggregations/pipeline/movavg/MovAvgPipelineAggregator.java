@@ -161,7 +161,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                     }).collect(Collectors.toList());
                     aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<PipelineAggregator>(), metaData()));
 
-                    Bucket newBucket = factory.createBucket(newKey, 0, new InternalAggregations(aggs));
+                    Bucket newBucket = factory.createBucket(newKey, bucket.getDocCount(), new InternalAggregations(aggs));
 
                     // Overwrite the existing bucket with the new version
                     newBuckets.set(lastValidPosition + i + 1, newBucket);

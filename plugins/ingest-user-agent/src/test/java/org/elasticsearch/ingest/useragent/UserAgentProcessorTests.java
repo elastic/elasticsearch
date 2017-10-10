@@ -42,7 +42,7 @@ public class UserAgentProcessorTests extends ESTestCase {
 
     @BeforeClass
     public static void setupProcessor() throws IOException {
-        InputStream regexStream = UserAgentProcessor.class.getResourceAsStream("/regexes.yaml");
+        InputStream regexStream = UserAgentProcessor.class.getResourceAsStream("/regexes.yml");
         assertNotNull(regexStream);
 
         UserAgentParser parser = new UserAgentParser(randomAlphaOfLength(10), regexStream, new UserAgentCache(1000));

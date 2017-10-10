@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -35,7 +34,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -210,7 +208,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
     public static IndexTemplateMetaData readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             builder.patterns(in.readList(StreamInput::readString));
         } else {
             builder.patterns(Collections.singletonList(in.readString()));
@@ -231,9 +229,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
             builder.putCustom(type, customIndexMetaData);
         }
-        if (in.getVersion().onOrAfter(Version.V_5_0_0_beta1)) {
-            builder.version(in.readOptionalVInt());
-        }
+        builder.version(in.readOptionalVInt());
         return builder.build();
     }
 
@@ -245,7 +241,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeInt(order);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             out.writeStringList(patterns);
         } else {
             out.writeString(patterns.size() > 0 ? patterns.get(0) : "");
@@ -265,9 +261,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             out.writeString(cursor.key);
             cursor.value.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_5_0_0_beta1)) {
-            out.writeOptionalVInt(version);
-        }
+        out.writeOptionalVInt(version);
     }
 
     public static class Builder {
@@ -387,6 +381,14 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 throws IOException {
             builder.startObject(indexTemplateMetaData.name());
 
+            toInnerXContent(indexTemplateMetaData, builder, params);
+
+            builder.endObject();
+        }
+
+        public static void toInnerXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params)
+            throws IOException {
+
             builder.field("order", indexTemplateMetaData.order());
             if (indexTemplateMetaData.version() != null) {
                 builder.field("version", indexTemplateMetaData.version());
@@ -401,7 +403,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 builder.startObject("mappings");
                 for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
                     byte[] mappingSource = cursor.value.uncompressed();
-                    Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), false).v2();
+                    Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), true).v2();
                     if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
                         // the type name is the root value, reduce it
                         mapping = (Map<String, Object>) mapping.get(cursor.key);
@@ -430,8 +432,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 AliasMetaData.Builder.toXContent(cursor.value, builder, params);
             }
             builder.endObject();
-
-            builder.endObject();
         }
 
         public static IndexTemplateMetaData fromXContent(XContentParser parser, String templateName) throws IOException {
@@ -445,9 +445,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
                         Settings.Builder templateSettingsBuilder = Settings.builder();
-                        templateSettingsBuilder.put(
-                            SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered()))
-                                                 .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+                        templateSettingsBuilder.put(Settings.fromXContent(parser));
+                        templateSettingsBuilder.normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
                         builder.settings(templateSettingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

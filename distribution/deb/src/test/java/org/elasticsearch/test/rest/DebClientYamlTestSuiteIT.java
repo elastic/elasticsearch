@@ -20,11 +20,8 @@
 package org.elasticsearch.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-
-import java.io.IOException;
 
 /** Rest integration test. Runs against a cluster started by {@code gradle integTest} */
 public class DebClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
@@ -33,7 +30,7 @@ public class DebClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException {
+    public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
     }
 }

@@ -28,7 +28,7 @@ import java.nio.file.StandardOpenOption;
  * only for testing until we have a disk-full FileSystem
  */
 @FunctionalInterface
-interface ChannelFactory {
+public interface ChannelFactory {
     default FileChannel open(Path path) throws IOException {
         return open(path, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
     }

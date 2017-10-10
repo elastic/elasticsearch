@@ -27,7 +27,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -38,7 +39,7 @@ import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDec
 /**
  * This class represents the shard allocation decision and its explanation for a single node.
  */
-public class NodeAllocationResult implements ToXContent, Writeable, Comparable<NodeAllocationResult> {
+public class NodeAllocationResult implements ToXContentObject, Writeable, Comparable<NodeAllocationResult> {
 
     private static final Comparator<NodeAllocationResult> nodeResultComparator =
         Comparator.comparing(NodeAllocationResult::getNodeDecision)
@@ -80,7 +81,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
     public NodeAllocationResult(StreamInput in) throws IOException {
         node = new DiscoveryNode(in);
         shardStoreInfo = in.readOptionalWriteable(ShardStoreInfo::new);
-        if (in.getVersion().before(Version.V_5_2_1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_2_1)) {
             canAllocateDecision = Decision.readFrom(in);
         } else {
             canAllocateDecision = in.readOptionalWriteable(Decision::readFrom);
@@ -93,7 +94,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
     public void writeTo(StreamOutput out) throws IOException {
         node.writeTo(out);
         out.writeOptionalWriteable(shardStoreInfo);
-        if (out.getVersion().before(Version.V_5_2_1_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_2_1)) {
             if (canAllocateDecision == null) {
                 Decision.NO.writeTo(out);
             } else {
@@ -186,7 +187,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
     }
 
     /** A class that captures metadata about a shard store on a node. */
-    public static final class ShardStoreInfo implements ToXContent, Writeable {
+    public static final class ShardStoreInfo implements ToXContentFragment, Writeable {
         private final boolean inSync;
         @Nullable
         private final String allocationId;

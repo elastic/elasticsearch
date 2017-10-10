@@ -49,6 +49,18 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateSettingsIT extends ESIntegTestCase {
+    public void testInvalidUpdateOnClosedIndex() {
+        createIndex("test");
+        assertAcked(client().admin().indices().prepareClose("test").get());
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
+            client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.analysis.char_filter.invalid_char.type", "invalid"))
+                .get());
+        assertEquals(exception.getMessage(), "Unknown char_filter type [invalid] for [invalid_char]");
+    }
 
     public void testInvalidDynamicUpdate() {
         createIndex("test");

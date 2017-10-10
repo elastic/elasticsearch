@@ -8,7 +8,7 @@ document:
 === Core datatypes
 
 string::        <<text,`text`>> and <<keyword,`keyword`>>
-<<number>>::    `long`, `integer`, `short`, `byte`, `double`, `float`
+<<number>>::    `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
 <<date>>::      `date`
 <<boolean>>::   `boolean`
 <<binary>>::    `binary`
@@ -37,6 +37,8 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 {plugins}/mapper-size.html[`mapper-murmur3`]:: `murmur3` to compute hashes of values at index-time and store them in the index
 
 <<percolator>>::    Accepts queries from the query-dsl
+
+<<parent-join>>::   Defines parent/child relation for documents within the same index
 
 [float]
 === Multi-fields
@@ -76,15 +78,13 @@ include::types/numeric.asciidoc[]
 
 include::types/object.asciidoc[]
 
-include::types/string.asciidoc[]
-
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]
 
 include::types/percolator.asciidoc[]
 
-
+include::types/parent-join.asciidoc[]
 
 
 

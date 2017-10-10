@@ -19,63 +19,77 @@
 
 package org.elasticsearch.discovery.single;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
+import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.zen.PendingClusterStateStats;
-import org.elasticsearch.discovery.zen.PendingClusterStatesQueue;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
  * A discovery implementation where the only member of the cluster is the local node.
  */
 public class SingleNodeDiscovery extends AbstractLifecycleComponent implements Discovery {
 
-    private final ClusterService clusterService;
-    private final DiscoverySettings discoverySettings;
+    protected final TransportService transportService;
+    private final ClusterApplier clusterApplier;
+    private volatile ClusterState clusterState;
 
-    public SingleNodeDiscovery(final Settings settings, final ClusterService clusterService) {
+    public SingleNodeDiscovery(final Settings settings, final TransportService transportService,
+                               final MasterService masterService, final ClusterApplier clusterApplier) {
         super(Objects.requireNonNull(settings));
-        this.clusterService = Objects.requireNonNull(clusterService);
-        final ClusterSettings clusterSettings =
-                Objects.requireNonNull(clusterService.getClusterSettings());
-        this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
+        this.transportService = Objects.requireNonNull(transportService);
+        masterService.setClusterStateSupplier(() -> clusterState);
+        this.clusterApplier = clusterApplier;
     }
 
     @Override
-    public DiscoveryNode localNode() {
-        return clusterService.localNode();
-    }
+    public synchronized void publish(final ClusterChangedEvent event,
+                                     final AckListener ackListener) {
+        clusterState = event.state();
+        CountDownLatch latch = new CountDownLatch(1);
 
-    @Override
-    public String nodeDescription() {
-        return clusterService.getClusterName().value() + "/" + clusterService.localNode().getId();
-    }
+        ClusterStateTaskListener listener = new ClusterStateTaskListener() {
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                latch.countDown();
+                ackListener.onNodeAck(transportService.getLocalNode(), null);
+            }
 
-    @Override
-    public void setAllocationService(final AllocationService allocationService) {
+            @Override
+            public void onFailure(String source, Exception e) {
+                latch.countDown();
+                ackListener.onNodeAck(transportService.getLocalNode(), e);
+                logger.warn(
+                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                        "failed while applying cluster state locally [{}]",
+                        event.source()),
+                    e);
+            }
+        };
+        clusterApplier.onNewClusterState("apply-locally-on-node[" + event.source() + "]", () -> clusterState, listener);
 
-    }
-
-    @Override
-    public void publish(final ClusterChangedEvent event, final AckListener listener) {
-
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     @Override
@@ -84,51 +98,33 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     }
 
     @Override
-    public DiscoverySettings getDiscoverySettings() {
-        return discoverySettings;
+    public synchronized void startInitialJoin() {
+        if (lifecycle.started() == false) {
+            throw new IllegalStateException("can't start initial join when not started");
+        }
+        // apply a fresh cluster state just so that state recovery gets triggered by GatewayService
+        // TODO: give discovery module control over GatewayService
+        clusterState = ClusterState.builder(clusterState).build();
+        clusterApplier.onNewClusterState("single-node-start-initial-join", () -> clusterState, (source, e) -> {});
     }
 
     @Override
-    public void startInitialJoin() {
-        final ClusterStateTaskExecutor<DiscoveryNode> executor =
-                new ClusterStateTaskExecutor<DiscoveryNode>() {
-
-                    @Override
-                    public ClusterTasksResult<DiscoveryNode> execute(
-                            final ClusterState current,
-                            final List<DiscoveryNode> tasks) throws Exception {
-                        assert tasks.size() == 1;
-                        final DiscoveryNodes.Builder nodes =
-                                DiscoveryNodes.builder(current.nodes());
-                        // always set the local node as master, there will not be other nodes
-                        nodes.masterNodeId(localNode().getId());
-                        final ClusterState next =
-                                ClusterState.builder(current).nodes(nodes).build();
-                        final ClusterTasksResult.Builder<DiscoveryNode> result =
-                                ClusterTasksResult.builder();
-                        return result.successes(tasks).build(next);
-                    }
-
-                    @Override
-                    public boolean runOnlyOnMaster() {
-                        return false;
-                    }
-
-                };
-        final ClusterStateTaskConfig config = ClusterStateTaskConfig.build(Priority.URGENT);
-        clusterService.submitStateUpdateTasks(
-                "single-node-start-initial-join",
-                Collections.singletonMap(localNode(), (s, e) -> {}), config, executor);
+    protected synchronized void doStart() {
+        // set initial state
+        DiscoveryNode localNode = transportService.getLocalNode();
+        clusterState = createInitialState(localNode);
+        clusterApplier.setInitialState(clusterState);
     }
 
-    @Override
-    public int getMinimumMasterNodes() {
-        return 1;
-    }
-
-    @Override
-    protected void doStart() {
-
+    protected ClusterState createInitialState(DiscoveryNode localNode) {
+        ClusterState.Builder builder = clusterApplier.newClusterStateBuilder();
+        return builder.nodes(DiscoveryNodes.builder().add(localNode)
+                .localNodeId(localNode.getId())
+                .masterNodeId(localNode.getId())
+                .build())
+            .blocks(ClusterBlocks.builder()
+                .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
+            .build();
     }
 
     @Override

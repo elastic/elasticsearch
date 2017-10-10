@@ -42,6 +42,7 @@ would be transformed internally into a document that looks more like this:
   "user.last" :  [ "smith", "white" ]
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 The `user.first` and `user.last` fields are flattened into multi-value fields,
 and the association between `alice` and `white` is lost.  This document would
@@ -187,7 +188,7 @@ accessed  within the scope of the `nested` query, the
 
 For instance, if a string field within a nested document has
 <<index-options,`index_options`>> set to `offsets` to allow use of the postings
-highlighter, these offsets will not be available during the main highlighting
+during the highlighting, these offsets will not be available during the main highlighting
 phase.  Instead, highlighting needs to be performed via
 <<nested-inner-hits,nested inner hits>>.
 

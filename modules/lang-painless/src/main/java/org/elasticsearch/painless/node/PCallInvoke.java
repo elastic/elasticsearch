@@ -19,9 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -66,14 +66,14 @@ public final class PCallInvoke extends AExpression {
         prefix.expected = prefix.actual;
         prefix = prefix.cast(locals);
 
-        if (prefix.actual.sort == Sort.ARRAY) {
+        if (prefix.actual.dimensions > 0) {
             throw createError(new IllegalArgumentException("Illegal call [" + name + "] on array type."));
         }
 
         Struct struct = prefix.actual.struct;
 
-        if (prefix.actual.sort.primitive) {
-            struct = locals.getDefinition().getType(prefix.actual.sort.boxed.getSimpleName()).struct;
+        if (prefix.actual.clazz.isPrimitive()) {
+            struct = Definition.getBoxedType(prefix.actual).struct;
         }
 
         MethodKey methodKey = new MethodKey(name, arguments.size());
@@ -81,7 +81,7 @@ public final class PCallInvoke extends AExpression {
 
         if (method != null) {
             sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
-        } else if (prefix.actual.sort == Sort.DEF) {
+        } else if (prefix.actual.dynamic) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
             throw createError(new IllegalArgumentException(

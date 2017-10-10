@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_scripts/{lang}",
-      "paths": [ "/_scripts/{lang}", "/_scripts/{lang}/{id}" ],
+      "path": "/_scripts/{id}",
+      "paths": [ "/_scripts/{id}" ],
       "parts": {
         "id": {
           "type" : "string",

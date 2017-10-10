@@ -47,8 +47,6 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
     public static final int DEFAULT_MAX_DETERMINIZED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 
-    private static final ParseField NAME_FIELD = new ParseField("_name")
-            .withAllDeprecated("query name is not supported in short version of regexp query");
     private static final ParseField FLAGS_VALUE_FIELD = new ParseField("flags_value");
     private static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
     private static final ParseField FLAGS_FIELD = new ParseField("flags");
@@ -177,8 +175,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         builder.endObject();
     }
 
-    public static RegexpQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static RegexpQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
         String rewrite = null;
         String value = null;
@@ -191,8 +188,6 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
                 fieldName = currentFieldName;
@@ -222,13 +217,9 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                     }
                 }
             } else {
-                if (NAME_FIELD.match(currentFieldName)) {
-                    queryName = parser.text();
-                } else {
-                    throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
-                    fieldName = currentFieldName;
-                    value = parser.textOrNull();
-                }
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
+                fieldName = currentFieldName;
+                value = parser.textOrNull();
             }
         }
 

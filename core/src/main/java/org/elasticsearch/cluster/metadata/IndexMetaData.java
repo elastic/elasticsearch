@@ -41,13 +41,11 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -62,7 +60,6 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -79,7 +76,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
-public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
+public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragment {
 
     /**
      * This class will be removed in v7.0
@@ -134,10 +131,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         return proto;
     }
 
-    public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
-    public static final ClusterBlock INDEX_READ_BLOCK = new ClusterBlock(7, "index read (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.READ));
-    public static final ClusterBlock INDEX_WRITE_BLOCK = new ClusterBlock(8, "index write (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE));
-    public static final ClusterBlock INDEX_METADATA_BLOCK = new ClusterBlock(9, "index metadata (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.METADATA_READ));
+    public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
+    public static final ClusterBlock INDEX_READ_BLOCK = new ClusterBlock(7, "index read (api)", false, false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.READ));
+    public static final ClusterBlock INDEX_WRITE_BLOCK = new ClusterBlock(8, "index write (api)", false, false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE));
+    public static final ClusterBlock INDEX_METADATA_BLOCK = new ClusterBlock(9, "index metadata (api)", false, false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.METADATA_READ));
+    public static final ClusterBlock INDEX_READ_ONLY_ALLOW_DELETE_BLOCK = new ClusterBlock(12, "index read-only / allow delete (api)", false, false, true, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE));
 
     public enum State {
         OPEN((byte) 0),
@@ -215,6 +213,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     public static final Setting<Boolean> INDEX_BLOCKS_METADATA_SETTING =
         Setting.boolSetting(SETTING_BLOCKS_METADATA, false, Property.Dynamic, Property.IndexScope);
 
+    public static final String SETTING_READ_ONLY_ALLOW_DELETE = "index.blocks.read_only_allow_delete";
+    public static final Setting<Boolean> INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING =
+        Setting.boolSetting(SETTING_READ_ONLY_ALLOW_DELETE, false, Property.Dynamic, Property.IndexScope);
+
     public static final String SETTING_VERSION_CREATED = "index.version.created";
     public static final String SETTING_VERSION_CREATED_STRING = "index.version.created_string";
     public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
@@ -238,14 +240,18 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     public static final String INDEX_ROUTING_REQUIRE_GROUP_PREFIX = "index.routing.allocation.require";
     public static final String INDEX_ROUTING_INCLUDE_GROUP_PREFIX = "index.routing.allocation.include";
     public static final String INDEX_ROUTING_EXCLUDE_GROUP_PREFIX = "index.routing.allocation.exclude";
-    public static final Setting<Settings> INDEX_ROUTING_REQUIRE_GROUP_SETTING =
-        Setting.groupSetting(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.IndexScope);
-    public static final Setting<Settings> INDEX_ROUTING_INCLUDE_GROUP_SETTING =
-        Setting.groupSetting(INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.IndexScope);
-    public static final Setting<Settings> INDEX_ROUTING_EXCLUDE_GROUP_SETTING =
-        Setting.groupSetting(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.IndexScope);
-    public static final Setting<Settings> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
-        Setting.groupSetting("index.routing.allocation.initial_recovery."); // this is only setable internally not a registered setting!!
+    public static final Setting.AffixSetting<String> INDEX_ROUTING_REQUIRE_GROUP_SETTING =
+        Setting.prefixKeySetting(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
+    public static final Setting.AffixSetting<String> INDEX_ROUTING_INCLUDE_GROUP_SETTING =
+        Setting.prefixKeySetting(INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
+    public static final Setting.AffixSetting<String> INDEX_ROUTING_EXCLUDE_GROUP_SETTING =
+        Setting.prefixKeySetting(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
+    public static final Setting.AffixSetting<String> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
+        Setting.prefixKeySetting("index.routing.allocation.initial_recovery.", key -> Setting.simpleString(key));
+        // this is only setable internally not a registered setting!!
 
     /**
      * The number of active shard copies to check for before proceeding with a write operation.
@@ -256,6 +262,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
                       ActiveShardCount::parseString,
                       Setting.Property.Dynamic,
                       Setting.Property.IndexScope);
+
+    /**
+     * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
+     */
+    private static final String INDEX_FORMAT = "index.format";
+    public static final Setting<Integer> INDEX_FORMAT_SETTING =
+            Setting.intSetting(INDEX_FORMAT, 0, Setting.Property.IndexScope, Setting.Property.Final);
 
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
     static final String KEY_VERSION = "version";
@@ -440,12 +453,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         return mappings.get(mappingType);
     }
 
-    public static final Setting<String> INDEX_SHRINK_SOURCE_UUID = Setting.simpleString("index.shrink.source.uuid");
-    public static final Setting<String> INDEX_SHRINK_SOURCE_NAME = Setting.simpleString("index.shrink.source.name");
+    public static final String INDEX_SHRINK_SOURCE_UUID_KEY = "index.shrink.source.uuid";
+    public static final String INDEX_SHRINK_SOURCE_NAME_KEY = "index.shrink.source.name";
+    public static final Setting<String> INDEX_SHRINK_SOURCE_UUID = Setting.simpleString(INDEX_SHRINK_SOURCE_UUID_KEY);
+    public static final Setting<String> INDEX_SHRINK_SOURCE_NAME = Setting.simpleString(INDEX_SHRINK_SOURCE_NAME_KEY);
 
 
     public Index getMergeSourceIndex() {
-        return INDEX_SHRINK_SOURCE_UUID.exists(settings) ? new Index(INDEX_SHRINK_SOURCE_NAME.get(settings),  INDEX_SHRINK_SOURCE_UUID.get(settings)) : null;
+        return INDEX_SHRINK_SOURCE_UUID.exists(settings) ? new Index(INDEX_SHRINK_SOURCE_NAME.get(settings), INDEX_SHRINK_SOURCE_UUID.get(settings)) : null;
     }
 
     /**
@@ -1001,28 +1016,28 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
                     filledInSyncAllocationIds.put(i, Collections.emptySet());
                 }
             }
-            final Map<String, String> requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.get(settings).getAsMap();
+            final Map<String, String> requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters requireFilters;
             if (requireMap.isEmpty()) {
                 requireFilters = null;
             } else {
                 requireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, requireMap);
             }
-            Map<String, String> includeMap = INDEX_ROUTING_INCLUDE_GROUP_SETTING.get(settings).getAsMap();
+            Map<String, String> includeMap = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters includeFilters;
             if (includeMap.isEmpty()) {
                 includeFilters = null;
             } else {
                 includeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, includeMap);
             }
-            Map<String, String> excludeMap = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.get(settings).getAsMap();
+            Map<String, String> excludeMap = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters excludeFilters;
             if (excludeMap.isEmpty()) {
                 excludeFilters = null;
             } else {
                 excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
             }
-            Map<String, String> initialRecoveryMap = INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.get(settings).getAsMap();
+            Map<String, String> initialRecoveryMap = INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters initialRecoveryFilters;
             if (initialRecoveryMap.isEmpty()) {
                 initialRecoveryFilters = null;
@@ -1047,6 +1062,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
             }
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
+
             return new IndexMetaData(new Index(index, uuid), version, primaryTerms, state, numberOfShards, numberOfReplicas, tmpSettings, mappings.build(),
                 tmpAliases.build(), customs.build(), filledInSyncAllocationIds.build(), requireFilters, initialRecoveryFilters, includeFilters, excludeFilters,
                 indexCreatedVersion, indexUpgradedVersion, getRoutingNumShards(), routingPartitionSize, waitForActiveShards);
@@ -1062,9 +1078,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
             boolean binary = params.paramAsBoolean("binary", false);
 
             builder.startObject(KEY_SETTINGS);
-            for (Map.Entry<String, String> entry : indexMetaData.getSettings().getAsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            indexMetaData.getSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
             builder.endObject();
 
             builder.startArray(KEY_MAPPINGS);
@@ -1130,7 +1144,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (KEY_SETTINGS.equals(currentFieldName)) {
-                        builder.settings(Settings.builder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())));
+                        builder.settings(Settings.fromXContent(parser));
                     } else if (KEY_MAPPINGS.equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
@@ -1314,7 +1328,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
      * @param sourceIndexMetadata the metadata of the source index
      * @param targetNumberOfShards the total number of shards in the target index
      * @return the routing factor for and shrunk index with the given number of target shards.
-     * @throws IllegalArgumentException if the number of source shards is greater than the number of target shards or if the source shards
+     * @throws IllegalArgumentException if the number of source shards is less than the number of target shards or if the source shards
      * are not divisible by the number of target shards.
      */
     public static int getRoutingFactor(IndexMetaData sourceIndexMetadata, int targetNumberOfShards) {

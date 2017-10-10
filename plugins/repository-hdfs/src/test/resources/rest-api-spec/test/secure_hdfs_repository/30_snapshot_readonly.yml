@@ -1,0 +1,31 @@
+# Integration tests for HDFS Repository plugin
+#
+# Tests retrieving information about snapshot
+#
+---
+"Get a snapshot - readonly":
+  # Create repository
+  - do:
+      snapshot.create_repository:
+        repository: test_snapshot_repository_ro
+        body:
+          type: hdfs
+          settings:
+            uri: "hdfs://localhost:9998"
+            path: "/user/elasticsearch/existing/readonly-repository"
+            security:
+              principal: "elasticsearch@BUILD.ELASTIC.CO"
+            readonly: true
+
+  # List snapshot info
+  - do:
+      snapshot.get:
+        repository: test_snapshot_repository_ro
+        snapshot: "_all"
+
+  - length: { snapshots: 1 }
+
+  # Remove our repository
+  - do:
+     snapshot.delete_repository:
+       repository: test_snapshot_repository_ro

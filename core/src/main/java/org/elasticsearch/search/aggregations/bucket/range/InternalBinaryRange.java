@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -44,6 +43,7 @@ import static java.util.Collections.unmodifiableList;
 public final class InternalBinaryRange
         extends InternalMultiBucketAggregation<InternalBinaryRange, InternalBinaryRange.Bucket>
         implements Range {
+
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
 
         private final transient DocValueFormat format;
@@ -189,8 +189,8 @@ public final class InternalBinaryRange
         }
     }
 
-    private final DocValueFormat format;
-    private final boolean keyed;
+    protected final DocValueFormat format;
+    protected final boolean keyed;
     private final List<Bucket> buckets;
 
     public InternalBinaryRange(String name, DocValueFormat format, boolean keyed, List<Bucket> buckets,

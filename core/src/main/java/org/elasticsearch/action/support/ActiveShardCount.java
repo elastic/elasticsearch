@@ -138,36 +138,40 @@ public final class ActiveShardCount implements Writeable {
 
     /**
      * Returns true iff the given cluster state's routing table contains enough active
-     * shards for the given index to meet the required shard count represented by this instance.
+     * shards for the given indices to meet the required shard count represented by this instance.
      */
-    public boolean enoughShardsActive(final ClusterState clusterState, final String indexName) {
+    public boolean enoughShardsActive(final ClusterState clusterState, final String... indices) {
         if (this == ActiveShardCount.NONE) {
             // not waiting for any active shards
             return true;
         }
-        final IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
-        if (indexMetaData == null) {
-            // its possible the index was deleted while waiting for active shard copies,
-            // in this case, we'll just consider it that we have enough active shard copies
-            // and we can stop waiting
-            return true;
-        }
-        final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);
-        assert indexRoutingTable != null;
-        if (indexRoutingTable.allPrimaryShardsActive() == false) {
-            // all primary shards aren't active yet
-            return false;
-        }
-        ActiveShardCount waitForActiveShards = this;
-        if (waitForActiveShards == ActiveShardCount.DEFAULT) {
-            waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetaData.getSettings());
-        }
-        for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
-            if (waitForActiveShards.enoughShardsActive(shardRouting.value) == false) {
-                // not enough active shard copies yet
+
+        for (final String indexName : indices) {
+            final IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
+            if (indexMetaData == null) {
+                // its possible the index was deleted while waiting for active shard copies,
+                // in this case, we'll just consider it that we have enough active shard copies
+                // and we can stop waiting
+                continue;
+            }
+            final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);
+            assert indexRoutingTable != null;
+            if (indexRoutingTable.allPrimaryShardsActive() == false) {
+                // all primary shards aren't active yet
                 return false;
             }
+            ActiveShardCount waitForActiveShards = this;
+            if (waitForActiveShards == ActiveShardCount.DEFAULT) {
+                waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetaData.getSettings());
+            }
+            for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
+                if (waitForActiveShards.enoughShardsActive(shardRouting.value) == false) {
+                    // not enough active shard copies yet
+                    return false;
+                }
+            }
         }
+
         return true;
     }
 

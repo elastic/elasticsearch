@@ -53,6 +53,18 @@ public class RepositoriesMetaDataSerializationTests extends AbstractDiffableSeri
         return RepositoriesMetaData::new;
     }
 
+    @Override
+    protected Custom mutateInstance(Custom instance) {
+        List<RepositoryMetaData> entries = new ArrayList<>(((RepositoriesMetaData) instance).repositories());
+        boolean addEntry = entries.isEmpty() ? true : randomBoolean();
+        if (addEntry) {
+            entries.add(new RepositoryMetaData(randomAlphaOfLength(10), randomAlphaOfLength(10), randomSettings()));
+        } else {
+            entries.remove(randomIntBetween(0, entries.size() - 1));
+        }
+        return new RepositoriesMetaData(entries.toArray(new RepositoryMetaData[entries.size()]));
+    }
+
     public Settings randomSettings() {
         if (randomBoolean()) {
             return Settings.EMPTY;

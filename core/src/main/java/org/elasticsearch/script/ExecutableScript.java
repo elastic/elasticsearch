@@ -19,6 +19,8 @@
 
 package org.elasticsearch.script;
 
+import java.util.Map;
+
 /**
  * An executable script, can't be used concurrently.
  */
@@ -39,13 +41,14 @@ public interface ExecutableScript {
      */
     Object run();
 
-    /**
-     * Unwraps a possible script value. For example, when passing vars and
-     * expecting the returned value to be part of the vars. Javascript and
-     * Python need this but other scripting engines just return the values
-     * passed in.
-     */
-    default Object unwrap(Object value) {
-        return value;
+    interface Factory {
+        ExecutableScript newInstance(Map<String, Object> params);
     }
+
+    ScriptContext<Factory> CONTEXT = new ScriptContext<>("executable", Factory.class);
+
+    // TODO: remove these once each has its own script interface
+    ScriptContext<Factory> AGGS_CONTEXT = new ScriptContext<>("aggs_executable", Factory.class);
+    ScriptContext<Factory> UPDATE_CONTEXT = new ScriptContext<>("update", Factory.class);
+    ScriptContext<Factory> INGEST_CONTEXT = new ScriptContext<>("ingest", Factory.class);
 }

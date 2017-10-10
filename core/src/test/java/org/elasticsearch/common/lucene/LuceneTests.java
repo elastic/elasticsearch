@@ -377,7 +377,7 @@ public class LuceneTests extends ESTestCase {
             Weight termWeight = new TermQuery(new Term("foo", "bar")).createWeight(searcher, false, 1f);
             assertEquals(1, reader.leaves().size());
             LeafReaderContext leafReaderContext = searcher.getIndexReader().leaves().get(0);
-            Bits bits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), termWeight.scorer(leafReaderContext));
+            Bits bits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), termWeight.scorerSupplier(leafReaderContext));
 
             expectThrows(IndexOutOfBoundsException.class, () -> bits.get(-1));
             expectThrows(IndexOutOfBoundsException.class, () -> bits.get(leafReaderContext.reader().maxDoc()));

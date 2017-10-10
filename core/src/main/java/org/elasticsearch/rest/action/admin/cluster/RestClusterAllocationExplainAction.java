@@ -47,6 +47,11 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "cluster_allocation_explain_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClusterAllocationExplainRequest req;
         if (request.hasContentOrSourceParam() == false) {

@@ -19,26 +19,21 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-
-import java.util.Objects;
 
 public interface MappingUpdatePerformer {
 
     /**
      * Update the mappings on the master.
      */
-    void updateMappings(Mapping update, ShardId shardId, String type) throws Exception;
+    void updateMappings(Mapping update, ShardId shardId, String type);
 
     /**
      *  Throws a {@code ReplicationOperation.RetryOnPrimaryException} if the operation needs to be
      * retried on the primary due to the mappings not being present yet, or a different exception if
      * updating the mappings on the master failed.
      */
-    void verifyMappings(Engine.Index operation, ShardId shardId) throws Exception;
+    void verifyMappings(Mapping update, ShardId shardId);
 
 }

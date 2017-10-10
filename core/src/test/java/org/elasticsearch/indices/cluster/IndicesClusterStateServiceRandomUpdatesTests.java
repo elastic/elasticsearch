@@ -48,6 +48,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -407,20 +408,22 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(settings, threadPool,
             transportService, null, clusterService);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
+        final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);
         return new IndicesClusterStateService(
-            settings,
-            indicesService,
-            clusterService,
-            threadPool,
-            recoveryTargetService,
-            shardStateAction,
-            null,
-            repositoriesService,
-            null,
-            null,
-            null,
-            null,
-            shardId -> {});
+                settings,
+                indicesService,
+                clusterService,
+                threadPool,
+                recoveryTargetService,
+                shardStateAction,
+                null,
+                repositoriesService,
+                null,
+                null,
+                null,
+                null,
+                primaryReplicaSyncer,
+                s -> {});
     }
 
     private class RecordingIndicesService extends MockIndicesService {

@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -50,11 +50,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * aggregation should be skipped (e.g. when trying to aggregate on unmapped fields).
          *
          * @param aggregationName   The name of the aggregation
-         * @param context           The parse context
+         * @param parser            The parser
          * @return                  The resolved aggregator factory or {@code null} in case the aggregation should be skipped
          * @throws java.io.IOException      When parsing fails
          */
-        AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException;
+        AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException;
     }
 
     /**
@@ -139,16 +139,12 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         }
 
         public static SubAggCollectionMode readFromStream(StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown SubAggCollectionMode ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(SubAggCollectionMode.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(ordinal());
+            out.writeEnum(this);
         }
     }
 }

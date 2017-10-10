@@ -235,7 +235,6 @@ public class ShardReduceIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/17700")
     public void testIpRange() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())

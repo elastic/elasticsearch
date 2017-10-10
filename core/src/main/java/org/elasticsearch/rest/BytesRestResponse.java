@@ -93,14 +93,9 @@ public class BytesRestResponse extends RestResponse {
 
     public BytesRestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
         this.status = status;
-        if (channel.request().method() == RestRequest.Method.HEAD) {
-            this.content = BytesArray.EMPTY;
-            this.contentType = TEXT_CONTENT_TYPE;
-        } else {
-            try (XContentBuilder builder = build(channel, status, e)) {
-                this.content = builder.bytes();
-                this.contentType = builder.contentType().mediaType();
-            }
+        try (XContentBuilder builder = build(channel, status, e)) {
+            this.content = builder.bytes();
+            this.contentType = builder.contentType().mediaType();
         }
         if (e instanceof ElasticsearchException) {
             copyHeaders(((ElasticsearchException) e));

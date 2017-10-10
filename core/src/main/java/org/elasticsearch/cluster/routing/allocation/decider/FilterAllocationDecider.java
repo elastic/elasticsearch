@@ -30,6 +30,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.EnumSet;
+import java.util.Map;
+
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
@@ -68,12 +71,26 @@ public class FilterAllocationDecider extends AllocationDecider {
     private static final String CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX = "cluster.routing.allocation.require";
     private static final String CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX = "cluster.routing.allocation.include";
     private static final String CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX = "cluster.routing.allocation.exclude";
-    public static final Setting<Settings> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING =
-        Setting.groupSetting(CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
-    public static final Setting<Settings> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING =
-        Setting.groupSetting(CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
-    public static final Setting<Settings> CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING =
-        Setting.groupSetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
+    public static final Setting.AffixSetting<String> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING =
+        Setting.prefixKeySetting(CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));
+    public static final Setting.AffixSetting<String> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING =
+        Setting.prefixKeySetting(CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));
+    public static final Setting.AffixSetting<String>CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING =
+        Setting.prefixKeySetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));
+
+    /**
+     * The set of {@link RecoverySource.Type} values for which the
+     * {@link IndexMetaData#INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING} should apply.
+     * Note that we do not include the {@link RecoverySource.Type#SNAPSHOT} type here
+     * because if the snapshot is restored to a different cluster that does not contain
+     * the initial recovery node id, or to the same cluster where the initial recovery node
+     * id has been decommissioned, then the primary shards will never be allocated.
+     */
+    static EnumSet<RecoverySource.Type> INITIAL_RECOVERY_TYPES =
+        EnumSet.of(RecoverySource.Type.EMPTY_STORE, RecoverySource.Type.LOCAL_SHARDS);
 
     private volatile DiscoveryNodeFilters clusterRequireFilters;
     private volatile DiscoveryNodeFilters clusterIncludeFilters;
@@ -81,12 +98,12 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     public FilterAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
-        setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.get(settings));
-        setClusterExcludeFilters(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.get(settings));
-        setClusterIncludeFilters(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters);
+        setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings));
+        setClusterExcludeFilters(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings));
+        setClusterIncludeFilters(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings));
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters, (a,b)-> {}, true);
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, (a,b)-> {}, true);
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters, (a,b)-> {}, true);
     }
 
     @Override
@@ -98,7 +115,7 @@ public class FilterAllocationDecider extends AllocationDecider {
             IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());
             DiscoveryNodeFilters initialRecoveryFilters = indexMd.getInitialRecoveryFilters();
             if (initialRecoveryFilters != null  &&
-                RecoverySource.isInitialRecovery(shardRouting.recoverySource().getType()) &&
+                INITIAL_RECOVERY_TYPES.contains(shardRouting.recoverySource().getType()) &&
                 initialRecoveryFilters.match(node.node()) == false) {
                 String explanation = (shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) ?
                     "initial allocation of the shrunken index is only allowed on nodes [%s] that hold a copy of every shard in the index" :
@@ -183,13 +200,13 @@ public class FilterAllocationDecider extends AllocationDecider {
         return null;
     }
 
-    private void setClusterRequireFilters(Settings settings) {
-        clusterRequireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, settings.getAsMap());
+    private void setClusterRequireFilters(Map<String, String> filters) {
+        clusterRequireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, filters);
     }
-    private void setClusterIncludeFilters(Settings settings) {
-        clusterIncludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, settings.getAsMap());
+    private void setClusterIncludeFilters(Map<String, String> filters) {
+        clusterIncludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, filters);
     }
-    private void setClusterExcludeFilters(Settings settings) {
-        clusterExcludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, settings.getAsMap());
+    private void setClusterExcludeFilters(Map<String, String> filters) {
+        clusterExcludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, filters);
     }
 }

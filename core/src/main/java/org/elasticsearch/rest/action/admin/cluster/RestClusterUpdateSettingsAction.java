@@ -42,6 +42,11 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "cluster_update_settings_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));

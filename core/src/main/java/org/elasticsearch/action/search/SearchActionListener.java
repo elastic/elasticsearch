@@ -27,6 +27,7 @@ import org.elasticsearch.search.SearchShardTarget;
  * received by this listener.
  */
 abstract class SearchActionListener<T extends SearchPhaseResult> implements ActionListener<T> {
+
     private final int requestIndex;
     private final SearchShardTarget searchShardTarget;
 
@@ -49,5 +50,4 @@ abstract class SearchActionListener<T extends SearchPhaseResult> implements Acti
     }
 
     protected abstract void innerOnResponse(T response);
-
 }

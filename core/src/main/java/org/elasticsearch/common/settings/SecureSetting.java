@@ -21,14 +21,11 @@ package org.elasticsearch.common.settings;
 
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Objects;
+import java.util.EnumSet;
 import java.util.Set;
 
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.util.ArrayUtils;
-
 
 /**
  * A secure setting.
@@ -36,16 +33,14 @@ import org.elasticsearch.common.util.ArrayUtils;
  * This class allows access to settings from the Elasticsearch keystore.
  */
 public abstract class SecureSetting<T> extends Setting<T> {
-    private static final Set<Property> ALLOWED_PROPERTIES = new HashSet<>(
-        Arrays.asList(Property.Deprecated, Property.Shared)
-    );
+
+    /** Determines whether legacy settings with sensitive values should be allowed. */
+    private static final boolean ALLOW_INSECURE_SETTINGS = Booleans.parseBoolean(System.getProperty("es.allow_insecure_settings", "false"));
+
+    private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(Property.Deprecated);
 
     private static final Property[] FIXED_PROPERTIES = {
         Property.NodeScope
-    };
-
-    private static final Property[] LEGACY_PROPERTIES = {
-        Property.NodeScope, Property.Deprecated, Property.Filtered
     };
 
     private SecureSetting(String key, Property... properties) {
@@ -123,19 +118,15 @@ public abstract class SecureSetting<T> extends Setting<T> {
      */
     public static Setting<SecureString> secureString(String name, Setting<SecureString> fallback,
                                                      Property... properties) {
-        return new SecureSetting<SecureString>(name, properties) {
-            @Override
-            protected SecureString getSecret(SecureSettings secureSettings) throws GeneralSecurityException {
-                return secureSettings.getString(getKey());
-            }
-            @Override
-            SecureString getFallback(Settings settings) {
-                if (fallback != null) {
-                    return fallback.get(settings);
-                }
-                return new SecureString(new char[0]); // this means "setting does not exist"
-            }
-        };
+        return new SecureStringSetting(name, fallback, properties);
+    }
+
+    /**
+     * A setting which contains a sensitive string, but which for legacy reasons must be found outside secure settings.
+     * @see #secureString(String, Setting, Property...)
+     */
+    public static Setting<SecureString> insecureString(String name) {
+        return new InsecureStringSetting(name);
     }
 
     /**
@@ -145,19 +136,68 @@ public abstract class SecureSetting<T> extends Setting<T> {
      */
     public static Setting<InputStream> secureFile(String name, Setting<InputStream> fallback,
                                                   Property... properties) {
-        return new SecureSetting<InputStream>(name, properties) {
-            @Override
-            protected InputStream getSecret(SecureSettings secureSettings) throws GeneralSecurityException {
-                return secureSettings.getFile(getKey());
-            }
-            @Override
-            InputStream getFallback(Settings settings) {
-                if (fallback != null) {
-                    return fallback.get(settings);
-                }
-                return null;
-            }
-        };
+        return new SecureFileSetting(name, fallback, properties);
     }
 
+    private static class SecureStringSetting extends SecureSetting<SecureString> {
+        private final Setting<SecureString> fallback;
+
+        private SecureStringSetting(String name, Setting<SecureString> fallback, Property... properties) {
+            super(name, properties);
+            this.fallback = fallback;
+        }
+
+        @Override
+        protected SecureString getSecret(SecureSettings secureSettings) throws GeneralSecurityException {
+            return secureSettings.getString(getKey());
+        }
+
+        @Override
+        SecureString getFallback(Settings settings) {
+            if (fallback != null) {
+                return fallback.get(settings);
+            }
+            return new SecureString(new char[0]); // this means "setting does not exist"
+        }
+    }
+
+    private static class InsecureStringSetting extends Setting<SecureString> {
+        private final String name;
+
+        private InsecureStringSetting(String name) {
+            super(name, "", SecureString::new, Property.Deprecated, Property.Filtered, Property.NodeScope);
+            this.name = name;
+        }
+
+        @Override
+        public SecureString get(Settings settings) {
+            if (ALLOW_INSECURE_SETTINGS == false && exists(settings)) {
+                throw new IllegalArgumentException("Setting [" + name + "] is insecure, " +
+                    "but property [allow_insecure_settings] is not set");
+            }
+            return super.get(settings);
+        }
+    }
+
+    private static class SecureFileSetting extends SecureSetting<InputStream> {
+        private final Setting<InputStream> fallback;
+
+        private SecureFileSetting(String name, Setting<InputStream> fallback, Property... properties) {
+            super(name, properties);
+            this.fallback = fallback;
+        }
+
+        @Override
+        protected InputStream getSecret(SecureSettings secureSettings) throws GeneralSecurityException {
+            return secureSettings.getFile(getKey());
+        }
+
+        @Override
+        InputStream getFallback(Settings settings) {
+            if (fallback != null) {
+                return fallback.get(settings);
+            }
+            return null;
+        }
+    }
 }

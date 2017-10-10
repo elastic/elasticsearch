@@ -23,7 +23,6 @@ import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -103,14 +102,12 @@ public final class EAssignment extends AExpression {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
 
-            Sort sort = lhs.actual.sort;
-
             if (operation == Operation.INCR) {
-                if (sort == Sort.DOUBLE) {
+                if (lhs.actual.clazz == double.class) {
                     rhs = new EConstant(location, 1D);
-                } else if (sort == Sort.FLOAT) {
+                } else if (lhs.actual.clazz == float.class) {
                     rhs = new EConstant(location, 1F);
-                } else if (sort == Sort.LONG) {
+                } else if (lhs.actual.clazz == long.class) {
                     rhs = new EConstant(location, 1L);
                 } else {
                     rhs = new EConstant(location, 1);
@@ -118,11 +115,11 @@ public final class EAssignment extends AExpression {
 
                 operation = Operation.ADD;
             } else if (operation == Operation.DECR) {
-                if (sort == Sort.DOUBLE) {
+                if (lhs.actual.clazz == double.class) {
                     rhs = new EConstant(location, 1D);
-                } else if (sort == Sort.FLOAT) {
+                } else if (lhs.actual.clazz == float.class) {
                     rhs = new EConstant(location, 1F);
-                } else if (sort == Sort.LONG) {
+                } else if (lhs.actual.clazz == long.class) {
                     rhs = new EConstant(location, 1L);
                 } else {
                     rhs = new EConstant(location, 1);
@@ -177,19 +174,19 @@ public final class EAssignment extends AExpression {
                 "[" + operation.symbol + "=] to types [" + lhs.actual + "] and [" + rhs.actual + "]."));
         }
 
-        cat = operation == Operation.ADD && promote.sort == Sort.STRING;
+        cat = operation == Operation.ADD && promote.clazz == String.class;
 
         if (cat) {
-            if (rhs instanceof EBinary && ((EBinary)rhs).operation == Operation.ADD && rhs.actual.sort == Sort.STRING) {
+            if (rhs instanceof EBinary && ((EBinary)rhs).operation == Operation.ADD && rhs.actual.clazz == String.class) {
                 ((EBinary)rhs).cat = true;
             }
 
             rhs.expected = rhs.actual;
         } else if (shift) {
-            if (promote.sort == Sort.DEF) {
+            if (promote.dynamic) {
                 // shifts are promoted independently, but for the def type, we need object.
                 rhs.expected = promote;
-            } else if (shiftDistance.sort == Sort.LONG) {
+            } else if (shiftDistance.clazz == long.class) {
                 rhs.expected = Definition.INT_TYPE;
                 rhs.explicit = true;
             } else {
@@ -272,7 +269,7 @@ public final class EAssignment extends AExpression {
             writer.writeCast(back);  // if necessary, cast the String to the lhs actual type
 
             if (lhs.read) {
-                writer.writeDup(lhs.actual.sort.size, lhs.accessElementCount()); // if this lhs is also read
+                writer.writeDup(lhs.actual.type.getSize(), lhs.accessElementCount()); // if this lhs is also read
                                                                           // from dup the value onto the stack
             }
 
@@ -286,7 +283,7 @@ public final class EAssignment extends AExpression {
             lhs.load(writer, globals);                    // load the current lhs's value
 
             if (lhs.read && post) {
-                writer.writeDup(lhs.actual.sort.size, lhs.accessElementCount()); // dup the value if the lhs is also
+                writer.writeDup(lhs.actual.type.getSize(), lhs.accessElementCount()); // dup the value if the lhs is also
                                                                                  // read from and is a post increment
             }
 
@@ -297,7 +294,7 @@ public final class EAssignment extends AExpression {
         // XXX: fix these types, but first we need def compound assignment tests.
         // its tricky here as there are possibly explicit casts, too.
         // write the operation instruction for compound assignment
-            if (promote.sort == Sort.DEF) {
+            if (promote.dynamic) {
                 writer.writeDynamicBinaryInstruction(location, promote,
                     Definition.DEF_TYPE, Definition.DEF_TYPE, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
             } else {
@@ -307,7 +304,7 @@ public final class EAssignment extends AExpression {
             writer.writeCast(back); // if necessary cast the promotion type value back to the lhs's type
 
             if (lhs.read && !post) {
-                writer.writeDup(lhs.actual.sort.size, lhs.accessElementCount()); // dup the value if the lhs is also
+                writer.writeDup(lhs.actual.type.getSize(), lhs.accessElementCount()); // dup the value if the lhs is also
                                                                                  // read from and is not a post increment
             }
 
@@ -318,7 +315,7 @@ public final class EAssignment extends AExpression {
             rhs.write(writer, globals); // write the bytecode for the rhs rhs
 
             if (lhs.read) {
-                writer.writeDup(lhs.actual.sort.size, lhs.accessElementCount()); // dup the value if the lhs is also read from
+                writer.writeDup(lhs.actual.type.getSize(), lhs.accessElementCount()); // dup the value if the lhs is also read from
             }
 
             lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array

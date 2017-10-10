@@ -95,7 +95,7 @@ public class BulkResponseTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
-        assertEquals(took, parsedBulkResponse.getTookInMillis());
+        assertEquals(took, parsedBulkResponse.getTook().getMillis());
         assertEquals(ingestTook, parsedBulkResponse.getIngestTookInMillis());
         assertEquals(expectedBulkItems.length, parsedBulkResponse.getItems().length);
 

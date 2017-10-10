@@ -23,7 +23,9 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.RAMOutputStream;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -40,7 +42,13 @@ final class TransportSearchHelper {
             out.writeVInt(searchPhaseResults.asList().size());
             for (SearchPhaseResult searchPhaseResult : searchPhaseResults.asList()) {
                 out.writeLong(searchPhaseResult.getRequestId());
-                out.writeString(searchPhaseResult.getSearchShardTarget().getNodeId());
+                SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
+                if (searchShardTarget.getClusterAlias() != null) {
+                    out.writeString(RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(),
+                        searchShardTarget.getNodeId()));
+                } else {
+                    out.writeString(searchShardTarget.getNodeId());
+                }
             }
             byte[] bytes = new byte[(int) out.getFilePointer()];
             out.writeTo(bytes, 0);
@@ -57,7 +65,15 @@ final class TransportSearchHelper {
             for (int i = 0; i < context.length; ++i) {
                 long id = in.readLong();
                 String target = in.readString();
-                context[i] = new ScrollIdForNode(target, id);
+                String clusterAlias;
+                final int index = target.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
+                if (index == -1) {
+                    clusterAlias = null;
+                } else {
+                    clusterAlias = target.substring(0, index);
+                    target = target.substring(index+1);
+                }
+                context[i] = new ScrollIdForNode(clusterAlias, target, id);
             }
             if (in.getPosition() != bytes.length) {
                 throw new IllegalArgumentException("Not all bytes were read");

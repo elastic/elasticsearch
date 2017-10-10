@@ -19,12 +19,9 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestBuilder;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -59,9 +56,9 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * Test that you can actually cancel a reindex/update-by-query/delete-by-query request and all the plumbing works. Doesn't test all of the
  * different cancellation places - that is the responsibility of AsyncBulkByScrollActionTests which have more precise control to
- * simulate failures but do not exercise important portion of the stack like transport and task management.
+ * simulate failures but does not exercise important portion of the stack like transport and task management.
  */
-@TestLogging("org.elasticsearch.action.bulk.byscroll:DEBUG,org.elasticsearch.index.reindex:DEBUG")
+@TestLogging("org.elasticsearch.index.reindex:DEBUG,org.elasticsearch.action.bulk:DEBUG")
 public class CancelTests extends ReindexTestCase {
 
     protected static final String INDEX = "reindex-cancel-index";
@@ -90,7 +87,7 @@ public class CancelTests extends ReindexTestCase {
                             Matcher<String> taskDescriptionMatcher) throws Exception {
         createIndex(INDEX);
 
-        // Total number of documents created for this test (~10 per primary shard per shard)
+        // Total number of documents created for this test (~10 per primary shard per slice)
         int numDocs = getNumShards(INDEX).numPrimaries * 10 * builder.request().getSlices();
         ALLOWED_OPERATIONS.release(numDocs);
 
@@ -111,7 +108,7 @@ public class CancelTests extends ReindexTestCase {
         ALLOWED_OPERATIONS.release(numModifiedDocs - builder.request().getSlices());
 
         // Now execute the reindex action...
-        ListenableActionFuture<? extends BulkByScrollResponse> future = builder.execute();
+        ActionFuture<? extends BulkByScrollResponse> future = builder.execute();
 
         /* ... and waits for the indexing operation listeners to block. It is important to realize that some of the workers might have
          * exhausted their slice while others might have quite a bit left to work on. We can't control that. */
@@ -234,12 +231,14 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testReindexCancelWithWorkers() throws Exception {
-        testCancel(ReindexAction.NAME, reindex().source(INDEX).destination("dest", TYPE).setSlices(5), (response, total, modified) -> {
-            assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
-
-            refresh("dest");
-            assertHitCount(client().prepareSearch("dest").setTypes(TYPE).setSize(0).get(), modified);
-        }, equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
+        testCancel(ReindexAction.NAME,
+                reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest", TYPE).setSlices(5),
+                (response, total, modified) -> {
+                    assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
+                    refresh("dest");
+                    assertHitCount(client().prepareSearch("dest").setTypes(TYPE).setSize(0).get(), modified);
+                },
+                equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
     }
 
     public void testUpdateByQueryCancelWithWorkers() throws Exception {

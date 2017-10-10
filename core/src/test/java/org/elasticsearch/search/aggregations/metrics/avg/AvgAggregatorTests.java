@@ -25,7 +25,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.FieldValueQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -34,6 +34,9 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator;
+import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -61,7 +64,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
-        testCase(new FieldValueQuery("number"), iw -> {
+        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
@@ -71,7 +74,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        testCase(new FieldValueQuery("number"), iw -> {
+        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));
@@ -113,12 +116,13 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
-        try (AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
-            aggregator.preCollection();
-            indexSearcher.search(query, aggregator);
-            aggregator.postCollection();
-            verify.accept((InternalAvg) aggregator.buildAggregation(0L));
-        }
+
+        AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(query, aggregator);
+        aggregator.postCollection();
+        verify.accept((InternalAvg) aggregator.buildAggregation(0L));
+
         indexReader.close();
         directory.close();
     }

@@ -45,6 +45,11 @@ public final class RestRemoteClusterInfoAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "remote_cluster_info_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client)
         throws IOException {
         return channel -> client.execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest(),

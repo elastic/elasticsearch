@@ -43,16 +43,15 @@ public final class MockZenPing extends AbstractComponent implements ZenPing {
     /** a set of the last discovered pings. used to throttle busy spinning where MockZenPing will keep returning the same results */
     private Set<MockZenPing> lastDiscoveredPings = null;
 
-    private volatile PingContextProvider contextProvider;
+    private final PingContextProvider contextProvider;
 
-    public MockZenPing(Settings settings) {
+    public MockZenPing(Settings settings, PingContextProvider contextProvider) {
         super(settings);
+        this.contextProvider = contextProvider;
     }
 
     @Override
-    public void start(PingContextProvider contextProvider) {
-        this.contextProvider = contextProvider;
-        assert contextProvider != null;
+    public void start() {
         synchronized (activeNodesPerCluster) {
             boolean added = getActiveNodesForCurrentCluster().add(this);
             assert added;

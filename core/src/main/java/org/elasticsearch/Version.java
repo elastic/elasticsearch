@@ -55,35 +55,74 @@ public class Version implements Comparable<Version> {
     public static final Version V_5_0_1 = new Version(V_5_0_1_ID, org.apache.lucene.util.Version.LUCENE_6_2_1);
     public static final int V_5_0_2_ID = 5000299;
     public static final Version V_5_0_2 = new Version(V_5_0_2_ID, org.apache.lucene.util.Version.LUCENE_6_2_1);
-    public static final int V_5_0_3_ID_UNRELEASED = 5000399;
-    public static final Version V_5_0_3_UNRELEASED = new Version(V_5_0_3_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
     // no version constant for 5.1.0 due to inadvertent release
-    public static final int V_5_1_1_ID_UNRELEASED = 5010199;
-    public static final Version V_5_1_1_UNRELEASED = new Version(V_5_1_1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
-    public static final int V_5_1_2_ID_UNRELEASED = 5010299;
-    public static final Version V_5_1_2_UNRELEASED = new Version(V_5_1_2_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
-    public static final int V_5_1_3_ID_UNRELEASED = 5010399;
-    public static final Version V_5_1_3_UNRELEASED = new Version(V_5_1_3_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
-    public static final int V_5_2_0_ID_UNRELEASED = 5020099;
-    public static final Version V_5_2_0_UNRELEASED = new Version(V_5_2_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_4_0);
-    public static final int V_5_2_1_ID_UNRELEASED = 5020199;
-    public static final Version V_5_2_1_UNRELEASED = new Version(V_5_2_1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_4_1);
-    public static final int V_5_2_2_ID_UNRELEASED = 5020299;
-    public static final Version V_5_2_2_UNRELEASED = new Version(V_5_2_2_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_4_1);
-    public static final int V_5_2_3_ID_UNRELEASED = 5020399;
-    public static final Version V_5_2_3_UNRELEASED = new Version(V_5_2_3_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_4_1);
-    public static final int V_5_3_0_ID_UNRELEASED = 5030099;
-    public static final Version V_5_3_0_UNRELEASED = new Version(V_5_3_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_4_1);
-    public static final int V_5_3_1_ID_UNRELEASED = 5030199;
-    public static final Version V_5_3_1_UNRELEASED = new Version(V_5_3_1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_4_2);
-    public static final int V_5_4_0_ID_UNRELEASED = 5040099;
-    public static final Version V_5_4_0_UNRELEASED = new Version(V_5_4_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_5_0);
-    public static final int V_5_5_0_ID_UNRELEASED = 5050099;
-    public static final Version V_5_5_0_UNRELEASED = new Version(V_5_5_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_5_0);
-    public static final int V_6_0_0_alpha1_ID_UNRELEASED = 6000001;
-    public static final Version V_6_0_0_alpha1_UNRELEASED =
-            new Version(V_6_0_0_alpha1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final Version CURRENT = V_6_0_0_alpha1_UNRELEASED;
+    public static final int V_5_1_1_ID = 5010199;
+    public static final Version V_5_1_1 = new Version(V_5_1_1_ID, org.apache.lucene.util.Version.LUCENE_6_3_0);
+    public static final int V_5_1_2_ID = 5010299;
+    public static final Version V_5_1_2 = new Version(V_5_1_2_ID, org.apache.lucene.util.Version.LUCENE_6_3_0);
+    public static final int V_5_2_0_ID = 5020099;
+    public static final Version V_5_2_0 = new Version(V_5_2_0_ID, org.apache.lucene.util.Version.LUCENE_6_4_0);
+    public static final int V_5_2_1_ID = 5020199;
+    public static final Version V_5_2_1 = new Version(V_5_2_1_ID, org.apache.lucene.util.Version.LUCENE_6_4_1);
+    public static final int V_5_2_2_ID = 5020299;
+    public static final Version V_5_2_2 = new Version(V_5_2_2_ID, org.apache.lucene.util.Version.LUCENE_6_4_1);
+    public static final int V_5_3_0_ID = 5030099;
+    public static final Version V_5_3_0 = new Version(V_5_3_0_ID, org.apache.lucene.util.Version.LUCENE_6_4_1);
+    public static final int V_5_3_1_ID = 5030199;
+    public static final Version V_5_3_1 = new Version(V_5_3_1_ID, org.apache.lucene.util.Version.LUCENE_6_4_2);
+    public static final int V_5_3_2_ID = 5030299;
+    public static final Version V_5_3_2 = new Version(V_5_3_2_ID, org.apache.lucene.util.Version.LUCENE_6_4_2);
+    public static final int V_5_3_3_ID = 5030399;
+    public static final Version V_5_3_3 = new Version(V_5_3_3_ID, org.apache.lucene.util.Version.LUCENE_6_4_2);
+    public static final int V_5_4_0_ID = 5040099;
+    public static final Version V_5_4_0 = new Version(V_5_4_0_ID, org.apache.lucene.util.Version.LUCENE_6_5_0);
+    public static final int V_5_4_1_ID = 5040199;
+    public static final Version V_5_4_1 = new Version(V_5_4_1_ID, org.apache.lucene.util.Version.LUCENE_6_5_1);
+    public static final int V_5_4_2_ID = 5040299;
+    public static final Version V_5_4_2 = new Version(V_5_4_2_ID, org.apache.lucene.util.Version.LUCENE_6_5_1);
+    public static final int V_5_4_3_ID = 5040399;
+    public static final Version V_5_4_3 = new Version(V_5_4_3_ID, org.apache.lucene.util.Version.LUCENE_6_5_1);
+    public static final int V_5_5_0_ID = 5050099;
+    public static final Version V_5_5_0 = new Version(V_5_5_0_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_5_1_ID = 5050199;
+    public static final Version V_5_5_1 = new Version(V_5_5_1_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_5_2_ID = 5050299;
+    public static final Version V_5_5_2 = new Version(V_5_5_2_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_5_3_ID = 5050399;
+    public static final Version V_5_5_3 = new Version(V_5_5_3_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_6_0_ID = 5060099;
+    public static final Version V_5_6_0 = new Version(V_5_6_0_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_6_1_ID = 5060199;
+    public static final Version V_5_6_1 = new Version(V_5_6_1_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_2_ID = 5060299;
+    public static final Version V_5_6_2 = new Version(V_5_6_2_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_3_ID = 5060399;
+    public static final Version V_5_6_3 = new Version(V_5_6_3_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_6_0_0_alpha1_ID = 6000001;
+    public static final Version V_6_0_0_alpha1 =
+            new Version(V_6_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final int V_6_0_0_alpha2_ID = 6000002;
+    public static final Version V_6_0_0_alpha2 =
+            new Version(V_6_0_0_alpha2_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final int V_6_0_0_beta1_ID = 6000026;
+    public static final Version V_6_0_0_beta1 =
+        new Version(V_6_0_0_beta1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final int V_6_0_0_beta2_ID = 6000027;
+    public static final Version V_6_0_0_beta2 =
+        new Version(V_6_0_0_beta2_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final int V_6_0_0_rc1_ID = 6000051;
+    public static final Version V_6_0_0_rc1 =
+        new Version(V_6_0_0_rc1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final int V_6_0_0_rc2_ID = 6000052;
+    public static final Version V_6_0_0_rc2 =
+        new Version(V_6_0_0_rc2_ID, org.apache.lucene.util.Version.LUCENE_7_0_1);
+    public static final int V_6_1_0_ID = 6010099;
+    public static final Version V_6_1_0 =
+        new Version(V_6_1_0_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
+    public static final int V_7_0_0_alpha1_ID = 7000001;
+    public static final Version V_7_0_0_alpha1 =
+        new Version(V_7_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
+    public static final Version CURRENT = V_7_0_0_alpha1;
 
     // unreleased versions must be added to the above list with the suffix _UNRELEASED (with the exception of CURRENT)
 
@@ -98,32 +137,64 @@ public class Version implements Comparable<Version> {
 
     public static Version fromId(int id) {
         switch (id) {
-            case V_6_0_0_alpha1_ID_UNRELEASED:
-                return V_6_0_0_alpha1_UNRELEASED;
-            case V_5_5_0_ID_UNRELEASED:
-                return V_5_5_0_UNRELEASED;
-            case V_5_4_0_ID_UNRELEASED:
-                return V_5_4_0_UNRELEASED;
-            case V_5_3_1_ID_UNRELEASED:
-                return V_5_3_1_UNRELEASED;
-            case V_5_3_0_ID_UNRELEASED:
-                return V_5_3_0_UNRELEASED;
-            case V_5_2_3_ID_UNRELEASED:
-                return V_5_2_3_UNRELEASED;
-            case V_5_2_2_ID_UNRELEASED:
-                return V_5_2_2_UNRELEASED;
-            case V_5_2_1_ID_UNRELEASED:
-                return V_5_2_1_UNRELEASED;
-            case V_5_2_0_ID_UNRELEASED:
-                return V_5_2_0_UNRELEASED;
-            case V_5_1_3_ID_UNRELEASED:
-                return V_5_1_3_UNRELEASED;
-            case V_5_1_2_ID_UNRELEASED:
-                return V_5_1_2_UNRELEASED;
-            case V_5_1_1_ID_UNRELEASED:
-                return V_5_1_1_UNRELEASED;
-            case V_5_0_3_ID_UNRELEASED:
-                return V_5_0_3_UNRELEASED;
+            case V_7_0_0_alpha1_ID:
+                return V_7_0_0_alpha1;
+            case V_6_1_0_ID:
+                return V_6_1_0;
+            case V_6_0_0_rc2_ID:
+                return V_6_0_0_rc2;
+            case V_6_0_0_beta2_ID:
+                return V_6_0_0_beta2;
+            case V_6_0_0_rc1_ID:
+                return V_6_0_0_rc1;
+            case V_6_0_0_beta1_ID:
+                return V_6_0_0_beta1;
+            case V_6_0_0_alpha2_ID:
+                return V_6_0_0_alpha2;
+            case V_6_0_0_alpha1_ID:
+                return V_6_0_0_alpha1;
+            case V_5_6_3_ID:
+                return V_5_6_3;
+            case V_5_6_2_ID:
+                return V_5_6_2;
+            case V_5_6_1_ID:
+                return V_5_6_1;
+            case V_5_6_0_ID:
+                return V_5_6_0;
+            case V_5_5_3_ID:
+                return V_5_5_3;
+            case V_5_5_2_ID:
+                return V_5_5_2;
+            case V_5_5_1_ID:
+                return V_5_5_1;
+            case V_5_5_0_ID:
+                return V_5_5_0;
+            case V_5_4_3_ID:
+                return V_5_4_3;
+            case V_5_4_2_ID:
+                return V_5_4_2;
+            case V_5_4_1_ID:
+                return V_5_4_1;
+            case V_5_4_0_ID:
+                return V_5_4_0;
+            case V_5_3_3_ID:
+                return V_5_3_3;
+            case V_5_3_2_ID:
+                return V_5_3_2;
+            case V_5_3_1_ID:
+                return V_5_3_1;
+            case V_5_3_0_ID:
+                return V_5_3_0;
+            case V_5_2_2_ID:
+                return V_5_2_2;
+            case V_5_2_1_ID:
+                return V_5_2_1;
+            case V_5_2_0_ID:
+                return V_5_2_0;
+            case V_5_1_2_ID:
+                return V_5_1_2;
+            case V_5_1_1_ID:
+                return V_5_1_1;
             case V_5_0_2_ID:
                 return V_5_0_2;
             case V_5_0_1_ID:
@@ -192,7 +263,7 @@ public class Version implements Comparable<Version> {
         if (snapshot = version.endsWith("-SNAPSHOT")) {
             version = version.substring(0, version.length() - 9);
         }
-        String[] parts = version.split("\\.|\\-");
+        String[] parts = version.split("[.-]");
         if (parts.length < 3 || parts.length > 4) {
             throw new IllegalArgumentException(
                     "the version needs to contain major, minor, and revision, and optionally the build: " + version);
@@ -281,9 +352,12 @@ public class Version implements Comparable<Version> {
     public Version minimumCompatibilityVersion() {
         final int bwcMajor;
         final int bwcMinor;
-        if (this.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            bwcMajor = major - 1;
-            bwcMinor = 0; // TODO we have to move this to the latest released minor of the last major but for now we just keep
+        // TODO: remove this entirely, making it static for each version
+        if (major == 6) { // we only specialize for current major here
+            bwcMajor = Version.V_5_6_0.major;
+            bwcMinor = Version.V_5_6_0.minor;
+        } else if (major == 7) { // we only specialize for current major here
+            return V_6_1_0;
         } else {
             bwcMajor = major;
             bwcMinor = 0;
@@ -293,12 +367,15 @@ public class Version implements Comparable<Version> {
 
     /**
      * Returns the minimum created index version that this version supports. Indices created with lower versions
-     * can't be used with this version.
+     * can't be used with this version. This should also be used for file based serialization backwards compatibility ie. on serialization
+     * code that is used to read / write file formats like transaction logs, cluster state, and index metadata.
      */
     public Version minimumIndexCompatibilityVersion() {
         final int bwcMajor;
         if (major == 5) {
             bwcMajor = 2; // we jumped from 2 to 5
+        } else if (major == 7) {
+            return V_6_0_0_beta1;
         } else {
             bwcMajor = major - 1;
         }
@@ -346,6 +423,10 @@ public class Version implements Comparable<Version> {
             sb.append(build - 50);
         }
         return sb.toString();
+    }
+
+    public static String displayVersion(final Version version, final boolean isSnapshot) {
+        return version + (isSnapshot ? "-SNAPSHOT" : "");
     }
 
     @Override

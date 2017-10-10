@@ -1,9 +1,0 @@
-{
-    "testX": {
-        "properties": {
-            "foo": {
-                "type": "text"
-            }
-        }
-    }
-}

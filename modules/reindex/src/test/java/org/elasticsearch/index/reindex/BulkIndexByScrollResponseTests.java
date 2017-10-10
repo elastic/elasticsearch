@@ -20,9 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 

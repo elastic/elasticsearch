@@ -34,13 +34,10 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
         bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
         bulkBuilder.get();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
-                assertTrue(mappingsResponse.getMappings().containsKey("logstash-2014.03.30"));
-                assertTrue(mappingsResponse.getMappings().get("logstash-2014.03.30").containsKey("logs"));
-            }
+        assertBusy(() -> {
+            GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
+            assertTrue(mappingsResponse.getMappings().containsKey("logstash-2014.03.30"));
+            assertTrue(mappingsResponse.getMappings().get("logstash-2014.03.30").containsKey("logs"));
         });
     }
 }

@@ -99,9 +99,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
         builder.endObject();
     }
 
-    public static SpanFirstQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static SpanFirstQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
         SpanQueryBuilder match = null;
@@ -115,7 +113,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (MATCH_FIELD.match(currentFieldName)) {
-                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "spanFirst [match] must be of type span query");
                     }

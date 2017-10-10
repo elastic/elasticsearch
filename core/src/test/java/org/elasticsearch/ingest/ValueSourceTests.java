@@ -49,7 +49,7 @@ public class ValueSourceTests extends ESTestCase {
         myPreciousMap.put("field2", "value2");
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
-        ingestDocument.setFieldValue(TestTemplateService.instance().compile("field1"),
+        ingestDocument.setFieldValue(new TestTemplateService.MockTemplateScript.Factory("field1"),
                 ValueSource.wrap(myPreciousMap, TestTemplateService.instance()));
         ingestDocument.removeField("field1.field2");
 
@@ -62,7 +62,7 @@ public class ValueSourceTests extends ESTestCase {
         myPreciousList.add("value");
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
-        ingestDocument.setFieldValue(TestTemplateService.instance().compile("field1"),
+        ingestDocument.setFieldValue(new TestTemplateService.MockTemplateScript.Factory("field1"),
                 ValueSource.wrap(myPreciousList, TestTemplateService.instance()));
         ingestDocument.removeField("field1.0");
 

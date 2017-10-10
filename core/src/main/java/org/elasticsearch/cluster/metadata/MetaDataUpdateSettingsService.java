@@ -161,21 +161,20 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         final Settings normalizedSettings = Settings.builder().put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
         Settings.Builder settingsForClosedIndices = Settings.builder();
         Settings.Builder settingsForOpenIndices = Settings.builder();
-        Settings.Builder skipppedSettings = Settings.builder();
+        final Set<String> skippedSettings = new HashSet<>();
 
         indexScopedSettings.validate(normalizedSettings);
         // never allow to change the number of shards
-        for (Map.Entry<String, String> entry : normalizedSettings.getAsMap().entrySet()) {
-            Setting setting = indexScopedSettings.get(entry.getKey());
+        for (String key : normalizedSettings.keySet()) {
+            Setting setting = indexScopedSettings.get(key);
             assert setting != null; // we already validated the normalized settings
-            settingsForClosedIndices.put(entry.getKey(), entry.getValue());
+            settingsForClosedIndices.copy(key, normalizedSettings);
             if (setting.isDynamic()) {
-                settingsForOpenIndices.put(entry.getKey(), entry.getValue());
+                settingsForOpenIndices.copy(key, normalizedSettings);
             } else {
-                skipppedSettings.put(entry.getKey(), entry.getValue());
+                skippedSettings.add(key);
             }
         }
-        final Settings skippedSettigns = skipppedSettings.build();
         final Settings closedSettings = settingsForClosedIndices.build();
         final Settings openSettings = settingsForOpenIndices.build();
         final boolean preserveExisting = request.isPreserveExisting();
@@ -210,12 +209,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
                 }
 
-                if (!skippedSettigns.isEmpty() && !openIndices.isEmpty()) {
+                if (!skippedSettings.isEmpty() && !openIndices.isEmpty()) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
-                            "Can't update non dynamic settings [%s] for open indices %s",
-                            skippedSettigns.getAsMap().keySet(),
-                            openIndices
-                    ));
+                            "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices));
                 }
 
                 int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
@@ -230,6 +226,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_BLOCK, IndexMetaData.INDEX_READ_ONLY_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK, IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING, openSettings);
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_METADATA_BLOCK, IndexMetaData.INDEX_BLOCKS_METADATA_SETTING, openSettings);
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_WRITE_BLOCK, IndexMetaData.INDEX_BLOCKS_WRITE_SETTING, openSettings);
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_BLOCK, IndexMetaData.INDEX_BLOCKS_READ_SETTING, openSettings);
@@ -276,7 +273,11 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     for (Index index : closeIndices) {
                         final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
                         final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+                        // Verifies that the current index settings can be updated with the updated dynamic settings.
                         indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData);
+                        // Now check that we can create the index with the updated settings (dynamic and non-dynamic).
+                        // This step is mandatory since we allow to update non-dynamic settings on closed indices.
+                        indicesService.verifyIndexMetadata(updatedMetaData, updatedMetaData);
                     }
                 } catch (IOException ex) {
                     throw ExceptionsHelper.convertToElastic(ex);

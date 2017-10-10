@@ -19,11 +19,9 @@
 
 package org.elasticsearch.index.fielddata;
 
-import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -31,8 +29,8 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 
+import java.util.ArrayList;
 import java.util.List;
-import static org.hamcrest.Matchers.equalTo;
 
 public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
     @Override
@@ -53,15 +51,21 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
         final DocumentMapper mapper = mapperService.documentMapperParser().parse("test", new CompressedXContent(mapping));
 
 
-        ObjectArrayList<byte[]> bytesList1 = new ObjectArrayList<>(2);
+        List<BytesRef> bytesList1 = new ArrayList<>(2);
         bytesList1.add(randomBytes());
         bytesList1.add(randomBytes());
-        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startArray("field").value(bytesList1.get(0)).value(bytesList1.get(1)).endArray().endObject();
-        ParsedDocument d = mapper.parse(SourceToParse.source("test", "test", "1", 
-                doc.bytes(), XContentType.JSON));
+        XContentBuilder doc = XContentFactory.jsonBuilder().startObject();
+        {
+            doc.startArray("field");
+            doc.value(bytesList1.get(0));
+            doc.value(bytesList1.get(1));
+            doc.endArray();
+        }
+        doc.endObject();
+        ParsedDocument d = mapper.parse(SourceToParse.source("test", "test", "1", doc.bytes(), XContentType.JSON));
         writer.addDocument(d.rootDoc());
 
-        byte[] bytes1 = randomBytes();
+        BytesRef bytes1 = randomBytes();
         doc = XContentFactory.jsonBuilder().startObject().field("field", bytes1).endObject();
         d = mapper.parse(SourceToParse.source("test", "test", "2", doc.bytes(), XContentType.JSON));
         writer.addDocument(d.rootDoc());
@@ -71,45 +75,75 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
         writer.addDocument(d.rootDoc());
 
         // test remove duplicate value
-        ObjectArrayList<byte[]> bytesList2 = new ObjectArrayList<>(2);
+        List<BytesRef> bytesList2 = new ArrayList<>(2);
         bytesList2.add(randomBytes());
         bytesList2.add(randomBytes());
-        doc = XContentFactory.jsonBuilder().startObject().startArray("field").value(bytesList2.get(0)).value(bytesList2.get(1)).value(bytesList2.get(0)).endArray().endObject();
+        doc = XContentFactory.jsonBuilder().startObject();
+        {
+            doc.startArray("field");
+            doc.value(bytesList2.get(0));
+            doc.value(bytesList2.get(1));
+            doc.value(bytesList2.get(0));
+            doc.endArray();
+        }
+        doc.endObject();
         d = mapper.parse(SourceToParse.source("test", "test", "4", doc.bytes(), XContentType.JSON));
         writer.addDocument(d.rootDoc());
 
-        List<LeafReaderContext> readers = refreshReader();
         IndexFieldData<?> indexFieldData = getForField("field");
-        for (LeafReaderContext reader : readers) {
-            AtomicFieldData fieldData = indexFieldData.load(reader);
+        List<LeafReaderContext> readers = refreshReader();
+        assertEquals(1, readers.size());
+        LeafReaderContext reader = readers.get(0);
 
-            SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+        bytesList1.sort(null);
+        bytesList2.sort(null);
 
-            CollectionUtils.sortAndDedup(bytesList1);
-            assertTrue(bytesValues.advanceExact(0));
-            assertThat(bytesValues.docValueCount(), equalTo(2));
-            assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytesList1.get(0))));
-            assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytesList1.get(1))));
+        // Test SortedBinaryDocValues's decoding:
+        AtomicFieldData fieldData = indexFieldData.load(reader);
+        SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
 
-            assertTrue(bytesValues.advanceExact(1));
-            assertThat(bytesValues.docValueCount(), equalTo(1));
-            assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytes1)));
+        assertTrue(bytesValues.advanceExact(0));
+        assertEquals(2, bytesValues.docValueCount());
+        assertEquals(bytesList1.get(0), bytesValues.nextValue());
+        assertEquals(bytesList1.get(1), bytesValues.nextValue());
 
-            assertFalse(bytesValues.advanceExact(2));
+        assertTrue(bytesValues.advanceExact(1));
+        assertEquals(1, bytesValues.docValueCount());
+        assertEquals(bytes1, bytesValues.nextValue());
 
-            CollectionUtils.sortAndDedup(bytesList2);
-            assertTrue(bytesValues.advanceExact(3));
-            assertThat(bytesValues.docValueCount(), equalTo(2));
-            assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytesList2.get(0))));
-            assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytesList2.get(1))));
-        }
+        assertFalse(bytesValues.advanceExact(2));
+
+        assertTrue(bytesValues.advanceExact(3));
+        assertEquals(2, bytesValues.docValueCount());
+        assertEquals(bytesList2.get(0), bytesValues.nextValue());
+        assertEquals(bytesList2.get(1), bytesValues.nextValue());
+
+        // Test whether ScriptDocValues.BytesRefs makes a deepcopy
+        fieldData = indexFieldData.load(reader);
+        ScriptDocValues<?> scriptValues = fieldData.getScriptValues();
+        scriptValues.setNextDocId(0);
+        assertEquals(2, scriptValues.size());
+        assertEquals(bytesList1.get(0), scriptValues.get(0));
+        assertEquals(bytesList1.get(1), scriptValues.get(1));
+
+        scriptValues.setNextDocId(1);
+        assertEquals(1, scriptValues.size());
+        assertEquals(bytes1, scriptValues.get(0));
+
+        scriptValues.setNextDocId(2);
+        assertEquals(0, scriptValues.size());
+
+        scriptValues.setNextDocId(3);
+        assertEquals(2, scriptValues.size());
+        assertEquals(bytesList2.get(0), scriptValues.get(0));
+        assertEquals(bytesList2.get(1), scriptValues.get(1));
     }
 
-    private byte[] randomBytes() {
+    private static BytesRef randomBytes() {
         int size = randomIntBetween(10, 1000);
         byte[] bytes = new byte[size];
         random().nextBytes(bytes);
-        return bytes;
+        return new BytesRef(bytes);
     }
 
     @Override

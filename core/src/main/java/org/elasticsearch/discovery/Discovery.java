@@ -22,7 +22,6 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,19 +35,9 @@ import java.io.IOException;
  */
 public interface Discovery extends LifecycleComponent {
 
-    DiscoveryNode localNode();
-
-    String nodeDescription();
-
-    /**
-     * Another hack to solve dep injection problem..., note, this will be called before
-     * any start is called.
-     */
-    void setAllocationService(AllocationService allocationService);
-
     /**
      * Publish all the changes to the cluster from the master (can be called just by the master). The publish
-     * process should not publish this state to the master as well! (the master is sending it...).
+     * process should apply this state to the master as well!
      *
      * The {@link AckListener} allows to keep track of the ack received from nodes, and verify whether
      * they updated their own cluster state or not.
@@ -83,16 +72,9 @@ public interface Discovery extends LifecycleComponent {
      */
     DiscoveryStats stats();
 
-    DiscoverySettings getDiscoverySettings();
-
     /**
      * Triggers the first join cycle
      */
     void startInitialJoin();
-
-    /***
-     * @return the current value of minimum master nodes, or -1 for not set
-     */
-    int getMinimumMasterNodes();
 
 }

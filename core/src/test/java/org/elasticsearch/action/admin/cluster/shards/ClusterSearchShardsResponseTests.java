@@ -93,7 +93,7 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
                     assertEquals(clusterSearchShardsGroup.getShardId(), deserializedGroup.getShardId());
                     assertArrayEquals(clusterSearchShardsGroup.getShards(), deserializedGroup.getShards());
                 }
-                if (version.onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+                if (version.onOrAfter(Version.V_5_1_1)) {
                     assertEquals(clusterSearchShardsResponse.getIndicesAndFilters(), deserialized.getIndicesAndFilters());
                 } else {
                     assertNull(deserialized.getIndicesAndFilters());

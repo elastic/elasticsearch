@@ -43,7 +43,7 @@ public class GroupShardsIteratorTests extends ESTestCase {
 
         list.add(new PlainShardIterator(new ShardId(index, 0), Arrays.asList(newRouting(index, 0, true))));
         list.add(new PlainShardIterator(new ShardId(index, 1), Arrays.asList(newRouting(index, 1, true))));
-        GroupShardsIterator iter = new GroupShardsIterator(list);
+        GroupShardsIterator iter = new GroupShardsIterator<>(list);
         assertEquals(7, iter.totalSizeWith1ForEmpty());
         assertEquals(5, iter.size());
         assertEquals(6, iter.totalSize());
@@ -67,7 +67,7 @@ public class GroupShardsIteratorTests extends ESTestCase {
 
         Collections.shuffle(list, random());
         ArrayList<ShardIterator> actualIterators = new ArrayList<>();
-        GroupShardsIterator iter = new GroupShardsIterator(list);
+        GroupShardsIterator<ShardIterator> iter = new GroupShardsIterator<>(list);
         for (ShardIterator shardsIterator : iter) {
             actualIterators.add(shardsIterator);
         }

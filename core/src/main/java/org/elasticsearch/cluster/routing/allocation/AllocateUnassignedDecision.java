@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,7 +49,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      */
     private static final Map<AllocationStatus, AllocateUnassignedDecision> CACHED_DECISIONS;
     static {
-        Map<AllocationStatus, AllocateUnassignedDecision> cachedDecisions = new HashMap<>();
+        Map<AllocationStatus, AllocateUnassignedDecision> cachedDecisions = new EnumMap<>(AllocationStatus.class);
         cachedDecisions.put(AllocationStatus.FETCHING_SHARD_DATA,
             new AllocateUnassignedDecision(AllocationStatus.FETCHING_SHARD_DATA, null, null, null, false, 0L, 0L));
         cachedDecisions.put(AllocationStatus.NO_VALID_SHARD_COPY,

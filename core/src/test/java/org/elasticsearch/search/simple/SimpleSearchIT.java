@@ -30,7 +30,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -51,6 +53,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SimpleSearchIT extends ESIntegTestCase {
 
@@ -75,7 +79,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i++) {
             String randomPreference = randomUnicodeOfLengthBetween(0, 4);
-            // randomPreference should not start with '_' (reserved for known preference types (e.g. _shards, _primary)
+            // randomPreference should not start with '_' (reserved for known preference types (e.g. _shards)
             while (randomPreference.startsWith("_")) {
                 randomPreference = randomUnicodeOfLengthBetween(0, 4);
             }
@@ -254,9 +258,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testSimpleTerminateAfterCount() throws Exception {
-        prepareCreate("test").setSettings(
-                SETTING_NUMBER_OF_SHARDS, 1,
-                SETTING_NUMBER_OF_REPLICAS, 0).get();
+        prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
         int max = randomIntBetween(3, 29);
         List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);
@@ -285,7 +287,44 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 .setTerminateAfter(2 * max).execute().actionGet();
 
         assertHitCount(searchResponse, max);
-        assertFalse(searchResponse.isTerminatedEarly());
+        assertNull(searchResponse.isTerminatedEarly());
+    }
+
+    public void testSimpleIndexSortEarlyTerminate() throws Exception {
+        prepareCreate("test")
+            .setSettings(Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.sort.field", "rank")
+            )
+            .addMapping("type1", "rank", "type=integer")
+            .get();
+        ensureGreen();
+        int max = randomIntBetween(3, 29);
+        List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);
+
+        for (int i = max-1; i >= 0; i--) {
+            String id = String.valueOf(i);
+            docbuilders.add(client().prepareIndex("test", "type1", id).setSource("rank", i));
+        }
+
+        indexRandom(true, docbuilders);
+        ensureGreen();
+        refresh();
+
+        SearchResponse searchResponse;
+        for (int i = 1; i < max; i++) {
+            searchResponse = client().prepareSearch("test")
+                .addDocValueField("rank")
+                .setTrackTotalHits(false)
+                .addSort("rank", SortOrder.ASC)
+                .setSize(i).execute().actionGet();
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(-1L));
+            for (int j = 0; j < i; j++) {
+                assertThat(searchResponse.getHits().getAt(j).field("rank").getValue(),
+                    equalTo((long) j));
+            }
+        }
     }
 
     public void testInsaneFromAndSize() throws Exception {
@@ -317,8 +356,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testTooLargeFromAndSizeOkBySetting() throws Exception {
-        prepareCreate("idx").setSettings(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
-                IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 2).get();
+        prepareCreate("idx").setSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
+                IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 2)).get();
         indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
 
         assertHitCount(client().prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)).get(), 1);
@@ -343,7 +382,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testTooLargeFromAndSizeBackwardsCompatibilityRecommendation() throws Exception {
-        prepareCreate("idx").setSettings(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE).get();
+        prepareCreate("idx").setSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE)).get();
         indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
 
         assertHitCount(client().prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 10).get(), 1);
@@ -362,8 +401,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testTooLargeRescoreOkBySetting() throws Exception {
         int defaultMaxWindow = IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY);
-        prepareCreate("idx").setSettings(IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey(),
-                defaultMaxWindow * 2).get();
+        prepareCreate("idx").setSettings(Settings.builder().put(IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey(), defaultMaxWindow * 2))
+            .get();
         indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
 
         assertHitCount(
@@ -373,8 +412,9 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testTooLargeRescoreOkByResultWindowSetting() throws Exception {
         int defaultMaxWindow = IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY);
-        prepareCreate("idx").setSettings(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), // Note that this is the RESULT window.
-                defaultMaxWindow * 2).get();
+        prepareCreate("idx").setSettings(
+            Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), // Note that this is the RESULT window.
+                defaultMaxWindow * 2)).get();
         indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
 
         assertHitCount(

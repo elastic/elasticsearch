@@ -96,6 +96,12 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(
                         nodeStats.getOs().getCgroup().getCpuStat().getTimeThrottledNanos(),
                         deserializedNodeStats.getOs().getCgroup().getCpuStat().getTimeThrottledNanos());
+                    assertEquals(
+                        nodeStats.getOs().getCgroup().getMemoryLimitInBytes(),
+                        deserializedNodeStats.getOs().getCgroup().getMemoryLimitInBytes());
+                    assertEquals(
+                        nodeStats.getOs().getCgroup().getMemoryUsageInBytes(),
+                        deserializedNodeStats.getOs().getCgroup().getMemoryUsageInBytes());
                     assertArrayEquals(nodeStats.getOs().getCpu().getLoadAverage(),
                             deserializedNodeStats.getOs().getCpu().getLoadAverage(), 0);
                 }
@@ -183,7 +189,6 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(fs.getTotal().getFree(), deserializedFs.getTotal().getFree());
                     assertEquals(fs.getTotal().getMount(), deserializedFs.getTotal().getMount());
                     assertEquals(fs.getTotal().getPath(), deserializedFs.getTotal().getPath());
-                    assertEquals(fs.getTotal().getSpins(), deserializedFs.getTotal().getSpins());
                     assertEquals(fs.getTotal().getType(), deserializedFs.getTotal().getType());
                     FsInfo.IoStats ioStats = fs.getIoStats();
                     FsInfo.IoStats deserializedIoStats = deserializedFs.getIoStats();
@@ -295,7 +300,10 @@ public class NodeStatsTests extends ESTestCase {
                         randomAlphaOfLength(8),
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
-                        new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())));
+                        new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+                        randomAlphaOfLength(8),
+                        Long.toString(randomNonNegativeLong()),
+                        Long.toString(randomNonNegativeLong())));
         }
         ProcessStats processStats = frequently() ?
             new ProcessStats(
@@ -382,7 +390,8 @@ public class NodeStatsTests extends ESTestCase {
             }
             allCircuitBreakerStats = new AllCircuitBreakerStats(circuitBreakerStatsArray);
         }
-        ScriptStats scriptStats = frequently() ? new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
+        ScriptStats scriptStats = frequently() ?
+                new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
         DiscoveryStats discoveryStats = frequently() ? new DiscoveryStats(randomBoolean() ? new PendingClusterStateStats(randomInt(),
                 randomInt(), randomInt()) : null) : null;
         IngestStats ingestStats = null;

@@ -20,12 +20,28 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.util.json.Jackson;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.DiscoveryPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.TransportService;
+
+import java.io.UncheckedIOException;
 import java.io.BufferedReader;
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
+import java.io.Closeable;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
@@ -36,28 +52,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-
-import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Closeable {
 
@@ -92,14 +86,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         this.settings = settings;
     }
 
-    @Override
-    public Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
-                                                              NamedWriteableRegistry namedWriteableRegistry,
-                                                              ClusterService clusterService, UnicastHostsProvider hostsProvider) {
-        // this is for backcompat with pre 5.1, where users would set discovery.type to use ec2 hosts provider
-        return Collections.singletonMap(EC2, () ->
-            new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, clusterService, hostsProvider));
-    }
+
 
     @Override
     public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
@@ -119,41 +106,22 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-        // Register global cloud aws settings: cloud.aws (might have been registered in ec2 plugin)
-        AwsEc2Service.KEY_SETTING,
-        AwsEc2Service.SECRET_SETTING,
+        // Register EC2 discovery settings: discovery.ec2
+        AwsEc2Service.ACCESS_KEY_SETTING,
+        AwsEc2Service.SECRET_KEY_SETTING,
+        AwsEc2Service.ENDPOINT_SETTING,
         AwsEc2Service.PROTOCOL_SETTING,
         AwsEc2Service.PROXY_HOST_SETTING,
         AwsEc2Service.PROXY_PORT_SETTING,
         AwsEc2Service.PROXY_USERNAME_SETTING,
         AwsEc2Service.PROXY_PASSWORD_SETTING,
-        AwsEc2Service.READ_TIMEOUT,
-        // Register EC2 specific settings: cloud.aws.ec2
-        AwsEc2Service.CLOUD_EC2.KEY_SETTING,
-        AwsEc2Service.CLOUD_EC2.SECRET_SETTING,
-        AwsEc2Service.CLOUD_EC2.PROTOCOL_SETTING,
-        AwsEc2Service.CLOUD_EC2.PROXY_HOST_SETTING,
-        AwsEc2Service.CLOUD_EC2.PROXY_PORT_SETTING,
-        AwsEc2Service.CLOUD_EC2.PROXY_USERNAME_SETTING,
-        AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING,
-        AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING,
-        AwsEc2Service.CLOUD_EC2.READ_TIMEOUT,
-        // Register EC2 discovery settings: discovery.ec2
-        AwsEc2Service.DISCOVERY_EC2.ACCESS_KEY_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.SECRET_KEY_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.ENDPOINT_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.PROTOCOL_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.PROXY_HOST_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.PROXY_PORT_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.PROXY_USERNAME_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.PROXY_PASSWORD_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.READ_TIMEOUT_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.HOST_TYPE_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.ANY_GROUP_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.GROUPS_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.AVAILABILITY_ZONES_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.NODE_CACHE_TIME_SETTING,
-        AwsEc2Service.DISCOVERY_EC2.TAG_SETTING,
+        AwsEc2Service.READ_TIMEOUT_SETTING,
+        AwsEc2Service.HOST_TYPE_SETTING,
+        AwsEc2Service.ANY_GROUP_SETTING,
+        AwsEc2Service.GROUPS_SETTING,
+        AwsEc2Service.AVAILABILITY_ZONES_SETTING,
+        AwsEc2Service.NODE_CACHE_TIME_SETTING,
+        AwsEc2Service.TAG_SETTING,
         // Register cloud node settings: cloud.node
         AwsEc2Service.AUTO_ATTRIBUTE_SETTING);
     }
@@ -161,17 +129,6 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     @Override
     public Settings additionalSettings() {
         Settings.Builder builder = Settings.builder();
-        // For 5.0, discovery.type was used prior to the new discovery.zen.hosts_provider
-        // setting existed. This check looks for the legacy setting, and sets hosts provider if set
-        String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
-        if (discoveryType.equals(EC2)) {
-            deprecationLogger.deprecated("using [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
-                "] setting to set hosts provider is deprecated; " +
-                "set [" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": " + EC2 + "] instead");
-            if (DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings) == false) {
-                builder.put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), EC2).build();
-            }
-        }
 
         // Adds a node attribute for the ec2 availability zone
         String azMetadataUrl = AwsEc2ServiceImpl.EC2_METADATA_URL + "placement/availability-zone";

@@ -19,10 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction;
-import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollActionMetadataTestCase;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.Hit;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;

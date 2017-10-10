@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,7 +43,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.index.get.GetFieldTests.randomGetField;
+import static org.elasticsearch.index.get.DocumentFieldTests.randomDocumentField;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
@@ -72,7 +73,7 @@ public class GetResultTests extends ESTestCase {
     public void testToXContent() throws IOException {
         {
             GetResult getResult = new GetResult("index", "type", "id", 1, true, new BytesArray("{ \"field1\" : " +
-                    "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new GetField("field1",
+                    "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
                     singletonList("value1"))));
             String output = Strings.toString(getResult);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"found\":true,\"_source\":{ \"field1\" " +
@@ -115,9 +116,9 @@ public class GetResultTests extends ESTestCase {
     }
 
     public void testToXContentEmbedded() throws IOException {
-        Map<String, GetField> fields = new HashMap<>();
-        fields.put("foo", new GetField("foo", singletonList("bar")));
-        fields.put("baz", new GetField("baz", Arrays.asList("baz_0", "baz_1")));
+        Map<String, DocumentField> fields = new HashMap<>();
+        fields.put("foo", new DocumentField("foo", singletonList("bar")));
+        fields.put("baz", new DocumentField("baz", Arrays.asList("baz_0", "baz_1")));
 
         GetResult getResult = new GetResult("index", "type", "id", 2, true,
                 new BytesArray("{\"foo\":\"bar\",\"baz\":[\"baz_0\",\"baz_1\"]}"), fields);
@@ -169,7 +170,7 @@ public class GetResultTests extends ESTestCase {
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(),
                 getResult.isExists(), RandomObjects.randomSource(random()), getResult.getFields()));
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(),
-                getResult.isExists(), getResult.internalSourceRef(), randomGetFields(XContentType.JSON).v1()));
+                getResult.isExists(), getResult.internalSourceRef(), randomDocumentFields(XContentType.JSON).v1()));
         return randomFrom(mutations).get();
     }
 
@@ -180,8 +181,8 @@ public class GetResultTests extends ESTestCase {
         final long version;
         final boolean exists;
         BytesReference source = null;
-        Map<String, GetField> fields = null;
-        Map<String, GetField> expectedFields = null;
+        Map<String, DocumentField> fields = null;
+        Map<String, DocumentField> expectedFields = null;
         if (frequently()) {
             version = randomNonNegativeLong();
             exists = true;
@@ -189,7 +190,7 @@ public class GetResultTests extends ESTestCase {
                 source = RandomObjects.randomSource(random());
             }
             if (randomBoolean()) {
-                Tuple<Map<String, GetField>, Map<String, GetField>> tuple = randomGetFields(xContentType);
+                Tuple<Map<String, DocumentField>, Map<String, DocumentField>> tuple = randomDocumentFields(xContentType);
                 fields = tuple.v1();
                 expectedFields = tuple.v2();
             }
@@ -202,14 +203,14 @@ public class GetResultTests extends ESTestCase {
         return Tuple.tuple(getResult, expectedGetResult);
     }
 
-    private static Tuple<Map<String, GetField>,Map<String, GetField>> randomGetFields(XContentType xContentType) {
+    private static Tuple<Map<String, DocumentField>,Map<String, DocumentField>> randomDocumentFields(XContentType xContentType) {
         int numFields = randomIntBetween(2, 10);
-        Map<String, GetField> fields = new HashMap<>(numFields);
-        Map<String, GetField> expectedFields = new HashMap<>(numFields);
+        Map<String, DocumentField> fields = new HashMap<>(numFields);
+        Map<String, DocumentField> expectedFields = new HashMap<>(numFields);
         for (int i = 0; i < numFields; i++) {
-            Tuple<GetField, GetField> tuple = randomGetField(xContentType);
-            GetField getField = tuple.v1();
-            GetField expectedGetField = tuple.v2();
+            Tuple<DocumentField, DocumentField> tuple = randomDocumentField(xContentType);
+            DocumentField getField = tuple.v1();
+            DocumentField expectedGetField = tuple.v2();
             fields.put(getField.getName(), getField);
             expectedFields.put(expectedGetField.getName(), expectedGetField);
         }

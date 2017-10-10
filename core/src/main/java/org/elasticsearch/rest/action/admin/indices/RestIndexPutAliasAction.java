@@ -54,6 +54,11 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "index_put_alias_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String alias = request.param("name");

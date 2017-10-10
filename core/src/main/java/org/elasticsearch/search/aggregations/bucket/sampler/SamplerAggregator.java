@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -33,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -46,7 +48,7 @@ import java.util.Map;
  * values would be preferable to users having to recreate this logic in a
  * 'script' e.g. to turn a datetime in milliseconds into a month key value.
  */
-public class SamplerAggregator extends SingleBucketAggregator {
+public class SamplerAggregator extends DeferableBucketAggregator implements SingleBucketAggregator {
 
     public static final ParseField SHARD_SIZE_FIELD = new ParseField("shard_size");
     public static final ParseField MAX_DOCS_PER_VALUE_FIELD = new ParseField("max_docs_per_value");
@@ -114,7 +116,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
                     return mode;
                 }
             }
-            throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + values());
+            throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + Arrays.toString(values()));
         }
 
         private final ParseField parseField;

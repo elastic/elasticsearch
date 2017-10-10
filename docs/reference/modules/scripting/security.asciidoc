@@ -48,21 +48,6 @@ Bad:
 * User actions make documents with structure defined by users.
 
 [float]
-[[modules-scripting-security-do-no-weaken]]
-=== Do not weaken script security settings
-By default Elasticsearch will run inline, stored, and filesystem scripts for
-the builtin languages, namely the scripting language Painless, the template
-language Mustache, and the expression language Expressions. These *ought* to be
-safe to expose to trusted users and to your application servers because they
-have strong security sandboxes. The Elasticsearch committers do not support any
-non-sandboxed scripting languages and using any would be a poor choice because:
-1. This drops a layer of security, leaving only Elasticsearch's builtin
-<<modules-scripting-other-layers, security layers>>.
-2. Non-sandboxed scripts have unchecked access to Elasticsearch's internals and
-can cause all kinds of trouble if misused.
-
-
-[float]
 [[modules-scripting-other-layers]]
 === Other security layers
 In addition to user privileges and script sandboxing Elasticsearch uses the
@@ -87,93 +72,34 @@ change from the defaults described above. You should be very, very careful
 when allowing more than the defaults. Any extra permissions weakens the total
 security of the Elasticsearch deployment.
 
-[[security-script-source]]
+[[allowed-script-types-setting]]
 [float]
-=== Script source settings
+=== Allowed script types setting
 
-Which scripts Elasticsearch will execute where is controlled by settings
-starting with `scripts.`. The simplest settings allow scripts to be enabled
-or disabled based on where they are stored. For example:
+By default all script types are allowed to be executed.  This can be modified using the
+setting `script.allowed_types`.  Only the types specified as part of the setting will be
+allowed to be executed.  To specify no types are allowed, set `script.allowed_types` to
+be `none`.
 
 [source,yaml]
------------------------------------
-script.inline: false  <1>
-script.stored: false  <2>
-script.file:   true   <3>
------------------------------------
-<1> Refuse to run scripts provided inline in the API.
-<2> Refuse to run scripts stored using the API.
-<3> Run scripts found on the filesystem in `/etc/elasticsearch/scripts`
-(rpm or deb) or `config/scripts` (zip or tar).
+----
+script.allowed_types: inline <1>
+----
+<1> This will allow only inline scripts to be executed but not stored scripts
+(or any other types).
 
-NOTE: These settings override the defaults mentioned
-<<modules-scripting-security-do-no-weaken, above>>. Recreating the defaults
-requires more fine grained settings described <<security-script-fine, below>>.
-
-[[security-script-context]]
+[[allowed-script-contexts-setting]]
 [float]
-=== Script context settings
+=== Allowed script contexts setting
 
-Scripting may also be enabled or disabled in different contexts in the
-Elasticsearch API. The supported contexts are:
-
-[horizontal]
-`aggs`::    Aggregations
-`search`::  Search api, Percolator API and Suggester API
-`update`::  Update api
-`plugin`::  Any plugin that makes use of scripts under the generic `plugin` category
-
-Plugins can also define custom operations that they use scripts for instead
-of using the generic `plugin` category. Those operations can be referred to
-in the following form: `${pluginName}_${operation}`.
-
-The following example disables scripting for `update` and `plugin` operations,
-regardless of the script source or language. Scripts can still be executed
-as part of `aggregations`, `search` and plugins execution though, as the above
-defaults still get applied.
+By default all script contexts are allowed to be executed.  This can be modified using the
+setting `script.allowed_contexts`.  Only the contexts specified as part of the setting will
+be allowed to be executed.  To specify no contexts are allowed, set `script.allowed_contexts`
+to be `none`.
 
 [source,yaml]
------------------------------------
-script.update: false
-script.plugin: false
------------------------------------
-
-[[security-script-fine]]
-[float]
-=== Fine-grained script settings
-
-First, the high-level script settings described above are applied in order
-(context settings have precedence over source settings). Then fine-grained
-settings which include the script language take precedence over any high-level
-settings. They have two forms:
-
-[source,yaml]
-------------------------
-script.engine.{lang}.{inline|file|stored}.{context}: true|false
-------------------------
-
-And
-
-[source,yaml]
-------------------------
-script.engine.{lang}.{inline|file|stored}: true|false
-------------------------
-
-For example:
-
-[source,yaml]
------------------------------------
-script.inline: false <1>
-script.stored: false <1>
-script.file:   false <1>
-
-script.engine.painless.inline:          true <2>
-script.engine.painless.stored.search:   true <3>
-script.engine.painless.stored.aggs:     true <3>
-
-script.engine.mustache.stored.search:   true <4>
------------------------------------
-<1> Disable all scripting from any source.
-<2> Allow inline Painless scripts for all operations.
-<3> Allow stored Painless scripts to be used for search and aggregations.
-<4> Allow stored Mustache templates to be used for search.
+----
+script.allowed_contexts: search, update <1>
+----
+<1> This will allow only search and update scripts to be executed but not
+aggs or plugin scripts (or any other contexts).

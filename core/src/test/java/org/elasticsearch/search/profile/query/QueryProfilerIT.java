@@ -133,15 +133,13 @@ public class QueryProfilerIT extends ESIntegTestCase {
             SearchRequestBuilder vanilla = client().prepareSearch("test")
                     .setQuery(q)
                     .setProfile(false)
-                    .addSort("_uid", SortOrder.ASC)
-                    .setPreference("_primary")
+                    .addSort("_id", SortOrder.ASC)
                     .setSearchType(SearchType.QUERY_THEN_FETCH);
 
             SearchRequestBuilder profile = client().prepareSearch("test")
                     .setQuery(q)
                     .setProfile(true)
-                    .addSort("_uid", SortOrder.ASC)
-                    .setPreference("_primary")
+                    .addSort("_id", SortOrder.ASC)
                     .setSearchType(SearchType.QUERY_THEN_FETCH);
 
             MultiSearchResponse.Item[] responses = client().prepareMultiSearch()

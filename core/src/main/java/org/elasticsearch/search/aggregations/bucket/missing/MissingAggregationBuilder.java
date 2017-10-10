@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -40,14 +40,14 @@ import java.io.IOException;
 public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, MissingAggregationBuilder> {
     public static final String NAME = "missing";
 
-    private static final ObjectParser<MissingAggregationBuilder, QueryParseContext> PARSER;
+    private static final ObjectParser<MissingAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(MissingAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
     }
 
-    public static MissingAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        return PARSER.parse(context.parser(), new MissingAggregationBuilder(aggregationName, null), context);
+    public static MissingAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new MissingAggregationBuilder(aggregationName, null), null);
     }
 
     public MissingAggregationBuilder(String name, ValueType targetValueType) {

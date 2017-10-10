@@ -19,13 +19,15 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 
 import java.util.Map;
 
 /**
- * An aggregation
+ * An aggregation. Extends {@link ToXContent} as it makes it easier to print out its content.
  */
-public interface Aggregation {
+public interface Aggregation extends ToXContentFragment {
 
     /**
      * Delimiter used when prefixing aggregation names with their type
@@ -37,6 +39,13 @@ public interface Aggregation {
      * @return The name of this aggregation.
      */
     String getName();
+
+    /**
+     * @return a string representing the type of the aggregation. This type is added to
+     * the aggregation name in the response, so that it can later be used by clients
+     * to determine type of the aggregation and parse it into the proper object.
+     */
+    String getType();
 
     /**
      * Get the optional byte array metadata that was set on the aggregation

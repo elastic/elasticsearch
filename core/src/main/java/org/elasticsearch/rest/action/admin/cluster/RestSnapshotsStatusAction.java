@@ -45,6 +45,11 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "snapshot_status_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String repository = request.param("repository", "_all");
         String[] snapshots = request.paramAsStringArray("snapshot", Strings.EMPTY_ARRAY);

@@ -19,40 +19,55 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
-import static org.elasticsearch.search.internal.InternalSearchResponse.readInternalSearchResponse;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+
 
 /**
  * A response of a search request.
  */
 public class SearchResponse extends ActionResponse implements StatusToXContentObject {
 
-    private InternalSearchResponse internalResponse;
+    private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
+    private static final ParseField TOOK = new ParseField("took");
+    private static final ParseField TIMED_OUT = new ParseField("timed_out");
+    private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
+    private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
+
+    private SearchResponseSections internalResponse;
 
     private String scrollId;
 
     private int totalShards;
 
     private int successfulShards;
+
+    private int skippedShards;
 
     private ShardSearchFailure[] shardFailures;
 
@@ -61,14 +76,16 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     public SearchResponse() {
     }
 
-    public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards,
-                          long tookInMillis, ShardSearchFailure[] shardFailures) {
+    public SearchResponse(SearchResponseSections internalResponse, String scrollId, int totalShards, int successfulShards,
+                          int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
+        this.skippedShards = skippedShards;
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
+        assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
     }
 
     @Override
@@ -122,13 +139,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     /**
-     * How long the search took in milliseconds.
-     */
-    public long getTookInMillis() {
-        return tookInMillis;
-    }
-
-    /**
      * The total number of shards the search was executed on.
      */
     public int getTotalShards() {
@@ -140,6 +150,14 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      */
     public int getSuccessfulShards() {
         return successfulShards;
+    }
+
+
+    /**
+     * The number of shards skipped due to pre-filtering
+     */
+    public int getSkippedShards() {
+        return skippedShards;
     }
 
     /**
@@ -176,7 +194,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      *
      * @return The profile results or an empty map
      */
-    @Nullable public Map<String, ProfileShardResult> getProfileResults() {
+    @Nullable
+    public Map<String, ProfileShardResult> getProfileResults() {
         return internalResponse.profile();
     }
 
@@ -190,26 +209,108 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (scrollId != null) {
-            builder.field("_scroll_id", scrollId);
+            builder.field(SCROLL_ID.getPreferredName(), scrollId);
         }
-        builder.field("took", tookInMillis);
-        builder.field("timed_out", isTimedOut());
+        builder.field(TOOK.getPreferredName(), tookInMillis);
+        builder.field(TIMED_OUT.getPreferredName(), isTimedOut());
         if (isTerminatedEarly() != null) {
-            builder.field("terminated_early", isTerminatedEarly());
+            builder.field(TERMINATED_EARLY.getPreferredName(), isTerminatedEarly());
         }
         if (getNumReducePhases() != 1) {
-            builder.field("num_reduce_phases", getNumReducePhases());
+            builder.field(NUM_REDUCE_PHASES.getPreferredName(), getNumReducePhases());
         }
-        RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getFailedShards(),
-            getShardFailures());
+        RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getSkippedShards(),
+            getFailedShards(), getShardFailures());
         internalResponse.toXContent(builder, params);
         return builder;
+    }
+
+    public static SearchResponse fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParser.Token token;
+        String currentFieldName = null;
+        SearchHits hits = null;
+        Aggregations aggs = null;
+        Suggest suggest = null;
+        SearchProfileShardResults profile = null;
+        boolean timedOut = false;
+        Boolean terminatedEarly = null;
+        int numReducePhases = 1;
+        long tookInMillis = -1;
+        int successfulShards = -1;
+        int totalShards = -1;
+        int skippedShards = 0; // 0 for BWC
+        String scrollId = null;
+        List<ShardSearchFailure> failures = new ArrayList<>();
+        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (SCROLL_ID.match(currentFieldName)) {
+                    scrollId = parser.text();
+                } else if (TOOK.match(currentFieldName)) {
+                    tookInMillis = parser.longValue();
+                } else if (TIMED_OUT.match(currentFieldName)) {
+                    timedOut = parser.booleanValue();
+                } else if (TERMINATED_EARLY.match(currentFieldName)) {
+                    terminatedEarly = parser.booleanValue();
+                } else if (NUM_REDUCE_PHASES.match(currentFieldName)) {
+                    numReducePhases = parser.intValue();
+                } else {
+                    parser.skipChildren();
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (SearchHits.Fields.HITS.equals(currentFieldName)) {
+                    hits = SearchHits.fromXContent(parser);
+                } else if (Aggregations.AGGREGATIONS_FIELD.equals(currentFieldName)) {
+                    aggs = Aggregations.fromXContent(parser);
+                } else if (Suggest.NAME.equals(currentFieldName)) {
+                    suggest = Suggest.fromXContent(parser);
+                } else if (SearchProfileShardResults.PROFILE_FIELD.equals(currentFieldName)) {
+                    profile = SearchProfileShardResults.fromXContent(parser);
+                } else if (RestActions._SHARDS_FIELD.match(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token.isValue()) {
+                            if (RestActions.FAILED_FIELD.match(currentFieldName)) {
+                                parser.intValue(); // we don't need it but need to consume it
+                            } else if (RestActions.SUCCESSFUL_FIELD.match(currentFieldName)) {
+                                successfulShards = parser.intValue();
+                            } else if (RestActions.TOTAL_FIELD.match(currentFieldName)) {
+                                totalShards = parser.intValue();
+                            } else if (RestActions.SKIPPED_FIELD.match(currentFieldName)) {
+                                skippedShards = parser.intValue();
+                            } else {
+                                parser.skipChildren();
+                            }
+                        } else if (token == XContentParser.Token.START_ARRAY) {
+                            if (RestActions.FAILURES_FIELD.match(currentFieldName)) {
+                                while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                    failures.add(ShardSearchFailure.fromXContent(parser));
+                                }
+                            } else {
+                                parser.skipChildren();
+                            }
+                        } else {
+                            parser.skipChildren();
+                        }
+                    }
+                } else {
+                    parser.skipChildren();
+                }
+            }
+        }
+        SearchResponseSections searchResponseSections = new SearchResponseSections(hits, aggs, suggest, timedOut, terminatedEarly,
+                profile, numReducePhases);
+        return new SearchResponse(searchResponseSections, scrollId, totalShards, successfulShards, skippedShards, tookInMillis,
+                failures.toArray(new ShardSearchFailure[failures.size()]));
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        internalResponse = readInternalSearchResponse(in);
+        internalResponse = new InternalSearchResponse(in);
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
         int size = in.readVInt();
@@ -223,6 +324,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
+            skippedShards = in.readVInt();
+        }
     }
 
     @Override
@@ -239,10 +343,14 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
+        if(out.getVersion().onOrAfter(Version.V_5_6_0)) {
+            out.writeVInt(skippedShards);
+        }
     }
 
     @Override
     public String toString() {
         return Strings.toString(this);
     }
+
 }

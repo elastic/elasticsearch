@@ -193,8 +193,7 @@ public final class DiffableUtils {
 
         @Override
         public Map<K, T> apply(Map<K, T> map) {
-            Map<K, T> builder = new HashMap<>();
-            builder.putAll(map);
+            Map<K, T> builder = new HashMap<>(map);
 
             for (K part : deletes) {
                 builder.remove(part);

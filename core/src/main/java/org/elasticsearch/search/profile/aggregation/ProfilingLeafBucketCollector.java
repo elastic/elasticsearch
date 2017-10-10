@@ -21,24 +21,28 @@ package org.elasticsearch.search.profile.aggregation;
 
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
 
 public class ProfilingLeafBucketCollector extends LeafBucketCollector {
 
     private LeafBucketCollector delegate;
-    private AggregationProfileBreakdown profileBreakdown;
+    private Timer collectTimer;
 
     public ProfilingLeafBucketCollector(LeafBucketCollector delegate, AggregationProfileBreakdown profileBreakdown) {
         this.delegate = delegate;
-        this.profileBreakdown = profileBreakdown;
+        this.collectTimer = profileBreakdown.getTimer(AggregationTimingType.COLLECT);
     }
 
     @Override
     public void collect(int doc, long bucket) throws IOException {
-        profileBreakdown.startTime(AggregationTimingType.COLLECT);
-        delegate.collect(doc, bucket);
-        profileBreakdown.stopAndRecordTime();
+        collectTimer.start();
+        try {
+            delegate.collect(doc, bucket);
+        } finally {
+            collectTimer.stop();
+        }
     }
 
     @Override

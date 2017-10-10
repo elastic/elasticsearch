@@ -55,6 +55,11 @@ public class RestCountAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "count_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
@@ -93,7 +98,7 @@ public class RestCountAction extends BaseRestHandler {
                 }
                 builder.field("count", response.getHits().getTotalHits());
                 buildBroadcastShardsHeader(builder, request, response.getTotalShards(), response.getSuccessfulShards(),
-                        response.getFailedShards(), response.getShardFailures());
+                    0, response.getFailedShards(), response.getShardFailures());
 
                 builder.endObject();
                 return new BytesRestResponse(response.status(), builder);

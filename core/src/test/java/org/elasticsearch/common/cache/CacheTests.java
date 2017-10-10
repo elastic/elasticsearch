@@ -257,6 +257,28 @@ public class CacheTests extends ESTestCase {
         }
     }
 
+    public void testSimpleExpireAfterAccess() {
+        AtomicLong now = new AtomicLong();
+        Cache<Integer, String> cache = new Cache<Integer, String>() {
+            @Override
+            protected long now() {
+                return now.get();
+            }
+        };
+        cache.setExpireAfterAccessNanos(1);
+        now.set(0);
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+        }
+        for (int i = 0; i < numberOfEntries; i++) {
+            assertEquals(cache.get(i), Integer.toString(i));
+        }
+        now.set(2);
+        for(int i = 0; i < numberOfEntries; i++) {
+            assertNull(cache.get(i));
+        }
+    }
+
     public void testExpirationAfterWrite() {
         AtomicLong now = new AtomicLong();
         Cache<Integer, String> cache = new Cache<Integer, String>() {
@@ -295,6 +317,29 @@ public class CacheTests extends ESTestCase {
         for (int i = numberOfEntries; i < 2 * numberOfEntries; i++) {
             assertTrue(remainingKeys.contains(i));
         }
+    }
+
+    public void testComputeIfAbsentAfterExpiration() throws ExecutionException {
+        AtomicLong now = new AtomicLong();
+        Cache<Integer, String> cache = new Cache<Integer, String>() {
+            @Override
+            protected long now() {
+                return now.get();
+            }
+        };
+        cache.setExpireAfterAccessNanos(1);
+        now.set(0);
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i) + "-first");
+        }
+        now.set(2);
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.computeIfAbsent(i, k -> Integer.toString(k) + "-second");
+        }
+        for (int i = 0; i < numberOfEntries; i++) {
+            assertEquals(i + "-second", cache.get(i));
+        }
+        assertEquals(numberOfEntries, cache.stats().getEvictions());
     }
 
     // randomly promote some entries, step the clock forward, then check that the promoted entries remain and the

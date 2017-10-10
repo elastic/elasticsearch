@@ -22,7 +22,7 @@ package org.elasticsearch.index.fielddata.ordinals;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiDocValues.OrdinalMap;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.packed.PackedInts;
@@ -74,7 +74,7 @@ public enum GlobalOrdinalsBuilder {
                     new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS)
             );
         }
-        return new InternalGlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),
+        return new GlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),
                 atomicFD, ordinalMap, memorySizeInBytes, scriptFunction
         );
     }
@@ -108,7 +108,7 @@ public enum GlobalOrdinalsBuilder {
             subs[i] = atomicFD[i].getOrdinalsValues();
         }
         final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, PackedInts.DEFAULT);
-        return new InternalGlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),
+        return new GlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),
                 atomicFD, ordinalMap, 0, AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
         );
     }

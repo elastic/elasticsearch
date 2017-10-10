@@ -38,7 +38,7 @@ public class ExamplePluginConfiguration {
 
     public ExamplePluginConfiguration(Environment env) {
         // The directory part of the location matches the artifactId of this plugin
-        Path path = env.configFile().resolve("jvm-example/example.yaml");
+        Path path = env.configFile().resolve("jvm-example/example.yml");
         try {
             customSettings = Settings.builder().loadFromPath(path).build();
         } catch (IOException e) {

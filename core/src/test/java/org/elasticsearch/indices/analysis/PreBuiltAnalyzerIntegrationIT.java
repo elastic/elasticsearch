@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(DummyAnalysisPlugin.class, InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class);
     }
 
     public void testThatPreBuiltAnalyzersAreNotClosedOnIndexClose() throws Exception {
@@ -112,41 +112,6 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
 
         // check that all of the prebuilt analyzers are still open
         assertLuceneAnalyzersAreNotClosed(loadedAnalyzers);
-    }
-
-    /**
-     * Test case for #5030: Upgrading analysis plugins fails
-     * See https://github.com/elastic/elasticsearch/issues/5030
-     */
-    public void testThatPluginAnalyzersCanBeUpdated() throws Exception {
-        final XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("foo")
-                        .field("type", "text")
-                        .field("analyzer", "dummy")
-                    .endObject()
-                    .startObject("bar")
-                        .field("type", "text")
-                        .field("analyzer", "my_dummy")
-                    .endObject()
-                .endObject()
-            .endObject()
-            .endObject();
-
-        Settings versionSettings = settings(randomVersion(random()))
-                .put("index.analysis.analyzer.my_dummy.type", "custom")
-                .put("index.analysis.analyzer.my_dummy.filter", "my_dummy_token_filter")
-                .put("index.analysis.analyzer.my_dummy.char_filter", "my_dummy_char_filter")
-                .put("index.analysis.analyzer.my_dummy.tokenizer", "my_dummy_tokenizer")
-                .put("index.analysis.tokenizer.my_dummy_tokenizer.type", "dummy_tokenizer")
-                .put("index.analysis.filter.my_dummy_token_filter.type", "dummy_token_filter")
-                .put("index.analysis.char_filter.my_dummy_char_filter.type", "dummy_char_filter")
-                .build();
-
-        client().admin().indices().prepareCreate("test-analysis-dummy").addMapping("type", mapping).setSettings(versionSettings).get();
-
-        ensureGreen();
     }
 
     private void assertThatAnalyzersHaveBeenLoaded(Map<PreBuiltAnalyzers, List<Version>> expectedLoadedAnalyzers) {

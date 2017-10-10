@@ -364,13 +364,11 @@ public enum VersionType implements Writeable {
     }
 
     public static VersionType readFromStream(StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
-        assert (ordinal == 0 || ordinal == 1 || ordinal == 2 || ordinal == 3);
-        return VersionType.values()[ordinal];
+        return in.readEnum(VersionType.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(ordinal());
+        out.writeEnum(this);
     }
 }

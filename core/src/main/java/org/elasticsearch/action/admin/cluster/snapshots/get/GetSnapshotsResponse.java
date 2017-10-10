@@ -59,7 +59,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        List<SnapshotInfo> builder = new ArrayList<>();
+        List<SnapshotInfo> builder = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             builder.add(new SnapshotInfo(in));
         }

@@ -37,8 +37,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -80,7 +80,7 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
             fail("Expected exception, but didn't happen");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("MY MESSAGE"));
-            assertThat(channelProfileName, is(TransportSettings.DEFAULT_PROFILE));
+            assertThat(channelProfileName, is(TcpTransport.DEFAULT_PROFILE));
         }
     }
 
@@ -114,7 +114,7 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
                                        InetSocketAddress remoteAddress, byte status) throws IOException {
             String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version,
                     remoteAddress, status);
-            channelProfileName = TransportSettings.DEFAULT_PROFILE;
+            channelProfileName = TcpTransport.DEFAULT_PROFILE;
             return action;
         }
 

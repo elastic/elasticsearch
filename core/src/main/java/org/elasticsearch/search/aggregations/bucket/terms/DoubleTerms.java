@@ -25,6 +25,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,8 +77,8 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         }
 
         @Override
-        int compareTerm(Terms.Bucket other) {
-            return Double.compare(term, ((Number) other.getKey()).doubleValue());
+        public int compareKey(Bucket other) {
+            return Double.compare(term, other.term);
         }
 
         @Override
@@ -105,7 +106,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         }
     }
 
-    public DoubleTerms(String name, Terms.Order order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
+    public DoubleTerms(String name, BucketOrder order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
             List<Bucket> buckets, long docCountError) {
         super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format, shardSize, showTermDocCountError,
@@ -163,7 +164,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         if (promoteToDouble == false) {
             return super.doReduce(aggregations, reduceContext);
         }
-        List<InternalAggregation> newAggs = new ArrayList<>();
+        List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof LongTerms) {
                 DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, format);

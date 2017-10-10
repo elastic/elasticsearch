@@ -23,13 +23,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.StoredScriptSource;
 
 import java.io.IOException;
 
-public class GetStoredScriptResponse extends ActionResponse implements ToXContent {
+public class GetStoredScriptResponse extends ActionResponse implements ToXContentObject {
 
     private StoredScriptSource source;
 
@@ -59,7 +59,7 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
         super.readFrom(in);
 
         if (in.readBoolean()) {
-            if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
                 source = new StoredScriptSource(in);
             } else {
                 source = new StoredScriptSource(in.readString());
@@ -78,10 +78,10 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
         } else {
             out.writeBoolean(true);
 
-            if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
                 source.writeTo(out);
             } else {
-                out.writeString(source.getCode());
+                out.writeString(source.getSource());
             }
         }
     }

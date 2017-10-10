@@ -27,6 +27,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -111,13 +112,11 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     private final TransportService transportService;
     private final ClusterName clusterName;
 
-    private final int concurrentConnects;
-
     private final List<String> configuredHosts;
 
     private final int limitPortCounts;
 
-    private volatile PingContextProvider contextProvider;
+    private final PingContextProvider contextProvider;
 
     private final AtomicInteger pingingRoundIdGenerator = new AtomicInteger();
 
@@ -138,14 +137,15 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     private volatile boolean closed = false;
 
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
-                          UnicastHostsProvider unicastHostsProvider) {
+                          UnicastHostsProvider unicastHostsProvider, PingContextProvider contextProvider) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.hostsProvider = unicastHostsProvider;
+        this.contextProvider = contextProvider;
 
-        this.concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
+        final int concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
         if (DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.exists(settings)) {
             configuredHosts = DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
             // we only limit to 1 addresses, makes no sense to ping 100 ports
@@ -261,8 +261,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     }
 
     @Override
-    public void start(PingContextProvider contextProvider) {
-        this.contextProvider = contextProvider;
+    public void start() {
     }
 
     /**
@@ -308,7 +307,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
             throw new RuntimeException(e);
         }
         seedNodes.addAll(hostsProvider.buildDynamicNodes());
-        final DiscoveryNodes nodes = contextProvider.nodes();
+        final DiscoveryNodes nodes = contextProvider.clusterState().nodes();
         // add all possible master nodes that were active in the last known cluster configuration
         for (ObjectCursor<DiscoveryNode> masterNode : nodes.getMasterNodes().values()) {
             seedNodes.add(masterNode.value);
@@ -459,9 +458,9 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         final UnicastPingRequest pingRequest = new UnicastPingRequest();
         pingRequest.id = pingingRound.id();
         pingRequest.timeout = timeout;
-        DiscoveryNodes discoNodes = contextProvider.nodes();
+        ClusterState lastState = contextProvider.clusterState();
 
-        pingRequest.pingResponse = createPingResponse(discoNodes);
+        pingRequest.pingResponse = createPingResponse(lastState);
 
         Set<DiscoveryNode> nodesFromResponses = temporalResponses.stream().map(pingResponse -> {
             assert clusterName.equals(pingResponse.clusterName()) :
@@ -478,7 +477,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         // resolve what we can via the latest cluster state
         final Set<DiscoveryNode> nodesToPing = uniqueNodesByAddress.values().stream()
             .map(node -> {
-                DiscoveryNode foundNode = discoNodes.findByAddress(node.getAddress());
+                DiscoveryNode foundNode = lastState.nodes().findByAddress(node.getAddress());
                 if (foundNode == null) {
                     return node;
                 } else {
@@ -596,7 +595,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
             () -> temporalResponses.remove(request.pingResponse));
 
         List<PingResponse> pingResponses = CollectionUtils.iterableAsArrayList(temporalResponses);
-        pingResponses.add(createPingResponse(contextProvider.nodes()));
+        pingResponses.add(createPingResponse(contextProvider.clusterState()));
 
         UnicastPingResponse unicastPingResponse = new UnicastPingResponse();
         unicastPingResponse.id = request.id;
@@ -649,8 +648,9 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         }
     }
 
-    private PingResponse createPingResponse(DiscoveryNodes discoNodes) {
-        return new PingResponse(discoNodes.getLocalNode(), discoNodes.getMasterNode(), contextProvider.clusterState());
+    private PingResponse createPingResponse(ClusterState clusterState) {
+        DiscoveryNodes discoNodes = clusterState.nodes();
+        return new PingResponse(discoNodes.getLocalNode(), discoNodes.getMasterNode(), clusterState);
     }
 
     static class UnicastPingResponse extends TransportResponse {

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -368,5 +369,4 @@ public class PipelineStoreTests extends ESTestCase {
         IngestInfo ingestInfo = new IngestInfo(Collections.singletonList(new ProcessorInfo("set")));
         store.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest);
     }
-
 }

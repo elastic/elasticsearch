@@ -40,19 +40,48 @@ import com.amazonaws.util.Base64;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.Socket;
 import java.security.DigestInputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.junit.Assert.assertTrue;
+
 class MockAmazonS3 extends AbstractAmazonS3 {
+
+    private final int mockSocketPort;
 
     private Map<String, InputStream> blobs = new ConcurrentHashMap<>();
 
     // in ESBlobStoreContainerTestCase.java, the maximum
     // length of the input data is 100 bytes
     private byte[] byteCounter = new byte[100];
+
+
+    MockAmazonS3(int mockSocketPort) {
+        this.mockSocketPort = mockSocketPort;
+    }
+
+    // Simulate a socket connection to check that SocketAccess.doPrivileged() is used correctly.
+    // Any method of AmazonS3 might potentially open a socket to the S3 service. Firstly, a call
+    // to any method of AmazonS3 has to be wrapped by SocketAccess.doPrivileged().
+    // Secondly, each method on the stack from doPrivileged to opening the socket has to be
+    // located in a jar that is provided by the plugin.
+    // Thirdly, a SocketPermission has to be configured in plugin-security.policy.
+    // By opening a socket in each method of MockAmazonS3 it is ensured that in production AmazonS3
+    // is able to to open a socket to the S3 Service without causing a SecurityException
+    private void simulateS3SocketConnection() {
+        try (Socket socket = new Socket(InetAddress.getByName("127.0.0.1"), mockSocketPort)) {
+            assertTrue(socket.isConnected()); // NOOP to keep static analysis happy
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
 
     @Override
     public boolean doesBucketExist(String bucket) {
@@ -63,6 +92,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     public ObjectMetadata getObjectMetadata(
             GetObjectMetadataRequest getObjectMetadataRequest)
             throws AmazonClientException, AmazonServiceException {
+        simulateS3SocketConnection();
         String blobName = getObjectMetadataRequest.getKey();
 
         if (!blobs.containsKey(blobName)) {
@@ -75,26 +105,21 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public PutObjectResult putObject(PutObjectRequest putObjectRequest)
             throws AmazonClientException, AmazonServiceException {
+        simulateS3SocketConnection();
         String blobName = putObjectRequest.getKey();
-        DigestInputStream stream = (DigestInputStream) putObjectRequest.getInputStream();
 
         if (blobs.containsKey(blobName)) {
             throw new AmazonS3Exception("[" + blobName + "] already exists.");
         }
 
-        blobs.put(blobName, stream);
-
-        // input and output md5 hashes need to match to avoid an exception
-        String md5 = Base64.encodeAsString(stream.getMessageDigest().digest());
-        PutObjectResult result = new PutObjectResult();
-        result.setContentMd5(md5);
-
-        return result;
+        blobs.put(blobName, putObjectRequest.getInputStream());
+        return new PutObjectResult();
     }
 
     @Override
     public S3Object getObject(GetObjectRequest getObjectRequest)
             throws AmazonClientException, AmazonServiceException {
+        simulateS3SocketConnection();
         // in ESBlobStoreContainerTestCase.java, the prefix is empty,
         // so the key and blobName are equivalent to each other
         String blobName = getObjectRequest.getKey();
@@ -114,6 +139,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public ObjectListing listObjects(ListObjectsRequest listObjectsRequest)
             throws AmazonClientException, AmazonServiceException {
+        simulateS3SocketConnection();
         MockObjectListing list = new MockObjectListing();
         list.setTruncated(false);
 
@@ -147,6 +173,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public CopyObjectResult copyObject(CopyObjectRequest copyObjectRequest)
             throws AmazonClientException, AmazonServiceException {
+        simulateS3SocketConnection();
         String sourceBlobName = copyObjectRequest.getSourceKey();
         String targetBlobName = copyObjectRequest.getDestinationKey();
 
@@ -167,6 +194,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public void deleteObject(DeleteObjectRequest deleteObjectRequest)
             throws AmazonClientException, AmazonServiceException {
+        simulateS3SocketConnection();
         String blobName = deleteObjectRequest.getKey();
 
         if (!blobs.containsKey(blobName)) {

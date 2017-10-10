@@ -22,6 +22,8 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,11 +46,11 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class IngestDocumentTests extends ESTestCase {
 
-    private static final Date BOGUS_TIMESTAMP = new Date(0L);
+    private static final ZonedDateTime BOGUS_TIMESTAMP = ZonedDateTime.of(2016, 10, 23, 0, 0, 0, 0, ZoneOffset.UTC);
     private IngestDocument ingestDocument;
 
     @Before
-    public void setIngestDocument() {
+    public void setTestIngestDocument() {
         Map<String, Object> document = new HashMap<>();
         Map<String, Object> ingestMap = new HashMap<>();
         ingestMap.put("timestamp", BOGUS_TIMESTAMP);
@@ -83,9 +85,10 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("index"));
         assertThat(ingestDocument.getFieldValue("_type", String.class), equalTo("type"));
         assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("id"));
-        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", Date.class),
-                both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP))));
-        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", Date.class), equalTo(BOGUS_TIMESTAMP));
+        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", ZonedDateTime.class),
+            both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP))));
+        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", ZonedDateTime.class),
+            equalTo(BOGUS_TIMESTAMP));
     }
 
     public void testGetSourceObject() {
@@ -969,10 +972,11 @@ public class IngestDocumentTests extends ESTestCase {
         long before = System.currentTimeMillis();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         long after = System.currentTimeMillis();
-        Date timestamp = (Date) ingestDocument.getIngestMetadata().get(IngestDocument.TIMESTAMP);
+        ZonedDateTime timestamp = (ZonedDateTime) ingestDocument.getIngestMetadata().get(IngestDocument.TIMESTAMP);
+        long actualMillis = timestamp.toInstant().toEpochMilli();
         assertThat(timestamp, notNullValue());
-        assertThat(timestamp.getTime(), greaterThanOrEqualTo(before));
-        assertThat(timestamp.getTime(), lessThanOrEqualTo(after));
+        assertThat(actualMillis, greaterThanOrEqualTo(before));
+        assertThat(actualMillis, lessThanOrEqualTo(after));
     }
 
     public void testCopyConstructor() {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.lucene.uid.Versions;

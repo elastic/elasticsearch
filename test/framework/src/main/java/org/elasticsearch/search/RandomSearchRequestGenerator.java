@@ -31,12 +31,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
@@ -50,8 +51,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
+import static org.elasticsearch.test.ESTestCase.mockScript;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomByte;
@@ -101,7 +104,7 @@ public class RandomSearchRequestGenerator {
             searchRequest.scroll(randomPositiveTimeValue());
         }
         if (randomBoolean()) {
-            searchRequest.searchType(randomFrom(SearchType.values()));
+            searchRequest.searchType(randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH));
         }
         if (randomBoolean()) {
             searchRequest.source(randomSearchSourceBuilder.get());
@@ -112,7 +115,7 @@ public class RandomSearchRequestGenerator {
     public static SearchSourceBuilder randomSearchSourceBuilder(
             Supplier<HighlightBuilder> randomHighlightBuilder,
             Supplier<SuggestBuilder> randomSuggestBuilder,
-            Supplier<RescoreBuilder<?>> randomRescoreBuilder,
+            Supplier<RescorerBuilder<?>> randomRescoreBuilder,
             Supplier<List<SearchExtBuilder>> randomExtBuilders,
             Supplier<CollapseBuilder> randomCollapseBuilder) {
         SearchSourceBuilder builder = new SearchSourceBuilder();
@@ -140,6 +143,9 @@ public class RandomSearchRequestGenerator {
         if (randomBoolean()) {
             builder.terminateAfter(randomIntBetween(1, 100000));
         }
+        if (randomBoolean()) {
+            builder.trackTotalHits(randomBoolean());
+        }
 
         switch(randomInt(2)) {
             case 0:
@@ -164,9 +170,9 @@ public class RandomSearchRequestGenerator {
             int scriptFieldsSize = randomInt(25);
             for (int i = 0; i < scriptFieldsSize; i++) {
                 if (randomBoolean()) {
-                    builder.scriptField(randomAlphaOfLengthBetween(5, 50), new Script("foo"), randomBoolean());
+                    builder.scriptField(randomAlphaOfLengthBetween(5, 50), mockScript("foo"), randomBoolean());
                 } else {
-                    builder.scriptField(randomAlphaOfLengthBetween(5, 50), new Script("foo"));
+                    builder.scriptField(randomAlphaOfLengthBetween(5, 50), mockScript("foo"));
                 }
             }
         }
@@ -242,8 +248,11 @@ public class RandomSearchRequestGenerator {
                         builder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
                         break;
                     case 3:
-                        builder.sort(SortBuilders.scriptSort(new Script("foo"),
-                                ScriptSortBuilder.ScriptSortType.NUMBER).order(randomFrom(SortOrder.values())));
+                        builder.sort(SortBuilders
+                                .scriptSort(
+                                        new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "foo", emptyMap()),
+                                        ScriptSortBuilder.ScriptSortType.NUMBER)
+                                .order(randomFrom(SortOrder.values())));
                         break;
                     case 4:
                         builder.sort(randomAlphaOfLengthBetween(5, 20));

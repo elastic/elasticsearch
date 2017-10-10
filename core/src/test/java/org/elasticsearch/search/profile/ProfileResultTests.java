@@ -33,9 +33,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class ProfileResultTests extends ESTestCase {
@@ -62,12 +64,32 @@ public class ProfileResultTests extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
+        doFromXContentTestWithRandomFields(false);
+    }
+
+    /**
+     * This test adds random fields and objects to the xContent rendered out to ensure we can parse it
+     * back to be forward compatible with additions to the xContent
+     */
+    public void testFromXContentWithRandomFields() throws IOException {
+        doFromXContentTestWithRandomFields(true);
+    }
+
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         ProfileResult profileResult = createTestItem(2);
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(profileResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference mutated;
+        if (addRandomFields) {
+            // "breakdown" just consists of key/value pairs, we shouldn't add anything random there
+            Predicate<String> excludeFilter = (s) -> s.endsWith(ProfileResult.BREAKDOWN.getPreferredName());
+            mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
+        } else {
+            mutated = originalBytes;
+        }
         ProfileResult parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             parsed = ProfileResult.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());

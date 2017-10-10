@@ -22,18 +22,19 @@ package org.elasticsearch.search.dfs;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.tasks.TaskCancelledException;
 
+import java.io.IOException;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
@@ -53,8 +54,12 @@ public class DfsPhase implements SearchPhase {
         final ObjectHashSet<Term> termsSet = new ObjectHashSet<>();
         try {
             context.searcher().createNormalizedWeight(context.query(), true).extractTerms(new DelegateSet(termsSet));
-            for (RescoreSearchContext rescoreContext : context.rescore()) {
-                rescoreContext.rescorer().extractTerms(context, rescoreContext, new DelegateSet(termsSet));
+            for (RescoreContext rescoreContext : context.rescore()) {
+                try {
+                    rescoreContext.rescorer().extractTerms(context.searcher(), rescoreContext, new DelegateSet(termsSet));
+                } catch (IOException e) {
+                    throw new IllegalStateException("Failed to extract terms", e);
+                }
             }
 
             Term[] terms = termsSet.toArray(Term.class);

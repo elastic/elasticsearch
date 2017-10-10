@@ -56,11 +56,12 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (request.hasContentOrSourceParam() == false) {
-            throw new ElasticsearchException("request body is required");
-        }
+    public String getName() {
+        return "multi_search_template_action";
+    }
 
+    @Override
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex);
         return channel -> client.execute(MultiSearchTemplateAction.INSTANCE, multiRequest, new RestToXContentListener<>(channel));
     }
@@ -70,6 +71,10 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
      */
     public static MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
+        if (restRequest.hasParam("max_concurrent_searches")) {
+            multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
+        }
+
         RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex,
                 (searchRequest, bytes) -> {
                     try {

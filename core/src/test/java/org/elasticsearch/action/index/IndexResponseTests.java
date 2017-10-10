@@ -27,46 +27,72 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.action.support.replication.ReplicationResponseTests.assertShardInfo;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class IndexResponseTests extends ESTestCase {
 
     public void testToXContent() {
         {
-            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "type", "id", 3, 5, true);
+            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "type", "id", 3, 17, 5, true);
             String output = Strings.toString(indexResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":5,\"result\":\"created\",\"_shards\":null," +
-                    "\"_seq_no\":3,\"created\":true}", output);
+                    "\"_seq_no\":3,\"_primary_term\":17}", output);
         }
         {
-            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "type", "id", -1, 7, true);
+            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "type", "id", -1, 17, 7, true);
             indexResponse.setForcedRefresh(true);
             indexResponse.setShardInfo(new ReplicationResponse.ShardInfo(10, 5));
             String output = Strings.toString(indexResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":7,\"result\":\"created\"," +
-                    "\"forced_refresh\":true,\"_shards\":{\"total\":10,\"successful\":5,\"failed\":0},\"created\":true}", output);
+                    "\"forced_refresh\":true,\"_shards\":{\"total\":10,\"successful\":5,\"failed\":0}}", output);
         }
     }
 
     public void testToAndFromXContent() throws IOException {
+        doFromXContentTestWithRandomFields(false);
+    }
+
+    /**
+     * This test adds random fields and objects to the xContent rendered out to
+     * ensure we can parse it back to be forward compatible with additions to
+     * the xContent
+     */
+    public void testFromXContentWithRandomFields() throws IOException {
+        doFromXContentTestWithRandomFields(true);
+    }
+
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         final Tuple<IndexResponse, IndexResponse> tuple = randomIndexResponse();
         IndexResponse indexResponse = tuple.v1();
         IndexResponse expectedIndexResponse = tuple.v2();
 
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference indexResponseBytes = toShuffledXContent(indexResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(indexResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
+        BytesReference mutated;
+        if (addRandomFields) {
+            // The ShardInfo.Failure's exception is rendered out in a "reason" object. We shouldn't add anything random there
+            // because exception rendering and parsing are very permissive: any extra object or field would be rendered as
+            // a exception custom metadata and be parsed back as a custom header, making it impossible to compare the results
+            // in this test.
+            Predicate<String> excludeFilter = path -> path.contains("reason");
+            mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
+        } else {
+            mutated = originalBytes;
+        }
         IndexResponse parsedIndexResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), indexResponseBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             parsedIndexResponse = IndexResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }
@@ -101,18 +127,20 @@ public class IndexResponseTests extends ESTestCase {
         int shardId = randomIntBetween(0, 5);
         String type = randomAlphaOfLength(5);
         String id = randomAlphaOfLength(5);
-        long seqNo = randomFrom(SequenceNumbersService.UNASSIGNED_SEQ_NO, randomNonNegativeLong(), (long) randomIntBetween(0, 10000));
+        long seqNo = randomFrom(SequenceNumbers.UNASSIGNED_SEQ_NO, randomNonNegativeLong(), (long) randomIntBetween(0, 10000));
+        long primaryTerm = seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO ? 0 : randomIntBetween(1, 10000);
         long version = randomBoolean() ? randomNonNegativeLong() : randomIntBetween(0, 10000);
         boolean created = randomBoolean();
         boolean forcedRefresh = randomBoolean();
 
         Tuple<ReplicationResponse.ShardInfo, ReplicationResponse.ShardInfo> shardInfos = RandomObjects.randomShardInfo(random());
 
-        IndexResponse actual = new IndexResponse(new ShardId(index, indexUUid, shardId), type, id, seqNo, version, created);
+        IndexResponse actual = new IndexResponse(new ShardId(index, indexUUid, shardId), type, id, seqNo, primaryTerm, version, created);
         actual.setForcedRefresh(forcedRefresh);
         actual.setShardInfo(shardInfos.v1());
 
-        IndexResponse expected = new IndexResponse(new ShardId(index, INDEX_UUID_NA_VALUE, -1), type, id, seqNo, version, created);
+        IndexResponse expected =
+                new IndexResponse(new ShardId(index, INDEX_UUID_NA_VALUE, -1), type, id, seqNo, primaryTerm, version, created);
         expected.setForcedRefresh(forcedRefresh);
         expected.setShardInfo(shardInfos.v2());
 

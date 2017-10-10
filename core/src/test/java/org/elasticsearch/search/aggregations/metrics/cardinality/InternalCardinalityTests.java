@@ -19,17 +19,20 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
+import com.carrotsearch.hppc.BitMixer;
+
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,10 +40,20 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     private static List<HyperLogLogPlusPlus> algos;
     private static int p;
 
-    @Before
-    public void setup() {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         algos = new ArrayList<>();
         p = randomIntBetween(HyperLogLogPlusPlus.MIN_PRECISION, HyperLogLogPlusPlus.MAX_PRECISION);
+    }
+
+    @After //we force @After to have it run before ESTestCase#after otherwise it fails
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        Releasables.close(algos);
+        algos.clear();
+        algos = null;
     }
 
     @Override
@@ -50,7 +63,7 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
                 new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()), 1);
         algos.add(hllpp);
         for (int i = 0; i < 100; i++) {
-            hllpp.collect(0, randomIntBetween(1, 100));
+            hllpp.collect(0, BitMixer.mix64(randomIntBetween(1, 100)));
         }
         return new InternalCardinality(name, hllpp, pipelineAggregators, metaData);
     }
@@ -73,10 +86,47 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
         }
     }
 
-    @After
-    public void cleanup() {
-        Releasables.close(algos);
-        algos.clear();
-        algos = null;
+    @Override
+    protected void assertFromXContent(InternalCardinality aggregation, ParsedAggregation parsedAggregation) {
+        assertTrue(parsedAggregation instanceof ParsedCardinality);
+        ParsedCardinality parsed = (ParsedCardinality) parsedAggregation;
+
+        assertEquals(aggregation.getValue(), parsed.getValue(), Double.MIN_VALUE);
+        assertEquals(aggregation.getValueAsString(), parsed.getValueAsString());
+    }
+
+    @Override
+    protected InternalCardinality mutateInstance(InternalCardinality instance) {
+        String name = instance.getName();
+        HyperLogLogPlusPlus state = instance.getState();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 2)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            HyperLogLogPlusPlus newState = new HyperLogLogPlusPlus(state.precision(),
+                    new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()), 0);
+            newState.merge(0, state, 0);
+            int extraValues = between(10, 100);
+            for (int i = 0; i < extraValues; i++) {
+                newState.collect(0, BitMixer.mix64(randomIntBetween(500, 10000)));
+            }
+            algos.add(newState);
+            state = newState;
+            break;
+        case 2:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalCardinality(name, state, pipelineAggregators, metaData);
     }
 }

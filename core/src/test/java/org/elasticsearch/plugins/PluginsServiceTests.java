@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
@@ -29,7 +30,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
@@ -52,7 +55,7 @@ public class PluginsServiceTests extends ESTestCase {
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
-        return new PluginsService(settings, null, new Environment(settings).pluginsFile(), Arrays.asList(classpathPlugins));
+        return new PluginsService(settings, null, null, new Environment(settings).pluginsFile(), Arrays.asList(classpathPlugins));
     }
 
     public void testAdditionalSettings() {
@@ -119,6 +122,120 @@ public class PluginsServiceTests extends ESTestCase {
 
         final String expected = "Could not load plugin descriptor for existing plugin [.hidden]";
         assertThat(e, hasToString(containsString(expected)));
+    }
+
+    public void testStartupWithRemovingMarker() throws IOException {
+        final Path home = createTempDir();
+        final Settings settings =
+                Settings.builder()
+                        .put(Environment.PATH_HOME_SETTING.getKey(), home)
+                        .build();
+        final Path fake = home.resolve("plugins").resolve("fake");
+        Files.createDirectories(fake);
+        Files.createFile(fake.resolve("plugin.jar"));
+        final Path removing = home.resolve("plugins").resolve(".removing-fake");
+        Files.createFile(removing);
+        PluginTestUtil.writeProperties(
+                fake,
+                "description", "fake",
+                "name", "fake",
+                "version", "1.0.0",
+                "elasticsearch.version", Version.CURRENT.toString(),
+                "java.version", System.getProperty("java.specification.version"),
+                "classname", "Fake",
+                "has.native.controller", "false");
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
+        final String expected = String.format(
+                Locale.ROOT,
+                "found file [%s] from a failed attempt to remove the plugin [fake]; execute [elasticsearch-plugin remove fake]",
+                removing);
+        assertThat(e, hasToString(containsString(expected)));
+    }
+
+    public void testLoadPluginWithNoPublicConstructor() {
+        class NoPublicConstructorPlugin extends Plugin {
+
+            private NoPublicConstructorPlugin() {
+
+            }
+
+        }
+
+        final Path home = createTempDir();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        final IllegalStateException e =
+                expectThrows(IllegalStateException.class, () -> newPluginsService(settings, NoPublicConstructorPlugin.class));
+        assertThat(e, hasToString(containsString("no public constructor")));
+    }
+
+    public void testLoadPluginWithMultiplePublicConstructors() {
+        class MultiplePublicConstructorsPlugin extends Plugin {
+
+            @SuppressWarnings("unused")
+            public MultiplePublicConstructorsPlugin() {
+
+            }
+
+            @SuppressWarnings("unused")
+            public MultiplePublicConstructorsPlugin(final Settings settings) {
+
+            }
+
+        }
+
+        final Path home = createTempDir();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        final IllegalStateException e =
+                expectThrows(IllegalStateException.class, () -> newPluginsService(settings, MultiplePublicConstructorsPlugin.class));
+        assertThat(e, hasToString(containsString("no unique public constructor")));
+    }
+
+    public void testLoadPluginWithNoPublicConstructorOfCorrectSignature() {
+        class TooManyParametersPlugin extends Plugin {
+
+            @SuppressWarnings("unused")
+            public TooManyParametersPlugin(Settings settings, Path configPath, Object object) {
+
+            }
+
+        }
+
+        class TwoParametersFirstIncorrectType extends Plugin {
+
+            @SuppressWarnings("unused")
+            public TwoParametersFirstIncorrectType(Object object, Path configPath) {
+
+            }
+        }
+
+        class TwoParametersSecondIncorrectType extends Plugin {
+
+            @SuppressWarnings("unused")
+            public TwoParametersSecondIncorrectType(Settings settings, Object object) {
+
+            }
+
+        }
+
+        class OneParameterIncorrectType extends Plugin {
+
+            @SuppressWarnings("unused")
+            public OneParameterIncorrectType(Object object) {
+
+            }
+        }
+
+        final Collection<Class<? extends Plugin>> classes = Arrays.asList(
+                TooManyParametersPlugin.class,
+                TwoParametersFirstIncorrectType.class,
+                TwoParametersSecondIncorrectType.class,
+                OneParameterIncorrectType.class);
+        for (Class<? extends Plugin> pluginClass : classes) {
+            final Path home = createTempDir();
+            final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+            final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings, pluginClass));
+            assertThat(e, hasToString(containsString("no public constructor of correct signature")));
+        }
     }
 
 }

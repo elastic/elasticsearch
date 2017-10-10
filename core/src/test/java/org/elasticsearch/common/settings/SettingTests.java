@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,6 +37,8 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
@@ -64,8 +67,13 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
             fail("no unit");
         } catch (IllegalArgumentException ex) {
-            assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized",
-                    ex.getMessage());
+            assertThat(ex, hasToString(containsString("illegal value can't update [a.byte.size] from [2048b] to [12]")));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            final String expected =
+                    "failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
+            assertThat(cause, hasToString(containsString(expected)));
         }
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
@@ -99,8 +107,13 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
             fail("no unit");
         } catch (IllegalArgumentException ex) {
-            assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized",
-                    ex.getMessage());
+            assertThat(ex, hasToString(containsString("illegal value can't update [a.byte.size] from [25%] to [12]")));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            final String expected =
+                    "failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
+            assertThat(cause, hasToString(containsString(expected)));
         }
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
@@ -127,9 +140,56 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(build, Settings.EMPTY);
             fail("not a boolean");
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [I am not a boolean] as only [true] or [false] are allowed.",
-                    ex.getMessage());
+            assertThat(ex, hasToString(containsString("illegal value can't update [foo.bar] from [false] to [I am not a boolean]")));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            assertThat(
+                    cause,
+                    hasToString(containsString("Failed to parse value [I am not a boolean] as only [true] or [false] are allowed.")));
         }
+    }
+
+    private static final Setting<String> FOO_BAR_SETTING = new Setting<>(
+            "foo.bar",
+            "foobar",
+            Function.identity(),
+            new FooBarValidator(),
+            Property.Dynamic,
+            Property.NodeScope);
+
+    private static final Setting<String> BAZ_QUX_SETTING = Setting.simpleString("baz.qux", Property.NodeScope);
+    private static final Setting<String> QUUX_QUUZ_SETTING = Setting.simpleString("quux.quuz", Property.NodeScope);
+
+    static class FooBarValidator implements Setting.Validator<String> {
+
+        public static boolean invoked;
+
+        @Override
+        public void validate(String value, Map<Setting<String>, String> settings) {
+            invoked = true;
+            assertThat(value, equalTo("foo.bar value"));
+            assertTrue(settings.keySet().contains(BAZ_QUX_SETTING));
+            assertThat(settings.get(BAZ_QUX_SETTING), equalTo("baz.qux value"));
+            assertTrue(settings.keySet().contains(QUUX_QUUZ_SETTING));
+            assertThat(settings.get(QUUX_QUUZ_SETTING), equalTo("quux.quuz value"));
+        }
+
+        @Override
+        public Iterator<Setting<String>> settings() {
+            return Arrays.asList(BAZ_QUX_SETTING, QUUX_QUUZ_SETTING).iterator();
+        }
+    }
+
+    // the purpose of this test is merely to ensure that a validator is invoked with the appropriate values
+    public void testValidator() {
+        final Settings settings = Settings.builder()
+                .put("foo.bar", "foo.bar value")
+                .put("baz.qux", "baz.qux value")
+                .put("quux.quuz", "quux.quuz value")
+                .build();
+        FOO_BAR_SETTING.get(settings);
+        assertTrue(FooBarValidator.invoked);
     }
 
     public void testUpdateNotDynamic() {
@@ -277,7 +337,7 @@ public class SettingTests extends ESTestCase {
                     Settings.EMPTY);
             fail("not accepted");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "illegal value can't update [foo.bar.] from [{}] to [{1.value=1, 2.value=2}]");
+            assertEquals(ex.getMessage(), "illegal value can't update [foo.bar.] from [{}] to [{\"1.value\":\"1\",\"2.value\":\"2\"}]");
         }
     }
 
@@ -299,6 +359,12 @@ public class SettingTests extends ESTestCase {
             this.a = a;
             this.b = b;
         }
+
+        public void validate(Integer a, Integer b) {
+            if (Integer.signum(a) != Integer.signum(b)) {
+                throw new IllegalArgumentException("boom");
+            }
+        }
     }
 
 
@@ -306,7 +372,7 @@ public class SettingTests extends ESTestCase {
         Composite c = new Composite();
         Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, Property.Dynamic, Property.NodeScope);
-        ClusterSettings.SettingUpdater<Tuple<Integer, Integer>> settingUpdater = Setting.compoundUpdater(c::set, a, b, logger);
+        ClusterSettings.SettingUpdater<Tuple<Integer, Integer>> settingUpdater = Setting.compoundUpdater(c::set, c::validate, a, b, logger);
         assertFalse(settingUpdater.apply(Settings.EMPTY, Settings.EMPTY));
         assertNull(c.a);
         assertNull(c.b);
@@ -332,6 +398,40 @@ public class SettingTests extends ESTestCase {
 
     }
 
+    public void testCompositeValidator() {
+        Composite c = new Composite();
+        Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, Property.Dynamic, Property.NodeScope);
+        ClusterSettings.SettingUpdater<Tuple<Integer, Integer>> settingUpdater = Setting.compoundUpdater(c::set, c::validate, a, b, logger);
+        assertFalse(settingUpdater.apply(Settings.EMPTY, Settings.EMPTY));
+        assertNull(c.a);
+        assertNull(c.b);
+
+        Settings build = Settings.builder().put("foo.int.bar.a", 2).build();
+        assertTrue(settingUpdater.apply(build, Settings.EMPTY));
+        assertEquals(2, c.a.intValue());
+        assertEquals(1, c.b.intValue());
+
+        Integer aValue = c.a;
+        assertFalse(settingUpdater.apply(build, build));
+        assertSame(aValue, c.a);
+        Settings previous = build;
+        build = Settings.builder().put("foo.int.bar.a", 2).put("foo.int.bar.b", 5).build();
+        assertTrue(settingUpdater.apply(build, previous));
+        assertEquals(2, c.a.intValue());
+        assertEquals(5, c.b.intValue());
+
+        Settings invalid = Settings.builder().put("foo.int.bar.a", -2).put("foo.int.bar.b", 5).build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> settingUpdater.apply(invalid, previous));
+        assertThat(exc.getMessage(), equalTo("boom"));
+
+        // reset to default
+        assertTrue(settingUpdater.apply(Settings.EMPTY, build));
+        assertEquals(1, c.a.intValue());
+        assertEquals(1, c.b.intValue());
+
+    }
+
     public void testListSettings() {
         Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(),
             Property.Dynamic, Property.NodeScope);
@@ -341,7 +441,7 @@ public class SettingTests extends ESTestCase {
         assertEquals("foo,bar", value.get(0));
 
         List<String> input = Arrays.asList("test", "test1, test2", "test", ",,,,");
-        Settings.Builder builder = Settings.builder().putArray("foo.bar", input.toArray(new String[0]));
+        Settings.Builder builder = Settings.builder().putList("foo.bar", input.toArray(new String[0]));
         assertTrue(listSetting.exists(builder.build()));
         value = listSetting.get(builder.build());
         assertEquals(input.size(), value.size());
@@ -364,11 +464,11 @@ public class SettingTests extends ESTestCase {
         assertEquals(input.size(), ref.get().size());
         assertArrayEquals(ref.get().toArray(new String[0]), input.toArray(new String[0]));
 
-        settingUpdater.apply(Settings.builder().putArray("foo.bar", "123").build(), builder.build());
+        settingUpdater.apply(Settings.builder().putList("foo.bar", "123").build(), builder.build());
         assertEquals(1, ref.get().size());
         assertArrayEquals(ref.get().toArray(new String[0]), new String[] {"123"});
 
-        settingUpdater.apply(Settings.builder().put("foo.bar", "1,2,3").build(), Settings.builder().putArray("foo.bar", "123").build());
+        settingUpdater.apply(Settings.builder().put("foo.bar", "1,2,3").build(), Settings.builder().putList("foo.bar", "123").build());
         assertEquals(3, ref.get().size());
         assertArrayEquals(ref.get().toArray(new String[0]), new String[] {"1", "2", "3"});
 
@@ -392,17 +492,17 @@ public class SettingTests extends ESTestCase {
         assertEquals(1, value.size());
         assertEquals("foo,bar", value.get(0));
 
-        value = settingWithFallback.get(Settings.builder().putArray("foo.bar", "1", "2").build());
+        value = settingWithFallback.get(Settings.builder().putList("foo.bar", "1", "2").build());
         assertEquals(2, value.size());
         assertEquals("1", value.get(0));
         assertEquals("2", value.get(1));
 
-        value = settingWithFallback.get(Settings.builder().putArray("foo.baz", "3", "4").build());
+        value = settingWithFallback.get(Settings.builder().putList("foo.baz", "3", "4").build());
         assertEquals(2, value.size());
         assertEquals("3", value.get(0));
         assertEquals("4", value.get(1));
 
-        value = settingWithFallback.get(Settings.builder().putArray("foo.baz", "3", "4").putArray("foo.bar", "1", "2").build());
+        value = settingWithFallback.get(Settings.builder().putList("foo.baz", "3", "4").putList("foo.bar", "1", "2").build());
         assertEquals(2, value.size());
         assertEquals("3", value.get(0));
         assertEquals("4", value.get(1));
@@ -412,13 +512,13 @@ public class SettingTests extends ESTestCase {
         Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(),
             Property.Dynamic, Property.NodeScope);
         List<String> input = Arrays.asList("test", "test1, test2", "test", ",,,,");
-        Settings.Builder builder = Settings.builder().putArray("foo.bar", input.toArray(new String[0]));
+        Settings.Builder builder = Settings.builder().putList("foo.bar", input.toArray(new String[0]));
         // try to parse this really annoying format
-        for (String key : builder.internalMap().keySet()) {
+        for (String key : builder.keys()) {
             assertTrue("key: " + key + " doesn't match", listSetting.match(key));
         }
         builder = Settings.builder().put("foo.bar", "1,2,3");
-        for (String key : builder.internalMap().keySet()) {
+        for (String key : builder.keys()) {
             assertTrue("key: " + key + " doesn't match", listSetting.match(key));
         }
         assertFalse(listSetting.match("foo_bar"));
@@ -477,16 +577,35 @@ public class SettingTests extends ESTestCase {
         assertFalse(listAffixSetting.match("foo"));
     }
 
+    public void testAffixAsMap() {
+        Setting.AffixSetting<String> setting = Setting.prefixKeySetting("foo.bar.", key ->
+            Setting.simpleString(key, Property.NodeScope));
+        Settings build = Settings.builder().put("foo.bar.baz", 2).put("foo.bar.foobar", 3).build();
+        Map<String, String> asMap = setting.getAsMap(build);
+        assertEquals(2, asMap.size());
+        assertEquals("2", asMap.get("baz"));
+        assertEquals("3", asMap.get("foobar"));
+
+        setting = Setting.prefixKeySetting("foo.bar.", key ->
+            Setting.simpleString(key, Property.NodeScope));
+        build = Settings.builder().put("foo.bar.baz", 2).put("foo.bar.foobar", 3).put("foo.bar.baz.deep", 45).build();
+        asMap = setting.getAsMap(build);
+        assertEquals(3, asMap.size());
+        assertEquals("2", asMap.get("baz"));
+        assertEquals("3", asMap.get("foobar"));
+        assertEquals("45", asMap.get("baz.deep"));
+    }
+
     public void testGetAllConcreteSettings() {
         Setting.AffixSetting<List<String>> listAffixSetting = Setting.affixKeySetting("foo.", "bar",
             (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope));
 
         Settings settings = Settings.builder()
-            .putArray("foo.1.bar", "1", "2")
-            .putArray("foo.2.bar", "3", "4", "5")
-            .putArray("foo.bar", "6")
-            .putArray("some.other", "6")
-            .putArray("foo.3.bar", "6")
+            .putList("foo.1.bar", "1", "2")
+            .putList("foo.2.bar", "3", "4", "5")
+            .putList("foo.bar", "6")
+            .putList("some.other", "6")
+            .putList("foo.3.bar", "6")
             .build();
         Stream<Setting<List<String>>> allConcreteSettings = listAffixSetting.getAllConcreteSettings(settings);
         Map<String, List<String>> collect = allConcreteSettings.collect(Collectors.toMap(Setting::getKey, (s) -> s.get(settings)));

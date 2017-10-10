@@ -70,8 +70,46 @@ GET /twitter/tweet/_search
 
 See <<search-request-inner-hits, inner hits>> for the complete list of supported options and the format of the response.
 
+It is also possible to request multiple `inner_hits` for each collapsed hit.  This can be useful when you want to get
+multiple representations of the collapsed hits.
+
+[source,js]
+--------------------------------------------------
+GET /twitter/tweet/_search
+{
+    "query": {
+        "match": {
+            "message": "elasticsearch"
+        }
+    },
+    "collapse" : {
+        "field" : "user", <1>
+        "inner_hits": [
+            {
+                "name": "most_liked",  <2>
+                "size": 3,
+                "sort": ["likes"]
+            },
+            {
+                "name": "most_recent", <3>
+                "size": 3,
+                "sort": [{ "date": "asc" }]
+            }
+        ]
+    },
+    "sort": ["likes"]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+<1> collapse the result set using the "user" field
+<2> return the three most liked tweets for the user
+<3> return the three most recent tweets for the user
+
 The expansion of the group is done by sending an additional query for each
-collapsed hit returned in the response.
+`inner_hit` request for each collapsed hit returned in the response.  This can significantly slow things down
+if you have too many groups and/or `inner_hit` requests.
+
 The `max_concurrent_group_searches` request parameter can be used to control
 the maximum number of concurrent searches allowed in this phase.
 The default is based on the number of data nodes and the default search thread pool size.

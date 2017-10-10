@@ -52,15 +52,11 @@ public enum SortMode implements Writeable {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeVInt(ordinal());
+        out.writeEnum(this);
     }
 
     public static SortMode readFromStream(StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
-        if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown SortMode ordinal [" + ordinal + "]");
-        }
-        return values()[ordinal];
+        return in.readEnum(SortMode.class);
     }
 
     public static SortMode fromString(final String str) {

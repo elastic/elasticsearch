@@ -47,6 +47,11 @@ public class RestClusterHealthAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "cluster_health_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(Strings.splitStringByCommaToArray(request.param("index")));
         clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));

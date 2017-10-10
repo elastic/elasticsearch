@@ -40,7 +40,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
     /** The collapse value for each top doc */
     public final Object[] collapseValues;
 
-    public CollapseTopFieldDocs(String field, int totalHits, ScoreDoc[] scoreDocs,
+    public CollapseTopFieldDocs(String field, long totalHits, ScoreDoc[] scoreDocs,
                                 SortField[] sortFields, Object[] values, float maxScore) {
         super(totalHits, scoreDocs, sortFields, maxScore);
         this.field = field;
@@ -170,7 +170,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
         }
         final PriorityQueue<ShardRef> queue = new MergeSortQueue(sort, shardHits);
 
-        int totalHitCount = 0;
+        long totalHitCount = 0;
         int availHitCount = 0;
         float maxScore = Float.MIN_VALUE;
         for(int shardIDX=0;shardIDX<shardHits.length;shardIDX++) {

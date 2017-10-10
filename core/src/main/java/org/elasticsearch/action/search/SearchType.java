@@ -36,9 +36,14 @@ public enum SearchType {
      * document content. The return number of hits is exactly as specified in size, since they are the only ones that
      * are fetched. This is very handy when the index has a lot of shards (not replicas, shard id groups).
      */
-    QUERY_THEN_FETCH((byte) 1);
+    QUERY_THEN_FETCH((byte) 1),
     // 2 used to be DFS_QUERY_AND_FETCH
-    // 3 used to be QUERY_AND_FETCH
+
+    /**
+     * Only used for pre 5.3 request where this type is still needed
+     */
+    @Deprecated
+    QUERY_AND_FETCH((byte) 3);
 
     /**
      * The default search type ({@link #QUERY_THEN_FETCH}.

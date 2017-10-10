@@ -51,6 +51,11 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "get_index_template_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 

@@ -19,14 +19,14 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class BulkItemRequest implements Streamable {
 
@@ -38,7 +38,8 @@ public class BulkItemRequest implements Streamable {
 
     }
 
-    protected BulkItemRequest(int id, DocWriteRequest request) {
+    // NOTE: public for testing only
+    public BulkItemRequest(int id, DocWriteRequest request) {
         this.id = id;
         this.request = request;
     }
@@ -56,14 +57,36 @@ public class BulkItemRequest implements Streamable {
         return request.indices()[0];
     }
 
-    // NOTE: protected for testing only
-    protected BulkItemResponse getPrimaryResponse() {
+    BulkItemResponse getPrimaryResponse() {
         return primaryResponse;
     }
 
-    // NOTE: protected for testing only
-    protected void setPrimaryResponse(BulkItemResponse primaryResponse) {
+    void setPrimaryResponse(BulkItemResponse primaryResponse) {
         this.primaryResponse = primaryResponse;
+    }
+
+    /**
+     * Abort this request, and store a {@link org.elasticsearch.action.bulk.BulkItemResponse.Failure} response.
+     *
+     * @param index The concrete index that was resolved for this request
+     * @param cause The cause of the rejection (may not be null)
+     * @throws IllegalStateException If a response already exists for this request
+     */
+    public void abort(String index, Exception cause) {
+        if (primaryResponse == null) {
+            final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.type(), request.id(),
+                    Objects.requireNonNull(cause), true);
+            setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
+        } else {
+            assert primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()
+                    : "response [" + Strings.toString(primaryResponse) + "]; cause [" + cause + "]";
+            if (primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()) {
+                primaryResponse.getFailure().getCause().addSuppressed(cause);
+            } else {
+                throw new IllegalStateException(
+                        "aborting item that with response [" + primaryResponse + "] that was previously processed", cause);
+            }
+        }
     }
 
     public static BulkItemRequest readBulkItem(StreamInput in) throws IOException {
@@ -79,37 +102,12 @@ public class BulkItemRequest implements Streamable {
         if (in.readBoolean()) {
             primaryResponse = BulkItemResponse.readBulkItem(in);
         }
-        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO remove once backported
-            boolean ignoreOnReplica = in.readBoolean();
-            if (ignoreOnReplica == false && primaryResponse != null) {
-                assert primaryResponse.isFailed() == false : "expected no failure on the primary response";
-            }
-        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO remove once backported
-            // old nodes expect updated version and version type on the request
-            if (primaryResponse != null) {
-                request.version(primaryResponse.getVersion());
-                request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
-                DocWriteRequest.writeDocumentRequest(out, request);
-            } else {
-                DocWriteRequest.writeDocumentRequest(out, request);
-            }
-        } else {
-            DocWriteRequest.writeDocumentRequest(out, request);
-        }
+        DocWriteRequest.writeDocumentRequest(out, request);
         out.writeOptionalStreamable(primaryResponse);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO remove once backported
-            if (primaryResponse != null) {
-                out.writeBoolean(primaryResponse.isFailed()
-                        || primaryResponse.getResponse().getResult() == DocWriteResponse.Result.NOOP);
-            } else {
-                out.writeBoolean(false);
-            }
-        }
     }
 }

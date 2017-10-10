@@ -48,7 +48,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         // this test checks that index state is written on data only nodes if they have a shard allocated
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
-        assertAcked(prepareCreate("test").setSettings("index.number_of_replicas", 0));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
         index("test", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen("test");
         assertIndexInMetaState(dataNode, "test");

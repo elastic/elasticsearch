@@ -47,7 +47,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         SetProcessor setProcessor = factory.create(null, processorTag, config);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
-        assertThat(setProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
+        assertThat(setProcessor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
         assertThat(setProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo("value1"));
         assertThat(setProcessor.isOverrideEnabled(), equalTo(true));
     }
@@ -61,7 +61,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         SetProcessor setProcessor = factory.create(null, processorTag, config);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
-        assertThat(setProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
+        assertThat(setProcessor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
         assertThat(setProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo("value1"));
         assertThat(setProcessor.isOverrideEnabled(), equalTo(overrideEnabled));
     }

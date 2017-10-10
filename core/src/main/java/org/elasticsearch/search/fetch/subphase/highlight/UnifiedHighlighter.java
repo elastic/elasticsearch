@@ -19,17 +19,21 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.highlight.Encoder;
-import org.apache.lucene.search.highlight.Snippet;
+import org.apache.lucene.search.uhighlight.Snippet;
 import org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.apache.lucene.search.uhighlight.CustomPassageFormatter;
+import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.apache.lucene.search.uhighlight.UnifiedHighlighter.OffsetSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -44,8 +48,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
-import static org.elasticsearch.search.fetch.subphase.highlight.PostingsHighlighter.filterSnippets;
-import static org.elasticsearch.search.fetch.subphase.highlight.PostingsHighlighter.mergeFieldValues;
 
 public class UnifiedHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-unified";
@@ -91,36 +93,35 @@ public class UnifiedHighlighter implements Highlighter {
                     return obj;
                 }
             }).collect(Collectors.toList());
-            IndexSearcher searcher = new IndexSearcher(hitContext.reader());
-            CustomUnifiedHighlighter highlighter;
+            final IndexSearcher searcher = new IndexSearcher(hitContext.reader());
+            final CustomUnifiedHighlighter highlighter;
+            final String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
+            final OffsetSource offsetSource = getOffsetSource(fieldMapper.fieldType());
             if (field.fieldOptions().numberOfFragments() == 0) {
                 // we use a control char to separate values, which is the only char that the custom break iterator
                 // breaks the text on, so we don't lose the distinction between the different values of a field and we
                 // get back a snippet per value
-                String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
-                org.apache.lucene.search.postingshighlight.CustomSeparatorBreakIterator breakIterator =
-                    new org.apache.lucene.search.postingshighlight
-                        .CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
-                highlighter =
-                    new CustomUnifiedHighlighter(searcher, analyzer, mapperHighlighterEntry.passageFormatter,
-                        field.fieldOptions().boundaryScannerLocale(), breakIterator, fieldValue,
-                        field.fieldOptions().noMatchSize());
+                CustomSeparatorBreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
+                highlighter = new CustomUnifiedHighlighter(searcher, analyzer, offsetSource,
+                        mapperHighlighterEntry.passageFormatter, field.fieldOptions().boundaryScannerLocale(),
+                        breakIterator, fieldValue, field.fieldOptions().noMatchSize());
                 numberOfFragments = fieldValues.size(); // we are highlighting the whole content, one snippet per value
             } else {
                 //using paragraph separator we make sure that each field value holds a discrete passage for highlighting
-                String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
                 BreakIterator bi = getBreakIterator(field);
-                highlighter = new CustomUnifiedHighlighter(searcher, analyzer,
+                highlighter = new CustomUnifiedHighlighter(searcher, analyzer, offsetSource,
                     mapperHighlighterEntry.passageFormatter, field.fieldOptions().boundaryScannerLocale(), bi,
                     fieldValue, field.fieldOptions().noMatchSize());
                 numberOfFragments = field.fieldOptions().numberOfFragments();
             }
+
             if (field.fieldOptions().requireFieldMatch()) {
                 final String fieldName = highlighterContext.fieldName;
                 highlighter.setFieldMatcher((name) -> fieldName.equals(name));
             } else {
                 highlighter.setFieldMatcher((name) -> true);
             }
+
             Snippet[] fieldSnippets = highlighter.highlightField(highlighterContext.fieldName,
                 highlighterContext.query, hitContext.docId(), numberOfFragments);
             for (Snippet fieldSnippet : fieldSnippets) {
@@ -173,6 +174,59 @@ public class UnifiedHighlighter implements Highlighter {
                 throw new IllegalArgumentException("Invalid boundary scanner type: " + type.toString());
         }
     }
+
+    private static List<Snippet> filterSnippets(List<Snippet> snippets, int numberOfFragments) {
+
+        //We need to filter the snippets as due to no_match_size we could have
+        //either highlighted snippets or non highlighted ones and we don't want to mix those up
+        List<Snippet> filteredSnippets = new ArrayList<>(snippets.size());
+        for (Snippet snippet : snippets) {
+            if (snippet.isHighlighted()) {
+                filteredSnippets.add(snippet);
+            }
+        }
+
+        //if there's at least one highlighted snippet, we return all the highlighted ones
+        //otherwise we return the first non highlighted one if available
+        if (filteredSnippets.size() == 0) {
+            if (snippets.size() > 0) {
+                Snippet snippet = snippets.get(0);
+                //if we tried highlighting the whole content using whole break iterator (as number_of_fragments was 0)
+                //we need to return the first sentence of the content rather than the whole content
+                if (numberOfFragments == 0) {
+                    BreakIterator bi = BreakIterator.getSentenceInstance(Locale.ROOT);
+                    String text = snippet.getText();
+                    bi.setText(text);
+                    int next = bi.next();
+                    if (next != BreakIterator.DONE) {
+                        String newText = text.substring(0, next).trim();
+                        snippet = new Snippet(newText, snippet.getScore(), snippet.isHighlighted());
+                    }
+                }
+                filteredSnippets.add(snippet);
+            }
+        }
+
+        return filteredSnippets;
+    }
+
+    private static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
+        //postings highlighter accepts all values in a single string, as offsets etc. need to match with content
+        //loaded from stored fields, we merge all values using a proper separator
+        String rawValue = Strings.collectionToDelimitedString(fieldValues, String.valueOf(valuesSeparator));
+        return rawValue.substring(0, Math.min(rawValue.length(), Integer.MAX_VALUE - 1));
+    }
+
+    private OffsetSource getOffsetSource(MappedFieldType fieldType) {
+        if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
+            return fieldType.storeTermVectors() ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;
+        }
+        if (fieldType.storeTermVectorOffsets()) {
+            return OffsetSource.TERM_VECTORS;
+        }
+        return OffsetSource.ANALYSIS;
+    }
+
 
     private static class HighlighterEntry {
         Map<FieldMapper, MapperHighlighterEntry> mappers = new HashMap<>();

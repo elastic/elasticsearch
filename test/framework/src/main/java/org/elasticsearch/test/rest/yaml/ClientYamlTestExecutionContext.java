@@ -110,7 +110,7 @@ public class ClientYamlTestExecutionContext {
                     ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
         } else {
             XContentType xContentType = getContentType(headers, STREAMING_CONTENT_TYPES);
-            List<BytesRef> bytesRefList = new ArrayList<>();
+            List<BytesRef> bytesRefList = new ArrayList<>(bodies.size());
             int totalBytesLength = 0;
             for (Map<String, Object> body : bodies) {
                 BytesRef bytesRef = bodyAsBytesRef(body, xContentType);

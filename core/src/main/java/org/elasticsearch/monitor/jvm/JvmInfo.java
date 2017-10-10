@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class JvmInfo implements Writeable, ToXContent {
+public class JvmInfo implements Writeable, ToXContentFragment {
 
     private static JvmInfo INSTANCE;
 
@@ -299,19 +299,19 @@ public class JvmInfo implements Writeable, ToXContent {
     public int versionAsInteger() {
         try {
             int i = 0;
-            String sVersion = "";
+            StringBuilder sVersion = new StringBuilder();
             for (; i < version.length(); i++) {
                 if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
                     break;
                 }
                 if (version.charAt(i) != '.') {
-                    sVersion += version.charAt(i);
+                    sVersion.append(version.charAt(i));
                 }
             }
             if (i == 0) {
                 return -1;
             }
-            return Integer.parseInt(sVersion);
+            return Integer.parseInt(sVersion.toString());
         } catch (Exception e) {
             return -1;
         }
@@ -320,19 +320,19 @@ public class JvmInfo implements Writeable, ToXContent {
     public int versionUpdatePack() {
         try {
             int i = 0;
-            String sVersion = "";
+            StringBuilder sVersion = new StringBuilder();
             for (; i < version.length(); i++) {
                 if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
                     break;
                 }
                 if (version.charAt(i) != '.') {
-                    sVersion += version.charAt(i);
+                    sVersion.append(version.charAt(i));
                 }
             }
             if (i == 0) {
                 return -1;
             }
-            Integer.parseInt(sVersion);
+            Integer.parseInt(sVersion.toString());
             int from;
             if (version.charAt(i) == '_') {
                 // 1.7.0_4
@@ -461,6 +461,8 @@ public class JvmInfo implements Writeable, ToXContent {
 
         builder.field(Fields.USING_COMPRESSED_OOPS, useCompressedOops);
 
+        builder.field(Fields.INPUT_ARGUMENTS, inputArguments);
+
         builder.endObject();
         return builder;
     }
@@ -489,6 +491,7 @@ public class JvmInfo implements Writeable, ToXContent {
         static final String GC_COLLECTORS = "gc_collectors";
         static final String MEMORY_POOLS = "memory_pools";
         static final String USING_COMPRESSED_OOPS = "using_compressed_ordinary_object_pointers";
+        static final String INPUT_ARGUMENTS = "input_arguments";
     }
 
     public static class Mem implements Writeable {

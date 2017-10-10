@@ -22,7 +22,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
-import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.joda.time.ReadableInstant;
 
@@ -36,9 +36,9 @@ import java.util.Iterator;
  */
 public class ScriptLongValues extends AbstractSortingNumericDocValues implements ScorerAware {
 
-    final LeafSearchScript script;
+    final SearchScript script;
 
-    public ScriptLongValues(LeafSearchScript script) {
+    public ScriptLongValues(SearchScript script) {
         super();
         this.script = script;
     }

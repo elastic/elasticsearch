@@ -47,7 +47,7 @@ ifeval::["{release-state}"=="released"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.elastic.co/packages/{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -56,7 +56,7 @@ ifeval::["{release-state}"=="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.elastic.co/packages/{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -160,9 +160,7 @@ include::check-running.asciidoc[]
 [[deb-configuring]]
 ==== Configuring Elasticsearch
 
-Elasticsearch loads its configuration from the `/etc/elasticsearch/elasticsearch.yml`
-file by default.  The format of this config file is explained in
-<<settings>>.
+include::etc-elasticsearch.asciidoc[]
 
 The Debian package also has a system configuration file (`/etc/default/elasticsearch`),
 which allows you to set the following parameters:
@@ -197,7 +195,7 @@ locations for a Debian-based system:
 | conf
   | Configuration files including `elasticsearch.yml`
   | /etc/elasticsearch
-  | path.conf
+  | <<config-files-location,ES_PATH_CONF>>
 
 | conf
   | Environment variables including heap size, file descriptors.
@@ -224,11 +222,6 @@ locations for a Debian-based system:
   | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.
  d| Not configured
   | path.repo
-
-| script
-  | Location of script files.
-  | /etc/elasticsearch/scripts
-  | path.scripts
 
 |=======================================================================
 

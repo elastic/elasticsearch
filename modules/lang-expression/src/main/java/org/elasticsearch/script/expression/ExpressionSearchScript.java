@@ -26,21 +26,18 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.GeneralScriptException;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * A bridge to evaluate an {@link Expression} against {@link Bindings} in the context
  * of a {@link SearchScript}.
  */
-class ExpressionSearchScript implements SearchScript {
+class ExpressionSearchScript implements SearchScript.LeafFactory {
 
-    final CompiledScript compiledScript;
+    final Expression exprScript;
     final SimpleBindings bindings;
     final DoubleValuesSource source;
     final ReplaceableConstDoubleValueSource specialValue; // _value
@@ -48,28 +45,28 @@ class ExpressionSearchScript implements SearchScript {
     Scorer scorer;
     int docid;
 
-    ExpressionSearchScript(CompiledScript c, SimpleBindings b, ReplaceableConstDoubleValueSource v, boolean needsScores) {
-        compiledScript = c;
+    ExpressionSearchScript(Expression e, SimpleBindings b, ReplaceableConstDoubleValueSource v, boolean needsScores) {
+        exprScript = e;
         bindings = b;
-        source = ((Expression)compiledScript.compiled()).getDoubleValuesSource(bindings);
+        source = exprScript.getDoubleValuesSource(bindings);
         specialValue = v;
         this.needsScores = needsScores;
     }
 
     @Override
-    public boolean needsScores() {
+    public boolean needs_score() {
         return needsScores;
     }
 
 
     @Override
-    public LeafSearchScript getLeafSearchScript(final LeafReaderContext leaf) throws IOException {
-        return new LeafSearchScript() {
+    public SearchScript newInstance(final LeafReaderContext leaf) throws IOException {
+        return new SearchScript(null, null, null) {
             // Fake the scorer until setScorer is called.
             DoubleValues values = source.getValues(leaf, new DoubleValues() {
                 @Override
                 public double doubleValue() throws IOException {
-                    return Double.NaN;
+                    return getScore();
                 }
 
                 @Override
@@ -77,57 +74,29 @@ class ExpressionSearchScript implements SearchScript {
                     return true;
                 }
             });
-            double evaluate() {
+
+            @Override
+            public Object run() { return Double.valueOf(runAsDouble()); }
+
+            @Override
+            public long runAsLong() { return (long)runAsDouble(); }
+
+            @Override
+            public double runAsDouble() {
                 try {
                     return values.doubleValue();
                 } catch (Exception exception) {
-                    throw new GeneralScriptException("Error evaluating " + compiledScript, exception);
+                    throw new GeneralScriptException("Error evaluating " + exprScript, exception);
                 }
             }
-
-            @Override
-            public Object run() { return Double.valueOf(evaluate()); }
-
-            @Override
-            public long runAsLong() { return (long)evaluate(); }
-
-            @Override
-            public double runAsDouble() { return evaluate(); }
 
             @Override
             public void setDocument(int d) {
-                docid = d;
                 try {
                     values.advanceExact(d);
                 } catch (IOException e) {
-                    throw new IllegalStateException("Can't advance to doc using " + compiledScript, e);
+                    throw new IllegalStateException("Can't advance to doc using " + exprScript, e);
                 }
-            }
-
-            @Override
-            public void setScorer(Scorer s) {
-                scorer = s;
-                try {
-                    // We have a new binding for the scorer so we need to reset the values
-                    values = source.getValues(leaf, new DoubleValues() {
-                        @Override
-                        public double doubleValue() throws IOException {
-                            return scorer.score();
-                        }
-
-                        @Override
-                        public boolean advanceExact(int doc) throws IOException {
-                            return true;
-                        }
-                    });
-                } catch (IOException e) {
-                    throw new IllegalStateException("Can't get values using " + compiledScript, e);
-                }
-            }
-
-            @Override
-            public void setSource(Map<String, Object> source) {
-                // noop: expressions don't use source data
             }
 
             @Override
@@ -137,7 +106,7 @@ class ExpressionSearchScript implements SearchScript {
                     if (value instanceof Number) {
                         specialValue.setValue(((Number)value).doubleValue());
                     } else {
-                        throw new GeneralScriptException("Cannot use expression with text variable using " + compiledScript);
+                        throw new GeneralScriptException("Cannot use expression with text variable using " + exprScript);
                     }
                 }
             }

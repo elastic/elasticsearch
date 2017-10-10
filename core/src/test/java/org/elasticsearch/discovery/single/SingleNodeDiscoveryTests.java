@@ -21,14 +21,14 @@ package org.elasticsearch.discovery.single;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -36,9 +36,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.Stack;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
-import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.createMasterService;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SingleNodeDiscoveryTests extends ESTestCase {
@@ -54,40 +55,31 @@ public class SingleNodeDiscoveryTests extends ESTestCase {
             stack.push(transportService);
             transportService.start();
             final DiscoveryNode node = transportService.getLocalNode();
-            final ClusterService clusterService = createClusterService(threadPool, node);
-            stack.push(clusterService);
+            final MasterService masterService = createMasterService(threadPool, node);
+            AtomicReference<ClusterState> clusterState = new AtomicReference<>();
             final SingleNodeDiscovery discovery =
-                    new SingleNodeDiscovery(Settings.EMPTY, clusterService);
+                    new SingleNodeDiscovery(Settings.EMPTY, transportService,
+                        masterService, new ClusterApplier() {
+                            @Override
+                            public void setInitialState(ClusterState initialState) {
+                                clusterState.set(initialState);
+                            }
+
+                            @Override
+                            public ClusterState.Builder newClusterStateBuilder() {
+                                return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
+                            }
+
+                            @Override
+                            public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier,
+                                                          ClusterStateTaskListener listener) {
+                                clusterState.set(clusterStateSupplier.get());
+                                listener.clusterStateProcessed(source, clusterState.get(), clusterState.get());
+                            }
+                        });
+            discovery.start();
             discovery.startInitialJoin();
-
-            // we are racing against the initial join which is asynchronous so we use an observer
-            final ClusterState state = clusterService.state();
-            final ThreadContext threadContext = threadPool.getThreadContext();
-            final ClusterStateObserver observer =
-                    new ClusterStateObserver(state, clusterService, null, logger, threadContext);
-            if (state.nodes().getMasterNodeId() == null) {
-                final CountDownLatch latch = new CountDownLatch(1);
-                observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                    @Override
-                    public void onNewClusterState(ClusterState state) {
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void onClusterServiceClose() {
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void onTimeout(TimeValue timeout) {
-                        assert false;
-                    }
-                }, s -> s.nodes().getMasterNodeId() != null);
-
-                latch.await();
-            }
-
-            final DiscoveryNodes nodes = clusterService.state().nodes();
+            final DiscoveryNodes nodes = clusterState.get().nodes();
             assertThat(nodes.getSize(), equalTo(1));
             assertThat(nodes.getMasterNode().getId(), equalTo(node.getId()));
         } finally {

@@ -291,6 +291,13 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
+     * Returns <code>true</code> iff this setting is a list setting.
+     */
+    boolean isListSetting() {
+        return false;
+    }
+
+    /**
      * Returns the default value string representation for this setting.
      * @param settings a settings object for settings that has a default value depending on another setting if available
      */
@@ -696,6 +703,11 @@ public class Setting<T> extends ToXContentToBytes {
 
         @Override
         boolean hasComplexMatcher() {
+            return true;
+        }
+
+        @Override
+        boolean isListSetting() {
             return true;
         }
 

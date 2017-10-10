@@ -157,8 +157,12 @@ public class SettingsModule implements Module {
      */
     private void registerSetting(Setting<?> setting) {
         if (setting.isFiltered()) {
-            if (settingsFilterPattern.contains(setting.getKey()) == false) {
-                registerSettingsFilter(setting.getKey());
+            final String key = setting.getKey();
+            if (settingsFilterPattern.contains(key) == false) {
+                registerSettingsFilter(key);
+                if (setting.isListSetting()) {
+                    registerSettingsFilter(key + ".*");
+                }
             }
         }
         if (setting.hasNodeScope() || setting.hasIndexScope()) {

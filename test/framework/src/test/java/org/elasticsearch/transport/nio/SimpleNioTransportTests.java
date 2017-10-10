@@ -88,13 +88,11 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
     }
 
     @Override
-    protected MockTransportService build(
-            Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
+    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         settings = Settings.builder().put(settings)
             .put(TcpTransport.PORT.getKey(), "0")
             .build();
-        MockTransportService transportService =
-                nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
+        MockTransportService transportService = nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
         transportService.start();
         return transportService;
     }
@@ -130,8 +128,7 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
-            MockTransportService transportService =
-                    nioFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true);
+            MockTransportService transportService = nioFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true);
             try {
                 transportService.start();
             } finally {

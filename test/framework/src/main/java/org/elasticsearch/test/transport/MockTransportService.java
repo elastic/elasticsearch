@@ -72,6 +72,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -177,6 +178,17 @@ public final class MockTransportService extends TransportService {
          } else {
             return super.createTaskManager();
         }
+    }
+
+    private volatile String executorName;
+
+    public void setExecutorName(final String executorName) {
+        this.executorName = executorName;
+    }
+
+    @Override
+    protected ExecutorService getExecutorService() {
+        return executorName == null ? super.getExecutorService() : getThreadPool().executor(executorName);
     }
 
     /**

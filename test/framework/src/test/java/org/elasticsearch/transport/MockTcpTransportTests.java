@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
+
     @Override
     protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
@@ -53,4 +54,13 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
         mockTransportService.start();
         return mockTransportService;
     }
+
+    @Override
+    protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
+        final MockTcpTransport t = (MockTcpTransport) transport;
+        @SuppressWarnings("unchecked") final TcpTransport<MockTcpTransport.MockChannel>.NodeChannels channels =
+                (TcpTransport<MockTcpTransport.MockChannel>.NodeChannels) connection;
+        t.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
+    }
+
 }

@@ -34,8 +34,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -55,6 +57,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -76,11 +80,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -142,14 +149,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
                                               Settings settings, boolean acceptRequests, boolean doHandshake) {
         MockTransportService service = build(
-            Settings.builder()
-                .put(settings)
-                .put(Node.NODE_NAME_SETTING.getKey(), name)
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-                .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-                .build(),
-            version,
-            clusterSettings, doHandshake);
+                Settings.builder()
+                        .put(settings)
+                        .put(Node.NODE_NAME_SETTING.getKey(), name)
+                        .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+                        .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+                        .build(),
+                version,
+                clusterSettings, doHandshake);
         if (acceptRequests) {
             service.acceptIncomingRequests();
         }
@@ -2239,4 +2246,33 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             responseLatch.await();
         }
     }
+
+    public void testChannelCloseWhileConnecting() throws IOException {
+        try (MockTransportService service = build(Settings.builder().put("name", "close").build(), version0, null, true)) {
+            service.setExecutorName(ThreadPool.Names.SAME); // make sure stuff is executed in a blocking fashion
+            service.addConnectionListener(new TransportConnectionListener() {
+                @Override
+                public void onConnectionOpened(final Transport.Connection connection) {
+                    try {
+                        closeConnectionChannel(service.getOriginalTransport(), connection);
+                    } catch (final IOException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            });
+            final ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+            builder.addConnections(1,
+                    TransportRequestOptions.Type.BULK,
+                    TransportRequestOptions.Type.PING,
+                    TransportRequestOptions.Type.RECOVERY,
+                    TransportRequestOptions.Type.REG,
+                    TransportRequestOptions.Type.STATE);
+            final ConnectTransportException e =
+                    expectThrows(ConnectTransportException.class, () -> service.openConnection(nodeA, builder.build()));
+            assertThat(e, hasToString(containsString(("a channel closed while connecting"))));
+        }
+    }
+
+    protected abstract void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException;
+
 }

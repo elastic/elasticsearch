@@ -41,7 +41,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;

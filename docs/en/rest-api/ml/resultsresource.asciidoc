@@ -4,6 +4,8 @@
 
 Several different result types are created for each job. You can query anomaly
 results for _buckets_, _influencers_, and _records_ by using the results API.
+Summarized bucket results over multiple jobs can be queried as well; those
+results are called _overall buckets_.
 
 Results are written for each `bucket_span`. The timestamp for the results is the
 start of the bucket time interval.
@@ -38,10 +40,12 @@ timestamp or any calculated scores. For more information, see
 {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
 //<<ml-configuring-categories>>.
 
+
 * <<ml-results-buckets,Buckets>>
 * <<ml-results-influencers,Influencers>>
 * <<ml-results-records,Records>>
 * <<ml-results-categories,Categories>>
+* <<ml-results-overall-buckets,Overall Buckets>>
 
 [float]
 [[ml-results-buckets]]
@@ -415,3 +419,36 @@ A category resource has the following properties:
 `terms`::
   (string) A space separated list of the common tokens that are matched in
   values of the category.
+
+[float]
+[[ml-results-overall-buckets]]
+==== Overall Buckets
+
+Overall buckets provide a summary of bucket results over multiple jobs.
+Their `bucket_span` equals the longest `bucket_span` of the jobs in question.
+The `overall_score` is the `top_n` average of the max `anomaly_score` per job
+within the overall bucket time interval.
+This means that you can fine-tune the `overall_score` so that it is more
+or less sensitive to the number of jobs that detect an anomaly at the same time.
+
+An overall bucket resource has the following properties:
+
+`timestamp`::
+  (date) The start time of the overall bucket.
+
+`bucket_span`::
+  (number) The length of the bucket in seconds. Matches the `bucket_span`
+  of the job with the longest one.
+
+`overall_score`::
+  (number) The `top_n` average of the max bucket `anomaly_score` per job.
+
+`jobs`::
+  (array) An array of objects that contain the `max_anomaly_score` per `job_id`.
+
+`is_interim`::
+  (boolean) If true, this is an interim result. In other words, the anomaly
+  record is calculated based on partial input data.
+
+`result_type`::
+  (string) Internal. This is always set to `overall_bucket`.

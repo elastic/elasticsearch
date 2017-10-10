@@ -46,6 +46,7 @@ machine learning APIs and in advanced job configuration options in Kibana.
 === Results
 
 * <<ml-get-bucket,Get buckets>>
+* <<ml-get-overall-buckets,Get overall buckets>>
 * <<ml-get-category,Get categories>>
 * <<ml-get-influencer,Get influencers>>
 * <<ml-get-record,Get records>>
@@ -64,6 +65,7 @@ include::ml/delete-snapshot.asciidoc[]
 include::ml/flush-job.asciidoc[]
 //GET
 include::ml/get-bucket.asciidoc[]
+include::ml/get-overall-buckets.asciidoc[]
 include::ml/get-category.asciidoc[]
 include::ml/get-datafeed.asciidoc[]
 include::ml/get-datafeed-stats.asciidoc[]

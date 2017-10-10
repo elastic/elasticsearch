@@ -148,6 +148,7 @@ and the action is now in `ackable` state:
       }
     },
     "state": ...,
+    "execution_state": "executed",
     "last_checked": ...,
     "last_met_condition": ...
   },
@@ -195,6 +196,7 @@ GET _xpack/watcher/watch/my_watch
       }
     },
     "state": ...,
+    "execution_state": "executed",
     "last_checked": ...,
     "last_met_condition": ...
   },
@@ -260,6 +262,7 @@ The response looks like a get watch response, but only contains the status:
         }
       }
     },
+    "execution_state": "executed",
     "version": 2
   }
 }

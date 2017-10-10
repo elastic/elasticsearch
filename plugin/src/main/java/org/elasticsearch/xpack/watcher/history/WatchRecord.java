@@ -95,7 +95,7 @@ public abstract class WatchRecord implements ToXContentObject {
                 context.watch().condition(), context.watch().metadata(), context.watch(), executionResult, context.getNodeId());
     }
 
-    private static ExecutionState getState(WatchExecutionResult executionResult) {
+    public static ExecutionState getState(WatchExecutionResult executionResult) {
         if (executionResult == null || executionResult.conditionResult() == null) {
             return ExecutionState.FAILED;
         }

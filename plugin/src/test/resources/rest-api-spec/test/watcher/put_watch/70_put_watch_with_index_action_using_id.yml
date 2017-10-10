@@ -58,6 +58,7 @@ teardown:
       xpack.watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
   - match: { watch_record.result.actions.0.index.response.id: "test_id1" }
 
 ---
@@ -107,6 +108,7 @@ teardown:
       xpack.watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
   - match: { watch_record.result.actions.0.index.response.id: "test_id2" }
 
 ---
@@ -166,6 +168,7 @@ teardown:
       xpack.watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
   - match: { watch_record.result.actions.0.index.response.0.id: "test_id3" }
   - match: { watch_record.result.actions.0.index.response.1.id: "test_id4" }
 
@@ -224,4 +227,5 @@ teardown:
       xpack.watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
   - match: { watch_record.result.actions.0.index.response.1.id: "test_id6" }

@@ -58,6 +58,7 @@ teardown:
   - match: { watch_record.trigger_event.triggered_time: "2012-12-12T12:12:12.120Z" }
   - match: { watch_record.trigger_event.manual.schedule.scheduled_time: "2000-12-12T12:12:12.120Z" }
   - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
   - match: { watch_record.status.state.active: true }
   - is_true: watch_record.node
   - match: { watch_record.status.actions.indexme.ack.state: "ackable" }
@@ -96,6 +97,7 @@ teardown:
   - match: { watch_record.watch_id: "_inlined_" }
   - match: { watch_record.trigger_event.type: "manual" }
   - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
   - match: { watch_record.status.state.active: true }
   - match: { watch_record.status.actions.indexme.ack.state: "ackable" }
 

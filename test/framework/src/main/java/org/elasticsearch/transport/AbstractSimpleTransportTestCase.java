@@ -2631,10 +2631,10 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
          */
         final MockTransportService service;
         if (opensMultipleChannels()) {
-            final AtomicBoolean first = new AtomicBoolean();
+            final AtomicBoolean first = new AtomicBoolean(true);
             service =
                     buildService("service", version0, clusterSettings, Settings.EMPTY, true, true, channel -> {
-                        if (!first.compareAndSet(false, true)) {
+                        if (!first.compareAndSet(true, false)) {
                             close(channel);
                         }
                     });
@@ -2655,20 +2655,23 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
                     };
             service =
                     MockTransportService.createNewService(Settings.EMPTY, transport, version0, threadPool, clusterSettings);
+        }
+
+        try {
             service.start();
-        }
+            final TcpTransport underlyingTransport = (TcpTransport) service.getOriginalTransport();
 
-        final TcpTransport underlyingTransport = (TcpTransport) service.getOriginalTransport();
-
-        final String otherName = "other_service";
-        try (TransportService otherService = buildService(otherName, Version.CURRENT, null)) {
-            final DiscoveryNode node =
-                    new DiscoveryNode(otherName, otherName, otherService.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
-            final ConnectTransportException e =
-                    expectThrows(ConnectTransportException.class, () -> underlyingTransport.openConnection(node, null));
-            assertThat(e, hasToString(containsString("a channel closed while connecting")));
+            final String otherName = "other_service";
+            try (TransportService otherService = buildService(otherName, Version.CURRENT, null)) {
+                final DiscoveryNode node =
+                        new DiscoveryNode(otherName, otherName, otherService.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+                final ConnectTransportException e =
+                        expectThrows(ConnectTransportException.class, () -> underlyingTransport.openConnection(node, null));
+                assertThat(e, hasToString(containsString("a channel closed while connecting")));
+            }
+        } finally {
+            service.close();
         }
-        service.close();
     }
 
     protected boolean opensMultipleChannels() {

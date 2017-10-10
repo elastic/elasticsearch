@@ -30,7 +30,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 
 public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {

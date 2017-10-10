@@ -252,8 +252,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected NodeChannels connectToChannels(
-            DiscoveryNode node, ConnectionProfile profile, Consumer<Channel> onChannelClose) {
+    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile, Consumer<Channel> onChannelClose) {
         final Channel[] channels = new Channel[profile.getNumConnections()];
         final NodeChannels nodeChannels = new NodeChannels(node, channels, profile);
         boolean success = false;
@@ -284,8 +283,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
                     if (!future.isSuccess()) {
                         throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", future.cause());
                     }
-                    final Channel channel = future.channel();
-                    channels[i] = channel;
+                    channels[i] = future.channel();
                     channels[i].closeFuture().addListener(closeListener);
                 }
                 assert iterator.hasNext() == false : "not all created connection have been consumed";

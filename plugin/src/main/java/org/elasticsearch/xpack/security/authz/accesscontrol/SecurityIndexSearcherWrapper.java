@@ -17,24 +17,21 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -46,7 +43,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -139,10 +135,17 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                         QueryBuilder queryBuilder = queryShardContext.parseInnerQueryBuilder(parser);
                         verifyRoleQuery(queryBuilder);
                         failIfQueryUsesClient(queryBuilder, queryShardContext);
-                        ParsedQuery parsedQuery = queryShardContext.toFilter(queryBuilder);
-                        filter.add(parsedQuery.query(), SHOULD);
+                        Query roleQuery = queryShardContext.toFilter(queryBuilder).query();
+                        filter.add(roleQuery, SHOULD);
+                        if (queryShardContext.getMapperService().hasNested()) {
+                            // If access is allowed on root doc then also access is allowed on all nested docs of that root document:
+                            BitSetProducer rootDocs = queryShardContext.bitsetFilter(Queries.newNonNestedFilter());
+                            ToChildBlockJoinQuery includeNestedDocs = new ToChildBlockJoinQuery(roleQuery, rootDocs);
+                            filter.add(includeNestedDocs, SHOULD);
+                        }
                     }
                 }
+
                 // at least one of the queries should match
                 filter.setMinimumNumberShouldMatch(1);
                 reader = DocumentSubsetReader.wrap(reader, bitsetFilterCache, new ConstantScoreQuery(filter.build()));

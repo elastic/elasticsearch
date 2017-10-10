@@ -27,6 +27,7 @@ public class SearchHitRowSetCursor extends AbstractRowSet {
     private final List<HitExtractor> extractors;
     private final Set<String> innerHits = new LinkedHashSet<>();
     private final String innerHit;
+    private final int limit;
 
     private final int size;
     private final int[] indexPerLevel;
@@ -74,6 +75,9 @@ public class SearchHitRowSetCursor extends AbstractRowSet {
                 }
             }
         }
+        // overall limit
+        limit = limitHits;
+        // page size
         size = limitHits < 0 ? sz : Math.min(sz, limitHits);
         indexPerLevel = new int[maxDepth + 1];
         this.innerHit = innerHit;
@@ -100,12 +104,12 @@ public class SearchHitRowSetCursor extends AbstractRowSet {
 
     @Override
     protected boolean doHasCurrent() {
-        return row < size();
+        return row < size;
     }
 
     @Override
     protected boolean doNext() {
-        if (row < size() - 1) {
+        if (row < size - 1) {
             row++;
             // increment last row
             indexPerLevel[indexPerLevel.length - 1]++;
@@ -159,10 +163,12 @@ public class SearchHitRowSetCursor extends AbstractRowSet {
              * scroll but all results fit in the first page. */
             return Cursor.EMPTY;
         }
-        if (hits.length == 0) {
-            // NOCOMMIT handle limit
+        // compute remaining limit
+        int remainingLimit = limit - size;
+        // if the computed limit is zero, or the size is zero it means either there's nothing left or the limit has been reached
+        if (size == 0 || remainingLimit == 0) {
             return Cursor.EMPTY;
         }
-        return new ScrollCursor(scrollId, extractors);
+        return new ScrollCursor(scrollId, extractors, remainingLimit);
     }
 }

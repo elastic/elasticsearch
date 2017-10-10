@@ -93,9 +93,8 @@ public class JdbcAssert {
         int columns = metaData.getColumnCount();
 
         long count = 0;
-        while (expected.next()) {
+        for (count = 0; expected.next(); count++) {
             assertTrue("Expected more data but no more entries found after [" + count + "]", actual.next());
-            count++;
 
             if (logger != null) {
                 JdbcTestUtils.logResultSetCurrentData(actual, logger);
@@ -122,7 +121,7 @@ public class JdbcAssert {
                 }
             }
         }
-        assertEquals("[" + actual + "] still has data after [" + count + "] entries", expected.next(), actual.next());
+        assertEquals("Elasticsearch [" + actual + "] still has data after [" + count + "] entries", expected.next(), actual.next());
     }
 
     private static Object getTime(ResultSet rs, int column) throws SQLException {

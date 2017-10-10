@@ -3,6 +3,6 @@
 //
 
 debug
-SELECT emp_no, CAST(CEIL(emp_no) AS INT) m, first_name FROM "test_emp" WHERE CEIL(emp_no) < 10010 ORDER BY CEIL(emp_no);
+SELECT CAST(emp_no AS VARCHAR) AS emp_no_cast FROM "test_emp" ORDER BY emp_no LIMIT 5;
 //SELECT YEAR(birth_date) AS d, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY YEAR(birth_date) ORDER BY YEAR(birth_date) LIMIT 5;
 //SELECT emp_no, SIN(emp_no) + emp_no % 10000 + YEAR(hire_date) / 1000 AS s, emp_no AS y FROM test_emp WHERE emp_no = 10010;

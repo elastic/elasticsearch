@@ -31,7 +31,7 @@ public class ScrollCursorTests extends AbstractWireSerializingTestCase<ScrollCur
         for (int i = 0; i < extractorsSize; i++) {
             extractors.add(randomHitExtractor(0));
         }
-        return new ScrollCursor(randomAlphaOfLength(5), extractors);
+        return new ScrollCursor(randomAlphaOfLength(5), extractors, randomIntBetween(10, 1024));
     }
 
     static HitExtractor randomHitExtractor(int depth) {

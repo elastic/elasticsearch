@@ -42,21 +42,25 @@ public class ScrollCursor implements Cursor {
 
     private final String scrollId;
     private final List<HitExtractor> extractors;
+    private final int limit;
 
-    public ScrollCursor(String scrollId, List<HitExtractor> extractors) {
+    public ScrollCursor(String scrollId, List<HitExtractor> extractors, int limit) {
         this.scrollId = scrollId;
         this.extractors = extractors;
+        this.limit = limit;
     }
 
     public ScrollCursor(StreamInput in) throws IOException {
         scrollId = in.readString();
         extractors = in.readNamedWriteableList(HitExtractor.class);
+        limit = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(scrollId);
         out.writeNamedWriteableList(extractors);
+        out.writeVInt(limit);
     }
 
     public ScrollCursor(java.io.Reader reader) throws IOException {
@@ -80,6 +84,7 @@ public class ScrollCursor implements Cursor {
             }
         })); StreamInput in = new NamedWriteableAwareStreamInput(delegate, REGISTRY)) {
             extractors = in.readNamedWriteableList(HitExtractor.class);
+            limit = in.readVInt();
         }
     }
 
@@ -94,6 +99,7 @@ public class ScrollCursor implements Cursor {
             }
         }))) {
             out.writeNamedWriteableList(extractors);
+            out.writeVInt(limit);
         }
     }
 
@@ -121,7 +127,7 @@ public class ScrollCursor implements Cursor {
          */
         SearchScrollRequest request = new SearchScrollRequest(scrollId).scroll(timeValueSeconds(90));
         client.searchScroll(request, ActionListener.wrap((SearchResponse response) -> {
-            int limitHits = -1; // NOCOMMIT do a thing with this
+            int limitHits = limit;
             listener.onResponse(new SearchHitRowSetCursor(schema, extractors, response.getHits().getHits(),
                     limitHits, response.getScrollId()));
         }, listener::onFailure));
@@ -134,12 +140,13 @@ public class ScrollCursor implements Cursor {
         }
         ScrollCursor other = (ScrollCursor) obj;
         return Objects.equals(scrollId, other.scrollId)
-                && Objects.equals(extractors, other.extractors);
+                && Objects.equals(extractors, other.extractors)
+                && Objects.equals(limit, other.limit);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(scrollId, extractors);
+        return Objects.hash(scrollId, extractors, limit);
     }
 
     @Override

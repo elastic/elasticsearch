@@ -240,8 +240,7 @@ public class Scroller {
                         scrollId = null;
                     }
                 }
-                int limitHits = query.limit() > 0 && hits.length >= query.limit() ? query.limit() : -1;
-                return new SearchHitRowSetCursor(schema, exts, hits, limitHits, scrollId);
+                return new SearchHitRowSetCursor(schema, exts, hits, query.limit(), scrollId);
             }
             // no hits
             else {

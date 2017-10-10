@@ -2616,28 +2616,28 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testChannelCloseWhileConnecting() throws IOException {
-                try (MockTransportService service = build(Settings.builder().put("name", "close").build(), version0, null, true)) {
-                    service.setExecutorName(ThreadPool.Names.SAME); // make sure stuff is executed in a blocking fashion
-                    service.addConnectionListener(new TransportConnectionListener() {
-                        @Override
-                        public void onConnectionOpened(final Transport.Connection connection) {
-                            try {
-                                closeConnectionChannel(service.getOriginalTransport(), connection);
-                            } catch (final IOException e) {
-                                throw new AssertionError(e);
-                            }
-                        }
-                    });
-                    final ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-                    builder.addConnections(1,
-                            TransportRequestOptions.Type.BULK,
-                            TransportRequestOptions.Type.PING,
-                            TransportRequestOptions.Type.RECOVERY,
-                            TransportRequestOptions.Type.REG,
-                            TransportRequestOptions.Type.STATE);
-                    final ConnectTransportException e =
-                            expectThrows(ConnectTransportException.class, () -> service.openConnection(nodeA, builder.build()));
-                    assertThat(e, hasToString(containsString(("a channel closed while connecting"))));
+        try (MockTransportService service = build(Settings.builder().put("name", "close").build(), version0, null, true)) {
+            service.setExecutorName(ThreadPool.Names.SAME); // make sure stuff is executed in a blocking fashion
+            service.addConnectionListener(new TransportConnectionListener() {
+                @Override
+                public void onConnectionOpened(final Transport.Connection connection) {
+                    try {
+                        closeConnectionChannel(service.getOriginalTransport(), connection);
+                    } catch (final IOException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            });
+            final ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+            builder.addConnections(1,
+                    TransportRequestOptions.Type.BULK,
+                    TransportRequestOptions.Type.PING,
+                    TransportRequestOptions.Type.RECOVERY,
+                    TransportRequestOptions.Type.REG,
+                    TransportRequestOptions.Type.STATE);
+            final ConnectTransportException e =
+                    expectThrows(ConnectTransportException.class, () -> service.openConnection(nodeA, builder.build()));
+            assertThat(e, hasToString(containsString(("a channel closed while connecting"))));
         }
     }
 

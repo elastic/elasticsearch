@@ -203,7 +203,11 @@ public class MachineLearning implements ActionPlugin {
     }
 
     public Settings additionalSettings() {
+        String mlEnabledNodeAttrName = "node.attr." + ML_ENABLED_NODE_ATTR;
+        String maxOpenJobsPerNodeNodeAttrName = "node.attr." + MAX_OPEN_JOBS_NODE_ATTR;
+
         if (enabled == false || transportClientMode || tribeNode || tribeNodeClient) {
+            disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName);
             return Settings.EMPTY;
         }
 
@@ -211,11 +215,40 @@ public class MachineLearning implements ActionPlugin {
         Boolean allocationEnabled = ML_ENABLED.get(settings);
         if (allocationEnabled != null && allocationEnabled) {
             // TODO: the simple true/false flag will not be required once all supported versions have the number - consider removing in 7.0
-            additionalSettings.put("node.attr." + ML_ENABLED_NODE_ATTR, "true");
-            additionalSettings.put("node.attr." + MAX_OPEN_JOBS_NODE_ATTR,
-                    AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings));
+            addMlNodeAttribute(additionalSettings, mlEnabledNodeAttrName, "true");
+            addMlNodeAttribute(additionalSettings, maxOpenJobsPerNodeNodeAttrName,
+                    String.valueOf(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings)));
+        } else {
+            disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName);
         }
         return additionalSettings.build();
+    }
+
+    private void addMlNodeAttribute(Settings.Builder additionalSettings, String attrName, String value) {
+        // Unfortunately we cannot simply disallow any value, because the internal cluster integration
+        // test framework will restart nodes with settings copied from the node immediately before it
+        // was stopped.  The best we can do is reject inconsistencies, and report this in a way that
+        // makes clear that setting the node attribute directly is not allowed.
+        String oldValue = settings.get(attrName);
+        if (oldValue == null || oldValue.equals(value)) {
+            additionalSettings.put(attrName, value);
+        } else {
+            reportClashingNodeAttribute(attrName);
+        }
+    }
+
+    private void disallowMlNodeAttributes(String... mlNodeAttributes) {
+        for (String attrName : mlNodeAttributes) {
+            if (settings.get(attrName) != null) {
+                reportClashingNodeAttribute(attrName);
+            }
+        }
+    }
+
+    private void reportClashingNodeAttribute(String attrName) {
+        throw new IllegalArgumentException("Directly setting [" + attrName + "] is not permitted - " +
+                "it is reserved for machine learning. If your intention was to customize machine learning, set the [" +
+                attrName.replace("node.attr.", "xpack.") + "] setting instead.");
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

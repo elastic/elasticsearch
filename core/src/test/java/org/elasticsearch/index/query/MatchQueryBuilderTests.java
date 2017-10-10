@@ -19,10 +19,12 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -35,6 +37,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQuery;
@@ -45,6 +48,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -391,5 +395,36 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
         assertThat(query.toString(),
             containsString("field:[string_no_pos] was indexed without position data; cannot run PhraseQuery"));
+    }
+
+    public void testFuzzyQueryWithSynonyms() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        MatchQuery matchQuery = new MatchQuery(context);
+        matchQuery.setAnalyzer(new MockRepeatAnalyzer());
+        matchQuery.setFuzziness(Fuzziness.ONE);
+
+        Query query = matchQuery.parse(MatchQuery.Type.BOOLEAN, STRING_FIELD_NAME, "foo");
+        Query expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new FuzzyQuery(new Term(STRING_FIELD_NAME, "foo"), 1),
+                new FuzzyQuery(new Term(STRING_FIELD_NAME, "foo"), 1)
+            ), 0.0f);
+        assertThat(query, equalTo(expected));
+
+        query = matchQuery.parse(MatchQuery.Type.BOOLEAN, STRING_FIELD_NAME, "foo bar");
+        expected = new BooleanQuery.Builder()
+            .add(new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new FuzzyQuery(new Term(STRING_FIELD_NAME, "foo"), 1),
+                    new FuzzyQuery(new Term(STRING_FIELD_NAME, "foo"), 1)
+                ), 0.0f), BooleanClause.Occur.SHOULD)
+            .add(new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new FuzzyQuery(new Term(STRING_FIELD_NAME, "bar"), 1),
+                    new FuzzyQuery(new Term(STRING_FIELD_NAME, "bar"), 1)
+                ), 0.0f), BooleanClause.Occur.SHOULD)
+            .build();
+        assertThat(query, equalTo(expected));
     }
 }

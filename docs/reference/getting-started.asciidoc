@@ -147,14 +147,15 @@ And now we are ready to start our node and single cluster:
 ./elasticsearch
 --------------------------------------------------
 
-== Instalation with Homebrew
+[float]
+=== Instalation with Homebrew
 
-Elasticsearch can also be installed via Homebrew:
+On macOS, Elasticsearch can also be installed via https://brew.sh[Homebrew]:
 
+["source","sh"]
 --------------------------------------------------
 brew install elasticsearch
 --------------------------------------------------
-
 
 [float]
 === Installation example with MSI Windows Installer

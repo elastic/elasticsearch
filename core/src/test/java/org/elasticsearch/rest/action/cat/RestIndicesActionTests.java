@@ -134,11 +134,14 @@ public class RestIndicesActionTests extends ESTestCase {
     private IndicesStatsResponse randomIndicesStatsResponse(final Index[] indices) {
         List<ShardStats> shardStats = new ArrayList<>();
         for (final Index index : indices) {
-            for (int i = 0; i < 2; i++) {
+            int numShards = randomInt(5);
+            int primaryIdx = randomIntBetween(-1, numShards - 1); // -1 means there is no primary shard.
+            for (int i = 0; i < numShards; i++) {
                 ShardId shardId = new ShardId(index, i);
+                boolean primary = (i == primaryIdx);
                 Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(i));
-                ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, i == 0,
-                    i == 0 ? StoreRecoverySource.EMPTY_STORE_INSTANCE : PeerRecoverySource.INSTANCE,
+                ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, primary,
+                    primary ? StoreRecoverySource.EMPTY_STORE_INSTANCE : PeerRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
                     );
                 shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);

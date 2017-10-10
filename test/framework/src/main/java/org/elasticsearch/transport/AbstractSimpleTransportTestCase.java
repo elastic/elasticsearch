@@ -2663,8 +2663,8 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
 
             final String otherName = "other_service";
             try (TransportService otherService = buildService(otherName, Version.CURRENT, null)) {
-                final DiscoveryNode node =
-                        new DiscoveryNode(otherName, otherName, otherService.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+                final TransportAddress publishAddress = otherService.boundAddress().publishAddress();
+                final DiscoveryNode node = new DiscoveryNode(otherName, otherName, publishAddress, emptyMap(), emptySet(), version0);
                 final ConnectTransportException e =
                         expectThrows(ConnectTransportException.class, () -> underlyingTransport.openConnection(node, null));
                 assertThat(e, hasToString(containsString("a channel closed while connecting")));

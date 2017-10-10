@@ -2634,7 +2634,7 @@ public abstract class AbstractSimpleTransportTestCase<Channel> extends ESTestCas
             final AtomicBoolean first = new AtomicBoolean(true);
             service =
                     buildService("service", version0, clusterSettings, Settings.EMPTY, true, true, channel -> {
-                        if (!first.compareAndSet(true, false)) {
+                        if (first.compareAndSet(true, false) == false) {
                             close(channel);
                         }
                     });

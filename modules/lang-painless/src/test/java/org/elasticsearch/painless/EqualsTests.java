@@ -144,7 +144,7 @@ public class EqualsTests extends ScriptTestCase {
         /* Now check that we use valueOf with the boxing used for comparing primitives to def. For this we need an
          * integer that is cached by Integer.valueOf. The JLS says 0 should always be cached. */
         int cachedAutoboxedInt = 0;
-        assertEquals(Integer.valueOf(cachedAutoboxedInt), Integer.valueOf(cachedAutoboxedInt));
+        assertSame(Integer.valueOf(cachedAutoboxedInt), Integer.valueOf(cachedAutoboxedInt));
         assertEquals(true, exec("def x = params.i; int y = params.i; return x == y;", singletonMap("i", cachedAutoboxedInt), true));
         assertEquals(true, exec("def x = params.i; int y = params.i; return x === y;", singletonMap("i", cachedAutoboxedInt), true));
         assertEquals(true, exec("def x = params.i; int y = params.i; return y == x;", singletonMap("i", cachedAutoboxedInt), true));
@@ -173,7 +173,7 @@ public class EqualsTests extends ScriptTestCase {
         /* Now check that we use valueOf with the boxing used for comparing primitives to def. For this we need an
          * integer that is cached by Integer.valueOf. The JLS says 0 should always be cached. */
         int cachedAutoboxedInt = 0;
-        assertEquals(Integer.valueOf(cachedAutoboxedInt), Integer.valueOf(cachedAutoboxedInt));
+        assertSame(Integer.valueOf(cachedAutoboxedInt), Integer.valueOf(cachedAutoboxedInt));
         assertEquals(false, exec("def x = params.i; int y = params.i; return x != y;", singletonMap("i", cachedAutoboxedInt), true));
         assertEquals(false,  exec("def x = params.i; int y = params.i; return x !== y;", singletonMap("i", cachedAutoboxedInt), true));
         assertEquals(false, exec("def x = params.i; int y = params.i; return y != x;", singletonMap("i", cachedAutoboxedInt), true));

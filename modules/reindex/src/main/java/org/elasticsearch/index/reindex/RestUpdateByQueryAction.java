@@ -79,8 +79,8 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     private static Script parseScript(Object config) {
         assert config != null : "Script should not be null";
 
-        if (config instanceof String) { 
-                return new Script((String) config);
+        if (config instanceof String) {
+            return new Script((String) config);
         } else if (config instanceof Map) {
             Map<String,Object> configMap = (Map<String, Object>) config;
             String script = null;
@@ -126,8 +126,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
             assert type != null : "if script is not null, type should definitely not be null";
 
             return new Script(type, lang, script, params);
-        }
-        else {
+        } else {
             throw new IllegalArgumentException("Script value should be a String or a Map");
         }
     }

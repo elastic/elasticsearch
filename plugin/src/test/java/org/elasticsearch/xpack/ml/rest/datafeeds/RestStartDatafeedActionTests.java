@@ -32,7 +32,7 @@ public class RestStartDatafeedActionTests extends ESTestCase {
                 .withParams(params).build();
         ElasticsearchParseException e =  expectThrows(ElasticsearchParseException.class,
                 () -> action.prepareRequest(restRequest1, mock(NodeClient.class)));
-        assertEquals("Query param 'start' with value 'not-a-date' cannot be parsed as a date or " +
+        assertEquals("Query param [start] with value [not-a-date] cannot be parsed as a date or " +
                         "converted to a number (epoch).",
                 e.getMessage());
 
@@ -44,7 +44,7 @@ public class RestStartDatafeedActionTests extends ESTestCase {
                 .withParams(params).build();
         e =  expectThrows(ElasticsearchParseException.class,
                 () -> action.prepareRequest(restRequest2, mock(NodeClient.class)));
-        assertEquals("Query param 'end' with value 'not-a-date' cannot be parsed as a date or " +
+        assertEquals("Query param [end] with value [not-a-date] cannot be parsed as a date or " +
                         "converted to a number (epoch).", e.getMessage());
     }
 }

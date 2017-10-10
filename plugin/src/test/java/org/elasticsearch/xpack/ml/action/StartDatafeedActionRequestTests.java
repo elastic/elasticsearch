@@ -54,7 +54,7 @@ public class StartDatafeedActionRequestTests extends AbstractStreamableXContentT
         Exception e = expectThrows(ElasticsearchParseException.class,
                 () -> StartDatafeedAction.DatafeedParams.parseDateOrThrow("not-a-date",
                         StartDatafeedAction.START_TIME, () -> System.currentTimeMillis()));
-        assertEquals("Query param 'start' with value 'not-a-date' cannot be parsed as a date or converted to a number (epoch).",
+        assertEquals("Query param [start] with value [not-a-date] cannot be parsed as a date or converted to a number (epoch).",
                 e.getMessage());
     }
 }

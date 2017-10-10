@@ -163,7 +163,7 @@ public final class Messages {
     public static final String REST_CANNOT_DELETE_HIGHEST_PRIORITY =
             "Model snapshot ''{0}'' is the active snapshot for job ''{1}'', so cannot be deleted";
     public static final String REST_INVALID_DATETIME_PARAMS =
-            "Query param ''{0}'' with value ''{1}'' cannot be parsed as a date or converted to a number (epoch).";
+            "Query param [{0}] with value [{1}] cannot be parsed as a date or converted to a number (epoch).";
     public static final String REST_INVALID_FLUSH_PARAMS_MISSING = "Invalid flush parameters: ''{0}'' has not been specified.";
     public static final String REST_INVALID_FLUSH_PARAMS_UNEXPECTED = "Invalid flush parameters: unexpected ''{0}''.";
     public static final String REST_JOB_NOT_CLOSED_REVERT = "Can only revert to a model snapshot when the job is closed.";

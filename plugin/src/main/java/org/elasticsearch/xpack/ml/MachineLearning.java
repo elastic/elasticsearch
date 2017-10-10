@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
+import org.elasticsearch.xpack.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.ml.action.KillProcessAction;
@@ -123,6 +124,7 @@ import org.elasticsearch.xpack.ml.rest.modelsnapshots.RestUpdateModelSnapshotAct
 import org.elasticsearch.xpack.ml.rest.results.RestGetBucketsAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetCategoriesAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetInfluencersAction;
+import org.elasticsearch.xpack.ml.rest.results.RestGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
@@ -367,6 +369,7 @@ public class MachineLearning implements ActionPlugin {
             new RestGetInfluencersAction(settings, restController),
             new RestGetRecordsAction(settings, restController),
             new RestGetBucketsAction(settings, restController),
+            new RestGetOverallBucketsAction(settings, restController),
             new RestPostDataAction(settings, restController),
             new RestCloseJobAction(settings, restController),
             new RestFlushJobAction(settings, restController),
@@ -408,6 +411,7 @@ public class MachineLearning implements ActionPlugin {
                 new ActionHandler<>(KillProcessAction.INSTANCE, KillProcessAction.TransportAction.class),
                 new ActionHandler<>(GetBucketsAction.INSTANCE, GetBucketsAction.TransportAction.class),
                 new ActionHandler<>(GetInfluencersAction.INSTANCE, GetInfluencersAction.TransportAction.class),
+                new ActionHandler<>(GetOverallBucketsAction.INSTANCE, GetOverallBucketsAction.TransportAction.class),
                 new ActionHandler<>(GetRecordsAction.INSTANCE, GetRecordsAction.TransportAction.class),
                 new ActionHandler<>(PostDataAction.INSTANCE, PostDataAction.TransportAction.class),
                 new ActionHandler<>(CloseJobAction.INSTANCE, CloseJobAction.TransportAction.class),

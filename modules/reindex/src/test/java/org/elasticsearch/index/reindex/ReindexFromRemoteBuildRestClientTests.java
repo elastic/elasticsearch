@@ -48,4 +48,28 @@ public class ReindexFromRemoteBuildRestClientTests extends ESTestCase {
             client.close();
         }
     }
+    
+    public void testBuildRestClientWithHeader() throws Exception {
+        Map<String, String> headers = new HashMap<>();
+        int headerNumbers = randomIntBetween(2, 5);
+        for (int i = 0; i < headerNumbers; i++) {
+            headers.put("header" + i, Integer.toString(i));
+        }
+        assertEquals(headerNumbers, headers.size());
+        RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, new BytesArray("ignored"), null, null, headers,
+            RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+        long taskId = randomLong();
+        List<Thread> threads = synchronizedList(new ArrayList<>());
+        RestClient client = TransportReindexAction.buildRestClient(remoteInfo, taskId, threads);
+        try {
+            assertBusy(() -> assertThat(threads, hasSize(2)));
+            int i = 0;
+            for (Thread thread : threads) {
+                assertEquals("es-client-" + taskId + "-" + i, thread.getName());
+                i++;
+            }
+        } finally {
+            client.close();
+        }
+    }
 }

@@ -96,7 +96,7 @@ public class JiraAccount {
         HttpRequest request = HttpRequest.builder(url.getHost(), url.getPort())
                 .scheme(Scheme.parse(url.getScheme()))
                 .method(HttpMethod.POST)
-                .path(DEFAULT_PATH)
+                .path(url.getPath().isEmpty() || url.getPath().equals("/") ? DEFAULT_PATH : url.getPath())
                 .jsonBody((builder, params) -> builder.field("fields", fields))
                 .auth(new BasicAuth(user, password.toCharArray()))
                 .proxy(proxy)

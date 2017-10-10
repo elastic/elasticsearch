@@ -13,12 +13,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpProxy;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.http.Scheme;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -28,11 +30,14 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.collect.Tuple.tuple;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class JiraAccountTests extends ESTestCase {
@@ -205,6 +210,31 @@ public class JiraAccountTests extends ESTestCase {
         assertThat(sentRequest.path(), equalTo(JiraAccount.DEFAULT_PATH));
         assertThat(sentRequest.auth(), notNullValue());
         assertThat(sentRequest.body(), notNullValue());
+    }
+
+    public void testCustomUrls() throws Exception {
+        assertCustomUrl(Settings.builder().put("url", "https://localhost/foo").build(), "/foo");
+        assertCustomUrl(Settings.builder().put("url", "https://localhost/foo/").build(), "/foo/");
+        // this ensures we retain backwards compatibility
+        assertCustomUrl(Settings.builder().put("url", "https://localhost/").build(), JiraAccount.DEFAULT_PATH);
+        assertCustomUrl(Settings.builder().put("url", "https://localhost").build(), JiraAccount.DEFAULT_PATH);
+    }
+
+    private void assertCustomUrl(Settings urlSettings, String expectedPath) throws IOException {
+        Settings settings = Settings.builder().put(urlSettings).put("user", "foo").put("password", "bar").build();
+        HttpClient client = mock(HttpClient.class);
+
+        HttpResponse response = new HttpResponse(200);
+        when(client.execute(any())).thenReturn(response);
+
+        JiraAccount jiraAccount = new JiraAccount("test", settings, client);
+        jiraAccount.createIssue(Collections.emptyMap(), HttpProxy.NO_PROXY);
+
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(client, times(1)).execute(captor.capture());
+        assertThat(captor.getAllValues(), hasSize(1));
+        HttpRequest request = captor.getValue();
+        assertThat(request.path(), is(expectedPath));
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {

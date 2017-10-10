@@ -75,7 +75,7 @@ A bucket resource has the following properties:
   For more information, see <<ml-results-bucket-influencers,Bucket Influencers>>.
 
 `bucket_span`::
-  (time units) The length of the bucket.
+  (number) The length of the bucket in seconds.
   This value matches the `bucket_span` that is specified in the job.
 
 `event_count`::
@@ -133,7 +133,7 @@ An bucket influencer object has the following properties:
   influencer. This score might be updated as newer data is analyzed.
 
 `bucket_span`::
-  (time units) The length of the bucket. This value matches the `bucket_span`
+  (number) The length of the bucket in seconds. This value matches the `bucket_span`
   that is specified in the job.
 
 `initial_anomaly_score`::
@@ -199,7 +199,7 @@ records that contain the influencer.
 An influencer object has the following properties:
 
 `bucket_span`::
-  (time units) The length of the bucket. This value matches the `bucket_span`
+  (number) The length of the bucket in seconds. This value matches the `bucket_span`
   that is specified in the job.
 
 `influencer_score`::
@@ -276,7 +276,7 @@ A record object has the following properties:
   (array) The actual value for the bucket.
 
 `bucket_span`::
-  (time units) The length of the bucket.
+  (number) The length of the bucket in seconds.
   This value matches the `bucket_span` that is specified in the job.
 
 `by_field_name`::

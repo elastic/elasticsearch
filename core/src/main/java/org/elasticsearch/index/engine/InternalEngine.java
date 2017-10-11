@@ -1701,7 +1701,7 @@ public class InternalEngine extends Engine {
             case SEARCH:
                 return searcherManager;
             default:
-                throw new IllegalStateException("unknonw scope: " + scope);
+                throw new IllegalStateException("unknown scope: " + scope);
         }
     }
 

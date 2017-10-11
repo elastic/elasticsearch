@@ -34,7 +34,7 @@ public class PublishClusterStateStats implements Writeable, ToXContent {
 
     private final long fullClusterStateSentCount;
     private final long clusterStateDiffSentCount;
-    private final long incompatibleClusterStateDiffsSentCount;
+    private final long incompatibleClusterStateDiffSentCount;
 
     private final long fullClusterStateReceivedCount;
     private final long clusterStateDiffReceivedCount;
@@ -43,8 +43,8 @@ public class PublishClusterStateStats implements Writeable, ToXContent {
     /**
      * @param fullClusterStateSentCount  the number of times this node, as master, has sent the full cluster state to a follower.
      * @param clusterStateDiffSentCount  the number of times this node, as master, has sent a cluster-state diff to a follower.
-     * @param incompatibleClusterStateDiffsSentCount  the number of times a cluster-state diff sent by this node was rejected by a follower
-     *                                                because the follower's state was incompatible with the diff that was sent.
+     * @param incompatibleClusterStateDiffSentCount  the number of times a cluster-state diff sent by this node was rejected by a follower
+     *                                               because the follower's state was incompatible with the diff that was sent.
      *
      * @param fullClusterStateReceivedCount the number of times this node has received a full copy of the cluster state from the master.
      * @param clusterStateDiffReceivedCount the number of times this node has received a cluster-state diff from the master.
@@ -53,13 +53,13 @@ public class PublishClusterStateStats implements Writeable, ToXContent {
      */
     public PublishClusterStateStats(long fullClusterStateSentCount,
                                     long clusterStateDiffSentCount,
-                                    long incompatibleClusterStateDiffsSentCount,
+                                    long incompatibleClusterStateDiffSentCount,
                                     long fullClusterStateReceivedCount,
                                     long clusterStateDiffReceivedCount,
                                     long compatibleClusterStateDiffReceivedCount) {
         this.fullClusterStateSentCount = fullClusterStateSentCount;
         this.clusterStateDiffSentCount = clusterStateDiffSentCount;
-        this.incompatibleClusterStateDiffsSentCount = incompatibleClusterStateDiffsSentCount;
+        this.incompatibleClusterStateDiffSentCount = incompatibleClusterStateDiffSentCount;
         this.fullClusterStateReceivedCount = fullClusterStateReceivedCount;
         this.clusterStateDiffReceivedCount = clusterStateDiffReceivedCount;
         this.compatibleClusterStateDiffReceivedCount = compatibleClusterStateDiffReceivedCount;
@@ -68,7 +68,7 @@ public class PublishClusterStateStats implements Writeable, ToXContent {
     public PublishClusterStateStats(StreamInput in) throws IOException {
         fullClusterStateSentCount = in.readVLong();
         clusterStateDiffSentCount = in.readVLong();
-        incompatibleClusterStateDiffsSentCount = in.readVLong();
+        incompatibleClusterStateDiffSentCount = in.readVLong();
         fullClusterStateReceivedCount = in.readVLong();
         clusterStateDiffReceivedCount = in.readVLong();
         compatibleClusterStateDiffReceivedCount = in.readVLong();
@@ -78,7 +78,7 @@ public class PublishClusterStateStats implements Writeable, ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(fullClusterStateSentCount);
         out.writeVLong(clusterStateDiffSentCount);
-        out.writeVLong(incompatibleClusterStateDiffsSentCount);
+        out.writeVLong(incompatibleClusterStateDiffSentCount);
         out.writeVLong(fullClusterStateReceivedCount);
         out.writeVLong(clusterStateDiffReceivedCount);
         out.writeVLong(compatibleClusterStateDiffReceivedCount);
@@ -90,7 +90,7 @@ public class PublishClusterStateStats implements Writeable, ToXContent {
         builder.startObject("sent");
         builder.field("full_cluster_states", fullClusterStateSentCount);
         builder.field("cluster_state_diffs", clusterStateDiffSentCount);
-        builder.field("incompatible_cluster_state_diffs", incompatibleClusterStateDiffsSentCount);
+        builder.field("incompatible_cluster_state_diffs", incompatibleClusterStateDiffSentCount);
         builder.endObject();
         builder.startObject("received");
         builder.field("full_cluster_states", fullClusterStateReceivedCount);
@@ -109,8 +109,8 @@ public class PublishClusterStateStats implements Writeable, ToXContent {
         return clusterStateDiffSentCount;
     }
 
-    public long getIncompatibleClusterStateDiffsSentCount() {
-        return incompatibleClusterStateDiffsSentCount;
+    public long getIncompatibleClusterStateDiffSentCount() {
+        return incompatibleClusterStateDiffSentCount;
     }
 
     public long getFullClusterStateReceivedCount() { return fullClusterStateReceivedCount; }
@@ -123,7 +123,7 @@ public class PublishClusterStateStats implements Writeable, ToXContent {
     public String toString() {
         return "PublishClusterStateStats(sent(full=" + fullClusterStateSentCount
             + ", diffs=" + clusterStateDiffSentCount
-            + ", incompatible=" + incompatibleClusterStateDiffsSentCount
+            + ", incompatible=" + incompatibleClusterStateDiffSentCount
             + "), received(full=" + fullClusterStateReceivedCount
             + ", diffs=" + clusterStateDiffReceivedCount
             + ", compatible=" + compatibleClusterStateDiffReceivedCount

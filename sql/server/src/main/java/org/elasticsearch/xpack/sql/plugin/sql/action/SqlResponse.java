@@ -170,17 +170,20 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
         private final String name;
         private final String esType;
         private final JDBCType jdbcType;
+        private final int displaySize;
 
-        public ColumnInfo(String name, String esType, JDBCType jdbcType) {
+        public ColumnInfo(String name, String esType, JDBCType jdbcType, int displaySize) {
             this.name = name;
             this.esType = esType;
             this.jdbcType = jdbcType;
+            this.displaySize = displaySize;
         }
 
         ColumnInfo(StreamInput in) throws IOException {
             name = in.readString();
             esType = in.readString();
             jdbcType = JDBCType.valueOf(in.readVInt());
+            displaySize = in.readVInt();
         }
 
         @Override
@@ -188,6 +191,7 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
             out.writeString(name);
             out.writeString(esType);
             out.writeVInt(jdbcType.getVendorTypeNumber());
+            out.writeVInt(displaySize);
         }
 
         @Override
@@ -220,6 +224,13 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
             return jdbcType;
         }
 
+        /**
+         * Used by JDBC 
+         */
+        public int displaySize() {
+            return displaySize;
+        }
+
         @Override
         public boolean equals(Object obj) {
             if (obj == null || obj.getClass() != getClass()) {
@@ -228,12 +239,13 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
             ColumnInfo other = (ColumnInfo) obj;
             return name.equals(other.name)
                     && esType.equals(other.esType)
-                    && jdbcType.equals(other.jdbcType);
+                    && jdbcType.equals(other.jdbcType)
+                    && displaySize == other.displaySize;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, esType, jdbcType);
+            return Objects.hash(name, esType, jdbcType, displaySize);
         }
 
         @Override

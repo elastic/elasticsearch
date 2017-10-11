@@ -9,7 +9,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursorTests;
 import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse.ColumnInfo;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
@@ -36,7 +35,7 @@ public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
         if (randomBoolean()) {
             columns = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
-                columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomFrom(JDBCType.values())));
+                columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomFrom(JDBCType.values()), randomInt(25)));
             }
         }
 

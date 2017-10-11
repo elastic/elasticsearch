@@ -56,6 +56,7 @@ import java.util.regex.Pattern;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.sql.util.StringUtils.EMPTY;
 
 public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
     private final SqlLicenseChecker sqlLicenseChecker;
@@ -158,7 +159,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
             List<ColumnInfo> columns = new ArrayList<>(response.columns().size());
             for (SqlResponse.ColumnInfo info : response.columns()) {
                 types.add(info.jdbcType());
-                columns.add(new ColumnInfo(info.name(), info.jdbcType(), "", "", "", ""));
+                columns.add(new ColumnInfo(info.name(), info.jdbcType(), EMPTY, EMPTY, EMPTY, EMPTY, info.displaySize()));
             }
             return new QueryInitResponse(System.nanoTime() - start, serializeCursor(response.cursor(), types), columns,
                     new SqlResponsePayload(types, response.rows()));
@@ -174,7 +175,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
         } catch (IOException e) {
             throw new IllegalArgumentException("error reading the cursor");
         }
-        SqlRequest sqlRequest = new SqlRequest("", SqlRequest.DEFAULT_TIME_ZONE, 0, cursor);
+        SqlRequest sqlRequest = new SqlRequest(EMPTY, SqlRequest.DEFAULT_TIME_ZONE, 0, cursor);
         long start = System.nanoTime();
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(request, channel, response -> {
             return new QueryPageResponse(System.nanoTime() - start, serializeCursor(response.cursor(), types),

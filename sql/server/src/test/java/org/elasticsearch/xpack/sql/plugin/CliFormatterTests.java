@@ -18,11 +18,11 @@ import static org.hamcrest.Matchers.arrayWithSize;
 public class CliFormatterTests extends ESTestCase {
     private final SqlResponse firstResponse = new SqlResponse(Cursor.EMPTY, 10, 5,
             Arrays.asList(
-                    new ColumnInfo("foo", "string", JDBCType.VARCHAR),
-                    new ColumnInfo("bar", "long", JDBCType.BIGINT),
-                    new ColumnInfo("15charwidename!", "double", JDBCType.DOUBLE),
-                    new ColumnInfo("superduperwidename!!!", "double", JDBCType.DOUBLE),
-                    new ColumnInfo("baz", "keyword", JDBCType.VARCHAR)),
+                    new ColumnInfo("foo", "string", JDBCType.VARCHAR, 0),
+                    new ColumnInfo("bar", "long", JDBCType.BIGINT, 15),
+                    new ColumnInfo("15charwidename!", "double", JDBCType.DOUBLE, 25),
+                    new ColumnInfo("superduperwidename!!!", "double", JDBCType.DOUBLE, 25),
+                    new ColumnInfo("baz", "keyword", JDBCType.VARCHAR, 0)),
             Arrays.asList(
                 Arrays.asList("15charwidedata!", 1, 6.888, 12, "rabbit"),
                 Arrays.asList("dog", 1.7976931348623157E308, 123124.888, 9912, "goat")));

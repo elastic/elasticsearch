@@ -14,15 +14,15 @@ import static org.elasticsearch.xpack.sql.test.RoundTripTestUtils.assertRoundTri
 
 public class ColumnInfoTests extends ESTestCase {
     static ColumnInfo varcharInfo(String name) {
-        return new ColumnInfo(name, JDBCType.VARCHAR, "", "", "", "");
+        return new ColumnInfo(name, JDBCType.VARCHAR, "", "", "", "", 0);
     }
 
     static ColumnInfo intInfo(String name) {
-        return new ColumnInfo(name, JDBCType.INTEGER, "", "", "", ""); 
+        return new ColumnInfo(name, JDBCType.INTEGER, "", "", "", "", 11);
     }
 
     static ColumnInfo doubleInfo(String name) {
-        return new ColumnInfo(name, JDBCType.DOUBLE, "", "", "", ""); 
+        return new ColumnInfo(name, JDBCType.DOUBLE, "", "", "", "", 25);
     }
 
     static Object randomValueFor(ColumnInfo info) {
@@ -37,7 +37,7 @@ public class ColumnInfoTests extends ESTestCase {
 
     static ColumnInfo randomColumnInfo() {
         return new ColumnInfo(randomAlphaOfLength(5), randomFrom(JDBCType.values()), randomAlphaOfLength(5), randomAlphaOfLength(5),
-                randomAlphaOfLength(5), randomAlphaOfLength(5));
+                randomAlphaOfLength(5), randomAlphaOfLength(5), randomInt(25));
     }
 
     public void testRoundTrip() throws IOException {
@@ -46,9 +46,9 @@ public class ColumnInfoTests extends ESTestCase {
 
     public void testToString() {
         assertEquals("test.doc.a<type=[VARCHAR] catalog=[as] schema=[ads] label=[lab]>",
-                new ColumnInfo("a", JDBCType.VARCHAR, "test.doc", "as", "ads", "lab").toString());
+                new ColumnInfo("a", JDBCType.VARCHAR, "test.doc", "as", "ads", "lab", 0).toString());
         assertEquals("test.doc.a<type=[VARCHAR]>",
-                new ColumnInfo("a", JDBCType.VARCHAR, "test.doc", "", "", "").toString());
+                new ColumnInfo("a", JDBCType.VARCHAR, "test.doc", "", "", "", 0).toString());
         assertEquals("string<type=[VARCHAR]>", varcharInfo("string").toString());
         assertEquals("int<type=[INTEGER]>", intInfo("int").toString());
         assertEquals("d<type=[DOUBLE]>", doubleInfo("d").toString());

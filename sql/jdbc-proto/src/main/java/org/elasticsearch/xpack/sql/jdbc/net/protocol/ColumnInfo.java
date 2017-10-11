@@ -13,9 +13,10 @@ import java.util.Objects;
 
 public class ColumnInfo {
     public String catalog, schema, table, label, name;
+    public int displaySize;
     public JDBCType type;
 
-    public ColumnInfo(String name, JDBCType type, String table, String catalog, String schema, String label) {
+    public ColumnInfo(String name, JDBCType type, String table, String catalog, String schema, String label, int displaySize) {
         if (name == null) {
             throw new IllegalArgumentException("[name] must not be null");
         }
@@ -40,6 +41,7 @@ public class ColumnInfo {
         this.catalog = catalog;
         this.schema = schema;
         this.label = label;
+        this.displaySize = displaySize;
     }
 
     ColumnInfo(DataInput in) throws IOException {
@@ -49,6 +51,7 @@ public class ColumnInfo {
         catalog = in.readUTF();
         schema = in.readUTF();
         label = in.readUTF();
+        displaySize = in.readInt();
     }
 
     void writeTo(DataOutput out) throws IOException {
@@ -58,11 +61,12 @@ public class ColumnInfo {
         out.writeUTF(catalog);
         out.writeUTF(schema);
         out.writeUTF(label);
+        out.writeInt(displaySize);
     }
 
     public int displaySize() {
-        // NOCOMMIT look at this one.....
-        return -1;
+        // 0 - means unknown
+        return displaySize;
     }
 
     @Override
@@ -95,11 +99,12 @@ public class ColumnInfo {
                 && table.equals(other.table)
                 && catalog.equals(other.catalog)
                 && schema.equals(other.schema)
-                && label.equals(other.label);
+                && label.equals(other.label)
+                && displaySize == other.displaySize;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, table, catalog, schema, label);
+        return Objects.hash(name, type, table, catalog, schema, label, displaySize);
     }
 }

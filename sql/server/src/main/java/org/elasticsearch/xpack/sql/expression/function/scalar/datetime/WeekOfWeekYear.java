@@ -29,7 +29,7 @@ public class WeekOfWeekYear extends DateTimeFunction {
 
     @Override
     protected ChronoField chronoField() {
-        return ChronoField.ALIGNED_WEEK_OF_YEAR; // NOCOMMIT is this right?
+        return ChronoField.ALIGNED_WEEK_OF_YEAR;
     }
 
     @Override

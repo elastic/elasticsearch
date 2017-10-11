@@ -760,14 +760,14 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     public ResultSet getCatalogs() throws SQLException {
         Object[][] data = { { defaultCatalog() } };
         return memorySet(con.cfg, columnInfo("CATALOGS",
-                                    "TABLE_CAT"), data);
+                "TABLE_CAT"), data);
     }
 
     @Override
     public ResultSet getTableTypes() throws SQLException {
         Object[][] data = { { "TABLE" } };
         return memorySet(con.cfg, columnInfo("TABLE_TYPES",
-                                    "TABLE_TYPE"), data);
+                "TABLE_TYPE"), data);
     }
 
     @Override
@@ -1200,7 +1200,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                     }
                     // it's not, use the default and move on
                 }
-                columns.add(new ColumnInfo(name, type, tableName, "INFORMATION_SCHEMA", EMPTY, EMPTY));
+                columns.add(new ColumnInfo(name, type, tableName, "INFORMATION_SCHEMA", EMPTY, EMPTY, 0));
             }
             else {
                 throw new JdbcException("Invalid metadata schema definition");

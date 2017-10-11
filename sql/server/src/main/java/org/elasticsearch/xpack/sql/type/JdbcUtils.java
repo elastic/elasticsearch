@@ -69,10 +69,10 @@ abstract class JdbcUtils {
             case FLOAT:
             case DOUBLE: return 25;
             case VARCHAR:
-            case VARBINARY: return -1;
+            case VARBINARY: return 0;
             case TIMESTAMP: return 20;
             default:
-                return -1;
+                return 0;
         }
     }
 

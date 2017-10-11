@@ -7,55 +7,61 @@ that summarize the bucket results of multiple jobs.
 
 ==== Request
 
-`GET _xpack/ml/anomaly_detectors/<job_id>/results/overall_buckets`
+`GET _xpack/ml/anomaly_detectors/<job_id>/results/overall_buckets` +
+
+`GET _xpack/ml/anomaly_detectors/<job_id>,<job_id>/results/overall_buckets` +
+
+`GET _xpack/ml/anomaly_detectors/_all/results/overall_buckets`
 
 ==== Description
 
-An overall bucket has a span equal to the largest job's `bucket_span`.
-The `overall_score` is calculated by combining the scores of all the
-buckets within the overall bucket span. The max `anomaly_score` per
-job is calculated. Then the `top_n` of those scores are averaged to
-result into the `overall_score`. This means that you can fine-tune
-the `overall_score` so that it is more or less sensitive to the number
-of jobs that detect an anomaly at the same time.
+You can summarize the bucket results for all jobs by using `_all` or by
+specifying `*` as the `<job_id>`.
 
-For example, set `top_n` to 1 and the `overall_score` will be the
-max bucket score in the overall bucket interval. To the contrary,
-set `top_n` to the number of jobs and the `overall_score` will
-only be high when all jobs present anomalies in that overall bucket.
+An overall bucket has a span equal to the largest `bucket_span` value for the
+specified jobs.
+
+The `overall_score` is calculated by combining the scores of all
+the buckets within the overall bucket span. First, the maximum `anomaly_score` per
+job in the overall bucket is calculated. Then the `top_n` of those scores are
+averaged to result in the `overall_score`. This means that you can fine-tune
+the `overall_score` so that it is more or less sensitive to the number
+of jobs that detect an anomaly at the same time. For example, if you set `top_n`
+to `1`, the `overall_score` is the maximum bucket
+score in the overall bucket. Alternatively, if you set `top_n` to the number of
+jobs, the `overall_score` is high only when all jobs detect anomalies in that
+overall bucket.
 
 ==== Path Parameters
 
 `job_id`::
-  (string) Identifier for the job. It can be a job identifier, a group name,
-  or a wildcard expression. If set to `_all`, the API returns overall buckets
-  for all jobs.
-
+  (string) Identifier for the job. It can be a job identifier, a group name, a
+  comma-separated list of jobs or groups, or a wildcard expression.
 
 ==== Request Body
-
-`top_n`::
-  (integer) The number of top job bucket scores to be used in the
-  `overall_score` calculation. The default value is `1`.
-
-`overall_score`::
-  (double) Returns overall buckets with overall scores higher than this value.
-
-`exclude_interim`::
-  (boolean) If true, the output excludes interim overall buckets.
-  Overall buckets are interim if any of the job buckets within
-  the overall bucket interval is interim.
-  By default, interim results are included.
-
-`start`::
-  (string) Returns overall buckets with timestamps after this time.
-
-`end`::
-  (string) Returns overall buckets with timestamps earlier than this time.
 
 `allow_no_jobs`::
   (boolean) If `false` and the `job_id` does not match any job an error will
   be returned. The default value is `true`.
+
+`end`::
+  (string) Returns overall buckets with timestamps earlier than this time.
+
+`exclude_interim`::
+  (boolean) If `true`, the output excludes interim overall buckets.
+  Overall buckets are interim if any of the job buckets within
+  the overall bucket interval are interim.
+  By default, interim results are included.
+
+`overall_score`::
+  (double) Returns overall buckets with overall scores higher than this value.
+
+`start`::
+  (string) Returns overall buckets with timestamps after this time.
+
+`top_n`::
+  (integer) The number of top job bucket scores to be used in the
+  `overall_score` calculation. The default value is `1`.
 
 
 ===== Results

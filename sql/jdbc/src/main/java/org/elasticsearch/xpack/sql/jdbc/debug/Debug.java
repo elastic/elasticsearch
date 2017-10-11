@@ -20,6 +20,7 @@ import java.nio.file.Paths;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
 import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -27,6 +28,8 @@ import java.sql.ResultSetMetaData;
 import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
+
+import javax.sql.DataSource;
 
 public final class Debug {
 
@@ -40,6 +43,18 @@ public final class Debug {
     private static volatile DebugLog ERR = null, OUT = null;
     private static volatile PrintStream SYS_ERR = null, SYS_OUT = null;
 
+    /**
+     * Create a proxied Connection which performs logging of all methods being invoked.
+     * Typically Debug will read its configuration from the configuration and act accordingly however
+     * there are two cases where the output is specified programmatically, namely through
+     * {@link DriverManager#setLogWriter(PrintWriter)} and {@link DataSource#setLogWriter(PrintWriter)}.
+     * The former is the 'legacy' way, having a global impact on all drivers while the latter allows per
+     * instance configuration.
+     * 
+     * As both approaches are not widely used, Debug will take the principle of least surprise and pick its
+     * own configuration first; if that does not exist it will fallback to the managed approaches (assuming they
+     * are specified, otherwise logging is simply disabled).
+     */
     public static Connection proxy(JdbcConfiguration info, Connection connection, PrintWriter managedPrinter) {
         return createProxy(Connection.class, new ConnectionProxy(logger(info, managedPrinter), connection));
     }

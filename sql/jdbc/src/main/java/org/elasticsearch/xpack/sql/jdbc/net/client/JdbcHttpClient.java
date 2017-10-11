@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageResponse;
 import org.elasticsearch.xpack.sql.jdbc.util.BytesArray;
 import org.elasticsearch.xpack.sql.jdbc.util.FastByteArrayInputStream;
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
@@ -55,17 +54,18 @@ public class JdbcHttpClient implements Closeable {
 
     public boolean ping(long timeoutInMs) {
         long oldTimeout = http.getNetworkTimeout();
-        // NOCOMMIT this seems race condition-y
-        http.setNetworkTimeout(timeoutInMs);
         try {
-            return http.head(StringUtils.EMPTY);
+            // this works since the connection is single-threaded and its configuration not shared
+            // with others connections
+            http.setNetworkTimeout(timeoutInMs);
+            return http.head();
         } finally {
             http.setNetworkTimeout(oldTimeout);
         }
     }
 
     public Cursor query(String sql, RequestMeta meta) throws SQLException {
-        int fetch = meta.fetchSize() >= 0 ? meta.fetchSize() : conCfg.pageSize();
+        int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
         QueryInitRequest request = new QueryInitRequest(sql, fetch, conCfg.timeZone(), timeout(meta));
         BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
         QueryInitResponse response = doIO(ba, in -> (QueryInitResponse) readResponse(request, in));

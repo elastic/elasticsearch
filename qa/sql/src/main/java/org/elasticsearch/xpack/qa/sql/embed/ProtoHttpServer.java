@@ -36,6 +36,7 @@ public abstract class ProtoHttpServer {
         executor = new ThreadPoolExecutor(0, 10, 250, TimeUnit.MILLISECONDS, new SynchronousQueue<Runnable>());
 
         server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
+        server.createContext("/", new RootHandler());
         server.createContext(protoSuffix, handler);
         server.setExecutor(executor);
         server.start();

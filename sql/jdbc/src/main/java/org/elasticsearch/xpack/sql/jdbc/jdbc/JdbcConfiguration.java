@@ -32,10 +32,6 @@ import java.util.TimeZone;
 public class JdbcConfiguration extends ConnectionConfiguration {
     static final String URL_PREFIX = "jdbc:es:";
 
-    static final String USER = "user";
-
-    static final String PASSWORD = "password";
-
     static final String DEBUG = "debug";
     static final String DEBUG_DEFAULT = "false";
 
@@ -124,6 +120,9 @@ public class JdbcConfiguration extends ConnectionConfiguration {
                     index = urlFile.indexOf("?");
                     if (index > 0) {
                         urlFile = urlFile.substring(0, index);
+                        if (!urlFile.endsWith("/")) {
+                            urlFile = urlFile + "/";
+                        }
                     }
                 }
             }
@@ -184,12 +183,12 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     }
 
     public String userName() {
-        return settings().getProperty(USER);
+        return settings().getProperty(AUTH_USER);
     }
 
     public String password() {
         // NOCOMMIT make sure we're doing right by the password. Compare with other jdbc drivers and our security code.
-        return settings().getProperty(PASSWORD);
+        return settings().getProperty(AUTH_PASS);
     }
 
     private int port() {

@@ -29,32 +29,31 @@ public class ConnectionConfiguration {
         }
     }
 
-
     // Timeouts
 
     // 30s
-    private static final String CONNECT_TIMEOUT = "connect.timeout";
+    public static final String CONNECT_TIMEOUT = "connect.timeout";
     private static final String CONNECT_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.SECONDS.toMillis(30));
 
     // 1m
-    private static final String NETWORK_TIMEOUT = "network.timeout";
+    public static final String NETWORK_TIMEOUT = "network.timeout";
     private static final String NETWORK_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.MINUTES.toMillis(1));
 
     // 1m
-    private static final String QUERY_TIMEOUT = "query.timeout";
+    public static final String QUERY_TIMEOUT = "query.timeout";
     private static final String QUERY_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.MINUTES.toMillis(1));
 
     // 5m
-    private static final String PAGE_TIMEOUT = "page.timeout";
+    public static final String PAGE_TIMEOUT = "page.timeout";
     private static final String PAGE_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.MINUTES.toMillis(5));
 
-    private static final String PAGE_SIZE = "page.size";
+    public static final String PAGE_SIZE = "page.size";
     private static final String PAGE_SIZE_DEFAULT = "1000";
 
     // Auth
 
-    private static final String AUTH_USER = "user";
-    private static final String AUTH_PASS = "pass";
+    public static final String AUTH_USER = "user";
+    public static final String AUTH_PASS = "pass";
 
     // Proxy
 

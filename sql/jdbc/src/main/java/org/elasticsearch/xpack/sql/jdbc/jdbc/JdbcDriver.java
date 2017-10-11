@@ -68,13 +68,15 @@ public class JdbcDriver implements java.sql.Driver, Closeable {
             return null;
         }
 
-        JdbcConfiguration info = initInfo(url, props);
-        JdbcConnection con = new JdbcConnection(info);
-        return info.debug() ? Debug.proxy(info, con, DriverManager.getLogWriter()) : con;
+        JdbcConfiguration cfg = initCfg(url, props);
+        JdbcConnection con = new JdbcConnection(cfg);
+        return cfg.debug() ? Debug.proxy(cfg, con, DriverManager.getLogWriter()) : con;
     }
 
-    private static JdbcConfiguration initInfo(String url, Properties props) {
+    private static JdbcConfiguration initCfg(String url, Properties props) {
         JdbcConfiguration ci = new JdbcConfiguration(url, props);
+
+        // if there's a timeout set on the DriverManager, make sure to use it
         if (DriverManager.getLoginTimeout() > 0) {
             ci.connectTimeout(TimeUnit.SECONDS.toMillis(DriverManager.getLoginTimeout()));
         }

@@ -212,8 +212,14 @@ class JdbcStatement implements Statement, JdbcWrapper {
     @Override
     public int getFetchSize() throws SQLException {
         checkOpen();
-        // NOCOMMIT this will return a bad value because we use -1 to mean "default" but default is something defined in connection string
-        return requestMeta.fetchSize();
+        int fetchSize = requestMeta.fetchSize();
+        // the spec is somewhat unclear. It looks like there are 3 states:
+        // unset (in this case -1 which the user cannot set) - in this case, the default fetch size is returned
+        // 0 meaning the hint is disabled (the user has called setFetch)
+        // >0 means actual hint
+        
+        // tl;dr - if invalid, it means it was not set so return default - otherwise return the set value
+        return fetchSize < 0 ? cfg.pageSize() : fetchSize;
     }
 
     @Override

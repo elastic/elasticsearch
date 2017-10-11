@@ -35,7 +35,7 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     public void testMultiPathSuffix() throws Exception {
-        assertThat(ci("jdbc:es://a:1/foo/bar/tar").asUrl().toString(), is("http://a:1/foo/bar/tar"));
+        assertThat(ci("jdbc:es://a:1/foo/bar/tar/").asUrl().toString(), is("http://a:1/foo/bar/tar"));
     }
 
     public void testDebug() throws Exception {
@@ -59,7 +59,7 @@ public class JdbcConfigurationTests extends ESTestCase {
 
     public void testDebugOutWithSuffix() throws Exception {
         JdbcConfiguration ci = ci("jdbc:es://a:1/foo/bar/tar?debug=true&debug.output=jdbc.out");
-        assertThat(ci.asUrl().toString(), is("http://a:1/foo/bar/tar"));
+        assertThat(ci.asUrl().toString(), is("http://a:1/foo/bar/tar/"));
         assertThat(ci.debug(), is(true));
         assertThat(ci.debugOut(), is("jdbc.out"));
     }

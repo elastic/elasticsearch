@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.jdbc.jdbcx;
 import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConnection;
+import org.elasticsearch.xpack.sql.net.client.ConnectionConfiguration;
 
 import java.io.Closeable;
 import java.io.PrintWriter;
@@ -20,13 +21,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 import javax.sql.DataSource;
-
 public class JdbcDataSource implements DataSource, Wrapper, Closeable {
 
     private String url;
     private PrintWriter writer;
     private int loginTimeout;
-    private Properties info;
+    private Properties props;
 
     public JdbcDataSource() {}
 
@@ -42,6 +42,9 @@ public class JdbcDataSource implements DataSource, Wrapper, Closeable {
 
     @Override
     public void setLoginTimeout(int seconds) throws SQLException {
+        if (seconds < 0) {
+            throw new SQLException("Negative timeout specified " + seconds);
+        }
         loginTimeout = seconds;
     }
 
@@ -63,32 +66,40 @@ public class JdbcDataSource implements DataSource, Wrapper, Closeable {
         this.url = url;
     }
 
-    public Properties getInfo() {
-        return info;
+    public Properties getProperties() {
+        return props;
     }
 
-    public void setInfo(Properties props) {
-        this.info = props;
+    public void setProperties(Properties props) {
+        this.props = props;
+    }
+
+    private Properties createConfig() {
+        Properties p = props != null ? new Properties(props) : new Properties();
+        return p;
     }
 
     @Override
     public Connection getConnection() throws SQLException {
-        return doGetConnection(info);
+        return doGetConnection(props);
     }
 
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
-        // TODO: set user/pass props
-        throw new UnsupportedOperationException();
-        //return doGetConnection(null);
+        Properties p = createConfig();
+        p.setProperty(ConnectionConfiguration.AUTH_USER, username);
+        p.setProperty(ConnectionConfiguration.AUTH_PASS, password);
+        return doGetConnection(p);
     }
 
     private Connection doGetConnection(Properties p) {
-        JdbcConfiguration ci = new JdbcConfiguration(url, p);
+        JdbcConfiguration cfg = new JdbcConfiguration(url, p);
         if (loginTimeout > 0) {
-            ci.connectTimeout(TimeUnit.SECONDS.toMillis(loginTimeout));
+            cfg.connectTimeout(TimeUnit.SECONDS.toMillis(loginTimeout));
         }
-        return new JdbcConnection(ci);
+        JdbcConnection con = new JdbcConnection(cfg);
+        // enable logging if needed
+        return Debug.proxy(cfg, con, writer);
     }
 
     @Override

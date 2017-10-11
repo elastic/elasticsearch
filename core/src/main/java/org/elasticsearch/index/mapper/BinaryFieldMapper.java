@@ -166,6 +166,8 @@ public class BinaryFieldMapper extends FieldMapper {
             } else {
                 field.add(value);
             }
+        } else {
+            createFieldNamesField(context, fields);
         }
 
     }

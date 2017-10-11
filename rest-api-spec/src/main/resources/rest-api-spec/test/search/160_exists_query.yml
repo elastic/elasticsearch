@@ -1,4 +1,7 @@
 setup:
+  - skip:
+      features: ["headers"]
+
   - do:
       indices.create:
           index:  test
@@ -9,6 +12,7 @@ setup:
                 properties:
                   binary:
                     type: binary
+                    doc_values: true
                   boolean:
                     type: boolean
                   date:
@@ -46,12 +50,14 @@ setup:
                     type: text
   
   - do:
+      headers:
+        Content-Type: application/json
       index:
           index:  "test"
           type:   "test"
           id:     1
           body:
-            binary: "abcd1234"
+            binary: "YWJjZGUxMjM0"
             boolean: true
             date: "2017-01-01"
             geo_point: [0.0, 20.0]
@@ -73,12 +79,14 @@ setup:
             text: "foo bar"
   
   - do:
+      headers:
+        Content-Type: application/json
       index:
           index:  "test"
           type:   "test"
           id:     2
           body:
-            binary: "abcd1234"
+            binary: "YWJjZGUxMjM0"
             boolean: false
             date: "2017-01-01"
             geo_point: [0.0, 20.0]
@@ -99,13 +107,15 @@ setup:
             text: "foo bar"
   
   - do:
+      headers:
+        Content-Type: application/json
       index:
           index:  "test"
           type:   "test"
           id:     3
           routing: "route_me"
           body:
-            binary: "abcd1234"
+            binary: "YWJjZGUxMjM0"
             boolean: true
             date: "2017-01-01"
             geo_point: [0.0, 20.0]
@@ -143,6 +153,7 @@ setup:
                   binary:
                     type: binary
                     doc_values: false
+                    store: true
                   boolean:
                     type: boolean
                     doc_values: false
@@ -195,12 +206,14 @@ setup:
                     doc_values: false
   
   - do:
+      headers:
+        Content-Type: application/json
       index:
           index:  "test-no-dv"
           type:   "test"
           id:     1
           body:
-            binary: "abcd1234"
+            binary: "YWJjZGUxMjM0"
             boolean: true
             date: "2017-01-01"
             geo_point: [0.0, 20.0]
@@ -222,12 +235,14 @@ setup:
             text: "foo bar"
   
   - do:
+      headers:
+        Content-Type: application/json
       index:
           index:  "test-no-dv"
           type:   "test"
           id:     2
           body:
-            binary: "abcd1234"
+            binary: "YWJjZGUxMjM0"
             boolean: false
             date: "2017-01-01"
             geo_point: [0.0, 20.0]
@@ -248,13 +263,15 @@ setup:
             text: "foo bar"
   
   - do:
+      headers:
+        Content-Type: application/json
       index:
           index:  "test-no-dv"
           type:   "test"
           id:     3
           routing: "route_me"
           body:
-            binary: "abcd1234"
+            binary: "YWJjZGUxMjM0"
             boolean: true
             date: "2017-01-01"
             geo_point: [0.0, 20.0]
@@ -358,7 +375,7 @@ setup:
               exists:
                 field: binary
 
-  - match: {hits.total: 0}
+  - match: {hits.total: 3}
 
 ---
 "Test exists query on mapped boolean field":
@@ -1065,7 +1082,7 @@ setup:
               exists:
                 field: binary
 
-  - match: {hits.total: 0}
+  - match: {hits.total: 3}
 
 ---
 "Test exists query on mapped boolean field with no doc values":

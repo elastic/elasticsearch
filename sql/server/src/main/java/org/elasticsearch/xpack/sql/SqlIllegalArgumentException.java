@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql;
 
-public class SqlIllegalArgumentException extends SqlException {
+public class SqlIllegalArgumentException extends ServerSqlException {
     public SqlIllegalArgumentException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
     }

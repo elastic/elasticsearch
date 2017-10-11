@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
+import org.elasticsearch.xpack.sql.analysis.catalog.MappingException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
@@ -54,7 +54,7 @@ public class EsRelation extends LeafPlan {
                         //                            return flatten(location, ((ObjectType) t).properties(), name, combine(nestedParents, name));
                         //                        }
 
-                        throw new SqlIllegalArgumentException("Does not know how to handle complex type %s", t);
+                        throw new MappingException("Does not know how to handle complex type %s", t);
                     }
                     Attribute att = nestedParents.isEmpty() ? new RootFieldAttribute(location, name, t) : new NestedFieldAttribute(location, name, t, nestedParents);
                     return Stream.of(att);

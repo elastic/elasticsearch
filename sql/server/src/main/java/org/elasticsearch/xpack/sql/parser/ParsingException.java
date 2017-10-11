@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
-import java.util.Locale;
-
 import org.antlr.v4.runtime.RecognitionException;
-import org.elasticsearch.xpack.sql.SqlException;
+import org.elasticsearch.xpack.sql.ClientSqlException;
 import org.elasticsearch.xpack.sql.tree.Location;
+
+import java.util.Locale;
 
 import static java.lang.String.format;
 
-public class ParsingException extends SqlException {
+public class ParsingException extends ClientSqlException {
     private final int line;
     private final int charPositionInLine;
 

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.analysis.catalog;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.Objects;
 
@@ -48,12 +47,12 @@ public interface Catalog {
 
         /**
          * Get the {@linkplain EsIndex} built by the {@linkplain Catalog}.
-         * @throws SqlIllegalArgumentException if the index is invalid for
+         * @throws MappingException if the index is invalid for
          *      use with sql
          */
         public EsIndex get() {
             if (invalid != null) {
-                throw new SqlIllegalArgumentException(invalid);
+                throw new MappingException(invalid);
             }
             return index;
         }

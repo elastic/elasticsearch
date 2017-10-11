@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.sql.SQLClientInfoException;
 import java.sql.SQLDataException;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLRecoverableException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLTimeoutException;
@@ -74,7 +75,8 @@ public abstract class AbstractProto {
         DATA(SQLDataException::new),
         SYNTAX(SQLSyntaxErrorException::new),
         RECOVERABLE(SQLRecoverableException::new),
-        TIMEOUT(SQLTimeoutException::new);
+        TIMEOUT(SQLTimeoutException::new),
+        NOT_SUPPORTED(SQLFeatureNotSupportedException::new);
 
         private final Function<String, SQLException> toException;
 

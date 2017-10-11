@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.analysis;
+package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.sql.ClientSqlException;
@@ -14,12 +14,12 @@ import java.util.Locale;
 
 import static java.lang.String.format;
 
-public class AnalysisException extends ClientSqlException {
+public class FoldingException extends ClientSqlException {
 
     private final int line;
     private final int column;
 
-    public AnalysisException(Node<?> source, String message, Object... args) {
+    public FoldingException(Node<?> source, String message, Object... args) {
         super(message, args);
 
         Location loc = Location.EMPTY;
@@ -30,7 +30,7 @@ public class AnalysisException extends ClientSqlException {
         this.column = loc.getColumnNumber();
     }
 
-    public AnalysisException(Node<?> source, String message, Throwable cause) {
+    public FoldingException(Node<?> source, String message, Throwable cause) {
         super(message, cause);
 
         Location loc = Location.EMPTY;

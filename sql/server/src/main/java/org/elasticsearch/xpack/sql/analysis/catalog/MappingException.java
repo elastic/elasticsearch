@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.analysis.catalog;
 
-import org.elasticsearch.xpack.sql.SqlException;
+import org.elasticsearch.xpack.sql.ClientSqlException;
 
-public class MappingException extends SqlException {
+public class MappingException extends ClientSqlException {
 
     public MappingException(String message, Object... args) {
         super(message, args);

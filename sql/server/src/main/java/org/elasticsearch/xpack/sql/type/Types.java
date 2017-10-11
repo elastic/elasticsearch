@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Map.Entry;
-
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.analysis.catalog.MappingException;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import static java.lang.Math.floor;
 import static java.lang.Math.log10;
@@ -65,7 +65,6 @@ public abstract class Types {
                     throw new MappingException("Don't know how to parse entry %s in map %s", type, content);
                 }
             }
-
             // object type ignored
         }
         else {

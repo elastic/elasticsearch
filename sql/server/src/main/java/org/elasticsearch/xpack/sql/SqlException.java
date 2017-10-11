@@ -11,7 +11,7 @@ import java.util.Locale;
 
 import static java.lang.String.format;
 
-public class SqlException extends ElasticsearchException {
+public abstract class SqlException extends ElasticsearchException {
     public SqlException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
     }

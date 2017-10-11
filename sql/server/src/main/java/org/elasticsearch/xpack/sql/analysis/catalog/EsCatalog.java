@@ -10,7 +10,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.Types;
 
@@ -28,7 +28,7 @@ public class EsCatalog implements Catalog {
     }
 
     @Override
-    public GetIndexResult getIndex(String index) throws SqlIllegalArgumentException {
+    public GetIndexResult getIndex(String index) throws SqlException {
         IndexMetaData idx = clusterState.getMetaData().index(index);
         if (idx == null) {
             return GetIndexResult.notFound(index);

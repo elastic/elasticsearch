@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.xpack.sql.ClientSqlException;
+import org.elasticsearch.xpack.sql.planner.Verifier.Failure;
+
 import java.util.Collection;
 import java.util.StringJoiner;
 
-import org.elasticsearch.xpack.sql.SqlException;
-import org.elasticsearch.xpack.sql.planner.Verifier.Failure;
+public class PlanningException extends ClientSqlException {
 
-public class PlanningException extends SqlException {
-
-    public PlanningException(String message) {
-        super(message);
+    public PlanningException(String message, Object... args) {
+        super(message, args);
     }
 
     public PlanningException(Collection<Failure> sources) {

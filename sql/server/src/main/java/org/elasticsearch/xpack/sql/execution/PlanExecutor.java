@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
+import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -63,7 +63,7 @@ public class PlanExecutor {
             return SourceGenerator.sourceBuilder(e.queryContainer(), settings.pageSize());
         }
         else {
-            throw new SqlIllegalArgumentException("Cannot generate a query DSL for %s", sql);
+            throw new PlanningException("Cannot generate a query DSL for %s", sql);
         }
     }
 
@@ -73,7 +73,12 @@ public class PlanExecutor {
 
     public void sql(SqlSettings sqlSettings, String sql, ActionListener<RowSet> listener) {
         SqlSession session = newSession(sqlSettings);
-        session.executable(sql).execute(session, listener);
+        try {
+            PhysicalPlan executable = session.executable(sql);
+            executable.execute(session, listener);
+        } catch (Exception ex) {
+            listener.onFailure(ex);
+        }
     }
 
     public void nextPage(Cursor cursor, ActionListener<RowSet> listener) {

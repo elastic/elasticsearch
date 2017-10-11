@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog.GetIndexResult;
 
 import java.io.IOException;
@@ -71,7 +70,7 @@ public class EsCatalogTests extends ESTestCase {
 
         GetIndexResult result = catalog.getIndex("test");
         assertFalse(result.isValid());
-        Exception e = expectThrows(SqlIllegalArgumentException.class, result::get);
+        Exception e = expectThrows(MappingException.class, result::get);
         assertEquals(e.getMessage(), "[test] contains more than one type [first_type, second_type] so it is incompatible with sql");
     }
 
@@ -83,7 +82,7 @@ public class EsCatalogTests extends ESTestCase {
 
         GetIndexResult result = catalog.getIndex("test");
         assertFalse(result.isValid());
-        Exception e = expectThrows(SqlIllegalArgumentException.class, result::get);
+        Exception e = expectThrows(MappingException.class, result::get);
         assertEquals(e.getMessage(), "[test] doesn't have any types so it is incompatible with sql");
     }
 
@@ -97,7 +96,7 @@ public class EsCatalogTests extends ESTestCase {
 
         GetIndexResult result = catalog.getIndex(".security");
         assertFalse(result.isValid());
-        Exception e = expectThrows(SqlIllegalArgumentException.class, result::get);
+        Exception e = expectThrows(MappingException.class, result::get);
         assertEquals(e.getMessage(), "[.security] starts with [.] so it is considered internal and incompatible with sql");
     }
 

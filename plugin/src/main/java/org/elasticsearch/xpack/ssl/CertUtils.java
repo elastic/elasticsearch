@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -360,6 +361,9 @@ public class CertUtils {
      */
     static PKCS10CertificationRequest generateCSR(KeyPair keyPair, X500Principal principal, GeneralNames sanList)
             throws IOException, OperatorCreationException {
+        Objects.requireNonNull(keyPair, "Key-Pair must not be null");
+        Objects.requireNonNull(keyPair.getPublic(), "Public-Key must not be null");
+        Objects.requireNonNull(principal, "Principal must not be null");
         JcaPKCS10CertificationRequestBuilder builder = new JcaPKCS10CertificationRequestBuilder(principal, keyPair.getPublic());
         if (sanList != null) {
             ExtensionsGenerator extGen = new ExtensionsGenerator();

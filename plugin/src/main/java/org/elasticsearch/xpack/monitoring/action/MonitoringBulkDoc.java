@@ -55,16 +55,16 @@ public class MonitoringBulkDoc implements Writeable {
     public static MonitoringBulkDoc readFrom(StreamInput in) throws IOException {
         final MonitoredSystem system = MonitoredSystem.fromSystem(in.readOptionalString());
 
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
-            in.readOptionalString(); // Monitoring version, removed in 7.0
-            in.readOptionalString(); // Cluster UUID, removed in 7.0
+        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
+            in.readOptionalString(); // Monitoring version, removed in 6.0 rc1
+            in.readOptionalString(); // Cluster UUID, removed in 6.0 rc1
         }
 
         final long timestamp = in.readVLong();
 
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
-            in.readOptionalWriteable(MonitoringDoc.Node::new);// Source node, removed in 7.0
-            MonitoringIndex.readFrom(in);// Monitoring index, removed in 7.0
+        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
+            in.readOptionalWriteable(MonitoringDoc.Node::new);// Source node, removed in 6.0 rc1
+            MonitoringIndex.readFrom(in);// Monitoring index, removed in 6.0 rc1
         }
 
         final String type = in.readOptionalString();
@@ -73,7 +73,7 @@ public class MonitoringBulkDoc implements Writeable {
         final XContentType xContentType = (source != BytesArray.EMPTY) ? XContentType.readFrom(in) : XContentType.JSON;
 
         long interval = 0L;
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
             interval = in.readVLong();
         }
         return new MonitoringBulkDoc(system, type, id, timestamp, interval, source, xContentType);
@@ -82,12 +82,12 @@ public class MonitoringBulkDoc implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(system.getSystem());
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
             out.writeOptionalString(MonitoringTemplateUtils.TEMPLATE_VERSION);
             out.writeOptionalString(null);
         }
         out.writeVLong(timestamp);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
             out.writeOptionalWriteable(null);
             MonitoringIndex.IGNORED_DATA.writeTo(out);
         }
@@ -97,7 +97,7 @@ public class MonitoringBulkDoc implements Writeable {
         if (source != BytesArray.EMPTY) {
             xContentType.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
             out.writeVLong(interval);
         }
     }

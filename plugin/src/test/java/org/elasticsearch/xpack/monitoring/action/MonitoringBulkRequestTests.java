@@ -260,7 +260,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
             originalRequest.add(randomMonitoringBulkDoc());
         }
 
-        final Version version = randomVersionBetween(random(), Version.V_5_0_0, Version.V_7_0_0_alpha1);
+        final Version version = randomVersionBetween(random(), Version.V_5_0_0, Version.V_6_0_0_rc1);
 
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(version);
@@ -290,7 +290,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
             assertThat(deserialized.getSource(), equalTo(original.getSource()));
             assertThat(deserialized.getXContentType(), equalTo(original.getXContentType()));
 
-            if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (version.onOrAfter(Version.V_6_0_0_rc1)) {
                 assertThat(deserialized.getInterval(), equalTo(original.getInterval()));
             } else {
                 assertThat(deserialized.getInterval(), equalTo(0L));

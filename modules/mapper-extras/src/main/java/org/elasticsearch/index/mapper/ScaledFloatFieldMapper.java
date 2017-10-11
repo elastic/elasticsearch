@@ -26,11 +26,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -208,6 +210,22 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             super.checkCompatibility(other, conflicts, strict);
             if (scalingFactor != ((ScaledFloatFieldType) other).getScalingFactor()) {
                 conflicts.add("mapper [" + name() + "] has different [scaling_factor] values");
+            }
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
+                        .getMapperService().fullName(FieldNamesFieldMapper.NAME);
+                if (fieldNamesFieldType == null) {
+                    // can only happen when no types exist, so no docs exist
+                    // either
+                    return Queries.newMatchNoDocsQuery("Missing types in \"" + name() + "\" field.");
+                }
+                return fieldNamesFieldType.termQuery(name(), context);
             }
         }
 
@@ -406,6 +424,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
         fields.addAll(NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, docValued, stored));
+        if (docValued == false && (indexed || stored)) {
+            createFieldNamesField(context, fields);
+        }
     }
 
     @Override

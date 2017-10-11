@@ -22,13 +22,16 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -275,6 +278,22 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
+                        .getMapperService().fullName(FieldNamesFieldMapper.NAME);
+                if (fieldNamesFieldType == null) {
+                    // can only happen when no types exist, so no docs exist
+                    // either
+                    return Queries.newMatchNoDocsQuery("Missing types in \"" + name() + "\" field.");
+                }
+                return fieldNamesFieldType.termQuery(name(), context);
+            }
+        }
+
+        @Override
         public Query nullValueQuery() {
             if (nullValue() == null) {
                 return null;
@@ -332,8 +351,8 @@ public class TextFieldMapper extends FieldMapper {
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             Field field = new Field(fieldType().name(), value, fieldType());
             fields.add(field);
+            createFieldNamesField(context, fields);
         }
-        createFieldNamesField(context, fields);
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
@@ -32,6 +33,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -150,6 +152,22 @@ public class IpFieldMapper extends FieldMapper {
                     value = ((BytesRef) value).utf8ToString();
                 }
                 return InetAddresses.forString(value.toString());
+            }
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
+                        .getMapperService().fullName(FieldNamesFieldMapper.NAME);
+                if (fieldNamesFieldType == null) {
+                    // can only happen when no types exist, so no docs exist
+                    // either
+                    return Queries.newMatchNoDocsQuery("Missing types in \"" + name() + "\" field.");
+                }
+                return fieldNamesFieldType.termQuery(name(), context);
             }
         }
 
@@ -369,7 +387,7 @@ public class IpFieldMapper extends FieldMapper {
         }
         if (fieldType().hasDocValues()) {
             fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
-        } else {
+        } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
             createFieldNamesField(context, fields);
         }
         if (fieldType().stored()) {

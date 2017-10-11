@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -137,6 +139,22 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
+                        .getMapperService().fullName(FieldNamesFieldMapper.NAME);
+                if (fieldNamesFieldType == null) {
+                    // can only happen when no types exist, so no docs exist
+                    // either
+                    return Queries.newMatchNoDocsQuery("Missing types in \"" + name() + "\" field.");
+                }
+                return fieldNamesFieldType.termQuery(name(), context);
+            }
+        }
+
+        @Override
         public Boolean nullValue() {
             return (Boolean)super.nullValue();
         }
@@ -221,9 +239,6 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        if (fieldType().hasDocValues() == false) {
-            createFieldNamesField(context, fields);
-        }
         if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored() && !fieldType().hasDocValues()) {
             return;
         }
@@ -256,6 +271,8 @@ public class BooleanFieldMapper extends FieldMapper {
         }
         if (fieldType().hasDocValues()) {
             fields.add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
+        } else {
+            createFieldNamesField(context, fields);
         }
     }
 

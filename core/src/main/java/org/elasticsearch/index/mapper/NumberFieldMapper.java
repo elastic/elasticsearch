@@ -30,6 +30,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -868,6 +869,22 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
+                        .getMapperService().fullName(FieldNamesFieldMapper.NAME);
+                if (fieldNamesFieldType == null) {
+                    // can only happen when no types exist, so no docs exist
+                    // either
+                    return Queries.newMatchNoDocsQuery("Missing types in \"" + name() + "\" field.");
+                }
+                return fieldNamesFieldType.termQuery(name(), context);
+            }
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexed();
             Query query = type.termQuery(name(), value);
@@ -1001,7 +1018,7 @@ public class NumberFieldMapper extends FieldMapper {
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
         fields.addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, docValued, stored));
-        if (docValued == false) {
+        if (docValued == false && (stored || indexed)) {
             createFieldNamesField(context, fields);
         }
     }

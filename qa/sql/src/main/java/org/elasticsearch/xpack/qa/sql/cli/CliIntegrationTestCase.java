@@ -107,6 +107,7 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
             }
         });
         logger.info("connected");
+        cliSocket.setSoTimeout(10000);
 
         out = new PrintWriter(new OutputStreamWriter(cliSocket.getOutputStream(), StandardCharsets.UTF_8), true);
         out.println(ES.get());
@@ -125,10 +126,13 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
         }
         try {
             // Try and shutdown the client normally
-            out.println("quit;");
+            /* Don't use println because it enits \r\n on windows but we put the
+            * terminal in unix mode to make the tests consistent. */
+            out.print("quit;\n");
+            out.flush();
             List<String> nonQuit = new ArrayList<>();
             String line;
-            while (false == (line = readLine()).equals("[?1h=[33msql> [0mquit;[90mBye![0m")) {
+            while (false == (line = readLine()).startsWith("[?1h=[33msql> [0mquit;[90mBye![0m")) {
                 if (false == line.isEmpty()) {
                     nonQuit.add(line);
                 }
@@ -155,8 +159,11 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
      */
     protected String command(String command) throws IOException {
         assertThat("; automatically added", command, not(endsWith(";")));
-        logger.debug("out: {};", command);
-        out.println(command + ";");
+        logger.info("out: {};", command);
+        /* Don't use println because it enits \r\n on windows but we put the
+         * terminal in unix mode to make the tests consistent. */
+        out.print(command + ";\n");
+        out.flush();
         String firstResponse = "[?1h=[33msql> [0m" + command + ";";
         String firstLine = readLine();
         assertThat(firstLine, startsWith(firstResponse));
@@ -168,7 +175,7 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
          * remove it here and pretend it isn't required. Hopefully
          * `[` is enough for us to assert on. */
         String line = in.readLine().replace("\u001B", "");
-        logger.debug("in : {}", line);
+        logger.info("in : {}", line);
         return line;
     }
 

@@ -36,6 +36,12 @@ public class PublishClusterStateStats implements Writeable, ToXContent {
     private final long clusterStateDiffSentCount;
     private final long incompatibleClusterStateDiffVersionCount;
 
+    /**
+     * @param fullClusterStateSentCount  the number of times this node, as master, has sent the full cluster state to a follower.
+     * @param clusterStateDiffSentCount  the number of times this node, as master, has sent a cluster-state diff to a follower.
+     * @param incompatibleClusterStateDiffVersionCount  the number of times a cluster-state diff was rejected by a follower because the
+     *                                                  follower's state was incompatible with the diff that was sent.
+     */
     public PublishClusterStateStats(long fullClusterStateSentCount,
                                     long clusterStateDiffSentCount,
                                     long incompatibleClusterStateDiffVersionCount) {

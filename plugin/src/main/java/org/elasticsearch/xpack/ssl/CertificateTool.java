@@ -47,7 +47,10 @@ import org.bouncycastle.openssl.jcajce.JcePEMEncryptorBuilder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -222,7 +225,7 @@ public class CertificateTool extends EnvironmentAwareCommand {
     static Collection<CertificateInformation> getCertificateInformationList(Terminal terminal, String inputFile)
             throws Exception {
         if (inputFile != null) {
-            return parseFile(resolvePath(inputFile).toAbsolutePath());
+            return parseAndValidateFile(terminal, resolvePath(inputFile).toAbsolutePath());
         }
         Map<String, CertificateInformation> map = new HashMap<>();
         boolean done = false;
@@ -265,6 +268,26 @@ public class CertificateTool extends EnvironmentAwareCommand {
             }
         }
         return map.values();
+    }
+
+    static Collection<CertificateInformation> parseAndValidateFile(Terminal terminal, Path file) throws Exception {
+        final Collection<CertificateInformation> config = parseFile(file);
+        boolean hasError = false;
+        for (CertificateInformation certInfo : config) {
+            final List<String> errors = certInfo.validate();
+            if (errors.size() > 0) {
+                hasError = true;
+                terminal.println(Verbosity.SILENT, "Configuration for instance " + certInfo.name.originalName + " has invalid details");
+                for (String message : errors) {
+                    terminal.println(Verbosity.SILENT, " * " + message);
+                }
+                terminal.println("");
+            }
+        }
+        if (hasError) {
+            throw new UserException(ExitCodes.CONFIG, "File " + file + " contains invalid configuration details (see messages above)");
+        }
+        return config;
     }
 
     /**

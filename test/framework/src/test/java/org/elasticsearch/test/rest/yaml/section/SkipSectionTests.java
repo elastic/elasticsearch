@@ -24,7 +24,9 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -41,6 +43,38 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         section = new SkipSection(randomBoolean() ? null : "5.0.0 - 5.1.0",
                 Collections.singletonList("boom"), "foobar");
         assertTrue(section.skip(Version.CURRENT));
+    }
+
+    public void testParseVersionRange() throws Exception {
+        List<String> features = Collections.emptyList();
+        Arrays.asList("5.0.0 - 5.1.1", "5.0.0-5.1.1", "5.0.0- 5.1.1", "5.0.0 -5.1.1").forEach(
+            vr -> verifyVersionRange(vr, features, Version.V_5_0_0, Version.V_5_1_1));
+        Arrays.asList("5.0.0 - ", "5.0.0- ", "5.0.0 -", "5.0.0-").forEach(
+            vr -> verifyVersionRange(vr, features, Version.V_5_0_0, Version.CURRENT));
+        Arrays.asList(" - 5.0.0", " -5.0.0", "-5.0.0", "- 5.0.0").forEach(
+            vr -> verifyVersionRange(vr, features, VersionUtils.getFirstVersion(), Version.V_5_0_0));
+        Arrays.asList("5.0.0 - 6.0.0-rc1", "5.0.0 -6.0.0-rc1", "5.0.0- 6.0.0-rc1", "5.0.0-6.0.0-rc1").forEach(
+            vr -> verifyVersionRange(vr, features, Version.V_5_0_0, Version.V_6_0_0_rc1));
+        Arrays.asList("6.0.0-rc1 - 5.0.0", "6.0.0-rc1- 5.0.0", "6.0.0-rc1 -5.0.0", "6.0.0-rc1-5.0.0").forEach(
+            vr -> verifyVersionRange(vr, features, Version.V_6_0_0_rc1, Version.V_5_0_0));
+        Arrays.asList("5.0.0 - 6.0.0-beta1", "5.0.0 -6.0.0-beta1", "5.0.0- 6.0.0-beta1", "5.0.0-6.0.0-beta1").forEach(
+            vr -> verifyVersionRange(vr, features, Version.V_5_0_0, Version.V_6_0_0_beta1));
+        Arrays.asList("6.0.0-beta1 - 5.0.0", "6.0.0-beta1- 5.0.0", "6.0.0-beta1 -5.0.0", "6.0.0-beta1-5.0.0").forEach(
+            vr -> verifyVersionRange(vr, features, Version.V_6_0_0_beta1, Version.V_5_0_0));
+        Arrays.asList("5.0.0 - 6.0.0-alpha1", "5.0.0 -6.0.0-alpha1", "5.0.0- 6.0.0-alpha1", "5.0.0-6.0.0-alpha1").forEach(
+            vr -> verifyVersionRange(vr, features, Version.V_5_0_0, Version.V_6_0_0_alpha1));
+        Arrays.asList("6.0.0-alpha1 - 5.0.0", "6.0.0-alpha1- 5.0.0", "6.0.0-alpha1 -5.0.0", "6.0.0-alpha1-5.0.0").forEach(
+            vr -> verifyVersionRange(vr, features, Version.V_6_0_0_alpha1, Version.V_5_0_0));
+        Arrays.asList(" - 6.0.0-rc1", " -6.0.0-rc1", "- 6.0.0-rc1", "-6.0.0-rc1").forEach(
+            vr -> verifyVersionRange(vr, features, VersionUtils.getFirstVersion(), Version.V_6_0_0_rc1));
+        Arrays.asList("6.0.0-rc1 - ", "6.0.0-rc1- ", "6.0.0-rc1 -", "6.0.0-rc1-").forEach(
+            vr -> verifyVersionRange(vr, features, Version.V_6_0_0_rc1, Version.CURRENT));
+    }
+
+    private void verifyVersionRange(String versionRange, List<String> features, Version lowerVersion, Version upperVersion) {
+        SkipSection skipSection = new SkipSection(versionRange, features, "foo");
+        assertEquals(lowerVersion, skipSection.getLowerVersion());
+        assertEquals(upperVersion, skipSection.getUpperVersion());
     }
 
     public void testMessage() {

@@ -144,7 +144,6 @@ import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
-import sun.nio.ch.IOUtil;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

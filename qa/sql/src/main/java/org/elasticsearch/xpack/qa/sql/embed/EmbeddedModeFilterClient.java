@@ -23,15 +23,20 @@ import org.elasticsearch.xpack.sql.plugin.sql.action.SqlRequest;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
 import org.elasticsearch.xpack.sql.plugin.sql.action.TransportSqlAction;
 
+import java.util.Objects;
+
 /**
  * Implements embedded sql mode by intercepting requests to SQL APIs and executing them locally.
  */
 public class EmbeddedModeFilterClient extends FilterClient {
-    private final PlanExecutor planExecutor;
+    private PlanExecutor planExecutor;
 
-    public EmbeddedModeFilterClient(Client in, PlanExecutor planExecutor) {
+    public EmbeddedModeFilterClient(Client in) {
         super(in);
-        this.planExecutor = planExecutor;
+    }
+
+    public void setPlanExecutor(PlanExecutor executor) {
+        this.planExecutor = executor;
     }
 
     @Override
@@ -41,6 +46,8 @@ public class EmbeddedModeFilterClient extends FilterClient {
                         RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> 
                 void doExecute(Action<Request, Response, RequestBuilder> action,
                         Request request, ActionListener<Response> listener) {
+        Objects.requireNonNull(planExecutor, "plan executor not set on EmbeddedClient");
+        
         if (action == SqlAction.INSTANCE) {
             TransportSqlAction.operation(planExecutor, (SqlRequest) request, (ActionListener<SqlResponse>) listener);
         } else if (action == SqlGetIndicesAction.INSTANCE) {

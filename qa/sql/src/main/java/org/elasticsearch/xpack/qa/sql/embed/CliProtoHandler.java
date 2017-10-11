@@ -24,7 +24,7 @@ class CliProtoHandler extends ProtoHandler {
     private final RestSqlCliAction action;
 
     CliProtoHandler(Client client) {
-        super(new EmbeddedModeFilterClient(client, planExecutor(client)));
+        super(client);
         action = new RestSqlCliAction(Settings.EMPTY, mock(RestController.class));
     }
 

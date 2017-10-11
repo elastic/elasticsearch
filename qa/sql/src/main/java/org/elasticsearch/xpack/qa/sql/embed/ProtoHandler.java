@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 public abstract class ProtoHandler implements HttpHandler, AutoCloseable {
-    protected static PlanExecutor planExecutor(Client client) {
+    private static PlanExecutor planExecutor(EmbeddedModeFilterClient client) {
         Supplier<ClusterState> clusterStateSupplier =
                 () -> client.admin().cluster().prepareState().get(timeValueMinutes(1)).getState();
         return new PlanExecutor(client, clusterStateSupplier, EsCatalog::new);
@@ -37,13 +37,14 @@ public abstract class ProtoHandler implements HttpHandler, AutoCloseable {
     protected static final Logger log = ESLoggerFactory.getLogger(ProtoHandler.class.getName());
 
     private final TimeValue TV = TimeValue.timeValueSeconds(5);
-    protected final Client client;
+    protected final EmbeddedModeFilterClient client;
     protected final NodeInfo info;
     protected final String clusterName;
 
     protected ProtoHandler(Client client) {
         NodesInfoResponse niResponse = client.admin().cluster().prepareNodesInfo("_local").clear().get(TV);
-        this.client = client;
+        this.client = !(client instanceof EmbeddedModeFilterClient) ? new EmbeddedModeFilterClient(client) : (EmbeddedModeFilterClient) client;
+        this.client.setPlanExecutor(planExecutor(this.client));
         info = niResponse.getNodes().get(0);
         clusterName = niResponse.getClusterName().value();
     }

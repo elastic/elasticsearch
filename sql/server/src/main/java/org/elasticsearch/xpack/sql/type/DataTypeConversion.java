@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.util.Locale;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -292,6 +293,13 @@ public abstract class DataTypeConversion {
         return Math.round(x);
     }
 
+    public static boolean convertToBoolean(String val) {
+        String lowVal = val.toLowerCase(Locale.ROOT);
+        if (Booleans.isBoolean(lowVal) == false) {
+            throw new SqlIllegalArgumentException("cannot cast [" + val + "] to [Boolean]");
+        }
+        return Booleans.parseBoolean(lowVal);
+    }
     public static Object convert(Object value, DataType dataType) {
         DataType detectedType = DataTypes.fromJava(value);
         if (detectedType.equals(dataType)) {
@@ -333,7 +341,7 @@ public abstract class DataTypeConversion {
         STRING_TO_DOUBLE(fromString(Double::valueOf, "Double")),
         STRING_TO_DATE(fromString(UTC_DATE_FORMATTER::parseMillis, "Date")),
         NUMERIC_TO_BOOLEAN(fromLong(value -> value != 0)),
-        STRING_TO_BOOLEAN(fromString(Booleans::isBoolean, "Boolean")), // NOCOMMIT probably wrong
+        STRING_TO_BOOLEAN(fromString(DataTypeConversion::convertToBoolean, "Boolean")),
         ;
 
         private final Function<Object, Object> converter;

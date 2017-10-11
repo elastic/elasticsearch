@@ -93,4 +93,50 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals("cannot cast [0xff] to [Double]", e.getMessage());
         }
     }
+
+    public void testConversionToBoolean() {
+        {
+            Conversion conversion = DataTypeConversion.conversionFor(new FloatType(true), new BooleanType(true));
+            assertNull(conversion.convert(null));
+            assertEquals(true, conversion.convert(10.0f));
+            assertEquals(true, conversion.convert(-10.0f));
+            assertEquals(false, conversion.convert(0.0f));
+        }
+        {
+            Conversion conversion = DataTypeConversion.conversionFor(new IntegerType(true), new BooleanType(true));
+            assertNull(conversion.convert(null));
+            assertEquals(true, conversion.convert(10));
+            assertEquals(true, conversion.convert(-10));
+            assertEquals(false, conversion.convert(0));
+        }
+        {
+            Conversion conversion = DataTypeConversion.conversionFor(new DoubleType(true), new BooleanType(true));
+            assertNull(conversion.convert(null));
+            assertEquals(true, conversion.convert(10.0));
+            assertEquals(true, conversion.convert(-10.0));
+            assertEquals(false, conversion.convert(0.0));
+        }
+        {
+            Conversion conversion = DataTypeConversion.conversionFor(KeywordType.DEFAULT, new BooleanType(true));
+            assertNull(conversion.convert(null));
+            // We only handled upper and lower case true and false
+            assertEquals(true, conversion.convert("true"));
+            assertEquals(false, conversion.convert("false"));
+            assertEquals(true, conversion.convert("True"));
+            assertEquals(false, conversion.convert("fAlSe"));
+            // Everything else should fail
+            Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("10"));
+            assertEquals("cannot cast [10] to [Boolean]", e.getMessage());
+            e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("-1"));
+            assertEquals("cannot cast [-1] to [Boolean]", e.getMessage());
+            e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0"));
+            assertEquals("cannot cast [0] to [Boolean]", e.getMessage());
+            e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("blah"));
+            assertEquals("cannot cast [blah] to [Boolean]", e.getMessage());
+            e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("Yes"));
+            assertEquals("cannot cast [Yes] to [Boolean]", e.getMessage());
+            e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("nO"));
+            assertEquals("cannot cast [nO] to [Boolean]", e.getMessage());
+        }
+    }
 }

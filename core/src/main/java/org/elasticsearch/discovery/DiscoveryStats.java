@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.zen.PendingClusterStateStats;
+import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 
 import java.io.IOException;
 
@@ -34,24 +36,41 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
     @Nullable
     private final PendingClusterStateStats queueStats;
 
-    public DiscoveryStats(PendingClusterStateStats queueStats) {
+    @Nullable
+    private final PublishClusterStateStats publishStats;
+
+    public DiscoveryStats(PendingClusterStateStats queueStats, PublishClusterStateStats publishStats) {
         this.queueStats = queueStats;
+        this.publishStats = publishStats;
     }
 
     public DiscoveryStats(StreamInput in) throws IOException {
         queueStats = in.readOptionalWriteable(PendingClusterStateStats::new);
+
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            publishStats = in.readOptionalWriteable(PublishClusterStateStats::new);
+        } else {
+            publishStats = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(queueStats);
+
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalWriteable(publishStats);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.DISCOVERY);
-        if (queueStats != null ){
+        if (queueStats != null) {
             queueStats.toXContent(builder, params);
+        }
+        if (publishStats != null) {
+            publishStats.toXContent(builder, params);
         }
         builder.endObject();
         return builder;
@@ -64,4 +83,5 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
     public PendingClusterStateStats getQueueStats() {
         return queueStats;
     }
+    public PublishClusterStateStats getPublishStats() { return publishStats; }
 }

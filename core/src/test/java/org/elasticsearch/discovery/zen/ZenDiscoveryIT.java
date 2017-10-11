@@ -255,6 +255,11 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 "      \"total\" : 0,\n" +
                 "      \"pending\" : 0,\n" +
                 "      \"committed\" : 0\n" +
+                "    },\n" +
+                "    \"publish_cluster_state\" : {\n" +
+                "      \"full_cluster_states_sent\" : 0,\n" +
+                "      \"cluster_state_diffs_sent\" : 0,\n" +
+                "      \"incompatible_cluster_state_diffs_sent\" : 0\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";
@@ -274,6 +279,11 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(stats.getQueueStats().getTotal(), equalTo(0));
         assertThat(stats.getQueueStats().getCommitted(), equalTo(0));
         assertThat(stats.getQueueStats().getPending(), equalTo(0));
+
+        assertThat(stats.getPublishStats(), notNullValue());
+        assertThat(stats.getPublishStats().getFullClusterStateSentCount(), equalTo(0l));
+        assertThat(stats.getPublishStats().getClusterStateDiffSentCount(), equalTo(0l));
+        assertThat(stats.getPublishStats().getIncompatibleClusterStateDiffVersionCount(), equalTo(0l));
 
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         builder.startObject();

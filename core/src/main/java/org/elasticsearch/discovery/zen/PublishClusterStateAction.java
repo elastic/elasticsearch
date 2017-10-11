@@ -71,6 +71,10 @@ public class PublishClusterStateAction extends AbstractComponent {
     public static final String SEND_ACTION_NAME = "internal:discovery/zen/publish/send";
     public static final String COMMIT_ACTION_NAME = "internal:discovery/zen/publish/commit";
 
+    public PublishClusterStateStats stats() {
+        return new PublishClusterStateStats(fullClusterStateSentCount, clusterStateDiffSentCount, incompatibleClusterStateDiffVersionCount);
+    }
+
     public interface IncomingClusterStateListener {
 
         /**
@@ -89,6 +93,10 @@ public class PublishClusterStateAction extends AbstractComponent {
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final IncomingClusterStateListener incomingClusterStateListener;
     private final DiscoverySettings discoverySettings;
+
+    private long fullClusterStateSentCount = 0;
+    private long clusterStateDiffSentCount = 0;
+    private long incompatibleClusterStateDiffVersionCount = 0;
 
     public PublishClusterStateAction(
             Settings settings,
@@ -249,6 +257,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                 return;
             }
         }
+        fullClusterStateSentCount++;
         sendClusterStateToNode(clusterState, bytes, node, publishTimeout, sendingController, false, serializedStates);
     }
 
@@ -257,6 +266,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                                       DiscoveryNode node, TimeValue publishTimeout, SendingController sendingController) {
         BytesReference bytes = serializedDiffs.get(node.getVersion());
         assert bytes != null : "failed to find serialized diff for node " + node + " of version [" + node.getVersion() + "]";
+        clusterStateDiffSentCount++;
         sendClusterStateToNode(clusterState, bytes, node, publishTimeout, sendingController, true, serializedStates);
     }
 
@@ -290,6 +300,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                         public void handleException(TransportException exp) {
                             if (sendDiffs && exp.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
                                 logger.debug("resending full cluster state to node {} reason {}", node, exp.getDetailedMessage());
+                                incompatibleClusterStateDiffVersionCount++;
                                 sendFullClusterState(clusterState, serializedStates, node, publishTimeout, sendingController);
                             } else {
                                 logger.debug((org.apache.logging.log4j.util.Supplier<?>) () ->

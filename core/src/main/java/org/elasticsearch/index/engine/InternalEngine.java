@@ -1715,7 +1715,7 @@ public class InternalEngine extends Engine {
 
     private long loadCurrentVersionFromIndex(Term uid) throws IOException {
         assert incrementIndexVersionLookup();
-        try (Searcher searcher = acquireSearcher("load_version")) {
+        try (Searcher searcher = acquireSearcher("load_version", SearcherScope.INTERNAL)) {
             return VersionsAndSeqNoResolver.loadVersion(searcher.reader(), uid);
         }
     }

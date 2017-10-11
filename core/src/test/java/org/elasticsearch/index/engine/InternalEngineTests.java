@@ -1313,6 +1313,38 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(indexResult.getVersion(), equalTo(1L));
     }
 
+    /**
+     * simulates what an upsert / update API does
+     */
+    public void testVersionedUpdate() throws IOException {
+        final BiFunction<String, Engine.SearcherScope, Searcher> searcherFactory = engine::acquireSearcher;
+
+        ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
+        Engine.Index create = new Engine.Index(newUid(doc), doc, Versions.MATCH_DELETED);
+        Engine.IndexResult indexResult = engine.index(create);
+        assertThat(indexResult.getVersion(), equalTo(1L));
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, doc.type(), doc.id(), create.uid()), searcherFactory)) {
+            assertEquals(1, get.version());
+        }
+
+        Engine.Index update_1 = new Engine.Index(newUid(doc), doc, 1);
+        Engine.IndexResult update_1_result = engine.index(update_1);
+        assertThat(update_1_result.getVersion(), equalTo(2L));
+
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, doc.type(), doc.id(), create.uid()), searcherFactory)) {
+            assertEquals(2, get.version());
+        }
+
+        Engine.Index update_2 = new Engine.Index(newUid(doc), doc, 2);
+        Engine.IndexResult update_2_result = engine.index(update_2);
+        assertThat(update_2_result.getVersion(), equalTo(3L));
+
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, doc.type(), doc.id(), create.uid()), searcherFactory)) {
+            assertEquals(3, get.version());
+        }
+
+    }
+
     public void testVersioningNewIndex() throws IOException {
         ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
         Engine.Index index = indexForDoc(doc);

@@ -22,7 +22,7 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  * Class encapsulating stats about the PublishClusterStateAction
  */
-public class PublishClusterStateStats implements Writeable, ToXContentFragment {
+public class PublishClusterStateStats implements Writeable, ToXContent {
 
     private final long fullClusterStateSentCount;
     private final long clusterStateDiffSentCount;

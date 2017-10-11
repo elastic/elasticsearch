@@ -399,8 +399,13 @@ public class NodeStatsTests extends ESTestCase {
                 ? new PendingClusterStateStats(randomInt(), randomInt(), randomInt())
                 : null,
                 randomBoolean()
-                ? new PublishClusterStateStats(randomNonNegativeLong(),
-                    randomNonNegativeLong(), randomNonNegativeLong())
+                ? new PublishClusterStateStats(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong())
                 : null)
             : null;
         IngestStats ingestStats = null;

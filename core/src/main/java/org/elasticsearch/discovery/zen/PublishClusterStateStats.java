@@ -34,41 +34,69 @@ public class PublishClusterStateStats implements Writeable, ToXContent {
 
     private final long fullClusterStateSentCount;
     private final long clusterStateDiffSentCount;
-    private final long incompatibleClusterStateDiffVersionCount;
+    private final long incompatibleClusterStateDiffsSentCount;
+
+    private final long fullClusterStateReceivedCount;
+    private final long clusterStateDiffReceivedCount;
+    private final long compatibleClusterStateDiffReceivedCount;
 
     /**
      * @param fullClusterStateSentCount  the number of times this node, as master, has sent the full cluster state to a follower.
      * @param clusterStateDiffSentCount  the number of times this node, as master, has sent a cluster-state diff to a follower.
-     * @param incompatibleClusterStateDiffVersionCount  the number of times a cluster-state diff was rejected by a follower because the
-     *                                                  follower's state was incompatible with the diff that was sent.
+     * @param incompatibleClusterStateDiffsSentCount  the number of times a cluster-state diff sent by this node was rejected by a follower
+     *                                                because the follower's state was incompatible with the diff that was sent.
+     *
+     * @param fullClusterStateReceivedCount the number of times this node has received a full copy of the cluster state from the master.
+     * @param clusterStateDiffReceivedCount the number of times this node has received a cluster-state diff from the master.
+     * @param compatibleClusterStateDiffReceivedCount the number of times that received cluster-state diffs were compatible with
+     *                                                the current cluster state.
      */
     public PublishClusterStateStats(long fullClusterStateSentCount,
                                     long clusterStateDiffSentCount,
-                                    long incompatibleClusterStateDiffVersionCount) {
+                                    long incompatibleClusterStateDiffsSentCount,
+                                    long fullClusterStateReceivedCount,
+                                    long clusterStateDiffReceivedCount,
+                                    long compatibleClusterStateDiffReceivedCount) {
         this.fullClusterStateSentCount = fullClusterStateSentCount;
         this.clusterStateDiffSentCount = clusterStateDiffSentCount;
-        this.incompatibleClusterStateDiffVersionCount = incompatibleClusterStateDiffVersionCount;
+        this.incompatibleClusterStateDiffsSentCount = incompatibleClusterStateDiffsSentCount;
+        this.fullClusterStateReceivedCount = fullClusterStateReceivedCount;
+        this.clusterStateDiffReceivedCount = clusterStateDiffReceivedCount;
+        this.compatibleClusterStateDiffReceivedCount = compatibleClusterStateDiffReceivedCount;
     }
 
     public PublishClusterStateStats(StreamInput in) throws IOException {
         fullClusterStateSentCount = in.readVLong();
         clusterStateDiffSentCount = in.readVLong();
-        incompatibleClusterStateDiffVersionCount = in.readVLong();
+        incompatibleClusterStateDiffsSentCount = in.readVLong();
+        fullClusterStateReceivedCount = in.readVLong();
+        clusterStateDiffReceivedCount = in.readVLong();
+        compatibleClusterStateDiffReceivedCount = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(fullClusterStateSentCount);
         out.writeVLong(clusterStateDiffSentCount);
-        out.writeVLong(incompatibleClusterStateDiffVersionCount);
+        out.writeVLong(incompatibleClusterStateDiffsSentCount);
+        out.writeVLong(fullClusterStateReceivedCount);
+        out.writeVLong(clusterStateDiffReceivedCount);
+        out.writeVLong(compatibleClusterStateDiffReceivedCount);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("publish_cluster_state");
-        builder.field("full_cluster_states_sent", fullClusterStateSentCount);
-        builder.field("cluster_state_diffs_sent", clusterStateDiffSentCount);
-        builder.field("incompatible_cluster_state_diffs_sent", incompatibleClusterStateDiffVersionCount);
+        builder.startObject("sent");
+        builder.field("full_cluster_states", fullClusterStateSentCount);
+        builder.field("cluster_state_diffs", clusterStateDiffSentCount);
+        builder.field("incompatible_cluster_state_diffs", incompatibleClusterStateDiffsSentCount);
+        builder.endObject();
+        builder.startObject("received");
+        builder.field("full_cluster_states", fullClusterStateReceivedCount);
+        builder.field("cluster_state_diffs", clusterStateDiffReceivedCount);
+        builder.field("compatible_cluster_state_diffs", compatibleClusterStateDiffReceivedCount);
+        builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -81,15 +109,24 @@ public class PublishClusterStateStats implements Writeable, ToXContent {
         return clusterStateDiffSentCount;
     }
 
-    public long getIncompatibleClusterStateDiffVersionCount() {
-        return incompatibleClusterStateDiffVersionCount;
+    public long getIncompatibleClusterStateDiffsSentCount() {
+        return incompatibleClusterStateDiffsSentCount;
     }
+
+    public long getFullClusterStateReceivedCount() { return fullClusterStateReceivedCount; }
+
+    public long getClusterStateDiffReceivedCount() { return clusterStateDiffReceivedCount; }
+
+    public long getCompatibleClusterStateDiffReceivedCount() { return compatibleClusterStateDiffReceivedCount; }
 
     @Override
     public String toString() {
-        return "PublishClusterStateStats(full=" + fullClusterStateSentCount
+        return "PublishClusterStateStats(sent(full=" + fullClusterStateSentCount
             + ", diffs=" + clusterStateDiffSentCount
-            + ", incompatible=" + incompatibleClusterStateDiffVersionCount
-            + ")";
+            + ", incompatible=" + incompatibleClusterStateDiffsSentCount
+            + "), received(full=" + fullClusterStateReceivedCount
+            + ", diffs=" + clusterStateDiffReceivedCount
+            + ", compatible=" + compatibleClusterStateDiffReceivedCount
+            + "))";
     }
 }

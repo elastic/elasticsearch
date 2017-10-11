@@ -76,7 +76,10 @@ public class PublishClusterStateAction extends AbstractComponent {
         return new PublishClusterStateStats(
             fullClusterStateSentCount.get(),
             clusterStateDiffSentCount.get(),
-            incompatibleClusterStateDiffVersionCount.get());
+            incompatibleClusterStateDiffsSentCount.get(),
+            fullClusterStateReceivedCount.get(),
+            clusterStateDiffReceivedCount.get(),
+            compatibleClusterStateDiffReceivedCount.get());
     }
 
     public interface IncomingClusterStateListener {
@@ -100,7 +103,10 @@ public class PublishClusterStateAction extends AbstractComponent {
 
     private AtomicLong fullClusterStateSentCount = new AtomicLong();
     private AtomicLong clusterStateDiffSentCount = new AtomicLong();
-    private AtomicLong incompatibleClusterStateDiffVersionCount = new AtomicLong();
+    private AtomicLong incompatibleClusterStateDiffsSentCount = new AtomicLong();
+    private AtomicLong fullClusterStateReceivedCount = new AtomicLong();
+    private AtomicLong clusterStateDiffReceivedCount = new AtomicLong();
+    private AtomicLong compatibleClusterStateDiffReceivedCount = new AtomicLong();
 
     public PublishClusterStateAction(
             Settings settings,
@@ -304,7 +310,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                         public void handleException(TransportException exp) {
                             if (sendDiffs && exp.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
                                 logger.debug("resending full cluster state to node {} reason {}", node, exp.getDetailedMessage());
-                                incompatibleClusterStateDiffVersionCount.incrementAndGet();
+                                incompatibleClusterStateDiffsSentCount.incrementAndGet();
                                 sendFullClusterState(clusterState, serializedStates, node, publishTimeout, sendingController);
                             } else {
                                 logger.debug((org.apache.logging.log4j.util.Supplier<?>) () ->
@@ -395,14 +401,18 @@ public class PublishClusterStateAction extends AbstractComponent {
                 // If true we received full cluster state - otherwise diffs
                 if (in.readBoolean()) {
                     incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
+                    fullClusterStateReceivedCount.incrementAndGet();
                     logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(),
                         request.bytes().length());
                 } else if (lastSeenClusterState != null) {
+                    clusterStateDiffReceivedCount.incrementAndGet();
                     Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeenClusterState.nodes().getLocalNode());
                     incomingState = diff.apply(lastSeenClusterState);
+                    compatibleClusterStateDiffReceivedCount.incrementAndGet();
                     logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
                         incomingState.version(), incomingState.stateUUID(), request.bytes().length());
                 } else {
+                    clusterStateDiffReceivedCount.incrementAndGet();
                     logger.debug("received diff for but don't have any local cluster state - requesting full state");
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 }

@@ -47,7 +47,6 @@ import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -257,9 +256,16 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 "      \"committed\" : 0\n" +
                 "    },\n" +
                 "    \"publish_cluster_state\" : {\n" +
-                "      \"full_cluster_states_sent\" : 0,\n" +
-                "      \"cluster_state_diffs_sent\" : 0,\n" +
-                "      \"incompatible_cluster_state_diffs_sent\" : 0\n" +
+                "      \"sent\" : {\n" +
+                "        \"full_cluster_states\" : 0,\n" +
+                "        \"cluster_state_diffs\" : 0,\n" +
+                "        \"incompatible_cluster_state_diffs\" : 0\n" +
+                "      },\n" +
+                "      \"received\" : {\n" +
+                "        \"full_cluster_states\" : 0,\n" +
+                "        \"cluster_state_diffs\" : 0,\n" +
+                "        \"compatible_cluster_state_diffs\" : 0\n" +
+                "      }\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";
@@ -283,7 +289,10 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(stats.getPublishStats(), notNullValue());
         assertThat(stats.getPublishStats().getFullClusterStateSentCount(), equalTo(0L));
         assertThat(stats.getPublishStats().getClusterStateDiffSentCount(), equalTo(0L));
-        assertThat(stats.getPublishStats().getIncompatibleClusterStateDiffVersionCount(), equalTo(0L));
+        assertThat(stats.getPublishStats().getIncompatibleClusterStateDiffsSentCount(), equalTo(0L));
+        assertThat(stats.getPublishStats().getFullClusterStateReceivedCount(), equalTo(0L));
+        assertThat(stats.getPublishStats().getClusterStateDiffReceivedCount(), equalTo(0L));
+        assertThat(stats.getPublishStats().getCompatibleClusterStateDiffReceivedCount(), equalTo(0L));
 
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         builder.startObject();

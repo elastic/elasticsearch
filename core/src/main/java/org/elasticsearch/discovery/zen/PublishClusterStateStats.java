@@ -44,10 +44,10 @@ public class PublishClusterStateStats implements Writeable, ToXContentFragment {
         this.incompatibleClusterStateDiffVersionCount = incompatibleClusterStateDiffVersionCount;
     }
 
-    public PublishClusterStateStats(StreamInput streamInput) throws IOException {
-        fullClusterStateSentCount = streamInput.readVLong();
-        clusterStateDiffSentCount = streamInput.readVLong();
-        incompatibleClusterStateDiffVersionCount = streamInput.readVLong();
+    public PublishClusterStateStats(StreamInput in) throws IOException {
+        fullClusterStateSentCount = in.readVLong();
+        clusterStateDiffSentCount = in.readVLong();
+        incompatibleClusterStateDiffVersionCount = in.readVLong();
     }
 
     @Override

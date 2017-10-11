@@ -57,19 +57,12 @@ public class PublishClusterStateStats implements Writeable, ToXContentFragment {
         out.writeVLong(incompatibleClusterStateDiffVersionCount);
     }
 
-    static final class Fields {
-        static final String PUBLISH_CLUSTER_STATE = "publish_cluster_state";
-        static final String FULL_SENT = "full_cluster_states_sent";
-        static final String DIFFS_SENT = "cluster_state_diffs_sent";
-        static final String INCOMPATIBLE_DIFFS = "incompatible_cluster_state_diffs_sent";
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.PUBLISH_CLUSTER_STATE);
-        builder.field(Fields.FULL_SENT, fullClusterStateSentCount);
-        builder.field(Fields.DIFFS_SENT, clusterStateDiffSentCount);
-        builder.field(Fields.INCOMPATIBLE_DIFFS, incompatibleClusterStateDiffVersionCount);
+        builder.startObject("publish_cluster_state");
+        builder.field("full_cluster_states_sent", fullClusterStateSentCount);
+        builder.field("cluster_state_diffs_sent", clusterStateDiffSentCount);
+        builder.field("incompatible_cluster_state_diffs_sent", incompatibleClusterStateDiffVersionCount);
         builder.endObject();
         return builder;
     }

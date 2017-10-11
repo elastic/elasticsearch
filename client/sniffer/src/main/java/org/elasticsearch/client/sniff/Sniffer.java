@@ -27,6 +27,8 @@ import org.elasticsearch.client.RestClientBuilder;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -164,15 +166,25 @@ public class Sniffer implements Closeable {
 
         private SnifferThreadFactory(String namePrefix) {
             this.namePrefix = namePrefix;
-            this.originalThreadFactory = Executors.defaultThreadFactory();
+            this.originalThreadFactory = AccessController.doPrivileged(new PrivilegedAction<ThreadFactory>() {
+                @Override
+                public ThreadFactory run() {
+                    return Executors.defaultThreadFactory();
+                }
+            });
         }
 
         @Override
-        public Thread newThread(Runnable r) {
-            Thread t = this.originalThreadFactory.newThread(r);
-            t.setName(namePrefix + "[T#" + threadNumber.getAndIncrement() + "]");
-            t.setDaemon(true);
-            return t;
+        public Thread newThread(final Runnable r) {
+            return AccessController.doPrivileged(new PrivilegedAction<Thread>() {
+                @Override
+                public Thread run() {
+                    Thread t = originalThreadFactory.newThread(r);
+                    t.setName(namePrefix + "[T#" + threadNumber.getAndIncrement() + "]");
+                    t.setDaemon(true);
+                    return t;
+                }
+            });
         }
     }
 }

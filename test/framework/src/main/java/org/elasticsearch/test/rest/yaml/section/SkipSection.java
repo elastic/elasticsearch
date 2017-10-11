@@ -160,8 +160,8 @@ public class SkipSection {
         if (versionRange.trim().equals("all")) {
             return new Version[]{VersionUtils.getFirstVersion(), Version.CURRENT};
         }
-        String[] skipVersions = versionRange.split("-");
-        if (skipVersions.length > 2) {
+        String[] skipVersions = versionRange.split("-(?=\\d+|\\s+|$)", -1);
+        if (skipVersions.length != 2) {
             throw new IllegalArgumentException("version range malformed: " + versionRange);
         }
 

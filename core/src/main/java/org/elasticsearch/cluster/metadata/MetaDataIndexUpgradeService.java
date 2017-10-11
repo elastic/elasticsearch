@@ -32,6 +32,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.util.AbstractMap;
@@ -136,7 +137,24 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             // We cannot instantiate real analysis server at this point because the node might not have
             // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
             IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings);
-            SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
+            final Map<String, SimilarityProvider.Factory> similarityMap = new AbstractMap<String, SimilarityProvider.Factory>() {
+                @Override
+                public boolean containsKey(Object key) {
+                    return true;
+                }
+
+                @Override
+                public SimilarityProvider.Factory get(Object key) {
+                    assert key instanceof String : "key must be a string but was: " + key.getClass();
+                    return SimilarityService.BUILT_IN.get(SimilarityService.DEFAULT_SIMILARITY);
+                }
+
+                @Override
+                public Set<Entry<String, SimilarityProvider.Factory>> entrySet() {
+                    return Collections.emptySet();
+                }
+            };
+            SimilarityService similarityService = new SimilarityService(indexSettings, null, similarityMap);
             final NamedAnalyzer fakeDefault = new NamedAnalyzer("default", AnalyzerScope.INDEX, new Analyzer() {
                 @Override
                 protected TokenStreamComponents createComponents(String fieldName) {

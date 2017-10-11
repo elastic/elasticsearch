@@ -832,7 +832,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
-        return getEngine().get(get, this::acquireSearcher);
+        return getEngine().get(get, source -> this.acquireSearcher(source, Engine.SearcherScope.GET));
     }
 
     /**
@@ -1127,11 +1127,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // fail the engine. This will cause this shard to also be removed from the node's index service.
         getEngine().failEngine(reason, e);
     }
-
     public Engine.Searcher acquireSearcher(String source) {
+        return acquireSearcher(source, Engine.SearcherScope.SEARCH);
+    }
+
+    private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
         readAllowed();
         final Engine engine = getEngine();
-        final Engine.Searcher searcher = engine.acquireSearcher(source);
+        final Engine.Searcher searcher = engine.acquireSearcher(source, scope);
         boolean success = false;
         try {
             final Engine.Searcher wrappedSearcher = searcherWrapper == null ? searcher : searcherWrapper.wrap(searcher);

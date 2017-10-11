@@ -86,6 +86,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
@@ -143,6 +144,7 @@ import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import sun.nio.ch.IOUtil;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -942,7 +944,7 @@ public class InternalEngineTests extends ESTestCase {
         engine.index(indexForDoc(doc));
 
         final AtomicReference<Engine.GetResult> latestGetResult = new AtomicReference<>();
-        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+        final Function<String, Searcher> searcherFactory = s -> engine.acquireSearcher(s, Engine.SearcherScope.GET);
         latestGetResult.set(engine.get(newGet(true, doc), searcherFactory));
         final AtomicBoolean flushFinished = new AtomicBoolean(false);
         final CyclicBarrier barrier = new CyclicBarrier(2);
@@ -977,7 +979,7 @@ public class InternalEngineTests extends ESTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         searchResult.close();
 
-        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+        final Function<String, Searcher> searcherFactory = s -> engine.acquireSearcher(s, Engine.SearcherScope.GET);
 
         // create a document
         Document document = testDocumentWithTextField();
@@ -1884,7 +1886,7 @@ public class InternalEngineTests extends ESTestCase {
         ParsedDocument doc = testParsedDocument("1", null, testDocument(), bytesArray(""), null);
         final Term uidTerm = newUid(doc);
         engine.index(indexForDoc(doc));
-        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+        final Function<String, Searcher> searcherFactory = s -> engine.acquireSearcher(s, Engine.SearcherScope.GET);
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
                 startGun.countDown();
@@ -2314,7 +2316,7 @@ public class InternalEngineTests extends ESTestCase {
              Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null))) {
             engine.config().setEnableGcDeletes(false);
 
-            final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+            final Function<String, Searcher> searcherFactory = s -> engine.acquireSearcher(s, Engine.SearcherScope.GET);
 
             // Add document
             Document document = testDocument();
@@ -3847,7 +3849,7 @@ public class InternalEngineTests extends ESTestCase {
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         final ParsedDocument doc = testParsedDocument("1", null, document, B_1, null);
         final Term uid = newUid(doc);
-        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+        final Function<String, Searcher> searcherFactory = s -> engine.acquireSearcher(s, Engine.SearcherScope.GET);
         for (int i = 0; i < numberOfOperations; i++) {
             if (randomBoolean()) {
                 final Engine.Index index = new Engine.Index(
@@ -4202,5 +4204,60 @@ public class InternalEngineTests extends ESTestCase {
         } finally {
             IOUtils.close(recoveringEngine);
         }
+    }
+
+
+    public void assertSameReader(Searcher left, Searcher right) {
+        List<LeafReaderContext> leftLeaves = ElasticsearchDirectoryReader.unwrap(left.getDirectoryReader()).leaves();
+        List<LeafReaderContext> rightLeaves = ElasticsearchDirectoryReader.unwrap(right.getDirectoryReader()).leaves();
+        assertEquals(rightLeaves.size(), leftLeaves.size());
+        for (int i = 0; i < leftLeaves.size(); i++) {
+            assertSame(leftLeaves.get(i).reader(), rightLeaves.get(0).reader());
+        }
+    }
+
+    public void assertNotSameReader(Searcher left, Searcher right) {
+        List<LeafReaderContext> leftLeaves = ElasticsearchDirectoryReader.unwrap(left.getDirectoryReader()).leaves();
+        List<LeafReaderContext> rightLeaves = ElasticsearchDirectoryReader.unwrap(right.getDirectoryReader()).leaves();
+        if (rightLeaves.size() == leftLeaves.size()) {
+            for (int i = 0; i < leftLeaves.size(); i++) {
+                if (leftLeaves.get(i).reader() != rightLeaves.get(0).reader()) {
+                    return; // all is well
+                }
+            }
+            fail("readers are same");
+        }
+    }
+
+    public void testRefreshScopedSearcher() throws IOException {
+        Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.GET);
+        Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.SEARCH);
+        assertSameReader(getSearcher, searchSearcher);
+        IOUtils.close(getSearcher, searchSearcher);
+        for (int i = 0; i < 10; i++) {
+            final String docId = Integer.toString(i);
+            final ParsedDocument doc =
+                testParsedDocument(docId, null, testDocumentWithTextField(), SOURCE, null);
+            Engine.Index primaryResponse = indexForDoc(doc);
+            engine.index(primaryResponse);
+        }
+        assertTrue(engine.refreshNeeded());
+        engine.refresh("test", false);
+
+        getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.GET);
+        assertEquals(10, getSearcher.reader().numDocs());
+        searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.SEARCH);
+        assertEquals(0, searchSearcher.reader().numDocs());
+        assertNotSameReader(getSearcher, searchSearcher);
+        IOUtils.close(getSearcher, searchSearcher);
+
+        engine.refresh("test", true);
+
+        getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.GET);
+        assertEquals(10, getSearcher.reader().numDocs());
+        searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.SEARCH);
+        assertEquals(10, searchSearcher.reader().numDocs());
+        assertSameReader(getSearcher, searchSearcher);
+        IOUtils.close(getSearcher, searchSearcher);
     }
 }

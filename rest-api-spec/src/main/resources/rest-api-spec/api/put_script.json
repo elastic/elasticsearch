@@ -13,7 +13,7 @@
         },
         "context" : {
           "type" : "string",
-          "description" : "Script language"
+          "description" : "Script context"
         }
       },
       "params" : {

@@ -1758,7 +1758,7 @@ public class InternalEngineTests extends ESTestCase {
 
             if (rarely()) {
                 // simulate GC deletes
-                engine.refresh("gc_simulation");
+                engine.refresh("gc_simulation", Engine.SearcherScope.INTERNAL);
                 engine.clearDeletedTombstones();
                 if (docDeleted) {
                     lastOpVersion = Versions.NOT_FOUND;

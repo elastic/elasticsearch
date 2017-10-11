@@ -1201,7 +1201,6 @@ public class InternalEngine extends Engine {
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            logger.warn("refresh {} {}", source, scope);
             switch (scope) {
                 case EXTERNAL:
                     // even though we maintain 2 managers we really do the heavy-lifting only once.

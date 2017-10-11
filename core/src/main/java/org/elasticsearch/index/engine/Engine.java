@@ -90,7 +90,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 public abstract class Engine implements Closeable {
 
@@ -465,8 +465,9 @@ public abstract class Engine implements Closeable {
         PENDING_OPERATIONS
     }
 
-    protected final GetResult getFromSearcher(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
-        final Searcher searcher = searcherFactory.apply("get");
+    protected final GetResult getFromSearcher(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory,
+                                              SearcherScope scope) throws EngineException {
+        final Searcher searcher = searcherFactory.apply("get", scope);
         final DocIdAndVersion docIdAndVersion;
         try {
             docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.reader(), get.uid());
@@ -494,7 +495,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException;
+    public abstract GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException;
 
 
     /**
@@ -507,7 +508,7 @@ public abstract class Engine implements Closeable {
      * @see Searcher#close()
      */
     public final Searcher acquireSearcher(String source) throws EngineException {
-        return acquireSearcher(source, SearcherScope.SEARCH);
+        return acquireSearcher(source, SearcherScope.EXTERNAL);
     }
 
     /**
@@ -554,7 +555,7 @@ public abstract class Engine implements Closeable {
     }
 
     public enum SearcherScope {
-        SEARCH, GET
+        EXTERNAL, INTERNAL
     }
 
     /** returns the translog for this engine */
@@ -789,7 +790,7 @@ public abstract class Engine implements Closeable {
               the store is closed so we need to make sure we increment it here
              */
             try {
-                return getSearcherManager("refresh_needed", SearcherScope.SEARCH).isSearcherCurrent() == false;
+                return getSearcherManager("refresh_needed", SearcherScope.EXTERNAL).isSearcherCurrent() == false;
             } catch (IOException e) {
                 logger.error("failed to access searcher manager", e);
                 failEngine("failed to access searcher manager", e);

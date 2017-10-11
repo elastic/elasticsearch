@@ -93,7 +93,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
 public class InternalEngine extends Engine {
@@ -108,8 +108,7 @@ public class InternalEngine extends Engine {
 
     private final IndexWriter indexWriter;
 
-    private final SearcherFactory searcherFactory;
-    private final SearcherManager searcherManager;
+    private final SearcherManager externalSearcherManager;
     private final SearcherManager internalSearcherManager;
 
     private final Lock flushLock = new ReentrantLock();
@@ -117,11 +116,9 @@ public class InternalEngine extends Engine {
 
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
-    private final LiveVersionMap versionMap;
+    private final LiveVersionMap versionMap = new LiveVersionMap();
 
     private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
-
-    private final AtomicBoolean versionMapRefreshPending = new AtomicBoolean();
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
@@ -154,7 +151,6 @@ public class InternalEngine extends Engine {
             maxUnsafeAutoIdTimestamp.set(Long.MAX_VALUE);
         }
         this.uidField = engineConfig.getIndexSettings().isSingleType() ? IdFieldMapper.NAME : UidFieldMapper.NAME;
-        this.versionMap = new LiveVersionMap();
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
             engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
             engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
@@ -164,7 +160,7 @@ public class InternalEngine extends Engine {
         store.incRef();
         IndexWriter writer = null;
         Translog translog = null;
-        SearcherManager manager = null;
+        SearcherManager externalSearcherManager = null;
         SearcherManager internalSearcherManager = null;
         EngineMergeScheduler scheduler = null;
         boolean success = false;
@@ -173,7 +169,6 @@ public class InternalEngine extends Engine {
 
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
-            this.searcherFactory = new SearchFactory(logger, isClosed, engineConfig);
             try {
                 final SeqNoStats seqNoStats;
                 switch (openMode) {
@@ -217,22 +212,21 @@ public class InternalEngine extends Engine {
                     throw e;
                 }
             }
-            manager = createSearcherManager(searcherFactory);
-            internalSearcherManager = createSearcherManager(new SearcherFactory());
+            internalSearcherManager = createSearcherManager(new SearcherFactory(), false);
+            externalSearcherManager = createSearcherManager(new SearchFactory(logger, isClosed, engineConfig), true);
             this.internalSearcherManager = internalSearcherManager;
-            this.searcherManager = manager;
-            this.versionMap.setManager(internalSearcherManager);
+            this.externalSearcherManager = externalSearcherManager;
+            internalSearcherManager.addListener(versionMap);
             assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
             for (ReferenceManager.RefreshListener listener: engineConfig.getRefreshListeners()) {
-                searcherManager.addListener(listener);
+                this.externalSearcherManager.addListener(listener);
             }
             success = true;
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(writer, translog, manager, internalSearcherManager, scheduler);
-                versionMap.clear();
+                IOUtils.closeWhileHandlingException(writer, translog, externalSearcherManager, internalSearcherManager, scheduler);
                 if (isClosed.get() == false) {
                     // failure we need to dec the store reference
                     store.decRef();
@@ -349,6 +343,7 @@ public class InternalEngine extends Engine {
             logger.trace("flushing post recovery from translog. ops recovered [{}]. committed translog id [{}]. current id [{}]",
                 opsRecovered, translogGeneration == null ? null : translogGeneration.translogFileGeneration, translog.currentFileGeneration());
             flush(true, true);
+            refresh("translog_recovery");
         } else if (translog.isCurrent(translogGeneration) == false) {
             commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
             refreshLastCommittedSegmentInfos();
@@ -445,14 +440,16 @@ public class InternalEngine extends Engine {
         return uuid;
     }
 
-    private SearcherManager createSearcherManager(SearcherFactory searcherFactory) throws EngineException {
+    private SearcherManager createSearcherManager(SearcherFactory searcherFactory, boolean readSegmentsInfo) throws EngineException {
         boolean success = false;
         SearcherManager searcherManager = null;
         try {
             try {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
                 searcherManager = new SearcherManager(directoryReader, searcherFactory);
-                lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager, store);
+                if (readSegmentsInfo) {
+                    lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager, store);
+                }
                 success = true;
                 return searcherManager;
             } catch (IOException e) {
@@ -472,10 +469,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
+    public GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException {
         assert Objects.equals(get.uid().field(), uidField) : get.uid().field();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
+            SearcherScope scope;
             if (get.realtime()) {
                 VersionValue versionValue = versionMap.getUnderLock(get.uid());
                 if (versionValue != null) {
@@ -486,12 +484,16 @@ public class InternalEngine extends Engine {
                         throw new VersionConflictEngineException(shardId, get.type(), get.id(),
                             get.versionType().explainConflictForReads(versionValue.version, get.version()));
                     }
-                    refresh("realtime_get", false);
+                    refresh("realtime_get", SearcherScope.INTERNAL);
                 }
+                scope = SearcherScope.INTERNAL;
+            } else {
+                // we expose what has been externally expose in a point in time snapshot via an explicit refresh
+                scope = SearcherScope.EXTERNAL;
             }
 
             // no version, get the version from the index, we know that we refresh on flush
-            return getFromSearcher(get, searcherFactory);
+            return getFromSearcher(get, searcherFactory, scope);
         }
     }
 
@@ -1191,19 +1193,28 @@ public class InternalEngine extends Engine {
 
     @Override
     public void refresh(String source) throws EngineException {
-        refresh(source, true);
+        refresh(source, SearcherScope.EXTERNAL);
     }
 
-    final void refresh(String source, boolean refreshExternal) throws EngineException {
+    final void refresh(String source, SearcherScope scope) throws EngineException {
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            internalSearcherManager.maybeRefreshBlocking();
-            if (refreshExternal) {
-                // even though we maintain 2 managers we really do the heavy-lifting only once.
-                // the second refresh will only do the extra work we have to do for warming caches etc.
-                searcherManager.maybeRefreshBlocking();
+            logger.warn("refresh {} {}", source, scope);
+            switch (scope) {
+                case EXTERNAL:
+                    // even though we maintain 2 managers we really do the heavy-lifting only once.
+                    // the second refresh will only do the extra work we have to do for warming caches etc.
+                    externalSearcherManager.maybeRefreshBlocking();
+                    // fall-through is intentional
+                    break;
+                case INTERNAL:
+                    internalSearcherManager.maybeRefreshBlocking();
+                    break;
+
+                default:
+                    throw new IllegalArgumentException("unknown scope: " + scope);
             }
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
@@ -1221,32 +1232,20 @@ public class InternalEngine extends Engine {
         // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
         // for a long time:
         maybePruneDeletedTombstones();
-        versionMapRefreshPending.set(false);
         mergeScheduler.refreshConfig();
     }
 
     @Override
     public void writeIndexingBuffer() throws EngineException {
-
         // we obtain a read lock here, since we don't want a flush to happen while we are writing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             final long versionMapBytes = versionMap.ramBytesUsedForRefresh();
             final long indexingBufferBytes = indexWriter.ramBytesUsed();
-
-            final boolean useRefresh = versionMapRefreshPending.get() || (indexingBufferBytes / 4 < versionMapBytes);
-            if (useRefresh) {
-                // The version map is using > 25% of the indexing buffer, so we do a refresh so the version map also clears
-                logger.debug("use refresh to write indexing buffer (heap size=[{}]), to also clear version map (heap size=[{}])",
-                        new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
-                refresh("write indexing buffer", false);
-            } else {
-                // Most of our heap is used by the indexing buffer, so we do a cheaper (just writes segments, doesn't open a new searcher) IW.flush:
-                logger.debug("use IndexWriter.flush to write indexing buffer (heap size=[{}]) since version map is small (heap size=[{}])",
-                        new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
-                indexWriter.flush();
-            }
+            logger.debug("use refresh to write indexing buffer (heap size=[{}]), to also clear version map (heap size=[{}])",
+                    new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
+            refresh("write indexing buffer", SearcherScope.INTERNAL);
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
             throw e;
@@ -1311,8 +1310,10 @@ public class InternalEngine extends Engine {
             maybeFailEngine("renew sync commit", ex);
             throw new EngineException(shardId, "failed to renew sync commit", ex);
         }
-        if (renewed) { // refresh outside of the write lock
-            refresh("renew sync commit"); // we have to refresh both searchers here to ensure we release unreferenced segments.
+        if (renewed) {
+            // refresh outside of the write lock
+            // we have to refresh internal searcher here to ensure we release unreferenced segments.
+            refresh("renew sync commit", SearcherScope.INTERNAL);
         }
         return renewed;
     }
@@ -1355,7 +1356,7 @@ public class InternalEngine extends Engine {
                         commitIndexWriter(indexWriter, translog, null);
                         logger.trace("finished commit for flush");
                         // we need to refresh in order to clear older version values
-                        refresh("version_table_flush"); // TODO technically we could also only refresh the internal searcher
+                        refresh("version_table_flush", SearcherScope.INTERNAL);
                         translog.trimUnreferencedReaders();
                     } catch (Exception e) {
                         throw new FlushFailedEngineException(shardId, e);
@@ -1508,8 +1509,6 @@ public class InternalEngine extends Engine {
                 if (flush) {
                     if (tryRenewSyncCommit() == false) {
                         flush(false, true);
-                    } else {
-                        refresh("renew sync commit"); // we have to refresh both searchers here to ensure we release unreferenced segments.
                     }
                 }
                 if (upgrade) {
@@ -1661,8 +1660,9 @@ public class InternalEngine extends Engine {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
                 this.versionMap.clear();
+                internalSearcherManager.removeListener(versionMap);
                 try {
-                    IOUtils.close(searcherManager, internalSearcherManager);
+                    IOUtils.close(externalSearcherManager, internalSearcherManager);
                 } catch (Exception e) {
                     logger.warn("Failed to close SearcherManager", e);
                 }
@@ -1696,10 +1696,10 @@ public class InternalEngine extends Engine {
     @Override
     protected SearcherManager getSearcherManager(String source, SearcherScope scope) {
         switch (scope) {
-            case GET:
+            case INTERNAL:
                 return internalSearcherManager;
-            case SEARCH:
-                return searcherManager;
+            case EXTERNAL:
+                return externalSearcherManager;
             default:
                 throw new IllegalStateException("unknown scope: " + scope);
         }
@@ -1884,10 +1884,6 @@ public class InternalEngine extends Engine {
                         // free up transient disk usage of the (presumably biggish) segments that were just merged
                         if (tryRenewSyncCommit() == false) {
                             flush();
-                        } else {
-                            // we only refresh the rather cheap internal searcher manager in order to not trigger new datastructures
-                            // by accident ie. warm big segments in parent child case etc.
-                            refresh("renew sync commit", false);
                         }
                     }
                 });

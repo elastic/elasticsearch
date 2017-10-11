@@ -1,5 +1,9 @@
 [[breaking_70_search_changes]]
-=== Search changes
+=== Search and Query DSL changes
+
+==== Changes to queries
+*   The default value for `transpositions` parameter of `fuzzy` query
+    has been changed to `true`.
 
 ==== Adaptive replica selection enabled by default
 

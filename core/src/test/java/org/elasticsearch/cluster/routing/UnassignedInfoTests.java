@@ -356,4 +356,11 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             assertThat(readStatus, equalTo(allocationStatus));
         }
     }
+
+    public void testNegativeTimeoutDeprecated() {
+        Settings settings = settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "-1s").build();
+        assertThat(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings).seconds(), equalTo(-1L));
+        assertWarnings("Negative values for index.unassigned.node_left.delayed_timeout [-1s]" +
+            " are deprecated and should now be set to \"0\".");
+    }
 }

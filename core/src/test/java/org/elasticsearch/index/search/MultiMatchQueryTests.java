@@ -57,7 +57,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
     public void setup() throws IOException {
         Settings settings = Settings.builder()
             .put("index.analysis.filter.syns.type","synonym")
-            .putArray("index.analysis.filter.syns.synonyms","quick,fast")
+            .putList("index.analysis.filter.syns.synonyms","quick,fast")
             .put("index.analysis.analyzer.syns.tokenizer","standard")
             .put("index.analysis.analyzer.syns.filter","syns").build();
         IndexService indexService = createIndex("test", settings);

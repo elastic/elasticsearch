@@ -9,18 +9,21 @@ The `preference` is a query string parameter which can be set to:
 [horizontal]
 `_primary`:: 
 	The operation will go and be executed only on the primary
-	shards.
+	shards. deprecated[6.1.0, will be removed in 7.0, use `_only_nodes` or `_prefer_nodes`]
 
 `_primary_first`:: 
 	The operation will go and be executed on the primary
 	shard, and if not available (failover), will execute on other shards.
+	deprecated[6.1.0, will be removed in 7.0, use `_only_nodes` or `_prefer_nodes`]
 
 `_replica`::
   The operation will go and be executed only on a replica shard.
+  deprecated[6.1.0, will be removed in 7.0, use `_only_nodes` or `_prefer_nodes`]
 
 `_replica_first`::
   The operation will go and be executed only on a replica shard, and if
   not available (failover), will execute on other shards.
+  deprecated[6.1.0, will be removed in 7.0, use `_only_nodes` or `_prefer_nodes`]
 
 `_local`:: 
 	The operation will prefer to be executed on a local
@@ -33,7 +36,7 @@ The `preference` is a query string parameter which can be set to:
 `_shards:2,3`:: 
 	Restricts the operation to the specified shards. (`2`
 	and `3` in this case). This preference can be combined with other
-	preferences but it has to appear first: `_shards:2,3|_primary`
+	preferences but it has to appear first: `_shards:2,3|_local`
 
 `_only_nodes`::
     Restricts the operation to nodes specified in <<cluster,node specification>>

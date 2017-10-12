@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -59,32 +60,35 @@ public class ResizeAllocationDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
         if (unassignedInfo != null && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-            // we only make decisions here if we have no unassigned info and we have to recover from another index ie. split / shrink
+            // we only make decisions here if we have an unassigned info and we have to recover from another index ie. split / shrink
             final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
             Index resizeSourceIndex = indexMetaData.getResizeSourceIndex();
             assert resizeSourceIndex != null;
-            try {
-                IndexMetaData sourceIndexMetaData = allocation.metaData().getIndexSafe(resizeSourceIndex);
-                if (indexMetaData.getNumberOfShards() < sourceIndexMetaData.getNumberOfShards()) {
-                    // this only handles splits so far.
-                    return Decision.ALWAYS;
-                }
-                ShardId shardId = IndexMetaData.selectSplitShard(shardRouting.id(), sourceIndexMetaData, indexMetaData.getNumberOfShards());
-                ShardRouting sourceShardRouting = allocation.routingTable().shardRoutingTable(shardId).primaryShard();
-                if (sourceShardRouting.active() == false) {
-                    return allocation.decision(Decision.NO, NAME, "source primary shard [%s] is not active", sourceShardRouting.shardId());
-                }
-                if (node != null) { // we might get called from the 2 param canAllocate method..
-                    if (sourceShardRouting.currentNodeId().equals(node.nodeId())) {
-                        return allocation.decision(Decision.YES, NAME, "source primary is allocated on this node");
-                    } else {
-                        return allocation.decision(Decision.NO, NAME, "source primary is allocated on another node");
-                    }
-                } else {
-                    return allocation.decision(Decision.YES, NAME, "source primary is active");
-                }
-            } catch (IndexNotFoundException ex) {
+            if (allocation.metaData().index(resizeSourceIndex) == null) {
                 return allocation.decision(Decision.NO, NAME, "resize source index [%s] doesn't exists", resizeSourceIndex.toString());
+            }
+            IndexMetaData sourceIndexMetaData = allocation.metaData().getIndexSafe(resizeSourceIndex);
+            if (indexMetaData.getNumberOfShards() < sourceIndexMetaData.getNumberOfShards()) {
+                // this only handles splits so far.
+                return Decision.ALWAYS;
+            }
+
+            ShardId shardId = IndexMetaData.selectSplitShard(shardRouting.id(), sourceIndexMetaData, indexMetaData.getNumberOfShards());
+            ShardRouting sourceShardRouting = allocation.routingNodes().activePrimary(shardId);
+            if (sourceShardRouting == null) {
+                return allocation.decision(Decision.NO, NAME, "source primary shard [%s] is not active", shardId);
+            }
+            if (node != null) { // we might get called from the 2 param canAllocate method..
+                if (node.node().getVersion().before(Version.V_7_0_0_alpha1)) {
+                    return allocation.decision(Decision.NO, NAME, "node [%s] is too old to split a shard", node.nodeId());
+                }
+                if (sourceShardRouting.currentNodeId().equals(node.nodeId())) {
+                    return allocation.decision(Decision.YES, NAME, "source primary is allocated on this node");
+                } else {
+                    return allocation.decision(Decision.NO, NAME, "source primary is allocated on another node");
+                }
+            } else {
+                return allocation.decision(Decision.YES, NAME, "source primary is active");
             }
         }
         return super.canAllocate(shardRouting, node, allocation);
@@ -93,8 +97,6 @@ public class ResizeAllocationDecider extends AllocationDecider {
     @Override
     public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard " + shardRouting;
-        // check if we have passed the maximum retry threshold through canAllocate,
-        // if so, we don't want to force the primary allocation here
         return canAllocate(shardRouting, node, allocation);
     }
 }

@@ -386,7 +386,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     Settings idxSettings = indexSettingsBuilder.build();
                     int numShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(idxSettings);
                     int routingShardsFactor = IndexMetaData.INDEX_ROUTING_SHARDS_FACTOR_SETTING.get(idxSettings);
-                    // we multiply the routing shares in order to split the shard going forward.
+                    // we multiply the routing shards in order to split the shard going forward.
                     // implementation wise splitting shards is really just an inverted shrink operation.
                     routingNumShards = numShards * routingShardsFactor;
                 } else {
@@ -652,7 +652,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             IndexMetaData.selectSplitShard(0, sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
         }
         if (sourceMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
-            // ensure we have a single type.
+            // ensure we have a single type since this would make the splitting code considerably more complex
+            // and a 5.x index would not be splittable unless it has been shrunk before so rather opt out of the complexity
             throw new IllegalStateException("source index created version is too old to apply a split operation");
         }
 

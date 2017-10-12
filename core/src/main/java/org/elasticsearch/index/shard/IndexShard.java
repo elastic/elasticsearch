@@ -139,6 +139,7 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -2040,17 +2041,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final Index mergeSourceIndex = indexMetaData.getResizeSourceIndex();
                 final List<IndexShard> startedShards = new ArrayList<>();
                 final IndexService sourceIndexService = indicesService.indexService(mergeSourceIndex);
-                final Set<ShardId> requiredShards = IndexMetaData.selectRecoverFromShards(shardId().id(),
-                    sourceIndexService.getMetaData(), indexMetaData.getNumberOfShards());
-                final int numShards = sourceIndexService != null ? requiredShards.size() : -1;
+                final Set<ShardId> requiredShards;
+                final int numShards;
                 if (sourceIndexService != null) {
+                    requiredShards = IndexMetaData.selectRecoverFromShards(shardId().id(),
+                        sourceIndexService.getMetaData(), indexMetaData.getNumberOfShards());
                     for (IndexShard shard : sourceIndexService) {
                         if (shard.state() == IndexShardState.STARTED && requiredShards.contains(shard.shardId())) {
                             startedShards.add(shard);
                         }
                     }
+                    numShards = requiredShards.size();
+                } else {
+                    numShards = -1;
+                    requiredShards = Collections.emptySet();
                 }
+
                 if (numShards == startedShards.size()) {
+                    assert requiredShards.isEmpty() == false;
                     markAsRecovering("from local shards", recoveryState); // mark the shard as recovering on the cluster state thread
                     threadPool.generic().execute(() -> {
                         try {

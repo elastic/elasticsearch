@@ -1323,7 +1323,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         }
         int numSourceShards = sourceIndexMetadata.getNumberOfShards();
         if (numSourceShards > numTargetShards) {
-            throw new IllegalArgumentException("the number of source shards must be less that the number of target shards");
+            throw new IllegalArgumentException("the number of source shards [" + numSourceShards
+                 + "] must be less that the number of target shards [" + numTargetShards + "]");
 
         }
         int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
@@ -1331,7 +1332,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     }
 
     /**
-     * Selects the source shards fro a local shard recovery. This might either be a split or a shrink operation.
+     * Selects the source shards for a local shard recovery. This might either be a split or a shrink operation.
      * @param shardId the target shard ID to select the source shards for
      * @param sourceIndexMetadata the source metadata
      * @param numTargetShards the number of target shards
@@ -1381,22 +1382,23 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
      * are not divisible by the number of target shards.
      */
     public static int getRoutingFactor(int sourceNumberOfShards, int targetNumberOfShards) {
-        if (sourceNumberOfShards < targetNumberOfShards) {
-            int spare = sourceNumberOfShards;
-            sourceNumberOfShards = targetNumberOfShards;
-            targetNumberOfShards = spare;
-        }
-
-        int factor = sourceNumberOfShards / targetNumberOfShards;
-        if (factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1) {
-            if (sourceNumberOfShards < targetNumberOfShards) {
+        final int factor;
+        if (sourceNumberOfShards < targetNumberOfShards) { // split
+            factor = targetNumberOfShards / sourceNumberOfShards;
+            if (factor * sourceNumberOfShards != targetNumberOfShards || factor <= 1) {
                 throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a " +
                     "factor of ["
                     + targetNumberOfShards + "]");
             }
-            throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a " +
-                "multiple of ["
-                + targetNumberOfShards + "]");
+        } else if (sourceNumberOfShards > targetNumberOfShards) { // shrink
+            factor = sourceNumberOfShards / targetNumberOfShards;
+            if (factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1) {
+                throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a " +
+                    "multiple of ["
+                    + targetNumberOfShards + "]");
+            }
+        } else {
+            factor = 1;
         }
         return factor;
     }

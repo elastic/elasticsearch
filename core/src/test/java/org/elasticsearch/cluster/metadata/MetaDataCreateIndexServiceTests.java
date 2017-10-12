@@ -174,7 +174,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 MetaDataCreateIndexService.validateSplitIndex(state, "no such index", Collections.emptySet(), "target", Settings.EMPTY)
             ).getMessage());
 
-        assertEquals("the number of source shards must be less that the number of target shards",
+        assertEquals("the number of source shards [10] must be less that the number of target shards [5]",
             expectThrows(IllegalArgumentException.class, () -> MetaDataCreateIndexService.validateSplitIndex(createClusterState("source",
                 10, 0, Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(),
                 "target", Settings.builder().put("index.number_of_shards", 5).build())
@@ -189,7 +189,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             ).getMessage());
 
 
-        assertEquals("the number of source shards [4] must be a must be a multiple of [3]",
+        assertEquals("the number of source shards [3] must be a must be a factor of [4]",
             expectThrows(IllegalArgumentException.class, () ->
                 MetaDataCreateIndexService.validateSplitIndex(createClusterState("source", 3, randomIntBetween(0, 10),
                     Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(), "target",

@@ -165,7 +165,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         return new CreateIndexClusterStateUpdateRequest(targetIndex,
             cause, targetIndex.index(), targetIndexName, true)
             // mappings are updated on the node when merging in the shards, this prevents race-conditions since all mapping must be
-            // applied once we took the snapshot and if somebody fucks things up and switches the index read/write and adds docs we miss
+            // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we miss
             // the mappings for everything is corrupted and hard to debug
             .ackTimeout(targetIndex.timeout())
             .masterNodeTimeout(targetIndex.masterNodeTimeout())

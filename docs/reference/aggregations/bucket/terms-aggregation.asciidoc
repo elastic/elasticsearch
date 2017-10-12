@@ -459,7 +459,7 @@ Generating the terms using a script:
         "genres" : {
             "terms" : {
                 "script" : {
-                    "source": "doc['genre'].value",
+                    "inline": "doc['genre'].value",
                     "lang": "painless"
                 }
             }
@@ -501,7 +501,7 @@ TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
             "terms" : {
                 "field" : "gender",
                 "script" : {
-                    "source" : "'Genre: ' +_value"
+                    "inline" : "'Genre: ' +_value"
                     "lang" : "painless"
                 }
             }

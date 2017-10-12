@@ -92,7 +92,7 @@ public class JdbcDataSource implements DataSource, Wrapper, Closeable {
         return doGetConnection(p);
     }
 
-    private Connection doGetConnection(Properties p) {
+    private Connection doGetConnection(Properties p) throws SQLException {
         JdbcConfiguration cfg = new JdbcConfiguration(url, p);
         if (loginTimeout > 0) {
             cfg.connectTimeout(TimeUnit.SECONDS.toMillis(loginTimeout));

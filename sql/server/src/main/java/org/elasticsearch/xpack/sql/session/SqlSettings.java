@@ -47,6 +47,6 @@ public class SqlSettings {
     }
 
     public int pageSize() {
-        return cfg.getAsInt(PAGE_SIZE, 100);
+        return cfg.getAsInt(PAGE_SIZE, PAGE_SIZE_DEFAULT);
     }
 }

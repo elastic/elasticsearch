@@ -7,18 +7,19 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcException;
+
+import java.sql.SQLException;
 
 import static org.hamcrest.Matchers.is;
 
 public class JdbcConfigurationTests extends ESTestCase {
 
-    private JdbcConfiguration ci(String url) {
+    private JdbcConfiguration ci(String url) throws SQLException {
         return new JdbcConfiguration(url, null);
     }
 
     public void testJustThePrefix() throws Exception {
-       Exception e = expectThrows(JdbcException.class, () -> ci("jdbc:es:"));
+       Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es:"));
        assertEquals("Invalid URL [jdbc:es:], format should be [jdbc:es://[host[:port]]*/[prefix]*[?[option=value]&]*]", e.getMessage());
     }
 
@@ -53,7 +54,7 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     public void testTypeInParam() throws Exception {
-        Exception e = expectThrows(JdbcException.class, () -> ci("jdbc:es://a:1/foo/bar/tar?debug=true&debug.out=jdbc.out"));
+        Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://a:1/foo/bar/tar?debug=true&debug.out=jdbc.out"));
         assertEquals("Unknown parameter [debug.out] ; did you mean [debug.output]", e.getMessage());
     }
 

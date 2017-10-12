@@ -61,7 +61,7 @@ public class GroupByColumnAgg extends GroupingAgg {
     }
 
     @Override
-    protected GroupByColumnAgg clone(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
+    protected GroupByColumnAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
         return new GroupByColumnAgg(id, propertyPath, fieldName, subAggs, subPipelines, order);
     }
 }

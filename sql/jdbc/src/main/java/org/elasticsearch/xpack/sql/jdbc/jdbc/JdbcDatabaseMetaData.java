@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnInfo;
@@ -1184,7 +1185,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         return false;
     }
 
-    private static List<ColumnInfo> columnInfo(String tableName, Object... cols) {
+    private static List<ColumnInfo> columnInfo(String tableName, Object... cols) throws JdbcSQLException {
         List<ColumnInfo> columns = new ArrayList<>();
 
         for (int i = 0; i < cols.length; i++) {
@@ -1203,13 +1204,13 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                 columns.add(new ColumnInfo(name, type, tableName, "INFORMATION_SCHEMA", EMPTY, EMPTY, 0));
             }
             else {
-                throw new JdbcException("Invalid metadata schema definition");
+                throw new JdbcSQLException("Invalid metadata schema definition");
             }
         }
         return columns;
     }
 
-    private static ResultSet emptySet(JdbcConfiguration cfg, String tableName, Object... cols) {
+    private static ResultSet emptySet(JdbcConfiguration cfg, String tableName, Object... cols) throws JdbcSQLException {
         return new JdbcResultSet(cfg, null, new InMemoryCursor(columnInfo(tableName, cols), null));
     }
 

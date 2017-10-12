@@ -30,7 +30,7 @@ public abstract class GroupingAgg extends Agg {
         }
 
         @Override
-        protected GroupingAgg clone(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
+        protected GroupingAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
             throw new SqlIllegalArgumentException("Default group cannot be cloned");
         }
     };
@@ -74,15 +74,15 @@ public abstract class GroupingAgg extends Agg {
 
 
     public GroupingAgg withAggs(List<LeafAgg> subAggs) {
-        return clone(id(), propertyPath(), fieldName(), subAggs, subPipelines, order);
+        return copy(id(), propertyPath(), fieldName(), subAggs, subPipelines, order);
     }
 
     public GroupingAgg withPipelines(List<PipelineAgg> subPipelines) {
-        return clone(id(), propertyPath(), fieldName(), subAggs, subPipelines, order);
+        return copy(id(), propertyPath(), fieldName(), subAggs, subPipelines, order);
     }
 
     public GroupingAgg with(String id) {
-        return Objects.equals(id(), id) ? this : clone(id, propertyPath(), fieldName(), subAggs, subPipelines, order);
+        return Objects.equals(id(), id) ? this : copy(id, propertyPath(), fieldName(), subAggs, subPipelines, order);
     }
 
     public GroupingAgg with(Direction order) {
@@ -95,11 +95,10 @@ public abstract class GroupingAgg extends Agg {
         }
         Map<String, Direction> newOrder = new LinkedHashMap<>(this.order);
         newOrder.put(leafAggId, order);
-        return clone(id(), propertyPath(), fieldName(), subAggs, subPipelines, newOrder);
+        return copy(id(), propertyPath(), fieldName(), subAggs, subPipelines, newOrder);
     }
 
-    // NOCOMMIT clone is a scary name.
-    protected abstract GroupingAgg clone(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order);
+    protected abstract GroupingAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order);
 
     @Override
     public int hashCode() {

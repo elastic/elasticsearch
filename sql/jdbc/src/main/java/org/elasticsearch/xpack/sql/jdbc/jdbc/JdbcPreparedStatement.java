@@ -32,7 +32,7 @@ import java.util.Calendar;
 class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     final PreparedQuery query;
 
-    JdbcPreparedStatement(JdbcConnection con, JdbcConfiguration info, String sql) {
+    JdbcPreparedStatement(JdbcConnection con, JdbcConfiguration info, String sql) throws SQLException {
         super(con, info);
         this.query = PreparedQuery.prepare(sql);
     }

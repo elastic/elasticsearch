@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.client;
 
+import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcException;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ErrorResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.InfoRequest;
@@ -47,17 +47,17 @@ public class JdbcHttpClient implements Closeable {
     private final JdbcConfiguration conCfg;
     private InfoResponse serverInfo;
 
-    public JdbcHttpClient(JdbcConfiguration conCfg) {
+    public JdbcHttpClient(JdbcConfiguration conCfg) throws SQLException {
         http = new HttpClient(conCfg);
         this.conCfg = conCfg;
     }
 
-    public boolean ping(long timeoutInMs) {
+    public boolean ping(long timeoutInMs) throws SQLException {
         long oldTimeout = http.getNetworkTimeout();
         try {
             // this works since the connection is single-threaded and its configuration not shared
             // with others connections
-            http.setNetworkTimeout(timeoutInMs);
+        http.setNetworkTimeout(timeoutInMs);
             return http.head();
         } finally {
             http.setNetworkTimeout(oldTimeout);
@@ -123,7 +123,7 @@ public class JdbcHttpClient implements Closeable {
         try (DataInputStream in = new DataInputStream(new FastByteArrayInputStream(ba))) {
             return action.apply(in);
         } catch (IOException ex) {
-            throw new JdbcException(ex, "Cannot read response");
+            throw new JdbcSQLException(ex, "Cannot read response");
         }
     }
 
@@ -137,7 +137,7 @@ public class JdbcHttpClient implements Closeable {
         if (response.responseType() == ResponseType.ERROR) {
             ErrorResponse error = (ErrorResponse) response;
             // TODO: this could be made configurable to switch between message to error
-            throw new JdbcException("Server returned error: [" + error.stack + "]");
+            throw new JdbcSQLException("Server returned error: [" + error.stack + "]");
         }
         return response;
     }

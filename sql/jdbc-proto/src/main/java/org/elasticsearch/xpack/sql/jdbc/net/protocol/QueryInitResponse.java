@@ -37,7 +37,7 @@ public class QueryInitResponse extends AbstractQueryResponse {
             columns.add(new ColumnInfo(in));
         }
         this.columns = unmodifiableList(columns);
-        // NOCOMMIT - Page is a client class, it shouldn't leak here
+        // TODO -  Page is a client class, it shouldn't leak here
         Page data = new Page(columns);
         data.readFrom(in);
         this.data = data;

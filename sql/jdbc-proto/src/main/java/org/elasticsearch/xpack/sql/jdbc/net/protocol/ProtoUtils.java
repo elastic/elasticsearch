@@ -15,9 +15,7 @@ import java.sql.JDBCType;
 
 public class ProtoUtils {
     // See Jdbc spec, appendix B
-    @SuppressWarnings("unchecked")
-    public static <T> T readValue(DataInput in, JDBCType type) throws IOException {
-        // NOCOMMIT <T> feels slippery here
+    public static Object readValue(DataInput in, JDBCType type) throws IOException {
         Object result;
         byte hasNext = in.readByte();
         if (hasNext == 0) { // TODO feels like a bitmask at the start of the row would be better.
@@ -74,7 +72,7 @@ public class ProtoUtils {
             default:
                 throw new IOException("Don't know how to read type [" + type + "]");
         }
-        return (T) result;
+        return result;
     }
 
     public static void writeValue(DataOutput out, Object o, JDBCType type) throws IOException {

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 
 public class BytesArray {
 
@@ -98,25 +99,25 @@ public class BytesArray {
         size = 0;
     }
 
-    public void copyTo(BytesArray to) {
+    public void copyTo(BytesArray to) throws SQLException {
         to.add(bytes, offset, size);
     }
 
-    public void add(int b) {
+    public void add(int b) throws SQLException {
         int newcount = size + 1;
         checkSize(newcount);
         bytes[size] = (byte) b;
         size = newcount;
     }
 
-    public void add(byte[] b) {
+    public void add(byte[] b) throws SQLException {
         if (b == null || b.length == 0) {
             return;
         }
         add(b, 0, b.length);
     }
 
-    public void add(byte[] b, int off, int len) {
+    public void add(byte[] b, int off, int len) throws SQLException {
         if (len == 0) {
             return;
         }
@@ -126,14 +127,14 @@ public class BytesArray {
         size = newcount;
     }
 
-    public void add(String string) {
+    public void add(String string) throws SQLException {
         if (string == null) {
             return;
         }
         add(string.getBytes(StandardCharsets.UTF_8));
     }
 
-    private void checkSize(int newcount) {
+    private void checkSize(int newcount) throws SQLException {
         if (newcount > bytes.length) {
             bytes = ArrayUtils.grow(bytes, newcount);
         }

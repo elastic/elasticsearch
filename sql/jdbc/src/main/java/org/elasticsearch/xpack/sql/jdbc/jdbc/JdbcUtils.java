@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
+
 import java.math.BigDecimal;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -72,7 +74,7 @@ public abstract class JdbcUtils {
         return wrapperClass;
     }
 
-    public static int fromClass(Class<?> clazz) {
+    public static int fromClass(Class<?> clazz) throws JdbcSQLException {
         if (clazz == null) {
             return NULL;
         }
@@ -125,12 +127,12 @@ public abstract class JdbcUtils {
             return DECIMAL;
         }
 
-        throw new JdbcException("Unrecognized class [" + clazz + "]");
+        throw new JdbcSQLException("Unrecognized class [" + clazz + "]");
     }
 
     // see javax.sql.rowset.RowSetMetaDataImpl
     // and https://db.apache.org/derby/docs/10.5/ref/rrefjdbc20377.html
-    public static Class<?> classOf(int jdbcType) {
+    public static Class<?> classOf(int jdbcType) throws JdbcSQLException {
 
         switch (jdbcType) {
             case NUMERIC:
@@ -173,7 +175,7 @@ public abstract class JdbcUtils {
             case TIMESTAMP_WITH_TIMEZONE:
                 return Long.class;
             default:
-                throw new JdbcException("Unsupported JDBC type " + jdbcType + ", " + type(jdbcType).getName() + "");
+                throw new JdbcSQLException("Unsupported JDBC type " + jdbcType + ", " + type(jdbcType).getName() + "");
         }
     }
 

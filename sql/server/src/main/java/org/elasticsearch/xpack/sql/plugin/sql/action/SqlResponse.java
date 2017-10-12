@@ -28,7 +28,7 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
     private long size;
     private int columnCount;
     private List<ColumnInfo> columns;
-    // NOCOMMIT investigate reusing Page here - it probably is much more efficient
+    // TODO investigate reusing Page here - it probably is much more efficient
     private List<List<Object>> rows;
 
     public SqlResponse() {

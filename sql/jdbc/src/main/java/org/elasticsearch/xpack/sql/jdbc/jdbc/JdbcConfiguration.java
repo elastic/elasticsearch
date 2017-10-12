@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.net.client.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 
@@ -57,7 +58,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     private String debugOut = DEBUG_OUTPUT_DEFAULT;
     private final TimeZone timeZone;
 
-    public JdbcConfiguration(String u, Properties props) {
+    public JdbcConfiguration(String u, Properties props) throws JdbcSQLException {
         super(props);
         originalUrl = u;
         parseUrl(u);
@@ -68,11 +69,11 @@ public class JdbcConfiguration extends ConnectionConfiguration {
         timeZone = TimeZone.getTimeZone(settings().getProperty(TIME_ZONE, TIME_ZONE_DEFAULT));
     }
 
-    private void parseUrl(String u) {
+    private void parseUrl(String u) throws JdbcSQLException {
         String url = u;
         String format = "jdbc:es://[host[:port]]*/[prefix]*[?[option=value]&]*";
         if (!canAccept(u)) {
-            throw new JdbcException("Expected [" + URL_PREFIX + "] url, received [" + u +"]");
+            throw new JdbcSQLException("Expected [" + URL_PREFIX + "] url, received [" + u +"]");
         }
 
         try {
@@ -89,7 +90,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
             u = u.substring(URL_PREFIX.length(), u.length());
 
             if (!u.startsWith("//")) {
-                throw new JdbcException("Invalid URL [" + url + "], format should be [" + format + "]");
+                throw new JdbcSQLException("Invalid URL [" + url + "], format should be [" + format + "]");
             }
 
             // remove //
@@ -105,7 +106,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
             int pIndex = u.indexOf("?");
             if (pIndex > 0) {
                 if (index < 0) {
-                    throw new JdbcException("Invalid URL [" + url + "], format should be [" + format + "]");
+                    throw new JdbcSQLException("Invalid URL [" + url + "], format should be [" + format + "]");
                 }
                 if (pIndex + 1 < u.length()) {
                     params = u.substring(pIndex + 1);
@@ -135,7 +136,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
             index = hostAndPort.lastIndexOf(":");
             if (index > 0) {
                 if (index + 1 >= hostAndPort.length()) {
-                    throw new JdbcException("Invalid port specified");
+                    throw new JdbcSQLException("Invalid port specified");
                 }
                 String host = hostAndPort.substring(0, index);
                 String port = hostAndPort.substring(index + 1);
@@ -154,18 +155,18 @@ public class JdbcConfiguration extends ConnectionConfiguration {
                 for (String param : prms) {
                     List<String> args = StringUtils.tokenize(param, "=");
                     if (args.size() != 2) {
-                        throw new JdbcException("Invalid parameter [" + param + "], format needs to be key=value");
+                        throw new JdbcSQLException("Invalid parameter [" + param + "], format needs to be key=value");
                     }
                     String pName = args.get(0);
                     if (!KNOWN_OPTIONS.contains(pName)) {
-                        throw new JdbcException("Unknown parameter [" + pName + "] ; did you mean " +
+                        throw new JdbcSQLException("Unknown parameter [" + pName + "] ; did you mean " +
                                 StringUtils.findSimiliar(pName, KNOWN_OPTIONS));
                     }
                     
                     settings().setProperty(args.get(0), args.get(1));
                 }
             }
-        } catch (JdbcException e) {
+        } catch (JdbcSQLException e) {
             throw e;
         } catch (Exception e) {
             // Add the url to unexpected exceptions
@@ -173,12 +174,12 @@ public class JdbcConfiguration extends ConnectionConfiguration {
         }
     }
 
-    public URL asUrl() {
+    public URL asUrl() throws JdbcSQLException {
         // TODO: need to assemble all the various params here
         try {
             return new URL(isSSLEnabled() ? "https" : "http", hostAndPort.ip, port(), urlFile);
         } catch (MalformedURLException ex) {
-            throw new JdbcException(ex, "Cannot connect to server [" + originalUrl + "]");
+            throw new JdbcSQLException(ex, "Cannot connect to server [" + originalUrl + "]");
         }
     }
 

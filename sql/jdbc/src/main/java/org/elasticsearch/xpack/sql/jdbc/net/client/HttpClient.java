@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.client;
 
+import org.elasticsearch.xpack.sql.jdbc.JdbcException;
+import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcException;
 import org.elasticsearch.xpack.sql.jdbc.util.BytesArray;
 import org.elasticsearch.xpack.sql.net.client.ClientException;
 import org.elasticsearch.xpack.sql.net.client.JreHttpUrlConnection;
@@ -27,7 +28,7 @@ class HttpClient {
     private final JdbcConfiguration cfg;
     private final URL url;
 
-    HttpClient(JdbcConfiguration connectionInfo) {
+    HttpClient(JdbcConfiguration connectionInfo) throws SQLException {
         this.cfg = connectionInfo;
         URL baseUrl = connectionInfo.asUrl();
         try {
@@ -36,7 +37,7 @@ class HttpClient {
             this.url = new URL(baseUrl, "_sql/jdbc?error_trace=true");
         } catch (MalformedURLException ex) {
             throw new JdbcException(ex, "Cannot connect to JDBC endpoint [" + baseUrl.toString() + "_sql/jdbc]");
-        }
+    }
     }
 
     void setNetworkTimeout(long millis) {
@@ -47,16 +48,16 @@ class HttpClient {
         return cfg.networkTimeout();
     }
 
-    boolean head() {
+    boolean head() throws JdbcSQLException {
         try {
             URL root = new URL(url, "/");
             return AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
                 return JreHttpUrlConnection.http(root, cfg, JreHttpUrlConnection::head);
             });
         } catch (MalformedURLException ex) {
-            throw new JdbcException(ex, "Cannot ping server");
+            throw new JdbcSQLException(ex, "Cannot ping server");
         } catch (ClientException ex) {
-            throw new JdbcException(ex, "Transport failure");
+            throw new JdbcSQLException(ex, "Transport failure");
         }
     }
 
@@ -68,7 +69,7 @@ class HttpClient {
                 });
             });
         } catch (ClientException ex) {
-            throw new JdbcException(ex, "Transport failure");
+            throw new JdbcSQLException(ex, "Transport failure");
         }
     }
 

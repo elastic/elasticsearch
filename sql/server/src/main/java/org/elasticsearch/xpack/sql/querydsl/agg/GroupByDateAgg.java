@@ -68,7 +68,7 @@ public class GroupByDateAgg extends GroupingAgg {
     }
 
     @Override
-    protected GroupingAgg clone(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
+    protected GroupingAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
         return new GroupByDateAgg(id, propertyPath, fieldName, interval, timeZone, subAggs, subPipelines, order);
     }
 }

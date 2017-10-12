@@ -14,9 +14,6 @@ import java.util.Locale;
 
 // Logging is done through PrintWriter (not PrintStream which maps to System.err/out) to plug into the JDBC API
 final class DebugLog {
-    // NOCOMMIT investigate using JDK's logging. It doesn't have any dependencies and should be plenty quick when not logging.
-    // NOCOMMIT there was a message about not using the Locale being faster but that violated forbidden APIs. Investigate further.
-
     private static final String HEADER = "%tF/%tT.%tL - ";
 
     final PrintWriter print;

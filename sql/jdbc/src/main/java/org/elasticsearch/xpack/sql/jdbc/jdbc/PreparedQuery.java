@@ -5,7 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
+
 import java.sql.JDBCType;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,16 +34,16 @@ class PreparedQuery {
         clearParams();
     }
 
-    ParamInfo getParam(int param) {
+    ParamInfo getParam(int param) throws JdbcSQLException {
         if (param < 1 || param > params.length) {
-            throw new JdbcException("Invalid parameter index [" + param + "]");
+            throw new JdbcSQLException("Invalid parameter index [" + param + "]");
         }
         return params[param - 1];
     }
 
-    void setParam(int param, Object value, JDBCType type) {
+    void setParam(int param, Object value, JDBCType type) throws JdbcSQLException {
         if (param < 1 || param > params.length) {
-            throw new JdbcException("Invalid parameter index [" + param + "]");
+            throw new JdbcSQLException("Invalid parameter index [" + param + "]");
         }
         params[param - 1].value = value;
         params[param - 1].type = type;
@@ -74,7 +78,7 @@ class PreparedQuery {
 
     // Find the ? parameters for binding
     // Additionally, throw away all JDBC escaping
-    static PreparedQuery prepare(String sql) {
+    static PreparedQuery prepare(String sql) throws SQLException {
         int l = sql.length();
 
         List<String> fragments = new ArrayList<>();
@@ -128,8 +132,8 @@ class PreparedQuery {
         return new PreparedQuery(fragments);
     }
 
-    private static void jdbcEscape() {
-        throw new JdbcException("JDBC escaping not supported yet");
+    private static void jdbcEscape() throws SQLException {
+        throw new SQLFeatureNotSupportedException("JDBC escaping not supported yet");
     }
 
 
@@ -146,7 +150,7 @@ class PreparedQuery {
         return i;
     }
 
-    private static int multiLineComment(int i, String sql, StringBuilder current) {
+    private static int multiLineComment(int i, String sql, StringBuilder current) throws JdbcSQLException {
         int block = 1;
 
         for (; i < sql.length() - 1; i++) {
@@ -168,10 +172,10 @@ class PreparedQuery {
                 return i;
             }
         }
-        throw new JdbcException("Cannot parse given sql; unclosed /* comment");
+        throw new JdbcSQLException("Cannot parse given sql; unclosed /* comment");
     }
 
-    private static int string(int i, String sql, StringBuilder current, char q) {
+    private static int string(int i, String sql, StringBuilder current, char q) throws JdbcSQLException {
         current.append(sql.charAt(i++));
         for (; i < sql.length(); i++) {
             char c = sql.charAt(i);
@@ -189,7 +193,7 @@ class PreparedQuery {
                 current.append(c);
             }
         }
-        throw new JdbcException("Cannot parse given sql; unclosed string");
+        throw new JdbcSQLException("Cannot parse given sql; unclosed string");
     }
 
     static String escapeString(String s) {

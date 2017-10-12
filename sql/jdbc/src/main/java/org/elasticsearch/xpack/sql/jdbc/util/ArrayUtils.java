@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.util;
 
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcException;
+import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
+
+import java.sql.SQLException;
 
 // taken from org.apache.lucene.util
 abstract class ArrayUtils {
 
-    static byte[] grow(byte[] array, int minSize) {
+    static byte[] grow(byte[] array, int minSize) throws SQLException {
         assert minSize >= 0 : "size must be positive (got " + minSize + "): likely integer overflow?";
         if (array.length < minSize) {
             byte[] newArray = new byte[oversize(minSize, 1)];
@@ -20,11 +22,11 @@ abstract class ArrayUtils {
         else return array;
     }
 
-    static int oversize(int minTargetSize, int bytesPerElement) {
+    static int oversize(int minTargetSize, int bytesPerElement) throws SQLException {
 
         if (minTargetSize < 0) {
             // catch usage that accidentally overflows int
-            throw new JdbcException("invalid array size [" + minTargetSize + "]");
+            throw new JdbcSQLException("invalid array size [" + minTargetSize + "]");
         }
 
         if (minTargetSize == 0) {

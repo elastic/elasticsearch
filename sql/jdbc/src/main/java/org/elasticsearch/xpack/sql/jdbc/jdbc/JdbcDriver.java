@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
 import org.elasticsearch.xpack.sql.jdbc.util.Version;
 
@@ -24,31 +25,34 @@ public class JdbcDriver implements java.sql.Driver, Closeable {
     private static final JdbcDriver INSTANCE = new JdbcDriver();
 
     static {
-        register();
-    }
-
-    public static JdbcDriver register() {
         try {
-            DriverManager.registerDriver(INSTANCE, INSTANCE::close);
+            register();
         } catch (SQLException ex) {
             // the SQLException is bogus as there's no source for it
             PrintWriter writer = DriverManager.getLogWriter();
             if (writer != null) {
                 ex.printStackTrace(writer);
             }
+            throw new ExceptionInInitializerError(ex);
         }
+    }
+
+    public static JdbcDriver register() throws SQLException {
+        DriverManager.registerDriver(INSTANCE, INSTANCE::close);
         return INSTANCE;
     }
 
-    public static void deregister() {
+    public static void deregister() throws SQLException {
         try {
             DriverManager.deregisterDriver(INSTANCE);
         } catch (SQLException ex) {
             // the SQLException is bogus as there's no source for it
+            // but we handle it just in case
             PrintWriter writer = DriverManager.getLogWriter();
             if (writer != null) {
                 ex.printStackTrace(writer);
             }
+            throw ex;
         }
     }
 
@@ -64,6 +68,9 @@ public class JdbcDriver implements java.sql.Driver, Closeable {
     // Jdbc 4.0
     //
     public Connection connect(String url, Properties props) throws SQLException {
+        if (url == null) {
+            throw new JdbcSQLException("Non-null url required");
+        }
         if (!acceptsURL(url)) {
             return null;
         }
@@ -73,7 +80,7 @@ public class JdbcDriver implements java.sql.Driver, Closeable {
         return cfg.debug() ? Debug.proxy(cfg, con, DriverManager.getLogWriter()) : con;
     }
 
-    private static JdbcConfiguration initCfg(String url, Properties props) {
+    private static JdbcConfiguration initCfg(String url, Properties props) throws JdbcSQLException {
         JdbcConfiguration ci = new JdbcConfiguration(url, props);
 
         // if there's a timeout set on the DriverManager, make sure to use it

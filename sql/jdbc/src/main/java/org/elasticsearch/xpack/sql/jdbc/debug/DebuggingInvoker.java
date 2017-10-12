@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.debug;
 
+import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
+
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcException;
 
 abstract class DebuggingInvoker implements InvocationHandler {
 
@@ -60,7 +60,7 @@ abstract class DebuggingInvoker implements InvocationHandler {
         } catch (Exception ex) {
             // should not occur
             log.logException(method, args, ex);
-            throw new JdbcException(ex, "Debugging failed for [" + method + "]");
+            throw new JdbcSQLException(ex, "Debugging failed for [" + method + "]");
         }
     }
 

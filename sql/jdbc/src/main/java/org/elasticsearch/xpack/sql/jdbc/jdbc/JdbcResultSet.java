@@ -73,7 +73,12 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         if (columnIndex < 1 || columnIndex > cursor.columnSize()) {
             throw new SQLException("Invalid column index [" + columnIndex + "]");
         }
-        Object object = cursor.column(columnIndex - 1);
+        Object object = null;
+        try {
+            object = cursor.column(columnIndex - 1);
+        } catch (IllegalArgumentException iae) {
+            throw new SQLException(iae.getMessage());
+        }
         wasNull = (object == null);
         return object;
     }

@@ -5,9 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
+import org.elasticsearch.xpack.sql.jdbc.net.client.JdbcHttpClient;
+import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.CallableStatement;
+import java.sql.ClientInfoStatus;
 import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -27,9 +32,7 @@ import java.util.Properties;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
-import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
-import org.elasticsearch.xpack.sql.jdbc.net.client.JdbcHttpClient;
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+import static java.util.Collections.singletonMap;
 
 /**
  * Implementation of {@link Connection} for Elasticsearch.
@@ -45,7 +48,7 @@ public class JdbcConnection implements Connection, JdbcWrapper {
     private String schema;
     private Properties clientInfo = new Properties();
 
-    public JdbcConnection(JdbcConfiguration connectionInfo) {
+    public JdbcConnection(JdbcConfiguration connectionInfo) throws SQLException {
         cfg = connectionInfo;
         client = new JdbcHttpClient(connectionInfo);
 
@@ -335,7 +338,7 @@ public class JdbcConnection implements Connection, JdbcWrapper {
     public void setClientInfo(String name, String value) throws SQLClientInfoException {
         checkOpenClientInfo();
         if (!StringUtils.hasText(name)) {
-            throw new JdbcException("Invalid/Empty name given");
+            throw new SQLClientInfoException(singletonMap(name, ClientInfoStatus.REASON_VALUE_INVALID));
         }
         if (value != null) {
             clientInfo.put(name, value);

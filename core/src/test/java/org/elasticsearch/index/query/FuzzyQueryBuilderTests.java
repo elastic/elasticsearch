@@ -241,6 +241,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         checkGeneratedJson(json, parsed);
         assertEquals(json, 42.0, parsed.boost(), 0.00001);
         assertEquals(json, 2, parsed.fuzziness().asFloat(), 0f);
+        assertEquals(json, false, parsed.transpositions());
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
@@ -289,5 +290,20 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
         assertEquals("[fuzzy] unexpected token [START_ARRAY] after [value]", e.getMessage());
+    }
+
+    public void testToQueryWithTranspositions() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        Query query = new FuzzyQueryBuilder(STRING_FIELD_NAME, "text").toQuery(createShardContext());
+        assertThat(query, instanceOf(FuzzyQuery.class));
+        assertEquals(FuzzyQuery.defaultTranspositions, ((FuzzyQuery)query).getTranspositions());
+
+        query = new FuzzyQueryBuilder(STRING_FIELD_NAME, "text").transpositions(true).toQuery(createShardContext());
+        assertThat(query, instanceOf(FuzzyQuery.class));
+        assertEquals(true, ((FuzzyQuery)query).getTranspositions());
+
+        query = new FuzzyQueryBuilder(STRING_FIELD_NAME, "text").transpositions(false).toQuery(createShardContext());
+        assertThat(query, instanceOf(FuzzyQuery.class));
+        assertEquals(false, ((FuzzyQuery)query).getTranspositions());
     }
 }

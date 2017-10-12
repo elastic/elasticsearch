@@ -56,7 +56,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
     public void testWithoutCommonWordsMatch() throws IOException {
         {
             Settings settings = Settings.builder().put("index.analysis.filter.common_grams_default.type", "common_grams")
-                     .putArray("index.analysis.filter.common_grams_default.common_words", "chromosome", "protein")
+                     .putList("index.analysis.filter.common_grams_default.common_words", "chromosome", "protein")
                      .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                      .build();
 
@@ -75,7 +75,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
             Settings settings = Settings.builder().put("index.analysis.filter.common_grams_default.type", "common_grams")
                      .put("index.analysis.filter.common_grams_default.query_mode", false)
                      .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                     .putArray("index.analysis.filter.common_grams_default.common_words", "chromosome", "protein")
+                     .putList("index.analysis.filter.common_grams_default.common_words", "chromosome", "protein")
                      .build();
             ESTestCase.TestAnalysis analysis = createTestAnalysisFromSettings(settings);
             {
@@ -94,7 +94,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
             Settings settings = Settings.builder().put("index.analysis.filter.common_grams_1.type", "common_grams")
                     .put("index.analysis.filter.common_grams_1.ignore_case", true)
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                    .putArray("index.analysis.filter.common_grams_1.common_words", "the", "Or", "Not", "a", "is", "an", "they", "are")
+                    .putList("index.analysis.filter.common_grams_1.common_words", "the", "Or", "Not", "a", "is", "an", "they", "are")
                     .build();
             ESTestCase.TestAnalysis analysis = createTestAnalysisFromSettings(settings);
             TokenFilterFactory tokenFilter = analysis.tokenFilter.get("common_grams_1");
@@ -109,7 +109,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
             Settings settings = Settings.builder().put("index.analysis.filter.common_grams_2.type", "common_grams")
                     .put("index.analysis.filter.common_grams_2.ignore_case", false)
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                    .putArray("index.analysis.filter.common_grams_2.common_words", "the", "Or", "noT", "a", "is", "an", "they", "are")
+                    .putList("index.analysis.filter.common_grams_2.common_words", "the", "Or", "noT", "a", "is", "an", "they", "are")
                     .build();
             ESTestCase.TestAnalysis analysis = createTestAnalysisFromSettings(settings);
             TokenFilterFactory tokenFilter = analysis.tokenFilter.get("common_grams_2");
@@ -122,7 +122,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
         }
         {
             Settings settings = Settings.builder().put("index.analysis.filter.common_grams_3.type", "common_grams")
-                    .putArray("index.analysis.filter.common_grams_3.common_words", "the", "or", "not", "a", "is", "an", "they", "are")
+                    .putList("index.analysis.filter.common_grams_3.common_words", "the", "or", "not", "a", "is", "an", "they", "are")
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
             ESTestCase.TestAnalysis analysis = createTestAnalysisFromSettings(settings);
@@ -166,7 +166,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
         {
             Settings settings = Settings.builder().put("index.analysis.filter.common_grams_1.type", "common_grams")
                     .put("index.analysis.filter.common_grams_1.query_mode", true)
-                    .putArray("index.analysis.filter.common_grams_1.common_words", "the", "Or", "Not", "a", "is", "an", "they", "are")
+                    .putList("index.analysis.filter.common_grams_1.common_words", "the", "Or", "Not", "a", "is", "an", "they", "are")
                     .put("index.analysis.filter.common_grams_1.ignore_case", true)
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
@@ -181,7 +181,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
         {
             Settings settings = Settings.builder().put("index.analysis.filter.common_grams_2.type", "common_grams")
                     .put("index.analysis.filter.common_grams_2.query_mode", true)
-                    .putArray("index.analysis.filter.common_grams_2.common_words", "the", "Or", "noT", "a", "is", "an", "they", "are")
+                    .putList("index.analysis.filter.common_grams_2.common_words", "the", "Or", "noT", "a", "is", "an", "they", "are")
                     .put("index.analysis.filter.common_grams_2.ignore_case", false)
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
@@ -196,7 +196,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
         {
             Settings settings = Settings.builder().put("index.analysis.filter.common_grams_3.type", "common_grams")
                     .put("index.analysis.filter.common_grams_3.query_mode", true)
-                    .putArray("index.analysis.filter.common_grams_3.common_words", "the", "Or", "noT", "a", "is", "an", "they", "are")
+                    .putList("index.analysis.filter.common_grams_3.common_words", "the", "Or", "noT", "a", "is", "an", "they", "are")
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
             ESTestCase.TestAnalysis analysis = createTestAnalysisFromSettings(settings);
@@ -210,7 +210,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
         {
             Settings settings = Settings.builder().put("index.analysis.filter.common_grams_4.type", "common_grams")
                     .put("index.analysis.filter.common_grams_4.query_mode", true)
-                    .putArray("index.analysis.filter.common_grams_4.common_words", "the", "or", "not", "a", "is", "an", "they", "are")
+                    .putList("index.analysis.filter.common_grams_4.common_words", "the", "or", "not", "a", "is", "an", "they", "are")
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
             ESTestCase.TestAnalysis analysis = createTestAnalysisFromSettings(settings);

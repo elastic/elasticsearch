@@ -483,7 +483,7 @@ public class NodeEnvironmentTests extends ESTestCase {
     public Settings buildEnvSettings(Settings settings) {
         return Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                    .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+                    .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
                     .put(settings).build();
     }
 
@@ -491,7 +491,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         Settings build = Settings.builder()
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .putArray(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
         return new NodeEnvironment(build, new Environment(build));
     }
 
@@ -500,7 +500,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataPath)
-                .putArray(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
         return new NodeEnvironment(build, new Environment(build));
     }
 }

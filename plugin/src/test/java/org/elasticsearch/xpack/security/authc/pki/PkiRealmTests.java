@@ -214,8 +214,20 @@ public class PkiRealmTests extends ESTestCase {
                     new ThreadContext(globalSettings)), mock(UserRoleMapper.class));
             fail("exception should have been thrown");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("[xpack.security.authc.realms.mypki.truststore.secure_password] is not configured"));
+            assertThat(e.getMessage(), containsString("Neither [xpack.security.authc.realms.mypki.truststore.secure_password] or [" +
+                    "xpack.security.authc.realms.mypki.truststore.password] is configured"));
         }
+    }
+
+    public void testTruststorePathWithLegacyPasswordDoesNotThrow() throws Exception {
+        Settings settings = Settings.builder()
+                .put("truststore.path",
+                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.jks"))
+                .put("truststore.password", "testnode-client-profile")
+                .build();
+        new PkiRealm(new RealmConfig("mypki", settings, globalSettings, new Environment(globalSettings),
+                new ThreadContext(globalSettings)), mock(UserRoleMapper.class));
+        assertSettingDeprecationsAndWarnings(new Setting[] { SSLConfigurationSettings.withoutPrefix().legacyTruststorePassword });
     }
 
     public void testCertificateWithOnlyCnExtractsProperly() throws Exception {

@@ -21,7 +21,9 @@ dependencies {
   }
   compile "net.sourceforge.csvjdbc:csvjdbc:1.0.31"
   runtime "com.h2database:h2:1.4.194"
-
+  // used for running debug tests
+  runtime 'org.antlr:antlr4-runtime:4.5.1-1'
+  
   // There are *no* CLI testing dependencies because we
   // communicate fork a new CLI process when we need it.
 
@@ -117,6 +119,9 @@ subprojects {
       transitive = false
     }
     testRuntime("com.h2database:h2:1.4.194") {
+      transitive = false
+    }
+    testRuntime("org.antlr:antlr4-runtime:4.5.1-1") {
       transitive = false
     }
 

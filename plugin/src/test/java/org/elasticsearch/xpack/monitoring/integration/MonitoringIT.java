@@ -485,6 +485,7 @@ public class MonitoringIT extends ESRestTestCase {
      */
     public static void enableMonitoring() throws Exception {
         final Map<String, Object> exporters = callRestApi("GET", "/_xpack/usage?filter_path=monitoring.enabled_exporters", 200);
+        assertNotNull("List of monitoring exporters must not be null", exporters);
         assertThat("List of enabled exporters must be empty before enabling monitoring",
                     XContentMapValues.extractRawValues("monitoring.enabled_exporters", exporters), hasSize(0));
 
@@ -544,11 +545,12 @@ public class MonitoringIT extends ESRestTestCase {
                 response = callRestApi("GET", "/_nodes/_local/stats/thread_pool?filter_path=nodes.*.thread_pool.bulk.active", 200);
 
                 final Map<String, Object> nodes = (Map<String, Object>) response.get("nodes");
-                final Map<String, Object> threadPool = (Map<String, Object>) nodes.values().iterator().next();
-                final Number activeBulks = (Number) extractValue("bulk.active", threadPool);
+                final Map<String, Object> node = (Map<String, Object>) nodes.values().iterator().next();
+
+                final Number activeBulks = (Number) extractValue("thread_pool.bulk.active", node);
                 return activeBulks != null && activeBulks.longValue() == 0L;
             } catch (Exception e) {
-                throw new ElasticsearchException("Failed to delete monitoring indices:", e);
+                throw new ElasticsearchException("Failed to wait for monitoring exporters to stop:", e);
             }
         });
     }

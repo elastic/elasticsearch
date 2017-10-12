@@ -1003,6 +1003,12 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
 
+        // but not real time is not yet visible
+        getResult = engine.get(newGet(false, doc), searcherFactory);
+        assertThat(getResult.exists(), equalTo(false));
+        getResult.release();
+
+
         // refresh and it should be there
         engine.refresh("test");
 

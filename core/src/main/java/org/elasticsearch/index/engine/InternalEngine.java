@@ -1206,7 +1206,7 @@ public class InternalEngine extends Engine {
                     // even though we maintain 2 managers we really do the heavy-lifting only once.
                     // the second refresh will only do the extra work we have to do for warming caches etc.
                     externalSearcherManager.maybeRefreshBlocking();
-                    // fall-through is intentional
+                    // the break here is intentional we never refresh both internal / external together
                     break;
                 case INTERNAL:
                     internalSearcherManager.maybeRefreshBlocking();

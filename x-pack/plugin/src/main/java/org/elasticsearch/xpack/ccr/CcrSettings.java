@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -26,8 +27,21 @@ final class CcrSettings {
      */
     static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
 
+    /**
+     * Index setting for a following index.
+     */
+    static final Setting<Boolean> CCR_FOLLOWING_INDEX_SETTING =
+            Setting.boolSetting("index.xpack.ccr.following_index", false, Setting.Property.IndexScope);
+
+    /**
+     * The settings defined by CCR.
+     *
+     * @return the settings
+     */
     static List<Setting<?>> getSettings() {
-        return Collections.singletonList(CCR_ENABLED_SETTING);
+        return Arrays.asList(
+                CCR_ENABLED_SETTING,
+                CCR_FOLLOWING_INDEX_SETTING);
     }
 
 }

@@ -7,13 +7,10 @@ package org.elasticsearch.xpack.test.rest;
 
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
 import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
 import org.elasticsearch.xpack.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
@@ -34,6 +31,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /** Runs rest tests against external cluster */
@@ -87,6 +86,15 @@ public class XPackRestIT extends XPackRestTestCase {
     @Before
     public void enableMonitoring() throws Exception {
         if (isMonitoringTest()) {
+            final ClientYamlTestResponse xpackUsage =
+                    callApi("xpack.usage", singletonMap("filter_path", "monitoring.enabled_exporters"), emptyList());
+
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> exporters = (Map<String, Object>) xpackUsage.evaluate("monitoring.enabled_exporters");
+            assertNotNull("List of monitoring exporters must not be null", exporters);
+            assertThat("List of enabled exporters must be empty before enabling monitoring",
+                    XContentMapValues.extractRawValues("monitoring.enabled_exporters", exporters), hasSize(0));
+
             final Map<String, Object> settings = new HashMap<>();
             settings.put("xpack.monitoring.collection.interval", "3s");
             settings.put("xpack.monitoring.exporters._local.enabled", true);
@@ -125,8 +133,8 @@ public class XPackRestIT extends XPackRestTestCase {
     private void disableMonitoring() throws Exception {
         if (isMonitoringTest()) {
             final Map<String, Object> settings = new HashMap<>();
-            settings.put("xpack.monitoring.collection.interval", (String) null);
-            settings.put("xpack.monitoring.exporters._local.enabled", (String) null);
+            settings.put("xpack.monitoring.collection.interval", null);
+            settings.put("xpack.monitoring.exporters._local.enabled", null);
 
             awaitCallApi("cluster.put_settings", emptyMap(),
                     singletonList(singletonMap("transient", settings)),
@@ -136,38 +144,34 @@ public class XPackRestIT extends XPackRestTestCase {
                     },
                     () -> "Exception when disabling monitoring");
 
-            // Now the local exporter is disabled, we try to check if the monitoring indices are
-            // re created by an inflight bulk request. We try this 10 times or 10 seconds.
-            final CountDown retries = new CountDown(10);
             awaitBusy(() -> {
                 try {
-                    Map<String, String> params = new HashMap<>();
-                    params.put("index", ".monitoring-*");
-                    params.put("allow_no_indices", "false");
-
                     ClientYamlTestResponse response =
-                            callApi("indices.exists", params, emptyList());
-                    if (response.getStatusCode() == HttpStatus.SC_OK) {
-                        params = singletonMap("index", ".monitoring-*");
-                        callApi("indices.delete", params, emptyList());
+                            callApi("xpack.usage", singletonMap("filter_path", "monitoring.enabled_exporters"), emptyList());
+
+                    @SuppressWarnings("unchecked")
+                    final Map<String, ?> exporters = (Map<String, ?>) response.evaluate("monitoring.enabled_exporters");
+                    if (exporters.isEmpty() == false) {
                         return false;
                     }
-                } catch (ClientYamlTestResponseException e) {
-                    ResponseException exception = e.getResponseException();
-                    if (exception != null) {
-                        Response response = exception.getResponse();
-                        if (response != null) {
-                            int responseCode = response.getStatusLine().getStatusCode();
-                            if (responseCode == HttpStatus.SC_NOT_FOUND) {
-                                return retries.countDown();
-                            }
-                        }
-                    }
-                    throw new ElasticsearchException("Failed to delete monitoring indices: ", e);
-                } catch (IOException e) {
-                    throw new ElasticsearchException("Failed to delete monitoring indices: ", e);
+
+                    final Map<String, String> params = new HashMap<>();
+                    params.put("node_id", "_local");
+                    params.put("metric", "thread_pool");
+                    params.put("filter_path", "nodes.*.thread_pool.bulk.active");
+                    response = callApi("nodes.stats", params, emptyList());
+
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> nodes = (Map<String, Object>) response.evaluate("nodes");
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> node = (Map<String, Object>) nodes.values().iterator().next();
+
+                    @SuppressWarnings("unchecked")
+                    final Number activeBulks = (Number) extractValue("thread_pool.bulk.active", node);
+                    return activeBulks != null && activeBulks.longValue() == 0L;
+                } catch (Exception e) {
+                    throw new ElasticsearchException("Failed to wait for monitoring exporters to stop:", e);
                 }
-                return retries.countDown();
             });
         }
     }

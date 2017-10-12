@@ -907,9 +907,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     try {
                         closeChannels(entry.getValue(), true, false);
                     } catch (Exception e) {
-                        logger.debug(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "Error closing serverChannel for profile [{}]", entry.getKey()), e);
+                        logger.warn(new ParameterizedMessage("Error closing serverChannel for profile [{}]", entry.getKey()), e);
                     }
                 }
                 // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close

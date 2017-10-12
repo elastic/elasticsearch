@@ -31,6 +31,21 @@ import java.util.Map;
 
 import javax.sql.DataSource;
 
+/**
+ * Class handling debug logging. Typically disabled (hence why it's called debug).
+ * JDBC carries a lot of legacy conventions, logging being one of them - in JDBC logging was expected to
+ * be to System.Err/Out since there were no logging frameworks at the time.
+ * This didn't work so the API was changed through {@link DriverManager#getLogStream()} however that also had issues
+ * being global and not working well with encoding (hence why {@link DriverManager#getLogWriter()} was introduced) 
+ * and was changed again through {@link DataSource#getLogWriter()}.
+ * However by then the damage was done and most drivers don't use either and have their own logging implementation.
+ * 
+ * This class tries to cater to both audience - use the legacy, Writer way if needed though strive to use the 
+ * proper typical approach, that of specifying intention and output (file) in the URL.
+ * 
+ * For this reason the {@link System#out} and {@link System#err} are being refered in this class though are used only
+ * when needed.
+ */
 public final class Debug {
 
     // cache for streams created by ourselves
@@ -211,12 +226,12 @@ public final class Debug {
         OUTPUT_MANAGED.clear();
     }
 
-    // NOCOMMIT loggers instead, I think - CL: what if the user wants to output to system.err/out like in an embedded app?
-    @SuppressForbidden(reason="temporary")
+    @SuppressForbidden(reason = "JDBC drivers allows logging to Sys.out")
     private static PrintStream stdout() {
         return System.out;
     }
-    @SuppressForbidden(reason="temporary")
+
+    @SuppressForbidden(reason = "JDBC drivers allows logging to Sys.err")
     private static PrintStream stderr() {
         return System.err;
     }

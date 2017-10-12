@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.ResponseType;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
-import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.jline.utils.AttributedStringBuilder;
 
@@ -18,6 +17,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static org.jline.utils.AttributedStyle.BOLD;
 import static org.jline.utils.AttributedStyle.BRIGHT;
@@ -73,12 +73,10 @@ abstract class ResponseToString {
         sb.append("]", BOLD.underlineOff().foreground(RED));
     }
 
-    // NOCOMMIT - is using the default temp folder a problem?
-    @SuppressForbidden(reason = "need to use temporary file")
     private static String handleGraphviz(String str) {
         try {
             // save the content to a temp file
-            Path dotTempFile = Files.createTempFile("sql-gv", ".dot");
+            Path dotTempFile = Files.createTempFile(Paths.get("."), "sql-gv", ".dot");
             Files.write(dotTempFile, str.getBytes(StandardCharsets.UTF_8));
             // run graphviz on it (dot needs to be on the file path)
             //Desktop desktop = Desktop.getDesktop();

@@ -21,11 +21,11 @@ public class ProtoUtils {
         if (hasNext == 0) { // TODO feels like a bitmask at the start of the row would be better.
             return null;
         }
-        // NOCOMMIT we ought to make sure we use all of these
+        // TODO we ought to make sure we use all of these
         switch (type) {
             case NULL:
                 // used to move the stream forward
-                // NOCOMMIT why serialize NULL types at all?
+                // TODO why serialize NULL types at all?
                 in.readBoolean();
                 return null;
             case BIT:
@@ -83,7 +83,7 @@ public class ProtoUtils {
         out.writeByte(1);
 
         switch (type) {
-            // NOCOMMIT we ought to make sure we use all of these
+            // TODO:  we ought to make sure we use all of these
             case NULL:
                 // used to move the stream forward
                 out.writeBoolean(false);

@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.xpack.sql.tree.Location;
+
 import java.util.List;
 import java.util.Objects;
-
-import org.elasticsearch.xpack.sql.tree.Location;
 
 public abstract class NamedExpression extends Expression {
 
@@ -42,9 +42,8 @@ public abstract class NamedExpression extends Expression {
     public abstract Attribute toAttribute();
 
     @Override
-    public final int hashCode() {
-        // NOCOMMIT making this final upsets checkstyle.
-        return id.hashCode();
+    public int hashCode() {
+        return Objects.hash(id, name, synthetic);
     }
 
     @Override

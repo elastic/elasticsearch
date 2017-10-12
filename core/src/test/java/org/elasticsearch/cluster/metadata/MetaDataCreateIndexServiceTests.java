@@ -219,7 +219,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         int targetShards;
         do {
-            targetShards = randomIntBetween(numShards, 100);
+            targetShards = randomIntBetween(numShards+1, 100);
         } while (isSplitable(numShards, targetShards) == false);
         MetaDataCreateIndexService.validateSplitIndex(clusterState, "source", Collections.emptySet(), "target",
             Settings.builder().put("index.number_of_shards", targetShards).build());

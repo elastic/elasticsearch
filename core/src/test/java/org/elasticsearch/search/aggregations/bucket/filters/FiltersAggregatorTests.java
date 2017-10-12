@@ -218,7 +218,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         AggregatorFactory<?> factory = createAggregatorFactory(builder, indexSearcher, fieldType);
         assertThat(factory, Matchers.instanceOf(FiltersAggregatorFactory.class));
         FiltersAggregatorFactory filtersFactory = (FiltersAggregatorFactory) factory;
-        Query parsedQuery = filtersFactory.weights[0].getQuery();
+        Query parsedQuery = filtersFactory.getWeights()[0].getQuery();
         assertThat(parsedQuery, Matchers.instanceOf(BooleanQuery.class));
         assertEquals(2, ((BooleanQuery) parsedQuery).clauses().size());
         // means the bool query has been parsed as a filter, if it was a query minShouldMatch would

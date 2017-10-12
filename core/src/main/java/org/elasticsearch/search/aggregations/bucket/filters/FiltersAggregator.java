@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  *
@@ -118,13 +119,13 @@ public class FiltersAggregator extends BucketsAggregator {
     }
 
     private final String[] keys;
-    private Weight[] filters;
+    private Supplier<Weight[]> filters;
     private final boolean keyed;
     private final boolean showOtherBucket;
     private final String otherBucketKey;
     private final int totalNumKeys;
 
-    public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Weight[] filters, boolean keyed, String otherBucketKey,
+    public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Supplier<Weight[]> filters, boolean keyed, String otherBucketKey,
             SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
@@ -145,6 +146,7 @@ public class FiltersAggregator extends BucketsAggregator {
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
         // no need to provide deleted docs to the filter
+        Weight[] filters = this.filters.get();
         final Bits[] bits = new Bits[filters.length];
         for (int i = 0; i < filters.length; ++i) {
             bits[i] = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filters[i].scorerSupplier(ctx));
@@ -168,7 +170,7 @@ public class FiltersAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.length);
+        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(keys.length);
         for (int i = 0; i < keys.length; i++) {
             long bucketOrd = bucketOrd(owningBucketOrdinal, i);
             InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(keys[i], bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed);
@@ -187,7 +189,7 @@ public class FiltersAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
-        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.length);
+        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(keys.length);
         for (int i = 0; i < keys.length; i++) {
             InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(keys[i], 0, subAggs, keyed);
             buckets.add(bucket);

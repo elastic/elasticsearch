@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.filters;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -36,7 +37,8 @@ import java.util.Map;
 public class FiltersAggregatorFactory extends AggregatorFactory<FiltersAggregatorFactory> {
 
     private final String[] keys;
-    final Weight[] weights;
+    private final Query[] filters;
+    private Weight[] weights;
     private final boolean keyed;
     private final boolean otherBucket;
     private final String otherBucketKey;
@@ -48,21 +50,43 @@ public class FiltersAggregatorFactory extends AggregatorFactory<FiltersAggregato
         this.keyed = keyed;
         this.otherBucket = otherBucket;
         this.otherBucketKey = otherBucketKey;
-        IndexSearcher contextSearcher = context.searcher();
-        weights = new Weight[filters.size()];
         keys = new String[filters.size()];
+        this.filters = new Query[filters.size()];
         for (int i = 0; i < filters.size(); ++i) {
             KeyedFilter keyedFilter = filters.get(i);
             this.keys[i] = keyedFilter.key();
-            Query filter = keyedFilter.filter().toFilter(context.getQueryShardContext());
-            this.weights[i] = contextSearcher.createNormalizedWeight(filter, false);
+            this.filters[i] = keyedFilter.filter().toFilter(context.getQueryShardContext());
         }
+    }
+
+    /**
+     * Returns the {@link Weight}s for this filter aggregation, creating it if
+     * necessary. This is done lazily so that the {@link Weight}s are only
+     * created if the aggregation collects documents reducing the overhead of
+     * the aggregation in the case where no documents are collected.
+     * 
+     * Note that as aggregations are initialsed and executed in a serial manner,
+     * no concurrency considerations are necessary here.
+     */
+    public Weight[] getWeights() {
+        if (weights == null) {
+            try {
+                IndexSearcher contextSearcher = context.searcher();
+                weights = new Weight[filters.length];
+                for (int i = 0; i < filters.length; ++i) {
+                    this.weights[i] = contextSearcher.createNormalizedWeight(filters[i], false);
+                }
+            } catch (IOException e) {
+                throw new AggregationInitializationException("Failed to initialse filters for aggregation [" + name() + "]", e);
+            }
+        }
+        return weights;
     }
 
     @Override
     public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
-        return new FiltersAggregator(name, factories, keys, weights, keyed, otherBucket ? otherBucketKey : null, context, parent,
+        return new FiltersAggregator(name, factories, keys, () -> getWeights(), keyed, otherBucket ? otherBucketKey : null, context, parent,
                 pipelineAggregators, metaData);
     }
 

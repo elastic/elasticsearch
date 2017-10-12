@@ -3,9 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.qa.sql.multinode;
+package org.elasticsearch.xpack.qa.sql.nosecurity;
 
-import org.elasticsearch.xpack.qa.sql.cli.FetchSizeTestCase;
+import org.elasticsearch.xpack.qa.sql.cli.ErrorsTestCase;
 
-public class CliFetchSizeIT extends FetchSizeTestCase {
+public class CliErrorsIT extends ErrorsTestCase {
 }

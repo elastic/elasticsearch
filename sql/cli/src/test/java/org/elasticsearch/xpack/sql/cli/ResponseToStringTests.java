@@ -33,8 +33,8 @@ public class ResponseToStringTests extends ESTestCase {
     public void testExceptionResponse() {
         AttributedStringBuilder s = ResponseToString.toAnsi(new ExceptionResponse(RequestType.INFO, "test message", "test cause",
                 randomFrom(SqlExceptionType.values())));
-        assertEquals("test message", unstyled(s));
-        assertEquals("[1;36mtest message[0m", fullyStyled(s));
+        assertEquals("Bad request [test message]", unstyled(s));
+        assertEquals("[1;31mBad request [[22;3;33mtest message[1;23;31m][0m", fullyStyled(s));
     }
 
     private String unstyled(AttributedStringBuilder s) {

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.qa.sql.multinode;
 
-import org.elasticsearch.xpack.qa.sql.cli.FetchSizeTestCase;
+import org.elasticsearch.xpack.qa.sql.cli.ErrorsTestCase;
 
-public class CliFetchSizeIT extends FetchSizeTestCase {
+public class CliErrorsIT extends ErrorsTestCase {
 }

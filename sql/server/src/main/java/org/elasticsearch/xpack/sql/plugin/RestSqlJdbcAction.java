@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageResponse;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlRequest;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
-import org.elasticsearch.xpack.sql.protocol.shared.AbstractExceptionResponse;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.session.Cursor;
@@ -85,8 +84,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
     }
 
     @Override
-    protected AbstractExceptionResponse buildExceptionResponse(Request request, String message, String cause,
-            SqlExceptionType exceptionType) {
+    protected ExceptionResponse buildExceptionResponse(Request request, String message, String cause, SqlExceptionType exceptionType) {
         return new ExceptionResponse((RequestType) request.requestType(), message, cause, exceptionType);
     }
 

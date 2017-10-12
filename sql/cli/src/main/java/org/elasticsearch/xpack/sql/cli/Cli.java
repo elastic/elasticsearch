@@ -6,10 +6,12 @@
 package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.ResponseType;
 import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 import org.elasticsearch.xpack.sql.net.client.util.IOUtils;
 import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
+import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
@@ -287,17 +289,21 @@ public class Cli {
     }
 
     private void executeQuery(String line) throws IOException {
-        QueryResponse response = cliClient.queryInit(line, fetchSize);
+        Response response = cliClient.queryInit(line, fetchSize);
         while (true) {
             term.writer().print(ResponseToString.toAnsi(response).toAnsi(term));
             term.writer().flush();
-            if (response.cursor().length == 0) {
+            if (response.responseType() == ResponseType.ERROR || response.responseType() == ResponseType.EXCEPTION) {
+                return;
+            }
+            QueryResponse queryResponse = (QueryResponse) response;
+            if (queryResponse.cursor().length == 0) {
                 return;
             }
             if (false == fetchSeparator.equals("")) {
                 term.writer().println(fetchSeparator);
             }
-            response = cliClient.nextPage(response.cursor());
+            response = cliClient.nextPage(queryResponse.cursor());
         }
     }
 

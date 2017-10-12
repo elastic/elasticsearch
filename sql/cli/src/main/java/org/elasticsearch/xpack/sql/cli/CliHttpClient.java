@@ -9,9 +9,7 @@ import org.elasticsearch.xpack.sql.cli.net.protocol.InfoRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitRequest;
-import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageRequest;
-import org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageResponse;
 import org.elasticsearch.xpack.sql.net.client.util.Bytes;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
@@ -31,18 +29,19 @@ public class CliHttpClient implements AutoCloseable {
 
     public InfoResponse serverInfo() {
         InfoRequest request = new InfoRequest();
+        // TODO think about error handling here
         return (InfoResponse) sendRequest(request);
     }
 
-    public QueryInitResponse queryInit(String query, int fetchSize) {
+    public Response queryInit(String query, int fetchSize) {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         QueryInitRequest request = new QueryInitRequest(query, fetchSize, TimeZone.getTimeZone("UTC"), new TimeoutInfo(0, 0, 0));
-        return (QueryInitResponse) sendRequest(request);
+        return sendRequest(request);
     }
 
-    public QueryPageResponse nextPage(byte[] cursor) {
+    public Response nextPage(byte[] cursor) {
         QueryPageRequest request = new QueryPageRequest(cursor, new TimeoutInfo(0, 0, 0));
-        return (QueryPageResponse) sendRequest(request);
+        return sendRequest(request);
     }
 
     private Response sendRequest(Request request) {

@@ -61,7 +61,7 @@ public final class Proto extends AbstractProto {
         }
     }
 
-    enum ResponseType implements AbstractProto.ResponseType {
+    public enum ResponseType implements AbstractProto.ResponseType {
         EXCEPTION(ExceptionResponse::new),
         ERROR(ErrorResponse::new),
         INFO(InfoResponse::new),

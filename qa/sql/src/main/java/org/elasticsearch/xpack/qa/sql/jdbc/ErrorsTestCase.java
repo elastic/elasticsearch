@@ -9,7 +9,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 
 /**
- * Tests for error messages.
+ * Tests for exceptions and their messages.
  */
 public class ErrorsTestCase extends JdbcIntegrationTestCase {
     public void testSelectFromMissingTable() throws Exception {

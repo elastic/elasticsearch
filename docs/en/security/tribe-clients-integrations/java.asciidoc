@@ -16,7 +16,7 @@ NOTE: Using the Java Node Client with secured clusters is not recommended or
 To use the transport client with a secured cluster, you need to:
 
 [[java-transport-client-role]]
-. <<xpack-javaclient, Set up the client for use with {xpack}>>.
+. {ref}/setup-xpack-client.html[Configure the {xpack} transport client].
 
 . Configure a user with the privileges required to start the transport client.
 A default `transport_client` role is built-in to {xpack} that grants the

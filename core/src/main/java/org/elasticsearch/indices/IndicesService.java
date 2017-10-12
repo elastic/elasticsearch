@@ -45,6 +45,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -78,6 +79,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
@@ -101,6 +104,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
@@ -115,10 +119,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -169,6 +177,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndicesRequestCache indicesRequestCache;
     private final IndicesQueryCache indicesQueryCache;
     private final MetaStateService metaStateService;
+    private final Collection<EnginePlugin> enginePlugins;
 
     @Override
     protected void doStart() {
@@ -180,7 +189,8 @@ public class IndicesService extends AbstractLifecycleComponent
                           AnalysisRegistry analysisRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry, ThreadPool threadPool,
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
-                          ScriptService scriptService, Client client, MetaStateService metaStateService) {
+                          ScriptService scriptService, Client client, MetaStateService metaStateService,
+                          Collection<EnginePlugin> enginePlugins) {
         super(settings);
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -211,6 +221,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache,  logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
+        this.enginePlugins = enginePlugins;
     }
 
     @Override
@@ -437,7 +448,7 @@ public class IndicesService extends AbstractLifecycleComponent
             idxSettings.getNumberOfReplicas(),
             reason);
 
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry);
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings));
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -461,6 +472,34 @@ public class IndicesService extends AbstractLifecycleComponent
         );
     }
 
+    private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
+        final List<Tuple<EnginePlugin, Optional<EngineFactory>>> engineFactories =
+                enginePlugins
+                        .stream()
+                        .map(p -> Tuple.tuple(p, p.getEngineFactory(idxSettings)))
+                        .filter(t -> Objects.requireNonNull(t.v2()).isPresent())
+                        .collect(Collectors.toList());
+        if (engineFactories.isEmpty()) {
+            return new InternalEngineFactory();
+        } else if (engineFactories.size() == 1) {
+            assert engineFactories.get(0).v2().isPresent();
+            return engineFactories.get(0).v2().get();
+        } else {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "multiple plugins provided engine factories for %s: %s",
+                    idxSettings.getIndex(),
+                    engineFactories
+                            .stream()
+                            .map(t -> {
+                                assert t.v2().isPresent();
+                                return "[" + t.v1().getClass().getName() + "/" + t.v2().get().getClass().getName() + "]";
+                            })
+                            .collect(Collectors.joining(",")));
+            throw new IllegalStateException(message);
+        }
+    }
+
     /**
      * creates a new mapper service for the given index, in order to do administrative work like mapping updates.
      * This *should not* be used for document parsing. Doing so will result in an exception.
@@ -469,7 +508,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public synchronized MapperService createIndexMapperService(IndexMetaData indexMetaData) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopeSetting);
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry);
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings));
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }

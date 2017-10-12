@@ -129,12 +129,20 @@ final class ShardSplittingQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        throw new UnsupportedOperationException("only use this query for deleting documents");
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        ShardSplittingQuery that = (ShardSplittingQuery) o;
+
+        if (shardId != that.shardId) return false;
+        return indexMetaData.equals(that.indexMetaData);
     }
 
     @Override
     public int hashCode() {
-        throw new UnsupportedOperationException("only use this query for deleting documents");
+        int result = indexMetaData.hashCode();
+        result = 31 * result + shardId;
+        return result;
     }
 
     private static void findSplitDocs(String idField, Predicate<BytesRef> includeInShard,

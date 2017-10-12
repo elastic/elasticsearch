@@ -45,7 +45,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/** Unit tests for TCPTransport */
+/** Unit tests for {@link TcpTransport} */
 public class TcpTransportTests extends ESTestCase {
 
     /** Test ipv4 host with a default port works */

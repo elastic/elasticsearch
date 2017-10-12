@@ -31,11 +31,13 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -56,6 +58,10 @@ final class ShardSplittingQuery extends Query {
     private final int shardId;
 
     ShardSplittingQuery(IndexMetaData indexMetaData, int shardId) {
+        if (indexMetaData.getCreationVersion().before(Version.V_6_0_0_rc2)) {
+            throw new IllegalArgumentException("Splitting query can only be executed on an index created with version "
+                + Version.V_6_0_0_rc2 + " or higher");
+        }
         this.indexMetaData = indexMetaData;
         this.shardId = shardId;
     }
@@ -87,7 +93,7 @@ final class ShardSplittingQuery extends Query {
                         Bits liveDocs = leafReader.getLiveDocs();
                         Visitor visitor = new Visitor();
                         return new ConstantScoreScorer(this, score(),
-                            new RoutingPartitionedDocIdSetIterator(leafReader, liveDocs, visitor));
+                            new RoutingPartitionedDocIdSetIterator(leafReader, visitor));
                     } else {
                         // in the _routing case we first go and find all docs that have a routing value and mark the ones we have to delete
                         findSplitDocs(RoutingFieldMapper.NAME, ref -> {
@@ -111,6 +117,8 @@ final class ShardSplittingQuery extends Query {
                 }
                 return new ConstantScoreScorer(this, score(), new BitSetIterator(bitSet, bitSet.length()));
             }
+
+
         };
     }
 
@@ -121,12 +129,12 @@ final class ShardSplittingQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        return sameClassAs(o);
+        throw new UnsupportedOperationException("only use this query for deleting documents");
     }
 
     @Override
     public int hashCode() {
-        return classHash();
+        throw new UnsupportedOperationException("only use this query for deleting documents");
     }
 
     private static void findSplitDocs(String idField, Predicate<BytesRef> includeInShard,
@@ -184,6 +192,7 @@ final class ShardSplittingQuery extends Query {
 
         @Override
         public Status needsField(FieldInfo fieldInfo) throws IOException {
+            // we don't support 5.x so no need for the uid field
             switch (fieldInfo.name) {
                 case IdFieldMapper.NAME:
                 case RoutingFieldMapper.NAME:
@@ -191,57 +200,36 @@ final class ShardSplittingQuery extends Query {
                     return Status.YES;
                 default:
                     return leftToVisit == 0 ? Status.STOP : Status.NO;
-
             }
         }
     }
 
     /**
-     * This DISI visits every live doc and selects all docs that don't belong into this
-     * shard based on their id and rounting value. This is only used in a routing partitioned index.
+     * This two phase iterator visits every live doc and selects all docs that don't belong into this
+     * shard based on their id and routing value. This is only used in a routing partitioned index.
      */
-    private final class RoutingPartitionedDocIdSetIterator extends DocIdSetIterator {
+    private final class RoutingPartitionedDocIdSetIterator extends TwoPhaseIterator {
         private final LeafReader leafReader;
-        private final Bits liveDocs;
         private final Visitor visitor;
-        private int doc;
 
-        RoutingPartitionedDocIdSetIterator(LeafReader leafReader, Bits liveDocs, Visitor visitor) {
+        RoutingPartitionedDocIdSetIterator(LeafReader leafReader, Visitor visitor) {
+            super(DocIdSetIterator.all(leafReader.maxDoc())); // we iterate all live-docs
             this.leafReader = leafReader;
-            this.liveDocs = liveDocs;
             this.visitor = visitor;
-            doc = -1;
         }
 
         @Override
-        public int docID() {
-            return doc;
+        public boolean matches() throws IOException {
+            int doc = approximation.docID();
+            visitor.reset();
+            leafReader.document(doc, visitor);
+            int targetShardId = OperationRouting.generateShardId(indexMetaData, visitor.id, visitor.routing);
+            return targetShardId != shardId;
         }
 
         @Override
-        public int nextDoc() throws IOException {
-            while (++doc < leafReader.maxDoc()) {
-                if (liveDocs == null || liveDocs.get(doc)) {
-                    visitor.reset();
-                    leafReader.document(doc, visitor);
-                    int targetShardId = OperationRouting.generateShardId(indexMetaData, visitor.id, visitor.routing);
-                    if (targetShardId != shardId) { // move to next doc if we can keep it
-                        return doc;
-                    }
-                }
-            }
-            return doc = DocIdSetIterator.NO_MORE_DOCS;
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            while (nextDoc() < target) {}
-            return doc;
-        }
-
-        @Override
-        public long cost() {
-            return leafReader.maxDoc();
+        public float matchCost() {
+            return 42; // that's obvious, right?
         }
     }
 }

@@ -22,10 +22,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 
-import java.io.ByteArrayInputStream;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
@@ -137,36 +135,36 @@ public final class Uid {
         // 'xxx=' and 'xxx' could be considered the same id
         final int length = id.length();
         switch (length & 0x03) {
-        case 0:
-            break;
-        case 1:
-            return false;
-        case 2:
-            // the last 2 symbols (12 bits) are encoding 1 byte (8 bits)
-            // so the last symbol only actually uses 8-6=2 bits and can only take 4 values
-            char last = id.charAt(length - 1);
-            if (last != 'A' && last != 'Q' && last != 'g' && last != 'w') {
+            case 0:
+                break;
+            case 1:
                 return false;
-            }
-            break;
-        case 3:
-            // The last 3 symbols (18 bits) are encoding 2 bytes (16 bits)
-            // so the last symbol only actually uses 16-12=4 bits and can only take 16 values
-            last = id.charAt(length - 1);
-            if (last != 'A' && last != 'E' && last != 'I' && last != 'M' && last != 'Q'&& last != 'U'&& last != 'Y'
+            case 2:
+                // the last 2 symbols (12 bits) are encoding 1 byte (8 bits)
+                // so the last symbol only actually uses 8-6=2 bits and can only take 4 values
+                char last = id.charAt(length - 1);
+                if (last != 'A' && last != 'Q' && last != 'g' && last != 'w') {
+                    return false;
+                }
+                break;
+            case 3:
+                // The last 3 symbols (18 bits) are encoding 2 bytes (16 bits)
+                // so the last symbol only actually uses 16-12=4 bits and can only take 16 values
+                last = id.charAt(length - 1);
+                if (last != 'A' && last != 'E' && last != 'I' && last != 'M' && last != 'Q'&& last != 'U'&& last != 'Y'
                     && last != 'c'&& last != 'g'&& last != 'k' && last != 'o' && last != 's' && last != 'w'
                     && last != '0' && last != '4' && last != '8') {
-                return false;
-            }
-            break;
-        default:
-            // number & 0x03 is always in [0,3]
-            throw new AssertionError("Impossible case");
+                    return false;
+                }
+                break;
+            default:
+                // number & 0x03 is always in [0,3]
+                throw new AssertionError("Impossible case");
         }
         for (int i = 0; i < length; ++i) {
             final char c = id.charAt(i);
             final boolean allowed =
-                    (c >= '0' && c <= '9') ||
+                (c >= '0' && c <= '9') ||
                     (c >= 'A' && c <= 'Z') ||
                     (c >= 'a' && c <= 'z') ||
                     c == '-' || c == '_';
@@ -272,9 +270,9 @@ public final class Uid {
     private static String decodeBase64Id(byte[] idBytes, int offset, int length) {
         assert Byte.toUnsignedInt(idBytes[offset]) <= BASE64_ESCAPE;
         if (Byte.toUnsignedInt(idBytes[offset]) == BASE64_ESCAPE) {
-            idBytes = Arrays.copyOfRange(idBytes, offset + 1, length);
-        } else if (idBytes.length != length || offset != 0) {
-            idBytes = Arrays.copyOfRange(idBytes, offset, length);
+            idBytes = Arrays.copyOfRange(idBytes, offset + 1, offset + length);
+        } else if ((idBytes.length == length && offset == 0) == false) { // no need to copy if it's not a slice
+            idBytes = Arrays.copyOfRange(idBytes, offset, offset + length);
         }
         return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
     }
@@ -282,7 +280,7 @@ public final class Uid {
     /** Decode an indexed id back to its original form.
      *  @see #encodeId */
     public static String decodeId(byte[] idBytes) {
-       return decodeId(idBytes, 0, idBytes.length);
+        return decodeId(idBytes, 0, idBytes.length);
     }
 
     /** Decode an indexed id back to its original form.

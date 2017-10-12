@@ -16,113 +16,13 @@ NOTE: Using the Java Node Client with secured clusters is not recommended or
 To use the transport client with a secured cluster, you need to:
 
 [[java-transport-client-role]]
+. <<xpack-javaclient, Set up the client for use with {xpack}>>.
+
 . Configure a user with the privileges required to start the transport client.
 A default `transport_client` role is built-in to {xpack} that grants the
 appropriate cluster permissions for the transport client to work with the secured
 cluster. The transport client uses the _Nodes Info API_ to fetch information about
 the nodes in the cluster.
-
-. Add the {xpack} transport JAR file to your CLASSPATH. You can download the {xpack}
-distribution and extract the JAR file manually or you can get it from the
-https://artifacts.elastic.co/maven/org/elasticsearch/client/x-pack-transport/{version}/x-pack-transport-{version}.jar[Elasticsearch Maven repository].
-+
-As with any dependency, you will also need its transitive dependencies. Refer to the
-https://artifacts.elastic.co/maven/org/elasticsearch/client/x-pack-transport/{version}/x-pack-transport-{version}.pom[X-Pack POM file
-for your version] when downloading for offline usage.
---
-
-If you are using Maven, you need to add the {xpack} JAR file as a dependency in
-your project's `pom.xml` file:
-
-[source,xml]
---------------------------------------------------------------
-<project ...>
-
-   <repositories>
-      <!-- add the elasticsearch repo -->
-      <repository>
-         <id>elasticsearch-releases</id>
-         <url>https://artifacts.elastic.co/maven</url>
-         <releases>
-            <enabled>true</enabled>
-         </releases>
-         <snapshots>
-            <enabled>false</enabled>
-         </snapshots>
-      </repository>
-      ...
-   </repositories>
-   ...
-
-   <dependencies>
-      <!-- add the x-pack jar as a dependency -->
-      <dependency>
-         <groupId>org.elasticsearch.client</groupId>
-         <artifactId>x-pack-transport</artifactId>
-         <version>{version}</version>
-      </dependency>
-      ...
-   </dependencies>
-   ...
-
- </project>
---------------------------------------------------------------
-
-If you are using Gradle, you need to add the {xpack} JAR file as a dependency in
-your `build.gradle` file:
-
-[source,groovy]
---------------------------------------------------------------
-repositories {
-  /* ... Any other repositories ... */
-
-  // Add the Elasticsearch Maven Repository
-  maven {
-    url "https://artifacts.elastic.co/maven"
-  }
-}
-
-dependencies {
-  compile "org.elasticsearch.client:x-pack-transport:{version}"
-
-  /* ... */
-}
---------------------------------------------------------------
---
-
-If you are using a repository manager such as https://www.sonatype.com/nexus-repository-oss[Nexus OSS] within your
-company, you need to add the repository as per the following screenshot:
-
-
-image::images/nexus.png["Adding the Elastic repo in Nexus",link="images/nexus.png"]
-
-
-Then in your project's `pom.xml` if using maven, add the following repositories and dependencies definitions:
-
-[source,xml]
---------------------------------------------------------------
-<dependencies>
-    <dependency>
-        <groupId>org.elasticsearch.client</groupId>
-        <artifactId>x-pack-transport</artifactId>
-        <version>{version}</version>
-    </dependency>
-</dependencies>
-
-<repositories>
-    <repository>
-        <id>local-nexus</id>
-        <name>Elastic Local Nexus</name>
-        <url>http://0.0.0.0:8081/repository/elasticsearch/</url>
-        <releases>
-            <enabled>true</enabled>
-        </releases>
-        <snapshots>
-            <enabled>false</enabled>
-        </snapshots>
-    </repository>
-</repositories>
---------------------------------------------------------------
 
 . Set up the transport client. At a minimum, you must configure `xpack.security.user` to
 include the name and password of your transport client user in your requests. The
@@ -130,6 +30,7 @@ following snippet configures the user credentials globally--every request
 submitted with this client includes the `transport_client_user` credentials in
 its headers.
 +
+--
 [source,java]
 -------------------------------------------------------------------------------------------------
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
@@ -143,20 +44,20 @@ TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()
     .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))
     .addTransportAddress(new InetSocketTransportAddress("localhost", 9301));
 -------------------------------------------------------------------------------------------------
-+
+
 WARNING:  If you configure a transport client without SSL, passwords are sent in
           clear text.
-+
+
 You can also add an `Authorization` header to each request. If you've configured
 global authorization credentials, the `Authorization` header overrides the global
 authentication credentials. This is useful when an application has multiple users
 who access Elasticsearch using the same client. You can set the global token to
 a user that only has the `transport_client` role, and add the `transport_client`
 role to the individual users.
-+
+
 For example, the following snippet adds the `Authorization` header to a search
 request:
-+
+
 [source,java]
 --------------------------------------------------------------------------------------------------
 import org.elasticsearch.common.settings.SecureString;
@@ -181,6 +82,7 @@ String token = basicAuthHeaderValue("test_user", new SecureString("x-pack-test-p
 client.filterWithHeader(Collections.singletonMap("Authorization", token))
     .prepareSearch().get();
 --------------------------------------------------------------------------------------------------
+--
 
 . Enable SSL to authenticate clients and encrypt communications. To enable SSL,
 you need to:
@@ -188,9 +90,10 @@ you need to:
 .. Configure the paths to the client's key and certificate in addition to the certificate authorities.
 Client authentication requires every client to have a certification signed by a trusted CA.
 +
+--
 NOTE: Client authentication is enabled by default. For information about
       disabling client authentication, see <<disabling-client-auth, Disabling Client Authentication>>.
-+
+
 [source,java]
 --------------------------------------------------------------------------------------------------
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
@@ -205,11 +108,12 @@ TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()
         ...
         .build());
 --------------------------------------------------------------------------------------------------
+--
 
-+
 .. Enable the SSL transport by setting `xpack.security.transport.ssl.enabled` to `true` in the
 client configuration.
 +
+--
 [source,java]
 --------------------------------------------------------------------------------------------------
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
@@ -227,6 +131,7 @@ TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()
     .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9300))
     .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9301))
 --------------------------------------------------------------------------------------------------
+--
 
 [float]
 [[disabling-client-auth]]

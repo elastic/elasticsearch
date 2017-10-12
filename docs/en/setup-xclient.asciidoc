@@ -2,13 +2,13 @@
 [[setup-xpack-client]]
 == Configuring {xpack} Java Clients
 
-If you want to use a Java {ref}/transport-client.html[transport client] with a
+If you want to use a Java {javaclient}/transport-client.html[transport client] with a
 cluster where {xpack} is installed, then you must download and configure the
 {xpack} transport client.
 
 WARNING: The `TransportClient` is aimed to be replaced by the Java High Level REST
 Client, which executes HTTP requests instead of serialized Java requests. The
-`TransportClient` will be deprecated in upcoming versions of {es}. 
+`TransportClient` will be deprecated in upcoming versions of {es}.
 
 . Add the {xpack} transport JAR file to your *CLASSPATH*. You can download the {xpack}
 distribution and extract the JAR file manually or you can get it from the

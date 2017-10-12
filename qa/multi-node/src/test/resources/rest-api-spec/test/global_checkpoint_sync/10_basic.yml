@@ -1,0 +1,31 @@
+---
+"Global checkpoint sync action runs as a privileged user":
+
+ - do:
+     indices.create:
+       index: test-index
+       body:
+         settings:
+           index:
+             number_of_shards: 1
+             number_of_replicas: 1
+
+ - do:
+     cluster.health:
+       wait_for_status: green
+
+ - do:
+     index:
+       index: test-index
+       type: test-type
+       id: 1
+       body: { foo: bar }
+
+ - do:
+     indices.stats:
+       index: test-index
+       level: shards
+       filter_path: "**.seq_no"
+
+ - match: { indices.test-index.shards.0.0.seq_no.global_checkpoint: 0 }
+ - match: { indices.test-index.shards.0.1.seq_no.global_checkpoint: 0 }

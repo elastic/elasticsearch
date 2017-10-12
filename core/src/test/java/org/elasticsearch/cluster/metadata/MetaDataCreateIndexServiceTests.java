@@ -104,7 +104,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                         "target", Settings.EMPTY)
             ).getMessage());
 
-        assertEquals("the number of target shards must be less that the number of source shards",
+        assertEquals("the number of target shards [10] must be less that the number of source shards [5]",
             expectThrows(IllegalArgumentException.class, () -> MetaDataCreateIndexService.validateShrinkIndex(createClusterState("source",
                 5, 0, Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(),
                 "target", Settings.builder().put("index.number_of_shards", 10).build())

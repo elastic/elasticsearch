@@ -274,17 +274,32 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * * Validates that all given settings are registered and valid
      */
     public final void validate(Settings settings) {
-        List<RuntimeException> exceptions = new ArrayList<>();
-        for (String key : settings.keySet()) { // settings iterate in deterministic fashion
+        validate(settings, false, false);
+    }
+
+    /**
+     * Validates that all settings are registered and valid yet ignores private settings if the specified flag is true.
+     *
+     * @param settings              the settings
+     * @param ignorePrivateSettings true if private settings should be ignored during validation
+     */
+    public final void validate(final Settings settings, final boolean ignorePrivateSettings, final boolean ignoreArchivedSettings) {
+        final List<RuntimeException> exceptions = new ArrayList<>();
+        for (final String key : settings.keySet()) { // settings iterate in deterministic fashion
+            if (isPrivateSetting(key) && ignorePrivateSettings) {
+                continue;
+            }
+            if (key.startsWith(ARCHIVED_SETTINGS_PREFIX) && ignoreArchivedSettings) {
+                continue;
+            }
             try {
                 validate(key, settings);
-            } catch (RuntimeException ex) {
+            } catch (final RuntimeException ex) {
                 exceptions.add(ex);
             }
         }
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
-
 
     /**
      * Validates that the setting is valid

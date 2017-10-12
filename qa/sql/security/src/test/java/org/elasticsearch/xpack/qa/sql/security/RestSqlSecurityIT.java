@@ -114,7 +114,8 @@ public class RestSqlSecurityIT extends ESRestTestCase {
                 logger.info("Waiting on bulk writes to finish:\n{}", bulksString);
                 fail("Waiting on bulk writes to finish:\n" + bulksString);
             }
-        }, 1, TimeUnit.MINUTES);
+        }, 4, TimeUnit.MINUTES);
+        // NOCOMMIT 1 minute used to be plenty before we 
         try {
             clearAuditEvents();
         } catch (ResponseException e) {

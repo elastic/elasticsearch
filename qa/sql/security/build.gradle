@@ -13,6 +13,7 @@ integTestCluster {
   // Try and speed up audit logging without overwelming it
   setting 'xpack.security.audit.index.flush_interval', '250ms'
   // NOCOMMIT reenable after https://github.com/elastic/x-pack-elasticsearch/issues/2705 for lower overhead tests
+  // see the NOCOMMIT in RestSqlSecurityIT#cleanAuditLogs and revert to 1 minute once this is reenabled
   // setting 'xpack.security.audit.index.settings.index.number_of_shards', '1'
   // setting 'xpack.security.audit.index.settings.index.refresh_interval', '250ms'
   // Setup roles used by tests

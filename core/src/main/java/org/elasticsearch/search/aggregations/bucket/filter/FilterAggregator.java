@@ -34,16 +34,17 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Aggregate all docs that match a filter.
  */
 public class FilterAggregator extends SingleBucketAggregator {
 
-    private final Weight filter;
+    private final Supplier<Weight> filter;
 
     public FilterAggregator(String name,
-                            Weight filter,
+                            Supplier<Weight> filter,
                             AggregatorFactories factories,
                             SearchContext context,
                             Aggregator parent, List<PipelineAggregator> pipelineAggregators,
@@ -56,7 +57,7 @@ public class FilterAggregator extends SingleBucketAggregator {
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
         // no need to provide deleted docs to the filter
-        final Bits bits = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filter.scorerSupplier(ctx));
+        final Bits bits = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filter.get().scorerSupplier(ctx));
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

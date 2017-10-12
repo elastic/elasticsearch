@@ -5,15 +5,20 @@
  */
 package org.elasticsearch.xpack.qa.sql.security;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.qa.sql.cli.FetchSizeTestCase;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
 public class CliFetchSizeIT extends FetchSizeTestCase {
-    // NOCOMMIT get this working with security....
+    static String securityEsUrlPrefix() {
+        return "test_admin:x-pack-test-password@";
+    }
     @Override
     protected Settings restClientSettings() {
         return RestSqlIT.securitySettings();
+    }
+
+    @Override
+    protected String esUrlPrefix() {
+        return securityEsUrlPrefix();
     }
 }

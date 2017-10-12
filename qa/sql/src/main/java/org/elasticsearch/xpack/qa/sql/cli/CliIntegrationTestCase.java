@@ -110,7 +110,7 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
         cliSocket.setSoTimeout(10000);
 
         out = new PrintWriter(new OutputStreamWriter(cliSocket.getOutputStream(), StandardCharsets.UTF_8), true);
-        out.println(ES.get());
+        out.println(esUrlPrefix() + ES.get());
         in = new BufferedReader(new InputStreamReader(cliSocket.getInputStream(), StandardCharsets.UTF_8));
         // Throw out the logo and warnings about making a dumb terminal
         while (false == readLine().contains("SQL"));
@@ -144,6 +144,14 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
             // Most importantly, close the socket so the next test can use the fixture
             cliSocket.close();
         }
+    }
+
+    /**
+     * Prefix to the Elasticsearch URL. Override to add
+     * authentication support.
+     */
+    protected String esUrlPrefix() {
+        return "";
     }
 
     protected void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {

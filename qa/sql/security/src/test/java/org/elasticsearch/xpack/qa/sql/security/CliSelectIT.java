@@ -5,15 +5,17 @@
  */
 package org.elasticsearch.xpack.qa.sql.security;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.qa.sql.cli.SelectTestCase;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
 public class CliSelectIT extends SelectTestCase {
-    // NOCOMMIT get this working with security....
     @Override
     protected Settings restClientSettings() {
         return RestSqlIT.securitySettings();
+    }
+
+    @Override
+    protected String esUrlPrefix() {
+        return CliFetchSizeIT.securityEsUrlPrefix();
     }
 }

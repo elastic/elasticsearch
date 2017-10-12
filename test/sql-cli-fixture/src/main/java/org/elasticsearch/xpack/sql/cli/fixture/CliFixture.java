@@ -88,6 +88,7 @@ public class CliFixture {
                     }
                     List<String> command = new ArrayList<>();
                     command.add(javaExecutable.toString());
+                    command.add("-Dcli.debug=true");
                     //                    command.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000");
                     // Force a specific terminal type so we have consistent responses for testing.
                     command.add("-Dorg.jline.terminal.type=xterm-256color");

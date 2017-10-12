@@ -6,7 +6,9 @@
 package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
+import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 import org.elasticsearch.xpack.sql.net.client.util.IOUtils;
+import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
@@ -18,9 +20,12 @@ import org.jline.utils.AttributedString;
 import org.jline.utils.AttributedStringBuilder;
 import org.jline.utils.InfoCmp.Capability;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.logging.LogManager;
@@ -36,15 +41,56 @@ import static org.jline.utils.AttributedStyle.YELLOW;
 public class Cli {
     public static void main(String... args) throws Exception {
         /* Initialize the logger from the a properties file we bundle. This makes sure
-         * we get useful error messages. */
+         * we get useful error messages from jLine. */
         LogManager.getLogManager().readConfiguration(Cli.class.getResourceAsStream("/logging.properties"));
-        String url = "localhost:9200/_sql/cli";
+        String hostAndPort = "localhost:9200";
+        Properties properties = new Properties();
+        String user = null;
+        String password = null;
         if (args.length > 0) {
-            url = args[0] + "/_sql/cli";
+            hostAndPort = args[0];
+            if (false == hostAndPort.contains("://")) {
+                // Default to http
+                hostAndPort = "http://" + hostAndPort;
+            }
+            URI parsed;
+            try {
+                parsed = new URI(hostAndPort);
+            } catch (URISyntaxException e) {
+                exit("Invalid connection configuration [" + hostAndPort + "]: " + e.getMessage(), 1);
+                return;
+            }
+            if (false == "".equals(parsed.getPath())) {
+                exit("Invalid connection configuration [" + hostAndPort + "]: Path not allowed", 1);
+                return;
+            }
+            user = parsed.getUserInfo();
+            if (user != null) {
+                // NOCOMMIT just use a URI the whole time
+                hostAndPort = parsed.getScheme() + "://" + parsed.getHost() + ":" + parsed.getPort();
+                int colonIndex = user.indexOf(':');
+                if (colonIndex >= 0) {
+                    password = user.substring(colonIndex + 1);
+                    user = user.substring(0, colonIndex);
+                }
+            }
         }
         try (Terminal term = TerminalBuilder.builder().build()) {
             try {
-                Cli console = new Cli(new CliConfiguration(url, new Properties()), term);
+                if (user != null) {
+                    if (password == null) {
+                        term.writer().print("password: ");
+                        term.writer().flush();
+                        term.echo(false);
+                        password = new BufferedReader(term.reader()).readLine();
+                        term.echo(true);
+                    }
+                    properties.setProperty("user", user);
+                    properties.setProperty("pass", password);
+                }
+
+                boolean debug = StringUtils.parseBoolean(System.getProperty("cli.debug", "false"));
+                Cli console = new Cli(debug, new CliConfiguration(hostAndPort + "/_sql/cli", properties), term);
                 console.run();
             } catch (FatalException e) {
                 term.writer().println(e.getMessage());
@@ -52,12 +98,14 @@ public class Cli {
         }
     }
 
+    private final boolean debug;
     private final Terminal term;
     private final CliHttpClient cliClient;
     private int fetchSize = AbstractQueryInitRequest.DEFAULT_FETCH_SIZE;
     private String fetchSeparator = "";
 
-    Cli(CliConfiguration cfg, Terminal terminal) {
+    Cli(boolean debug, CliConfiguration cfg, Terminal terminal) {
+        this.debug = debug;
         term = terminal;
         cliClient = new CliHttpClient(cfg);
     }
@@ -145,6 +193,9 @@ public class Cli {
         asb.append(e.getMessage(), DEFAULT.boldOff().italic().foreground(YELLOW));
         asb.append("]", BOLD.underlineOff().foreground(RED));
         term.writer().println(asb.toAnsi(term));
+        if (debug) {
+            e.printStackTrace(term.writer());
+        }
     }
 
     private static String logo() {
@@ -258,5 +309,11 @@ public class Cli {
         FatalException(String message) {
             super(message);
         }
+    }
+
+    @SuppressForbidden(reason = "CLI application")
+    private static void exit(String message, int code) {
+        System.err.println(message);
+        System.exit(code);
     }
 }

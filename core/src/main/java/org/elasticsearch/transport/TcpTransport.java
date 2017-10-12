@@ -599,6 +599,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 nodeChannels = new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
                 transportService.onConnectionOpened(nodeChannels);
                 connectionRef.set(nodeChannels);
+                if (Arrays.stream(nodeChannels.channels).allMatch(this::isOpen) == false) {
+                    throw new ConnectTransportException(node, "a channel closed while connecting");
+                }
                 success = true;
                 return nodeChannels;
             } catch (ConnectTransportException e) {
@@ -1034,7 +1037,18 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     protected abstract void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener);
 
-    protected abstract NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile connectionProfile,
+    /**
+     * Connect to the node with channels as defined by the specified connection profile. Implementations must invoke the specified channel
+     * close callback when a channel is closed.
+     *
+     * @param node              the node to connect to
+     * @param connectionProfile the connection profile
+     * @param onChannelClose    callback to invoke when a channel is closed
+     * @return the channels
+     * @throws IOException if an I/O exception occurs while opening channels
+     */
+    protected abstract NodeChannels connectToChannels(DiscoveryNode node,
+                                                      ConnectionProfile connectionProfile,
                                                       Consumer<Channel> onChannelClose) throws IOException;
 
     /**

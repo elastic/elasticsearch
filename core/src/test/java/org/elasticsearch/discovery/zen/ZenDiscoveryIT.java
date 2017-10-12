@@ -287,9 +287,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(stats.getQueueStats().getPending(), equalTo(0));
 
         assertThat(stats.getPublishStats(), notNullValue());
-        assertThat(stats.getPublishStats().getFullClusterStateSentCount(), equalTo(0L));
-        assertThat(stats.getPublishStats().getClusterStateDiffSentCount(), equalTo(0L));
-        assertThat(stats.getPublishStats().getIncompatibleClusterStateDiffSentCount(), equalTo(0L));
         assertThat(stats.getPublishStats().getFullClusterStateReceivedCount(), equalTo(0L));
         assertThat(stats.getPublishStats().getClusterStateDiffReceivedCount(), equalTo(0L));
         assertThat(stats.getPublishStats().getCompatibleClusterStateDiffReceivedCount(), equalTo(0L));

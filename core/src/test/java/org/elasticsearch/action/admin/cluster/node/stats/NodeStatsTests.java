@@ -402,9 +402,6 @@ public class NodeStatsTests extends ESTestCase {
                 ? new PublishClusterStateStats(
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
                     randomNonNegativeLong())
                 : null)
             : null;

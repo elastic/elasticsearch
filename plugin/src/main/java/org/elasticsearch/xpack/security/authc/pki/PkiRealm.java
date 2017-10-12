@@ -174,9 +174,10 @@ public class PkiRealm extends Realm {
 
     private static X509TrustManager trustManagersFromTruststore(String truststorePath, RealmConfig realmConfig) {
         final Settings settings = realmConfig.settings();
-        if (SSL_SETTINGS.truststorePassword.exists(settings) == false) {
-            throw new IllegalArgumentException(
-                "[" + RealmSettings.getFullSettingKey(realmConfig, SSL_SETTINGS.truststorePassword) + "] is not configured"
+        if (SSL_SETTINGS.truststorePassword.exists(settings) == false && SSL_SETTINGS.legacyTruststorePassword.exists(settings) == false) {
+            throw new IllegalArgumentException("Neither [" +
+                    RealmSettings.getFullSettingKey(realmConfig, SSL_SETTINGS.truststorePassword) + "] or [" +
+                    RealmSettings.getFullSettingKey(realmConfig, SSL_SETTINGS.legacyTruststorePassword) + "] is configured"
             );
         }
         try (SecureString password = SSL_SETTINGS.truststorePassword.get(settings)) {

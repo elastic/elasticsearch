@@ -38,7 +38,7 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
                 );
     }
 
-    // NOCOMMIT: add tests for nested docs when interplug communication is enabled
+    // TODO: add tests for nested docs when interplug communication is enabled
     //    "DESCRIBE emp.emp",
     //    "SELECT dep FROM emp.emp",
     //    "SELECT dep.dept_name, first_name, last_name FROM emp.emp WHERE emp_no = 10020",

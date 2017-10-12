@@ -75,7 +75,7 @@ public class Page implements Payload {
 
     Object[] column(int index) {
         if (index < 0 || index >= data.length) {
-            // NOCOMMIT this was once JdbcException. Make sure it isn't now busted 
+            // NB: exception is caught higher up in the JDBC driver 
             throw new IllegalArgumentException("Invalid column [" + index + "] (max is [" + (data.length - 1) + "])");
         }
 
@@ -84,7 +84,7 @@ public class Page implements Payload {
 
     public Object entry(int row, int column) {
         if (row < 0 || row >= rows) {
-            // NOCOMMIT this was once JdbcException. Make sure it isn't now busted
+            // NB: exception is caught higher up in the JDBC driver
             throw new IllegalArgumentException("Invalid row [" + row + "] (max is [" + (rows -1) + "])");
         }
         return column(column)[row];

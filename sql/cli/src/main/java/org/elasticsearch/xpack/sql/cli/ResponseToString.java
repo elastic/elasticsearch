@@ -5,16 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ErrorResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
+import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
 import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.jline.utils.AttributedStringBuilder;
 
-import java.awt.Desktop;
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -37,7 +35,7 @@ abstract class ResponseToString {
             if (cmd.data != null) {
                 String data = cmd.data.toString();
                 if (data.startsWith("digraph ")) {
-                    displayGraphviz(data);
+                    sb.append(handleGraphviz(data), DEFAULT.foreground(WHITE));
                 }
                 else {
                     sb.append(data, DEFAULT.foreground(WHITE));
@@ -69,20 +67,22 @@ abstract class ResponseToString {
         return sb;
     }
 
-    @SuppressForbidden(reason="ignore for now") // NOCOMMIT replace this with saving the file and printing a message
-    private static void displayGraphviz(String str) {
+    // NOCOMMIT - is using the default temp folder a problem?
+    @SuppressForbidden(reason = "need to use temporary file")
+    private static String handleGraphviz(String str) {
         try {
             // save the content to a temp file
-            Path dotTempFile = Files.createTempFile("sql-gv", ".dot2img");
+            Path dotTempFile = Files.createTempFile("sql-gv", ".dot");
             Files.write(dotTempFile, str.getBytes(StandardCharsets.UTF_8));
             // run graphviz on it (dot needs to be on the file path)
-            Desktop desktop = Desktop.getDesktop();
-            File f = dotTempFile.toFile();
-            desktop.open(f);
-            f.deleteOnExit();
+            //Desktop desktop = Desktop.getDesktop();
+            //File f = dotTempFile.toFile();
+            //desktop.open(f);
+            //f.deleteOnExit();
+            return "Saved graph file at " + dotTempFile;
 
         } catch (IOException ex) {
-            // nope
+            return "Cannot save graph file; " + ex.getMessage();
         }
     }
 }

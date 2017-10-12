@@ -15,6 +15,7 @@ import org.joda.time.ReadableInstant;
 import java.io.IOException;
 import java.sql.JDBCType;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Implementation {@link Payload} that adapts it to data from
@@ -51,6 +52,25 @@ class SqlResponsePayload implements Payload {
                 ProtoUtils.writeValue(out, value, type);
             }
         }
-
+    }
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(typeLookup, rows);
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        
+        SqlResponsePayload other = (SqlResponsePayload) obj;
+        return Objects.equals(typeLookup, other.typeLookup)
+                && Objects.equals(rows, other.rows);
     }
 }

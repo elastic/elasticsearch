@@ -138,6 +138,8 @@ public class ProtoUtils {
     /**
      * The type of the array used to store columns of this type.
      */
+    // NB: JDBC requires the use of Objects not primitive 
+    // (in fact primitives are never used through-out the API)
     public static Class<?> classOf(JDBCType jdbcType) {
         switch (jdbcType) {
             case NUMERIC:
@@ -151,7 +153,6 @@ public class ProtoUtils {
             case SMALLINT:
                 return Short.class;
             case INTEGER:
-                // NOCOMMIT should we be using primitives instead?
                 return Integer.class;
             case BIGINT:
                 return Long.class;

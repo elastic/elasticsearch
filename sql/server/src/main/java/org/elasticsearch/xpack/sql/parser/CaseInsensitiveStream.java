@@ -5,15 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
-import java.util.Locale;
-
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.IntStream;
 
-// extension of ANTLR that does the uppercasing once for the whole stream
+import java.util.Locale;
+
+// extension of ANTLR that does the upper-casing once for the whole stream
 // the ugly part is that it has to duplicate LA method
+
+// This approach is the official solution from the ANTLR authors
+// in that it's both faster and easier than having a dedicated lexer
+// see https://github.com/antlr/antlr4/issues/1002
 class CaseInsensitiveStream extends ANTLRInputStream {
-    // NOCOMMIT maybe we can fix this in the lexer or on the way in so we don't need the LA override
     protected char[] uppedChars;
 
     CaseInsensitiveStream(String input) {

@@ -71,17 +71,18 @@ public class QueryInitResponse extends AbstractQueryResponse {
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), columns, data);
+    }
+    
+
+    @Override
     public boolean equals(Object obj) {
         if (false == super.equals(obj)) {
             return false;
         }
         QueryInitResponse other = (QueryInitResponse) obj;
-        return columns.equals(other.columns);
-        // NOCOMMIT equals should take into account data
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), columns); // NOCOMMIT equals should take into account data
+        return Objects.equals(columns, other.columns)
+                && Objects.equals(data, other.data);
     }
 }

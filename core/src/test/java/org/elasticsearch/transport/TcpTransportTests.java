@@ -191,7 +191,7 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void closeChannels(List channel, boolean blocking, boolean closingTransport) throws IOException {
+                protected void closeChannels(List channel, boolean blocking, boolean doNotLinger) throws IOException {
 
                 }
 

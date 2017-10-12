@@ -243,8 +243,8 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected void closeChannels(List<MockChannel> channels, boolean blocking, boolean closingTransport) throws IOException {
-        if (closingTransport) {
+    protected void closeChannels(List<MockChannel> channels, boolean blocking, boolean doNotLinger) throws IOException {
+        if (doNotLinger) {
             for (MockChannel channel : channels) {
                 if (channel.activeChannel != null) {
                     /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't have a gazillion connections sitting

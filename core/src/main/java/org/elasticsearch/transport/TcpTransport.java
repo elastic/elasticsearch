@@ -905,7 +905,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 // first stop to accept any incoming connections so nobody can connect to this transport
                 for (Map.Entry<String, List<Channel>> entry : serverChannels.entrySet()) {
                     try {
-                        closeChannels(entry.getValue(), true, true);
+                        closeChannels(entry.getValue(), true, false);
                     } catch (Exception e) {
                         logger.debug(
                             (Supplier<?>) () -> new ParameterizedMessage(
@@ -1024,9 +1024,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      *
      * @param channels the channels to close
      * @param blocking whether the channels should be closed synchronously
-     * @param closingTransport whether we abort the connection on RST instead of FIN
+     * @param doNotLinger whether we abort the connection on RST instead of FIN
      */
-    protected abstract void closeChannels(List<Channel> channels, boolean blocking, boolean closingTransport) throws IOException;
+    protected abstract void closeChannels(List<Channel> channels, boolean blocking, boolean doNotLinger) throws IOException;
 
     /**
      * Sends message to channel. The listener's onResponse method will be called when the send is complete unless an exception

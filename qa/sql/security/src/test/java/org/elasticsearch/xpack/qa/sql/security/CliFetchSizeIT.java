@@ -12,6 +12,7 @@ public class CliFetchSizeIT extends FetchSizeTestCase {
     static String securityEsUrlPrefix() {
         return "test_admin:x-pack-test-password@";
     }
+
     @Override
     protected Settings restClientSettings() {
         return RestSqlIT.securitySettings();

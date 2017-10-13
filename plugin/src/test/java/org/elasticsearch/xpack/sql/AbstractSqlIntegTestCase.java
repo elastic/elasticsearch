@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql;
 
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -38,7 +39,7 @@ public abstract class AbstractSqlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, ReindexPlugin.class);
+        return Arrays.asList(XPackPlugin.class, CommonAnalysisPlugin.class, ReindexPlugin.class);
     }
 
     @Override

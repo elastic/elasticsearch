@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ResizeAllocationDeci
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
@@ -61,6 +62,10 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private ClusterState createInitialClusterState(boolean startShards) {
+        return createInitialClusterState(startShards, Version.CURRENT);
+    }
+
+    private ClusterState createInitialClusterState(boolean startShards, Version nodeVersion) {
         MetaData.Builder metaBuilder = MetaData.builder();
         metaBuilder.put(IndexMetaData.builder("source").settings(settings(Version.CURRENT))
             .numberOfShards(2).numberOfReplicas(0).setRoutingNumShards(16));
@@ -71,7 +76,8 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         RoutingTable routingTable = routingTableBuilder.build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metaData(metaData).routingTable(routingTable).build();
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1", nodeVersion)).add(newNode
+            ("node2", nodeVersion)))
             .build();
         RoutingTable prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState, "reroute", false).routingTable();
@@ -156,7 +162,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
 
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider(Settings.EMPTY);
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, null, clusterState, null, 0);
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, null, 0);
         int shardId = randomIntBetween(0, 3);
         int sourceShardId = IndexMetaData.selectSplitShard(shardId, clusterState.metaData().index("source"), 4).id();
         ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(idx, shardId), null, true, RecoverySource
@@ -196,7 +202,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
 
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider(Settings.EMPTY);
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, null, clusterState, null, 0);
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, null, 0);
         int shardId = randomIntBetween(0, 3);
         int sourceShardId = IndexMetaData.selectSplitShard(shardId, clusterState.metaData().index("source"), 4).id();
         ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(idx, shardId), null, true, RecoverySource
@@ -235,5 +241,47 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
                 resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node2"),
                     routingAllocation).getExplanation());
         }
+    }
+
+    public void testAllocateOnOldNode() {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+            VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1));
+        ClusterState clusterState = createInitialClusterState(true, version);
+        MetaData.Builder metaBuilder = MetaData.builder(clusterState.metaData());
+        metaBuilder.put(IndexMetaData.builder("target").settings(settings(Version.CURRENT)
+            .put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
+            .put(IndexMetaData.INDEX_RESIZE_SOURCE_UUID_KEY, IndexMetaData.INDEX_UUID_NA_VALUE))
+            .numberOfShards(4).numberOfReplicas(0));
+        MetaData metaData = metaBuilder.build();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
+        routingTableBuilder.addAsNew(metaData.index("target"));
+
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(routingTableBuilder.build())
+            .metaData(metaData).build();
+        Index idx = clusterState.metaData().index("target").getIndex();
+
+
+        ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider(Settings.EMPTY);
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, null, 0);
+        int shardId = randomIntBetween(0, 3);
+        int sourceShardId = IndexMetaData.selectSplitShard(shardId, clusterState.metaData().index("source"), 4).id();
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(idx, shardId), null, true, RecoverySource
+            .LocalShardsRecoverySource.INSTANCE, ShardRoutingState.UNASSIGNED);
+        assertEquals(Decision.YES, resizeAllocationDecider.canAllocate(shardRouting, routingAllocation));
+
+        assertEquals(Decision.NO, resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"),
+            routingAllocation));
+        assertEquals(Decision.NO, resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node2"),
+            routingAllocation));
+
+        routingAllocation.debugDecision(true);
+        assertEquals("source primary is active", resizeAllocationDecider.canAllocate(shardRouting, routingAllocation).getExplanation());
+        assertEquals("node [node1] is too old to split a shard",
+            resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"),
+                routingAllocation).getExplanation());
+        assertEquals("node [node2] is too old to split a shard",
+            resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node2"),
+                routingAllocation).getExplanation());
     }
 }

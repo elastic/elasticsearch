@@ -29,11 +29,13 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
@@ -873,14 +875,7 @@ public class NumberFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
             } else {
-                final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
-                        .getMapperService().fullName(FieldNamesFieldMapper.NAME);
-                if (fieldNamesFieldType == null) {
-                    // can only happen when no types exist, so no docs exist
-                    // either
-                    return Queries.newMatchNoDocsQuery("Missing types in \"" + name() + "\" field.");
-                }
-                return fieldNamesFieldType.termQuery(name(), context);
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             }
         }
 

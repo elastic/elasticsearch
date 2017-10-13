@@ -19,9 +19,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.search.Queries;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -233,14 +234,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
             } else {
-                final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
-                        .getMapperService().fullName(FieldNamesFieldMapper.NAME);
-                if (fieldNamesFieldType == null) {
-                    // can only happen when no types exist, so no docs exist
-                    // either
-                    return Queries.newMatchNoDocsQuery("Missing types in \"" + name() + "\" field.");
-                }
-                return fieldNamesFieldType.termQuery(name(), context);
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             }
         }
     }

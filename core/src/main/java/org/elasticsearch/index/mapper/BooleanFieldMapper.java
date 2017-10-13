@@ -23,8 +23,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -32,7 +34,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -143,14 +144,7 @@ public class BooleanFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
             } else {
-                final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
-                        .getMapperService().fullName(FieldNamesFieldMapper.NAME);
-                if (fieldNamesFieldType == null) {
-                    // can only happen when no types exist, so no docs exist
-                    // either
-                    return Queries.newMatchNoDocsQuery("Missing types in \"" + name() + "\" field.");
-                }
-                return fieldNamesFieldType.termQuery(name(), context);
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             }
         }
 

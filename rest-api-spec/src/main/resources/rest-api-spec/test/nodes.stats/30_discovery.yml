@@ -15,6 +15,8 @@
   - is_true: nodes.$master.name
   - is_false: nodes.$master.jvm
   - is_true:  nodes.$master.discovery
+  - is_true:  nodes.$master.discovery.cluster_state_queue
+  - is_true:  nodes.$master.discovery.published_cluster_states_received
   - is_true:  nodes.$master.roles
 
   - do:
@@ -26,4 +28,6 @@
   - is_false: nodes.$master.name
   - is_false: nodes.$master.jvm
   - is_true:  nodes.$master.discovery
+  - is_true:  nodes.$master.discovery.cluster_state_queue
+  - is_true:  nodes.$master.discovery.published_cluster_states_received
   - is_false:  nodes.$master.roles

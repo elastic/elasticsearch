@@ -21,7 +21,7 @@ For more information, see
 [[general-monitoring-settings]]
 ==== General Monitoring Settings
 `xpack.monitoring.enabled`::
-Set to `false` to disable {es} {monitoring} for Elasticsearch.
+Set to `false` to disable {es} {monitoring} for Elasticsearch on the node.
 
 [float]
 [[monitoring-collection-settings]]

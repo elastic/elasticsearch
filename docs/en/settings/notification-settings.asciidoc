@@ -14,7 +14,7 @@ Slack>>, and <<pagerduty-notification-settings, PagerDuty>>.
 [[general-notification-settings]]
 ==== General Watcher Settings
 `xpack.watcher.enabled`::
-Set to `false` to disable {watcher}.
+Set to `false` to disable {watcher} on the node.
 
 `xpack.http.proxy.host`::
 Specifies the address of the proxy server to use to connect to HTTP services.

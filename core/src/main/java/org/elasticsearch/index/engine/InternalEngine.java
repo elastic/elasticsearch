@@ -952,7 +952,7 @@ public class InternalEngine extends Engine {
                 throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists in version map (version " + versionValue + ")");
             }
         } else {
-            try (Searcher searcher = acquireSearcher("assert doc doesn't exist")) {
+            try (Searcher searcher = acquireSearcher("assert doc doesn't exist", SearcherScope.INTERNAL)) {
                 final long docsWithId = searcher.searcher().count(new TermQuery(index.uid()));
                 if (docsWithId > 0) {
                     throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists [" + docsWithId + "] times in index");
@@ -1659,7 +1659,9 @@ public class InternalEngine extends Engine {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
                 this.versionMap.clear();
-                internalSearcherManager.removeListener(versionMap);
+                if (internalSearcherManager != null) {
+                    internalSearcherManager.removeListener(versionMap);
+                }
                 try {
                     IOUtils.close(externalSearcherManager, internalSearcherManager);
                 } catch (Exception e) {

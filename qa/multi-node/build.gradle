@@ -1,17 +1,11 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
-
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
-  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
 }
 
-task multiNodeTest(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
-}
-
-multiNodeTestCluster {
+integTestCluster {
   distribution = 'zip'
   numNodes = 2
   clusterName = 'multi-node'
@@ -33,6 +27,3 @@ multiNodeTestCluster {
     return tmpFile.exists()
   }
 }
-
-test.enabled = false // no unit tests for multi-node, only the rest integration test
-check.dependsOn(multiNodeTest)

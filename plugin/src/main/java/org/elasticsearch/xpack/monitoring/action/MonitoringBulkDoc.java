@@ -27,7 +27,7 @@ public class MonitoringBulkDoc implements Writeable {
     private final String type;
     private final String id;
     private final long timestamp;
-    private final long interval;
+    private final long intervalMillis;
     private final BytesReference source;
     private final XContentType xContentType;
 
@@ -35,7 +35,7 @@ public class MonitoringBulkDoc implements Writeable {
                              final String type,
                              @Nullable final String id,
                              final long timestamp,
-                             final long interval,
+                             final long intervalMillis,
                              final BytesReference source,
                              final XContentType xContentType) {
 
@@ -44,7 +44,7 @@ public class MonitoringBulkDoc implements Writeable {
         // We allow strings to be "" because Logstash 5.2 - 5.3 would submit empty _id values for time-based documents
         this.id = Strings.isNullOrEmpty(id) ? null : id;
         this.timestamp = timestamp;
-        this.interval = interval;
+        this.intervalMillis = intervalMillis;
         this.source = Objects.requireNonNull(source);
         this.xContentType = Objects.requireNonNull(xContentType);
     }
@@ -98,7 +98,7 @@ public class MonitoringBulkDoc implements Writeable {
             xContentType.writeTo(out);
         }
         if (out.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
-            out.writeVLong(interval);
+            out.writeVLong(intervalMillis);
         }
     }
 
@@ -118,8 +118,8 @@ public class MonitoringBulkDoc implements Writeable {
         return timestamp;
     }
 
-    public long getInterval() {
-        return interval;
+    public long getIntervalMillis() {
+        return intervalMillis;
     }
 
     public BytesReference getSource() {
@@ -140,7 +140,7 @@ public class MonitoringBulkDoc implements Writeable {
         }
         MonitoringBulkDoc that = (MonitoringBulkDoc) o;
         return timestamp == that.timestamp
-                && interval == that.interval
+                && intervalMillis == that.intervalMillis
                 && system == that.system
                 && Objects.equals(type, that.type)
                 && Objects.equals(id, that.id)
@@ -150,6 +150,6 @@ public class MonitoringBulkDoc implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(system, type, id, timestamp, interval, source, xContentType);
+        return Objects.hash(system, type, id, timestamp, intervalMillis, source, xContentType);
     }
 }

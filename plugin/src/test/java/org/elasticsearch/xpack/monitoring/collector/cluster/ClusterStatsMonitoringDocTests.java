@@ -97,9 +97,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     }
 
     @Override
-    protected ClusterStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, MonitoringDoc.Node node,
+    protected ClusterStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
                                                             MonitoredSystem system, String type, String id) {
-        return new ClusterStatsMonitoringDoc(cluster, timestamp, node,
+        return new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
                                              clusterName, version, clusterStatus, license, usages, clusterStats, clusterState);
     }
 
@@ -120,19 +120,19 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
     public void testConstructorClusterNameMustNotBeNull() {
         expectThrows(NullPointerException.class,
-                () -> new ClusterStatsMonitoringDoc(cluster, timestamp, node,
+                () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
                         null, version, clusterStatus, license, usages, clusterStats, clusterState));
     }
 
     public void testConstructorVersionMustNotBeNull() {
         expectThrows(NullPointerException.class,
-                () -> new ClusterStatsMonitoringDoc(cluster, timestamp, node,
+                () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
                         clusterName, null, clusterStatus, license, usages, clusterStats, clusterState));
     }
 
     public void testConstructorClusterHealthStatusMustNotBeNull() {
         expectThrows(NullPointerException.class,
-                () -> new ClusterStatsMonitoringDoc(cluster, timestamp, node,
+                () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
                         clusterName, version, null, license, usages, clusterStats, clusterState));
     }
 
@@ -288,6 +288,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final ClusterStatsMonitoringDoc doc = new ClusterStatsMonitoringDoc("_cluster",
                                                                             1502107402133L,
+                                                                            1506593717631L,
                                                                             node,
                                                                             clusterName.value(),
                                                                             "_version",
@@ -301,6 +302,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         assertEquals("{"
                   + "\"cluster_uuid\":\"_cluster\","
                   + "\"timestamp\":\"2017-08-07T12:03:22.133Z\","
+                  + "\"interval_ms\":1506593717631,"
                   + "\"type\":\"cluster_stats\","
                   + "\"source_node\":{"
                     + "\"uuid\":\"_uuid\","

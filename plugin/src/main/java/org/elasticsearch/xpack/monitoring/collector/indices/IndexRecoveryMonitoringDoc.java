@@ -27,10 +27,11 @@ public class IndexRecoveryMonitoringDoc extends MonitoringDoc {
 
     public IndexRecoveryMonitoringDoc(final String cluster,
                                       final long timestamp,
+                                      final long intervalMillis,
                                       final MonitoringDoc.Node node,
                                       final RecoveryResponse recoveryResponse) {
 
-        super(cluster, timestamp, node, MonitoredSystem.ES, TYPE, null);
+        super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null);
         this.recoveryResponse = Objects.requireNonNull(recoveryResponse);
     }
 

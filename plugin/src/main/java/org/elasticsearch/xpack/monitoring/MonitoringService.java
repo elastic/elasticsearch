@@ -201,7 +201,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                         }
 
                         try {
-                            Collection<MonitoringDoc> result = collector.collect(timestamp);
+                            Collection<MonitoringDoc> result = collector.collect(timestamp, interval.getMillis());
                             if (result != null) {
                                 results.addAll(result);
                             }

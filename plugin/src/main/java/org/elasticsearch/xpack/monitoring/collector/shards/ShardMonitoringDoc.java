@@ -28,11 +28,12 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
 
     ShardMonitoringDoc(final String cluster,
                        final long timestamp,
+                       final long interval,
                        final MonitoringDoc.Node node,
                        final ShardRouting shardRouting,
                        final String clusterStateUUID) {
 
-        super(cluster, timestamp, node, MonitoredSystem.ES, TYPE, id(clusterStateUUID, shardRouting), XCONTENT_FILTERS);
+        super(cluster, timestamp, interval, node, MonitoredSystem.ES, TYPE, id(clusterStateUUID, shardRouting), XCONTENT_FILTERS);
         this.shardRouting = Objects.requireNonNull(shardRouting);
         this.clusterStateUUID = Objects.requireNonNull(clusterStateUUID);
     }

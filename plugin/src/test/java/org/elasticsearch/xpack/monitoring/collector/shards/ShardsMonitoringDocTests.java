@@ -46,9 +46,9 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
     }
 
     @Override
-    protected ShardMonitoringDoc createMonitoringDoc(String cluster, long timestamp, MonitoringDoc.Node node,
+    protected ShardMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
                                                      MonitoredSystem system, String type, String id) {
-        return new ShardMonitoringDoc(cluster, timestamp, node, shardRouting, stateUuid);
+        return new ShardMonitoringDoc(cluster, timestamp, interval, node, shardRouting, stateUuid);
     }
 
     @Override
@@ -72,11 +72,11 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
     }
 
     public void testConstructorShardRoutingMustNotBeNull() {
-        expectThrows(NullPointerException.class, () -> new ShardMonitoringDoc(cluster, timestamp, node, null, stateUuid));
+        expectThrows(NullPointerException.class, () -> new ShardMonitoringDoc(cluster, timestamp, interval, node, null, stateUuid));
     }
 
     public void testConstructorStateUuidMustNotBeNull() {
-        expectThrows(NullPointerException.class, () -> new ShardMonitoringDoc(cluster, timestamp, node, shardRouting, null));
+        expectThrows(NullPointerException.class, () -> new ShardMonitoringDoc(cluster, timestamp, interval, node, shardRouting, null));
     }
 
     public void testIdWithPrimaryShardAssigned() {
@@ -103,12 +103,14 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
     public void testToXContent() throws IOException {
         final ShardRouting shardRouting = newShardRouting("_index", 1, "_index_uuid", "_node_uuid", true, INITIALIZING);
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
-        final ShardMonitoringDoc doc =  new ShardMonitoringDoc("_cluster", 1502107402133L, node, shardRouting, "_state_uuid");
+        final ShardMonitoringDoc doc =
+                new ShardMonitoringDoc("_cluster", 1502107402133L, 1506593717631L, node, shardRouting, "_state_uuid");
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, randomBoolean());
         assertEquals("{"
                     + "\"cluster_uuid\":\"_cluster\","
                     + "\"timestamp\":\"2017-08-07T12:03:22.133Z\","
+                    + "\"interval_ms\":1506593717631,"
                     + "\"type\":\"shards\","
                     + "\"source_node\":{"
                         + "\"uuid\":\"_uuid\","

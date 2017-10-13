@@ -64,7 +64,7 @@ public class NodeStatsCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval) throws Exception {
         NodesStatsRequest request = new NodesStatsRequest("_local");
         request.indices(FLAGS);
         request.os(true);
@@ -83,7 +83,7 @@ public class NodeStatsCollector extends Collector {
 
         final NodeStats nodeStats = response.getNodes().get(0);
 
-        return Collections.singletonList(new NodeStatsMonitoringDoc(clusterUUID(), nodeStats.getTimestamp(), node,
+        return Collections.singletonList(new NodeStatsMonitoringDoc(clusterUUID(), nodeStats.getTimestamp(), interval, node,
                 node.getUUID(), isLocalNodeMaster(), nodeStats, BootstrapInfo.isMemoryLocked()));
     }
 

@@ -64,9 +64,9 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
     }
 
     @Override
-    protected NodeStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, MonitoringDoc.Node node,
+    protected NodeStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
                                                          MonitoredSystem system, String type, String id) {
-        return new NodeStatsMonitoringDoc(cluster, timestamp, node, nodeId, isMaster, nodeStats, mlockall);
+        return new NodeStatsMonitoringDoc(cluster, timestamp, interval, node, nodeId, isMaster, nodeStats, mlockall);
     }
 
     @Override
@@ -88,12 +88,12 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
 
     public void testConstructorNodeIdMustNotBeNull() {
         expectThrows(NullPointerException.class, () ->
-                new NodeStatsMonitoringDoc(cluster, timestamp, node, null, isMaster, nodeStats, mlockall));
+                new NodeStatsMonitoringDoc(cluster, timestamp, interval, node, null, isMaster, nodeStats, mlockall));
     }
 
     public void testConstructorNodeStatsMustNotBeNull() {
         expectThrows(NullPointerException.class, () ->
-                new NodeStatsMonitoringDoc(cluster, timestamp, node, nodeId, isMaster, null, mlockall));
+                new NodeStatsMonitoringDoc(cluster, timestamp, interval, node, nodeId, isMaster, null, mlockall));
     }
 
     @Override
@@ -101,12 +101,14 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
         final NodeStats nodeStats = mockNodeStats();
 
-        final NodeStatsMonitoringDoc doc = new NodeStatsMonitoringDoc("_cluster", 1502107402133L, node, "_node_id", true, nodeStats, false);
+        final NodeStatsMonitoringDoc doc =
+                new NodeStatsMonitoringDoc("_cluster", 1502107402133L, 1506593717631L, node, "_node_id", true, nodeStats, false);
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);
         assertEquals("{"
                      + "\"cluster_uuid\":\"_cluster\","
                      + "\"timestamp\":\"2017-08-07T12:03:22.133Z\","
+                     + "\"interval_ms\":1506593717631,"
                      + "\"type\":\"node_stats\","
                      + "\"source_node\":{"
                        + "\"uuid\":\"_uuid\","
@@ -325,9 +327,6 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
 
         final FsInfo.IoStats ioStats = new FsInfo.IoStats(new FsInfo.DeviceStats[]{ioStatsTwo});
         final FsInfo fs = new FsInfo(no, ioStats, new FsInfo.Path[]{new FsInfo.Path(null, null, ++iota, ++iota, ++iota)});
-
-        // TODO: Looks like this filter is not used anymore...
-        // "node_stats.fs.data.spins",
 
         // Os
         final OsStats.Cpu osCpu = new OsStats.Cpu((short) no, new double[]{++iota, ++iota, ++iota});

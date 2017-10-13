@@ -50,9 +50,9 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
     }
 
     @Override
-    protected IndexRecoveryMonitoringDoc createMonitoringDoc(String cluster, long timestamp, MonitoringDoc.Node node,
+    protected IndexRecoveryMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
                                                              MonitoredSystem system, String type, String id) {
-        return new IndexRecoveryMonitoringDoc(cluster, timestamp, node, recoveryResponse);
+        return new IndexRecoveryMonitoringDoc(cluster, timestamp, interval, node, recoveryResponse);
     }
 
     @Override
@@ -66,7 +66,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
 
     public void testConstructorRecoveryResponseMustNotBeNull() {
         expectThrows(NullPointerException.class,
-                () -> new IndexRecoveryMonitoringDoc(cluster, timestamp, node, null));
+                () -> new IndexRecoveryMonitoringDoc(cluster, timestamp, interval, node, null));
     }
 
     @Override
@@ -110,12 +110,14 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
 
         final RecoveryResponse recoveryResponse = new RecoveryResponse(10, 7, 3, true, shardRecoveryStates, shardFailures);
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
-        final IndexRecoveryMonitoringDoc document = new IndexRecoveryMonitoringDoc("_cluster", 1502266739402L, node, recoveryResponse);
+        final IndexRecoveryMonitoringDoc document =
+                new IndexRecoveryMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, recoveryResponse);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertEquals("{"
                     + "\"cluster_uuid\":\"_cluster\","
                     + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
+                    + "\"interval_ms\":1506593717631,"
                     + "\"type\":\"index_recovery\","
                     + "\"source_node\":{"
                         + "\"uuid\":\"_uuid\","

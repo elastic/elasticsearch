@@ -27,18 +27,19 @@ public abstract class FilteredMonitoringDoc extends MonitoringDoc {
     /**
      * List of common XContent fields that exist in all monitoring documents
      */
-    static final Set<String> COMMON_XCONTENT_FILTERS = Sets.newHashSet("cluster_uuid", "timestamp", "type", "source_node");
+    static final Set<String> COMMON_XCONTENT_FILTERS = Sets.newHashSet("cluster_uuid", "timestamp", "interval_ms", "type", "source_node");
 
     private final Set<String> filters;
 
     public FilteredMonitoringDoc(final String cluster,
                                  final long timestamp,
+                                 final long intervalMillis,
                                  @Nullable final Node node,
                                  final MonitoredSystem system,
                                  final String type,
                                  @Nullable final String id,
                                  final Set<String> xContentFilters) {
-        super(cluster, timestamp, node, system, type, id);
+        super(cluster, timestamp, intervalMillis, node, system, type, id);
         if (xContentFilters.isEmpty()) {
             throw new IllegalArgumentException("xContentFilters must not be empty");
         }

@@ -64,7 +64,7 @@ public class IndexRecoveryCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval) throws Exception {
         List<MonitoringDoc> results = new ArrayList<>(1);
         RecoveryResponse recoveryResponse = client.admin().indices().prepareRecoveries()
                 .setIndices(getCollectionIndices())
@@ -73,7 +73,7 @@ public class IndexRecoveryCollector extends Collector {
                 .get(getCollectionTimeout());
 
         if (recoveryResponse.hasRecoveries()) {
-            results.add(new IndexRecoveryMonitoringDoc(clusterUUID(), timestamp(), node, recoveryResponse));
+            results.add(new IndexRecoveryMonitoringDoc(clusterUUID(), timestamp(), interval, node, recoveryResponse));
         }
         return Collections.unmodifiableCollection(results);
     }

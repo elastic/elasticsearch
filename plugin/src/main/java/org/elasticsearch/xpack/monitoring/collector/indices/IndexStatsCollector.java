@@ -51,7 +51,7 @@ public class IndexStatsCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval) throws Exception {
         final List<MonitoringDoc> results = new ArrayList<>();
         final IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
                 .setIndices(getCollectionIndices())
@@ -73,11 +73,11 @@ public class IndexStatsCollector extends Collector {
         final String clusterUuid = clusterUUID();
 
         // add the indices stats that we use to collect the index stats
-        results.add(new IndicesStatsMonitoringDoc(clusterUuid, timestamp, node, indicesStats));
+        results.add(new IndicesStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indicesStats));
 
         // collect each index stats document
         for (IndexStats indexStats : indicesStats.getIndices().values()) {
-            results.add(new IndexStatsMonitoringDoc(clusterUuid, timestamp, node, indexStats));
+            results.add(new IndexStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indexStats));
         }
 
         return Collections.unmodifiableCollection(results);

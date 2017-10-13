@@ -49,6 +49,7 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
 
     protected String cluster;
     protected long timestamp;
+    protected long interval;
     protected MonitoringDoc.Node node;
     protected MonitoredSystem system;
     protected String type;
@@ -60,6 +61,7 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
         super.setUp();
         cluster = UUIDs.randomBase64UUID();
         timestamp = frequently() ? randomNonNegativeLong() : 0L;
+        interval = randomNonNegativeLong();
         node = frequently() ? MonitoringTestUtils.randomMonitoringNode(random()) : null;
         system = randomFrom(MonitoredSystem.values());
         type = randomAlphaOfLength(5);
@@ -73,6 +75,7 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
      */
     protected abstract T createMonitoringDoc(String cluster,
                                              long timestamp,
+                                             long interval,
                                              @Nullable MonitoringDoc.Node node,
                                              MonitoredSystem system,
                                              String type,
@@ -95,8 +98,8 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
     public final void testCreateMonitoringDoc() throws IOException {
         final int nbIterations = randomIntBetween(3, 20);
         for (int i = 0; i < nbIterations; i++) {
-            final T document1 = createMonitoringDoc(cluster, timestamp, node, system, type, id);
-            final T document2 = createMonitoringDoc(cluster, timestamp, node, system, type, id);
+            final T document1 = createMonitoringDoc(cluster, timestamp, interval, node, system, type, id);
+            final T document2 = createMonitoringDoc(cluster, timestamp, interval, node, system, type, id);
 
             assertNotSame(document1, document2);
             assertMonitoringDocEquals(document1, document2);
@@ -104,14 +107,15 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
     }
 
     public final void testConstructorClusterMustNotBeNull() {
-        expectThrows(NullPointerException.class, () -> createMonitoringDoc(null, timestamp, node, system, type, id));
+        expectThrows(NullPointerException.class, () -> createMonitoringDoc(null, timestamp, interval, node, system, type, id));
     }
 
     public final void testConstructor() {
-        final T document = createMonitoringDoc(cluster, timestamp, node, system, type, id);
+        final T document = createMonitoringDoc(cluster, timestamp, interval, node, system, type, id);
 
         assertThat(document.getCluster(), equalTo(cluster));
         assertThat(document.getTimestamp(), equalTo(timestamp));
+        assertThat(document.getIntervalMillis(), equalTo(interval));
         assertThat(document.getNode(), equalTo(node));
 
         assertMonitoringDoc(document);
@@ -131,7 +135,7 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
      */
     public final void testToXContentContainsCommonFields() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
-        final T document = createMonitoringDoc(cluster, timestamp, node, system, type, id);
+        final T document = createMonitoringDoc(cluster, timestamp, interval, node, system, type, id);
 
         final BytesReference bytes = XContentHelper.toXContent(document, xContentType, false);
         try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, bytes)) {
@@ -139,6 +143,7 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
 
             assertThat(map.get("cluster_uuid"), equalTo(cluster));
             assertThat(map.get("timestamp"), equalTo(MonitoringDoc.toUTC(timestamp)));
+            assertThat(map.get("interval_ms"), equalTo(document.getIntervalMillis()));
             assertThat(map.get("type"), equalTo(document.getType()));
 
             if (document.getType().equals(ShardMonitoringDoc.TYPE)) {
@@ -267,7 +272,7 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
     }
 
     public void testMonitoringNodeBwcSerialization() throws IOException {
-        final Version version = randomVersionBetween(random(), Version.V_5_0_0, Version.V_6_1_0);
+        final Version version = randomVersionBetween(random(), Version.V_5_0_0, Version.V_6_0_0_beta2);
 
         final byte[] data = Base64.getDecoder()
                                   .decode("AQVFSWJKdgEDdFFOAQV3cGtMagEFa2xqeWEBBVZTamF2AwVrZXkjMgEyBWtleSMxATEFa2V5IzABMAAAAAAAAA==");

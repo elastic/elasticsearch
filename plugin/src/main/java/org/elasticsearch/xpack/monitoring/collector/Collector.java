@@ -81,11 +81,11 @@ public abstract class Collector extends AbstractComponent {
         return clusterService.state().nodes().isLocalNodeElectedMaster();
     }
 
-    public Collection<MonitoringDoc> collect(final long timestamp) {
+    public Collection<MonitoringDoc> collect(final long timestamp, final long interval) {
         try {
             if (shouldCollect()) {
                 logger.trace("collector [{}] - collecting data...", name());
-                return doCollect(convertNode(timestamp, clusterService.localNode()));
+                return doCollect(convertNode(timestamp, clusterService.localNode()), interval);
             }
         } catch (ElasticsearchTimeoutException e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("collector [{}] timed out when collecting data", name()));
@@ -95,7 +95,7 @@ public abstract class Collector extends AbstractComponent {
         return null;
     }
 
-    protected abstract Collection<MonitoringDoc> doCollect(MonitoringDoc.Node sourceNode) throws Exception;
+    protected abstract Collection<MonitoringDoc> doCollect(MonitoringDoc.Node sourceNode, long interval) throws Exception;
 
     protected String clusterUUID() {
         return clusterService.state().metaData().clusterUUID();

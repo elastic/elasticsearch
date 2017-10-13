@@ -155,7 +155,9 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
             assertArrayEquals(Strings.EMPTY_ARRAY, collector.getCollectionIndices());
         }
 
-        final Collection<MonitoringDoc> results = collector.doCollect(node);
+        final long interval = randomNonNegativeLong();
+
+        final Collection<MonitoringDoc> results = collector.doCollect(node, interval);
         verify(indicesAdminClient).prepareRecoveries();
 
         if (nbRecoveries == 0) {
@@ -169,6 +171,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
             final IndexRecoveryMonitoringDoc document = (IndexRecoveryMonitoringDoc) monitoringDoc;
             assertThat(document.getCluster(), equalTo(clusterUUID));
             assertThat(document.getTimestamp(), greaterThan(0L));
+            assertThat(document.getIntervalMillis(), equalTo(interval));
             assertThat(document.getNode(), equalTo(node));
             assertThat(document.getSystem(), is(MonitoredSystem.ES));
             assertThat(document.getType(), equalTo(IndexRecoveryMonitoringDoc.TYPE));

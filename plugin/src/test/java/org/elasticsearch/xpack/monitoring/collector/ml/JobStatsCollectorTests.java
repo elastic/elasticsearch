@@ -139,7 +139,9 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         when(client.getJobsStats(eq(new Request(MetaData.ALL)))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(response);
 
-        final List<MonitoringDoc> monitoringDocs = collector.doCollect(node);
+        final long interval = randomNonNegativeLong();
+
+        final List<MonitoringDoc> monitoringDocs = collector.doCollect(node, interval);
 
         assertThat(monitoringDocs, hasSize(jobStats.size()));
 
@@ -149,6 +151,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
 
             assertThat(jobStatsMonitoringDoc.getCluster(), is(clusterUuid));
             assertThat(jobStatsMonitoringDoc.getTimestamp(), greaterThan(0L));
+            assertThat(jobStatsMonitoringDoc.getIntervalMillis(), equalTo(interval));
             assertThat(jobStatsMonitoringDoc.getNode(), equalTo(node));
             assertThat(jobStatsMonitoringDoc.getSystem(), is(MonitoredSystem.ES));
             assertThat(jobStatsMonitoringDoc.getType(), is(JobStatsMonitoringDoc.TYPE));

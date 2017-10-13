@@ -24,8 +24,12 @@ public class JobStatsMonitoringDoc extends MonitoringDoc {
 
     private final JobStats jobStats;
 
-    public JobStatsMonitoringDoc(final String cluster, final long timestamp, final MonitoringDoc.Node node, final JobStats jobStats) {
-        super(cluster, timestamp, node, MonitoredSystem.ES, TYPE, null);
+    public JobStatsMonitoringDoc(final String cluster,
+                                 final long timestamp,
+                                 final long intervalMillis,
+                                 final MonitoringDoc.Node node,
+                                 final JobStats jobStats) {
+        super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null);
         this.jobStats = Objects.requireNonNull(jobStats);
     }
 

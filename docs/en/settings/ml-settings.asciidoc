@@ -12,10 +12,10 @@ You do not need to configure any settings to use {ml}. It is enabled by default.
 ==== General Machine Learning Settings
 
 `xpack.ml.enabled`::
-Set to `true` (default) to enable {ml}. +
+Set to `true` (default) to enable {ml} on the node. +
 +
-If set to `false` in `elasticsearch.yml`, the {ml} APIs are disabled.
-You also cannot open jobs, start {dfeeds}, or receive transport (internal)
+If set to `false` in `elasticsearch.yml`, the {ml} APIs are disabled on the node.
+Therefore the node cannot open jobs, start {dfeeds}, or receive transport (internal)
 communication requests related to {ml} APIs. It also affects all {kib} instances
 that connect to this {es} instance; you do not need to disable {ml} in those
 `kibana.yml` files. For more information about disabling {ml} in specific {kib}

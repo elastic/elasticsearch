@@ -136,7 +136,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
             assertThat(bulkDoc.getType(), equalTo(types[count] != null ? types[count] : defaultType));
             assertThat(bulkDoc.getId(), equalTo(ids[count]));
             assertThat(bulkDoc.getTimestamp(), equalTo(timestamp));
-            assertThat(bulkDoc.getInterval(), equalTo(interval));
+            assertThat(bulkDoc.getIntervalMillis(), equalTo(interval));
             assertThat(bulkDoc.getSource(), equalTo(sources[count]));
             assertThat(bulkDoc.getXContentType(), equalTo(xContentType));
             ++count;
@@ -260,7 +260,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
             originalRequest.add(randomMonitoringBulkDoc());
         }
 
-        final Version version = randomVersionBetween(random(), Version.V_5_0_0, Version.V_7_0_0_alpha1);
+        final Version version = randomVersionBetween(random(), Version.V_5_0_0, Version.V_6_0_0_rc1);
 
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(version);
@@ -290,10 +290,10 @@ public class MonitoringBulkRequestTests extends ESTestCase {
             assertThat(deserialized.getSource(), equalTo(original.getSource()));
             assertThat(deserialized.getXContentType(), equalTo(original.getXContentType()));
 
-            if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
-                assertThat(deserialized.getInterval(), equalTo(original.getInterval()));
+            if (version.onOrAfter(Version.V_6_0_0_rc1)) {
+                assertThat(deserialized.getIntervalMillis(), equalTo(original.getIntervalMillis()));
             } else {
-                assertThat(deserialized.getInterval(), equalTo(0L));
+                assertThat(deserialized.getIntervalMillis(), equalTo(0L));
             }
         }
     }

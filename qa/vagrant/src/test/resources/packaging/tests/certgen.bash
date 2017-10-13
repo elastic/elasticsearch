@@ -40,16 +40,16 @@ if [[ "$BATS_TEST_FILENAME" =~ 60_tar_certgen.bats$ ]]; then
     DATA_UTILS=$DEFAULT_PACKAGE_UTILS
     
     install_master_node() {
-	install_node_using_archive
+	    install_node_using_archive
     }
     start_master_node() {
-	start_node_using_archive
+	    start_node_using_archive
     }
     install_data_node() {
-	install_node_using_package
+	    install_node_using_package
     }
     start_data_node() {
-	start_node_using_package
+	    start_node_using_package
     }
 else
     if is_rpm; then
@@ -67,16 +67,16 @@ else
     DATA_UTILS=$DEFAULT_ARCHIVE_UTILS
     
     install_master_node() {
-	install_node_using_package
+	    install_node_using_package
     }
     start_master_node() {
-	start_node_using_package
+	    start_node_using_package
     }
     install_data_node() {
-	install_node_using_archive
+	    install_node_using_archive
     }
     start_data_node() {
-	start_node_using_archive
+	    start_node_using_archive
     }
 fi
 
@@ -181,7 +181,7 @@ CREATE_INSTANCES_FILE
 
 @test "[$GROUP] create certificates" {
     if [[ -f "$certificates" ]]; then
-	sudo rm -f "$certificates"
+	    sudo rm -f "$certificates"
     fi
 
     run sudo -E -u $MASTER_USER "$MASTER_HOME/bin/x-pack/certgen" --in "$instances" --out "$certificates"
@@ -202,13 +202,13 @@ CREATE_INSTANCES_FILE
     
     certs="$ESCONFIG/x-pack/certs"
     if [[ -d "$certs" ]]; then
-	sudo rm -rf "$certs"
+	    sudo rm -rf "$certs"
     fi
     
     run sudo -E -u $MASTER_USER "unzip" $certificates -d $certs
     [ "$status" -eq 0 ] || {
-	echo "Failed to unzip certificates in $certs: $output"
-	false
+	    echo "Failed to unzip certificates in $certs: $output"
+	    false
     }
 
     assert_file "$certs/ca/ca.key" f $MASTER_USER $MASTER_USER 644
@@ -259,9 +259,9 @@ MASTER_SETTINGS
 
     run sudo -E -u $MASTER_USER curl -u "elastic:changeme" --cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" -XGET "https://127.0.0.1:9200"
     [ "$status" -eq 0 ] || {
-	echo "Failed to connect to master node using HTTPS:"
-	echo "$output"
-	false
+	    echo "Failed to connect to master node using HTTPS:"
+	    echo "$output"
+	    false
     }
     echo "$output" | grep "node-master"
 }
@@ -277,19 +277,19 @@ MASTER_SETTINGS
     
     sudo chown $DATA_USER:$DATA_USER "$certificates"
     [ -f "$certificates" ] || {
-	echo "Could not find certificates: $certificates"
-	false
+	    echo "Could not find certificates: $certificates"
+	    false
     }
 
     certs="$ESCONFIG/x-pack/certs"
     if [[ -d "$certs" ]]; then
-	sudo rm -rf "$certs"
+	    sudo rm -rf "$certs"
     fi
     
     run sudo -E -u $DATA_USER "unzip" $certificates -d $certs
     [ "$status" -eq 0 ] || {
-	echo "Failed to unzip certificates in $certs: $output"
-	false
+	    echo "Failed to unzip certificates in $certs: $output"
+	    false
     }
 
     assert_file "$certs/ca" d $DATA_USER $DATA_USER
@@ -341,9 +341,9 @@ DATA_SETTINGS
 
     run sudo -E -u $DATA_USER curl --cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" -XGET "https://127.0.0.1:9201"
     [ "$status" -eq 0 ] || {
-	echo "Failed to connect to data node using HTTPS:"
-	echo "$output"
-	false
+	    echo "Failed to connect to data node using HTTPS:"
+	    echo "$output"
+	    false
     }
     echo "$output" | grep "missing authentication token"
 }
@@ -354,17 +354,17 @@ DATA_SETTINGS
     export_elasticsearch_paths
 
     testIndex=$(sudo curl -u "elastic:changeme" \
-	-H "Content-Type: application/json" \
-	--cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
-	-XPOST "https://127.0.0.1:9200/books/book/0?refresh" \
-	-d '{"title": "Elasticsearch The Definitive Guide"}')
+        -H "Content-Type: application/json" \
+        --cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
+        -XPOST "https://127.0.0.1:9200/books/book/0?refresh" \
+        -d '{"title": "Elasticsearch The Definitive Guide"}')
 
     echo "$testIndex" | grep '"result":"created"'
 
     masterSettings=$(sudo curl -u "elastic:changeme" \
-	-H "Content-Type: application/json" \
-	--cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
-	-XGET "https://127.0.0.1:9200/_nodes/node-master?filter_path=nodes.*.settings.xpack,nodes.*.settings.http.type,nodes.*.settings.transport.type")
+        -H "Content-Type: application/json" \
+        --cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
+        -XGET "https://127.0.0.1:9200/_nodes/node-master?filter_path=nodes.*.settings.xpack,nodes.*.settings.http.type,nodes.*.settings.transport.type")
 
     echo "$masterSettings" | grep '"http":{"ssl":{"enabled":"true"}'
     echo "$masterSettings" | grep '"http":{"type":"security4"}'
@@ -376,9 +376,9 @@ DATA_SETTINGS
     export_elasticsearch_paths
     
     dataSettings=$(curl -u "elastic:changeme" \
-	-H "Content-Type: application/json" \
-	--cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
-	-XGET "https://127.0.0.1:9200/_nodes/node-data?filter_path=nodes.*.settings.xpack,nodes.*.settings.http.type,nodes.*.settings.transport.type")
+        -H "Content-Type: application/json" \
+        --cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
+        -XGET "https://127.0.0.1:9200/_nodes/node-data?filter_path=nodes.*.settings.xpack,nodes.*.settings.http.type,nodes.*.settings.transport.type")
 
     echo "$dataSettings" | grep '"http":{"ssl":{"enabled":"true"}'
     echo "$dataSettings" | grep '"http":{"type":"security4"}'
@@ -386,9 +386,9 @@ DATA_SETTINGS
     echo "$dataSettings" | grep '"transport":{"type":"security4"}'
     
     testSearch=$(curl -u "elastic:changeme" \
-	-H "Content-Type: application/json" \
-	--cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
-	-XGET "https://127.0.0.1:9200/_search?q=title:guide")
+        -H "Content-Type: application/json" \
+        --cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
+        -XGET "https://127.0.0.1:9200/_search?q=title:guide")
     
     echo "$testSearch" | grep '"_index":"books"'
     echo "$testSearch" | grep '"_id":"0"'

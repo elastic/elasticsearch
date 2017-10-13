@@ -123,6 +123,10 @@ reject `url` settings like `http://internal-jira.elastic.co` that are based on
 plain text HTTP protocol. This default behavior can be disabled with the explicit
  `allow_http setting`:
 
+NOTE: The `url` field can also contain a path, that is used to create an issue. By
+default this is `/rest/api/2/issue`. If you set this as well, make sure that this
+path is the full path to the endpoint to create an issue.
+
 [source,yaml]
 --------------------------------------------------
 xpack.notification.jira:

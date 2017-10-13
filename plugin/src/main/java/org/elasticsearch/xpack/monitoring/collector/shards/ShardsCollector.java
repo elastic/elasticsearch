@@ -43,7 +43,7 @@ public class ShardsCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval) throws Exception {
         final List<MonitoringDoc> results = new ArrayList<>(1);
 
         final ClusterState clusterState = clusterService.state();
@@ -66,7 +66,7 @@ public class ShardsCollector extends Collector {
                                 // If the shard is assigned to a node, the shard monitoring document refers to this node
                                 shardNode = convertNode(node.getTimestamp(), clusterState.getNodes().get(shard.currentNodeId()));
                             }
-                            results.add(new ShardMonitoringDoc(clusterUUID, timestamp, shardNode, shard, stateUUID));
+                            results.add(new ShardMonitoringDoc(clusterUUID, timestamp, interval, shardNode, shard, stateUUID));
                         }
                     }
                 }

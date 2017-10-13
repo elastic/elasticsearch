@@ -5,10 +5,21 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
+import javax.net.ssl.SSLException;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.SocketException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-
 import org.bouncycastle.util.io.Streams;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
@@ -30,17 +41,6 @@ import org.elasticsearch.xpack.security.support.Validation;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
-
-import java.io.IOException;
-import java.net.ConnectException;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * A tool to set passwords of reserved users (elastic, kibana and
@@ -108,11 +108,12 @@ public class SetupPasswordTool extends MultiCommand {
 
         @Override
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+            terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
             setupOptions(options, env);
-            checkElasticKeystorePasswordValid(terminal);
+            checkElasticKeystorePasswordValid(terminal, env);
 
             if (shouldPrompt) {
-                terminal.println("Initiating the setup of reserved user " + String.join(",", USERS) + "  passwords.");
+                terminal.println("Initiating the setup of reserved user " + String.join(",", USERS) + " passwords.");
                 terminal.println("The passwords will be randomly generated and printed to the console.");
                 boolean shouldContinue = terminal.promptYesNo("Please confirm that you would like to continue", false);
                 terminal.println("\n");
@@ -152,11 +153,12 @@ public class SetupPasswordTool extends MultiCommand {
 
         @Override
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+            terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
             setupOptions(options, env);
-            checkElasticKeystorePasswordValid(terminal);
+            checkElasticKeystorePasswordValid(terminal, env);
 
             if (shouldPrompt) {
-                terminal.println("Initiating the setup of reserved user " + String.join(",", USERS) + "  passwords.");
+                terminal.println("Initiating the setup of reserved user " + String.join(",", USERS) + " passwords.");
                 terminal.println("You will be prompted to enter passwords as the process progresses.");
                 boolean shouldContinue = terminal.promptYesNo("Please confirm that you would like to continue", false);
                 terminal.println("\n");
@@ -254,9 +256,10 @@ public class SetupPasswordTool extends MultiCommand {
          * @param terminal
          *            where to write verbose info.
          */
-        void checkElasticKeystorePasswordValid(Terminal terminal) throws Exception {
+        void checkElasticKeystorePasswordValid(Terminal terminal, Environment env) throws Exception {
             URL route = new URL(url + "/_xpack/security/_authenticate?pretty");
             try {
+                terminal.println(Verbosity.VERBOSE, "");
                 terminal.println(Verbosity.VERBOSE, "Testing if bootstrap password is valid for " + route.toString());
                 int httpCode = client.postURL("GET", route, elasticUser, elasticUserPassword, () -> null, is -> {
                     byte[] bytes = Streams.readAll(is);
@@ -264,11 +267,31 @@ public class SetupPasswordTool extends MultiCommand {
                 });
                 // keystore password is not valid
                 if (httpCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                    throw new UserException(ExitCodes.CONFIG, "Failed to verify bootstrap password.");
+                    terminal.println("");
+                    terminal.println("Failed to authenticate user '" + elasticUser + "' against " + route.toString());
+                    terminal.println("Possible causes include:");
+                    terminal.println(" * The password for the '" + elasticUser + "' user has already been changed on this cluster");
+                    terminal.println(" * Your elasticsearch node is running against a different keystore");
+                    terminal.println("   This tool used the keystore at " + KeyStoreWrapper.keystorePath(env.configFile()));
+                    terminal.println("");
+                    throw new UserException(ExitCodes.CONFIG, "Failed to verify bootstrap password");
                 }
-            } catch (ConnectException e) {
+            } catch (SocketException e) {
+                terminal.println("");
+                terminal.println("Cannot connect to elasticsearch node.");
+                e.printStackTrace(terminal.getWriter());
+                terminal.println("");
                 throw new UserException(ExitCodes.CONFIG,
                         "Failed to connect to elasticsearch at " + route.toString() + ". Is the URL correct and elasticsearch running?", e);
+            } catch (SSLException e) {
+                terminal.println("");
+                terminal.println("SSL connection to " + route.toString() + " failed: " + e.getMessage());
+                terminal.println("Please check the elasticsearch SSL settings under " + CommandLineHttpClient.HTTP_SSL_SETTING);
+                terminal.println("");
+                e.printStackTrace(terminal.getWriter());
+                terminal.println("");
+                throw new UserException(ExitCodes.CONFIG,
+                        "Failed to establish SSL connection to elasticsearch at " + route.toString() + ". ", e);
             }
         }
 

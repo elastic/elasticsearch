@@ -46,9 +46,10 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
     }
 
     @Override
-    protected JobStatsMonitoringDoc createMonitoringDoc(final String cluster, final long timestamp, final MonitoringDoc.Node node,
-                                                        final MonitoredSystem system, final String type, final String id) {
-        return new JobStatsMonitoringDoc(cluster, timestamp, node, jobStats);
+    protected JobStatsMonitoringDoc createMonitoringDoc(final String cluster, final long timestamp, long interval,
+                                                        final MonitoringDoc.Node node, final MonitoredSystem system,
+                                                        final String type, final String id) {
+        return new JobStatsMonitoringDoc(cluster, timestamp, interval, node, jobStats);
     }
 
     @Override
@@ -62,7 +63,7 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
 
     public void testConstructorJobStatsMustNotBeNull() {
         expectThrows(NullPointerException.class,
-                     () -> new JobStatsMonitoringDoc(cluster, timestamp, node, null));
+                     () -> new JobStatsMonitoringDoc(cluster, timestamp, interval, node, null));
     }
 
     @Override
@@ -102,12 +103,13 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
         final JobStats jobStats = new JobStats("_job", dataCounts, modelStats, JobState.OPENED, discoveryNode, "_explanation", time);
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
 
-        final JobStatsMonitoringDoc document = new JobStatsMonitoringDoc("_cluster", 1502266739402L, node, jobStats);
+        final JobStatsMonitoringDoc document = new JobStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, jobStats);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertEquals("{"
                      + "\"cluster_uuid\":\"_cluster\","
                      + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
+                     + "\"interval_ms\":1506593717631,"
                      + "\"type\":\"job_stats\","
                      + "\"source_node\":{"
                        + "\"uuid\":\"_uuid\","

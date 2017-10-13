@@ -52,6 +52,7 @@ teardown:
   - match: { watch_record.input.simple.foo: "bar" }
   - match: { watch_record.trigger_event.type: "manual" }
   - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
   - match: { watch_record.status.state.active: true }
   - match: { watch_record.status.actions.logging.ack.state: "ackable" }
   - is_true: watch_record.condition.never

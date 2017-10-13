@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.security.Security.setting;
  */
 public class CommandLineHttpClient {
 
+    public static final String HTTP_SSL_SETTING = setting("http.ssl.");
     private final Settings settings;
     private final Environment env;
 
@@ -75,7 +76,7 @@ public class CommandLineHttpClient {
         HttpURLConnection conn;
         // If using SSL, need a custom service because it's likely a self-signed certificate
         if ("https".equalsIgnoreCase(url.getProtocol())) {
-            Settings sslSettings = settings.getByPrefix(setting("http.ssl."));
+            Settings sslSettings = settings.getByPrefix(HTTP_SSL_SETTING);
             final SSLService sslService = new SSLService(settings, env);
             final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {

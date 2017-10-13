@@ -67,7 +67,7 @@ public class ClusterStatsCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval) throws Exception {
         final Supplier<ClusterStatsResponse> clusterStatsSupplier =
                 () -> client.admin().cluster().prepareClusterStats().get(getCollectionTimeout());
         final Supplier<List<XPackFeatureSet.Usage>> usageSupplier =
@@ -83,7 +83,7 @@ public class ClusterStatsCollector extends Collector {
 
         // Adds a cluster stats document
         return Collections.singleton(
-                new ClusterStatsMonitoringDoc(clusterUUID(), timestamp(), node, clusterName, version,  clusterStats.getStatus(),
+                new ClusterStatsMonitoringDoc(clusterUUID(), timestamp(), interval, node, clusterName, version,  clusterStats.getStatus(),
                         license, usage, clusterStats, clusterState));
     }
 

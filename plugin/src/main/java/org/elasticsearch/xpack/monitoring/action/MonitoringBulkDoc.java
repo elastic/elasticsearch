@@ -27,7 +27,7 @@ public class MonitoringBulkDoc implements Writeable {
     private final String type;
     private final String id;
     private final long timestamp;
-    private final long interval;
+    private final long intervalMillis;
     private final BytesReference source;
     private final XContentType xContentType;
 
@@ -35,7 +35,7 @@ public class MonitoringBulkDoc implements Writeable {
                              final String type,
                              @Nullable final String id,
                              final long timestamp,
-                             final long interval,
+                             final long intervalMillis,
                              final BytesReference source,
                              final XContentType xContentType) {
 
@@ -44,7 +44,7 @@ public class MonitoringBulkDoc implements Writeable {
         // We allow strings to be "" because Logstash 5.2 - 5.3 would submit empty _id values for time-based documents
         this.id = Strings.isNullOrEmpty(id) ? null : id;
         this.timestamp = timestamp;
-        this.interval = interval;
+        this.intervalMillis = intervalMillis;
         this.source = Objects.requireNonNull(source);
         this.xContentType = Objects.requireNonNull(xContentType);
     }
@@ -55,16 +55,16 @@ public class MonitoringBulkDoc implements Writeable {
     public static MonitoringBulkDoc readFrom(StreamInput in) throws IOException {
         final MonitoredSystem system = MonitoredSystem.fromSystem(in.readOptionalString());
 
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
-            in.readOptionalString(); // Monitoring version, removed in 7.0
-            in.readOptionalString(); // Cluster UUID, removed in 7.0
+        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
+            in.readOptionalString(); // Monitoring version, removed in 6.0 rc1
+            in.readOptionalString(); // Cluster UUID, removed in 6.0 rc1
         }
 
         final long timestamp = in.readVLong();
 
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
-            in.readOptionalWriteable(MonitoringDoc.Node::new);// Source node, removed in 7.0
-            MonitoringIndex.readFrom(in);// Monitoring index, removed in 7.0
+        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
+            in.readOptionalWriteable(MonitoringDoc.Node::new);// Source node, removed in 6.0 rc1
+            MonitoringIndex.readFrom(in);// Monitoring index, removed in 6.0 rc1
         }
 
         final String type = in.readOptionalString();
@@ -73,7 +73,7 @@ public class MonitoringBulkDoc implements Writeable {
         final XContentType xContentType = (source != BytesArray.EMPTY) ? XContentType.readFrom(in) : XContentType.JSON;
 
         long interval = 0L;
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
             interval = in.readVLong();
         }
         return new MonitoringBulkDoc(system, type, id, timestamp, interval, source, xContentType);
@@ -82,12 +82,12 @@ public class MonitoringBulkDoc implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(system.getSystem());
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
             out.writeOptionalString(MonitoringTemplateUtils.TEMPLATE_VERSION);
             out.writeOptionalString(null);
         }
         out.writeVLong(timestamp);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
             out.writeOptionalWriteable(null);
             MonitoringIndex.IGNORED_DATA.writeTo(out);
         }
@@ -97,8 +97,8 @@ public class MonitoringBulkDoc implements Writeable {
         if (source != BytesArray.EMPTY) {
             xContentType.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeVLong(interval);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
+            out.writeVLong(intervalMillis);
         }
     }
 
@@ -118,8 +118,8 @@ public class MonitoringBulkDoc implements Writeable {
         return timestamp;
     }
 
-    public long getInterval() {
-        return interval;
+    public long getIntervalMillis() {
+        return intervalMillis;
     }
 
     public BytesReference getSource() {
@@ -140,7 +140,7 @@ public class MonitoringBulkDoc implements Writeable {
         }
         MonitoringBulkDoc that = (MonitoringBulkDoc) o;
         return timestamp == that.timestamp
-                && interval == that.interval
+                && intervalMillis == that.intervalMillis
                 && system == that.system
                 && Objects.equals(type, that.type)
                 && Objects.equals(id, that.id)
@@ -150,6 +150,6 @@ public class MonitoringBulkDoc implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(system, type, id, timestamp, interval, source, xContentType);
+        return Objects.hash(system, type, id, timestamp, intervalMillis, source, xContentType);
     }
 }

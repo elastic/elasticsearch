@@ -46,9 +46,9 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
     }
 
     @Override
-    protected IndexStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, MonitoringDoc.Node node,
+    protected IndexStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
                                                           MonitoredSystem system, String type, String id) {
-        return new IndexStatsMonitoringDoc(cluster, timestamp, node, indexStats);
+        return new IndexStatsMonitoringDoc(cluster, timestamp, interval, node, indexStats);
     }
 
     @Override
@@ -66,7 +66,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
     }
 
     public void testConstructorIndexStatsMustNotBeNull() {
-        expectThrows(NullPointerException.class, () -> new IndexStatsMonitoringDoc(cluster, timestamp, node, null));
+        expectThrows(NullPointerException.class, () -> new IndexStatsMonitoringDoc(cluster, timestamp, interval, node, null));
     }
 
     @Override
@@ -76,12 +76,13 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         when(indexStats.getTotal()).thenReturn(mockCommonStats());
         when(indexStats.getPrimaries()).thenReturn(mockCommonStats());
 
-        final IndexStatsMonitoringDoc document = new IndexStatsMonitoringDoc("_cluster", 1502266739402L, node, indexStats);
+        final IndexStatsMonitoringDoc document = new IndexStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indexStats);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertEquals("{"
                      + "\"cluster_uuid\":\"_cluster\","
                      + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
+                     + "\"interval_ms\":1506593717631,"
                      + "\"type\":\"index_stats\","
                      + "\"source_node\":{"
                        + "\"uuid\":\"_uuid\","
@@ -207,12 +208,13 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         when(indexStats.getTotal()).thenReturn(null);
         when(indexStats.getPrimaries()).thenReturn(null);
 
-        final IndexStatsMonitoringDoc document = new IndexStatsMonitoringDoc("_cluster", 1502266739402L, node, indexStats);
+        final IndexStatsMonitoringDoc document = new IndexStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indexStats);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertEquals("{"
                      + "\"cluster_uuid\":\"_cluster\","
                      + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
+                     + "\"interval_ms\":1506593717631,"
                      + "\"type\":\"index_stats\","
                      + "\"source_node\":{"
                        + "\"uuid\":\"_uuid\","

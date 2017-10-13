@@ -19,6 +19,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -66,6 +67,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class MonitoringIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("x_pack_rest_user", TEST_PASSWORD_SECURE_STRING);
+
+    private final TimeValue collectionInterval = TimeValue.timeValueSeconds(3);
 
     @Override
     protected Settings restClientSettings() {
@@ -140,11 +143,12 @@ public class MonitoringIT extends ESRestTestCase {
     public void testMonitoringBulk() throws Exception {
         whenExportersAreReady(() -> {
             final MonitoredSystem system = randomSystem();
-            final String interval = randomIntBetween(1, 20) + "s";
+            final TimeValue interval = TimeValue.timeValueSeconds(randomIntBetween(1, 20));
 
             // Use Monitoring Bulk API to index 3 documents
             Response bulkResponse = client().performRequest("POST", "/_xpack/monitoring/_bulk",
-                                                            parameters(system.getSystem(), TEMPLATE_VERSION, interval), createBulkEntity());
+                                                            parameters(system.getSystem(), TEMPLATE_VERSION, interval.getStringRep()),
+                                                            createBulkEntity());
 
             assertThat(bulkResponse.getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_OK));
             assertThat(toMap(bulkResponse.getEntity()).get("errors"), equalTo(false));
@@ -172,7 +176,7 @@ public class MonitoringIT extends ESRestTestCase {
                     1, searchHits.stream().map(map -> extractValue("_source.source_node.timestamp", map)).distinct().count());
 
             for (Map<String,Object> searchHit : searchHits) {
-                assertMonitoringDoc(searchHit, system, "test");
+                assertMonitoringDoc(searchHit, system, "test", interval);
             }
         });
     }
@@ -204,17 +208,17 @@ public class MonitoringIT extends ESRestTestCase {
                 final String type = (String) extractValue("_source.type", searchHit);
 
                 if (ClusterStatsMonitoringDoc.TYPE.equals(type)) {
-                    assertClusterStatsMonitoringDoc(searchHit);
+                    assertClusterStatsMonitoringDoc(searchHit, collectionInterval);
                 } else if (IndexRecoveryMonitoringDoc.TYPE.equals(type)) {
-                    assertIndexRecoveryMonitoringDoc(searchHit);
+                    assertIndexRecoveryMonitoringDoc(searchHit, collectionInterval);
                 } else if (IndicesStatsMonitoringDoc.TYPE.equals(type)) {
-                    assertIndicesStatsMonitoringDoc(searchHit);
+                    assertIndicesStatsMonitoringDoc(searchHit, collectionInterval);
                 } else if (IndexStatsMonitoringDoc.TYPE.equals(type)) {
-                    assertIndexStatsMonitoringDoc(searchHit);
+                    assertIndexStatsMonitoringDoc(searchHit, collectionInterval);
                 } else if (NodeStatsMonitoringDoc.TYPE.equals(type)) {
-                    assertNodeStatsMonitoringDoc(searchHit);
+                    assertNodeStatsMonitoringDoc(searchHit, collectionInterval);
                 } else if (ShardMonitoringDoc.TYPE.equals(type)) {
-                    assertShardMonitoringDoc(searchHit);
+                    assertShardMonitoringDoc(searchHit, collectionInterval);
                 } else {
                     fail("Monitoring document of type [" + type + "] is not supported by this test");
                 }
@@ -229,7 +233,8 @@ public class MonitoringIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     private static void assertMonitoringDoc(final Map<String, Object> document,
                                             final MonitoredSystem expectedSystem,
-                                            final String expectedType) throws Exception {
+                                            final String expectedType,
+                                            final TimeValue interval) throws Exception {
         assertEquals(5, document.size());
 
         final String index = (String) document.get("_index");
@@ -244,6 +249,8 @@ public class MonitoringIT extends ESRestTestCase {
 
         final String timestamp = (String) source.get("timestamp");
         assertThat(timestamp, not(isEmptyOrNullString()));
+
+        assertThat(((Number) source.get("interval_ms")).longValue(), equalTo(interval.getMillis()));
 
         assertThat(index, equalTo(MonitoringTemplateUtils.indexName(DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC(),
                                                                     expectedSystem,
@@ -286,11 +293,11 @@ public class MonitoringIT extends ESRestTestCase {
      * Assert that a {@link ClusterStatsMonitoringDoc} contains the expected information
      */
     @SuppressWarnings("unchecked")
-    private static void assertClusterStatsMonitoringDoc(final Map<String, Object> document) throws Exception {
-        assertMonitoringDoc(document, MonitoredSystem.ES, ClusterStatsMonitoringDoc.TYPE);
+    private static void assertClusterStatsMonitoringDoc(final Map<String, Object> document, final TimeValue interval) throws Exception {
+        assertMonitoringDoc(document, MonitoredSystem.ES, ClusterStatsMonitoringDoc.TYPE, interval);
 
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
-        assertEquals(10, source.size());
+        assertEquals(11, source.size());
 
         assertThat((String) source.get("cluster_name"), not(isEmptyOrNullString()));
         assertThat(source.get("version"), equalTo(Version.CURRENT.toString()));
@@ -349,11 +356,11 @@ public class MonitoringIT extends ESRestTestCase {
      * Assert that a {@link IndexRecoveryMonitoringDoc} contains the expected information
      */
     @SuppressWarnings("unchecked")
-    private static void assertIndexRecoveryMonitoringDoc(final Map<String, Object> document) throws Exception {
-        assertMonitoringDoc(document, MonitoredSystem.ES, IndexRecoveryMonitoringDoc.TYPE);
+    private static void assertIndexRecoveryMonitoringDoc(final Map<String, Object> document, final TimeValue interval) throws Exception {
+        assertMonitoringDoc(document, MonitoredSystem.ES, IndexRecoveryMonitoringDoc.TYPE, interval);
 
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
-        assertEquals(5, source.size());
+        assertEquals(6, source.size());
 
         final Map<String, Object> indexRecovery = (Map<String, Object>) source.get(IndexRecoveryMonitoringDoc.TYPE);
         assertEquals(1, indexRecovery.size());
@@ -366,11 +373,11 @@ public class MonitoringIT extends ESRestTestCase {
      * Assert that a {@link IndicesStatsMonitoringDoc} contains the expected information
      */
     @SuppressWarnings("unchecked")
-    private static void assertIndicesStatsMonitoringDoc(final Map<String, Object> document) throws Exception {
-        assertMonitoringDoc(document, MonitoredSystem.ES, IndicesStatsMonitoringDoc.TYPE);
+    private static void assertIndicesStatsMonitoringDoc(final Map<String, Object> document, final TimeValue interval) throws Exception {
+        assertMonitoringDoc(document, MonitoredSystem.ES, IndicesStatsMonitoringDoc.TYPE, interval);
 
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
-        assertEquals(5, source.size());
+        assertEquals(6, source.size());
 
         final Map<String, Object> indicesStats = (Map<String, Object>) source.get(IndicesStatsMonitoringDoc.TYPE);
         assertEquals(1, indicesStats.size());
@@ -383,11 +390,11 @@ public class MonitoringIT extends ESRestTestCase {
      * Assert that a {@link IndexStatsMonitoringDoc} contains the expected information
      */
     @SuppressWarnings("unchecked")
-    private static void assertIndexStatsMonitoringDoc(final Map<String, Object> document) throws Exception {
-        assertMonitoringDoc(document, MonitoredSystem.ES, IndexStatsMonitoringDoc.TYPE);
+    private static void assertIndexStatsMonitoringDoc(final Map<String, Object> document, final TimeValue interval) throws Exception {
+        assertMonitoringDoc(document, MonitoredSystem.ES, IndexStatsMonitoringDoc.TYPE, interval);
 
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
-        assertEquals(5, source.size());
+        assertEquals(6, source.size());
 
         final Map<String, Object> indexStats = (Map<String, Object>) source.get(IndexStatsMonitoringDoc.TYPE);
         assertEquals(3, indexStats.size());
@@ -403,11 +410,11 @@ public class MonitoringIT extends ESRestTestCase {
      * Assert that a {@link NodeStatsMonitoringDoc} contains the expected information
      */
     @SuppressWarnings("unchecked")
-    private static void assertNodeStatsMonitoringDoc(final Map<String, Object> document) throws Exception {
-        assertMonitoringDoc(document, MonitoredSystem.ES, NodeStatsMonitoringDoc.TYPE);
+    private static void assertNodeStatsMonitoringDoc(final Map<String, Object> document, final TimeValue interval) throws Exception {
+        assertMonitoringDoc(document, MonitoredSystem.ES, NodeStatsMonitoringDoc.TYPE, interval);
 
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
-        assertEquals(5, source.size());
+        assertEquals(6, source.size());
 
         NodeStatsMonitoringDoc.XCONTENT_FILTERS.forEach(filter -> {
             if (Constants.WINDOWS && filter.startsWith("node_stats.os.cpu.load_average")) {
@@ -434,11 +441,11 @@ public class MonitoringIT extends ESRestTestCase {
      * Assert that a {@link ShardMonitoringDoc} contains the expected information
      */
     @SuppressWarnings("unchecked")
-    private static void assertShardMonitoringDoc(final Map<String, Object> document) throws Exception {
-        assertMonitoringDoc(document, MonitoredSystem.ES, ShardMonitoringDoc.TYPE);
+    private static void assertShardMonitoringDoc(final Map<String, Object> document, final TimeValue interval) throws Exception {
+        assertMonitoringDoc(document, MonitoredSystem.ES, ShardMonitoringDoc.TYPE, interval);
 
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
-        assertEquals(6, source.size());
+        assertEquals(7, source.size());
         assertThat(source.get("state_uuid"), notNullValue());
 
         final Map<String, Object> shard = (Map<String, Object>) source.get("shard");
@@ -470,9 +477,9 @@ public class MonitoringIT extends ESRestTestCase {
      * Executes the given {@link Runnable} once the monitoring exporters are ready and functional. Ensure that
      * the exporters and the monitoring service are shut down after the runnable has been executed.
      */
-    private static void whenExportersAreReady(final CheckedRunnable<Exception> runnable) throws Exception {
+    private void whenExportersAreReady(final CheckedRunnable<Exception> runnable) throws Exception {
         try {
-            enableMonitoring();
+            enableMonitoring(collectionInterval);
             runnable.run();
         } finally {
             disableMonitoring();
@@ -483,13 +490,14 @@ public class MonitoringIT extends ESRestTestCase {
      * Enable the monitoring service and the Local exporter, waiting for some monitoring documents
      * to be indexed before it returns.
      */
-    public static void enableMonitoring() throws Exception {
+    public static void enableMonitoring(final TimeValue interval) throws Exception {
         final Map<String, Object> exporters = callRestApi("GET", "/_xpack/usage?filter_path=monitoring.enabled_exporters", 200);
+        assertNotNull("List of monitoring exporters must not be null", exporters);
         assertThat("List of enabled exporters must be empty before enabling monitoring",
                     XContentMapValues.extractRawValues("monitoring.enabled_exporters", exporters), hasSize(0));
 
         final Settings settings = Settings.builder()
-                .put("transient.xpack.monitoring.collection.interval", "3s")
+                .put("transient.xpack.monitoring.collection.interval", interval.getStringRep())
                 .put("transient.xpack.monitoring.exporters._local.enabled", true)
                 .build();
 
@@ -544,11 +552,12 @@ public class MonitoringIT extends ESRestTestCase {
                 response = callRestApi("GET", "/_nodes/_local/stats/thread_pool?filter_path=nodes.*.thread_pool.bulk.active", 200);
 
                 final Map<String, Object> nodes = (Map<String, Object>) response.get("nodes");
-                final Map<String, Object> threadPool = (Map<String, Object>) nodes.values().iterator().next();
-                final Number activeBulks = (Number) extractValue("bulk.active", threadPool);
+                final Map<String, Object> node = (Map<String, Object>) nodes.values().iterator().next();
+
+                final Number activeBulks = (Number) extractValue("thread_pool.bulk.active", node);
                 return activeBulks != null && activeBulks.longValue() == 0L;
             } catch (Exception e) {
-                throw new ElasticsearchException("Failed to delete monitoring indices:", e);
+                throw new ElasticsearchException("Failed to wait for monitoring exporters to stop:", e);
             }
         });
     }

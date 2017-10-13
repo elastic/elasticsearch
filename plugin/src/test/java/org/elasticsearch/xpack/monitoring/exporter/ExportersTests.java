@@ -267,8 +267,8 @@ public class ExportersTests extends ESTestCase {
                 protected void doRun() throws Exception {
                     List<MonitoringDoc> docs = new ArrayList<>();
                     for (int n = 0; n < threadDocs; n++) {
-                        docs.add(new TestMonitoringDoc(randomAlphaOfLength(5), randomNonNegativeLong(), null, MonitoredSystem.ES,
-                                                       randomAlphaOfLength(5), null, String.valueOf(n)));
+                        docs.add(new TestMonitoringDoc(randomAlphaOfLength(5), randomNonNegativeLong(), randomNonNegativeLong(),
+                                                       null, MonitoredSystem.ES, randomAlphaOfLength(5), null, String.valueOf(n)));
                     }
                     barrier.await(10, TimeUnit.SECONDS);
                     exporters.export(docs, ActionListener.wrap(
@@ -395,8 +395,9 @@ public class ExportersTests extends ESTestCase {
 
         private final String value;
 
-        TestMonitoringDoc(String cluster, long timestamp, Node node, MonitoredSystem system, String type, String id, String value) {
-            super(cluster, timestamp, node, system, type, id);
+        TestMonitoringDoc(String cluster, long timestamp, long interval,
+                          Node node, MonitoredSystem system, String type, String id, String value) {
+            super(cluster, timestamp, interval, node, system, type, id);
             this.value = value;
         }
 

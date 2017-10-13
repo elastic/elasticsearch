@@ -220,6 +220,8 @@ For more information, see
 {xpack-ref}/setting-up-authentication.html#set-built-in-user-passwords[Setting Built-in User Passwords].
 --
 
+. Optional: <<setup-xpack-client, Configure the Java Client>>.
+
 . {kibana-ref}/installing-xpack-kb.html[Install {xpack} on {kib}].
 
 . {logstash-ref}/installing-xpack-log.html[Install {xpack} on Logstash].

@@ -118,6 +118,7 @@ cluster:admin/xpack/ml/filters/get
 cluster:monitor/xpack/ml/job/results/categories/get
 cluster:monitor/xpack/ml/job/stats/get
 cluster:monitor/xpack/ml/job/results/buckets/get
+cluster:monitor/xpack/ml/job/results/overall_buckets/get
 cluster:monitor/xpack/ml/job/model_snapshots/get
 cluster:monitor/xpack/ml/job/results/records/get
 cluster:monitor/xpack/ml/job/results/influencers/get

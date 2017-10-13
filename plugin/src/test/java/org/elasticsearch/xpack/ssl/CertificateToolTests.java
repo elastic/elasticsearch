@@ -56,6 +56,8 @@ import org.bouncycastle.openssl.PEMEncryptedKeyPair;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -209,6 +211,18 @@ public class CertificateToolTests extends ESTestCase {
         assertEquals(Collections.singletonList("node4.mydomain.com"), certInfo.dnsNames);
         assertEquals(Collections.emptyList(), certInfo.commonNames);
         assertEquals("different file", certInfo.name.filename);
+    }
+
+    public void testParsingFileWithInvalidDetails() throws Exception {
+        Path tempDir = initTempDir();
+        Path instanceFile = writeInvalidInstanceInformation(tempDir.resolve("instances-invalid.yml"));
+        final MockTerminal terminal = new MockTerminal();
+        final UserException exception = expectThrows(UserException.class,
+                () -> CertificateTool.parseAndValidateFile(terminal, instanceFile));
+        assertThat(exception.getMessage(), containsString("invalid configuration"));
+        assertThat(exception.getMessage(), containsString(instanceFile.toString()));
+        assertThat(terminal.getOutput(), containsString("THIS=not a,valid DN"));
+        assertThat(terminal.getOutput(), containsString("could not be converted to a valid DN"));
     }
 
     public void testGeneratingCsr() throws Exception {
@@ -525,6 +539,17 @@ public class CertificateToolTests extends ESTestCase {
                 "    dns:",
                 "      - \"node4.mydomain.com\"");
 
+        return Files.write(path, instances, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Writes the description of instances to a given {@link Path}
+     */
+    private Path writeInvalidInstanceInformation(Path path) throws IOException {
+        Iterable<String> instances = Arrays.asList(
+                "instances:",
+                "  - name: \"THIS=not a,valid DN\"",
+                "    ip: \"127.0.0.1\"");
         return Files.write(path, instances, StandardCharsets.UTF_8);
     }
 

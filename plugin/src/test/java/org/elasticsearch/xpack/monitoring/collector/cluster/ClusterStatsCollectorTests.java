@@ -139,7 +139,9 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
                 new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService);
         assertEquals(timeout, collector.getCollectionTimeout());
 
-        final Collection<MonitoringDoc> results = collector.doCollect(node);
+        final long interval = randomNonNegativeLong();
+
+        final Collection<MonitoringDoc> results = collector.doCollect(node, interval);
         assertEquals(1, results.size());
 
         final MonitoringDoc monitoringDoc = results.iterator().next();
@@ -148,6 +150,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final ClusterStatsMonitoringDoc document = (ClusterStatsMonitoringDoc) monitoringDoc;
         assertThat(document.getCluster(), equalTo(clusterUUID));
         assertThat(document.getTimestamp(), greaterThan(0L));
+        assertThat(document.getIntervalMillis(), equalTo(interval));
         assertThat(document.getNode(), equalTo(node));
         assertThat(document.getSystem(), is(MonitoredSystem.ES));
         assertThat(document.getType(), equalTo(ClusterStatsMonitoringDoc.TYPE));

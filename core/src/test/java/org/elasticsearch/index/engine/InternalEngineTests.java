@@ -1314,9 +1314,53 @@ public class InternalEngineTests extends ESTestCase {
         Engine.IndexResult indexResult = engine.index(create);
         assertThat(indexResult.getVersion(), equalTo(1L));
 
-        create = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), create.primaryTerm(), indexResult.getVersion(), create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
+        create = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), create.primaryTerm(), indexResult.getVersion(),
+            create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
         indexResult = replicaEngine.index(create);
         assertThat(indexResult.getVersion(), equalTo(1L));
+    }
+
+    public void testReplicatedVersioningWithFlush() throws IOException {
+        ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
+        Engine.Index create = new Engine.Index(newUid(doc), doc, Versions.MATCH_DELETED);
+        Engine.IndexResult indexResult = engine.index(create);
+        assertThat(indexResult.getVersion(), equalTo(1L));
+        assertTrue(indexResult.isCreated());
+
+
+        create = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), create.primaryTerm(), indexResult.getVersion(),
+            create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
+        indexResult = replicaEngine.index(create);
+        assertThat(indexResult.getVersion(), equalTo(1L));
+        assertTrue(indexResult.isCreated());
+
+        if (randomBoolean()) {
+            engine.flush();
+        }
+        if (randomBoolean()) {
+            replicaEngine.flush();
+        }
+
+        Engine.Index update = new Engine.Index(newUid(doc), doc, 1);
+        Engine.IndexResult updateResult = engine.index(update);
+        assertThat(updateResult.getVersion(), equalTo(2L));
+        assertFalse(updateResult.isCreated());
+
+
+        update = new Engine.Index(newUid(doc), doc, updateResult.getSeqNo(), update.primaryTerm(), updateResult.getVersion(),
+            update.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
+        updateResult = replicaEngine.index(update);
+        assertThat(updateResult.getVersion(), equalTo(2L));
+        assertFalse(updateResult.isCreated());
+        replicaEngine.refresh("test");
+        try (Searcher searcher = replicaEngine.acquireSearcher("test")) {
+            assertEquals(1, searcher.getDirectoryReader().numDocs());
+        }
+
+        engine.refresh("test");
+        try (Searcher searcher = engine.acquireSearcher("test")) {
+            assertEquals(1, searcher.getDirectoryReader().numDocs());
+        }
     }
 
     /**

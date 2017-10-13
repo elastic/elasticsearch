@@ -41,6 +41,7 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
 
         controller.registerHandler(POST, "/_scripts/{id}", this);
         controller.registerHandler(PUT, "/_scripts/{id}", this);
+        controller.registerHandler(POST, "/_scripts/{id}/{context}", this);
         controller.registerHandler(PUT, "/_scripts/{id}/{context}", this);
     }
 

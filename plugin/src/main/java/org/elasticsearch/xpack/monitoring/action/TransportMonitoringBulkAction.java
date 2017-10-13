@@ -103,6 +103,7 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
             final MonitoredSystem system = bulkDoc.getSystem();
             final String type = bulkDoc.getType();
             final String id = bulkDoc.getId();
+            final long intervalMillis = bulkDoc.getIntervalMillis();
             final XContentType xContentType = bulkDoc.getXContentType();
             final BytesReference source = bulkDoc.getSource();
 
@@ -113,7 +114,8 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
                 timestamp = defaultTimestamp;
             }
 
-            return new BytesReferenceMonitoringDoc(defaultClusterUUID, timestamp, defaultNode, system, type, id, xContentType, source);
+            return new BytesReferenceMonitoringDoc(defaultClusterUUID, timestamp, intervalMillis,
+                                                   defaultNode, system, type, id, xContentType, source);
         }
 
         /**

@@ -74,14 +74,14 @@ public class MonitoringBulkDocTests extends ESTestCase {
         assertThat(document.getType(), equalTo(type));
         assertThat(document.getId(), equalTo(id));
         assertThat(document.getTimestamp(), equalTo(timestamp));
-        assertThat(document.getInterval(), equalTo(interval));
+        assertThat(document.getIntervalMillis(), equalTo(interval));
         assertThat(document.getSource(), equalTo(source));
         assertThat(document.getXContentType(), equalTo(xContentType));
     }
 
     public void testEqualsAndHashcode() {
         final EqualsHashCodeTestUtils.CopyFunction<MonitoringBulkDoc> copy =
-                doc -> new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), doc.getInterval(),
+                doc -> new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), doc.getIntervalMillis(),
                                              doc.getSource(), doc.getXContentType());
 
         final List<EqualsHashCodeTestUtils.MutateFunction<MonitoringBulkDoc>> mutations = new ArrayList<>();
@@ -90,7 +90,7 @@ public class MonitoringBulkDocTests extends ESTestCase {
             do {
                 system = randomFrom(MonitoredSystem.values());
             } while (system == doc.getSystem());
-            return new MonitoringBulkDoc(system, doc.getType(), doc.getId(), doc.getTimestamp(), doc.getInterval(),
+            return new MonitoringBulkDoc(system, doc.getType(), doc.getId(), doc.getTimestamp(), doc.getIntervalMillis(),
                                          doc.getSource(),  doc.getXContentType());
         });
         mutations.add(doc -> {
@@ -98,7 +98,7 @@ public class MonitoringBulkDocTests extends ESTestCase {
             do {
                 type = randomAlphaOfLength(5);
             } while (type.equals(doc.getType()));
-            return new MonitoringBulkDoc(doc.getSystem(), type, doc.getId(), doc.getTimestamp(), doc.getInterval(),
+            return new MonitoringBulkDoc(doc.getSystem(), type, doc.getId(), doc.getTimestamp(), doc.getIntervalMillis(),
                                          doc.getSource(), doc.getXContentType());
         });
         mutations.add(doc -> {
@@ -106,7 +106,7 @@ public class MonitoringBulkDocTests extends ESTestCase {
             do {
                 id = randomAlphaOfLength(10);
             } while (id.equals(doc.getId()));
-            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), id, doc.getTimestamp(), doc.getInterval(),
+            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), id, doc.getTimestamp(), doc.getIntervalMillis(),
                                          doc.getSource(), doc.getXContentType());
         });
         mutations.add(doc -> {
@@ -114,20 +114,20 @@ public class MonitoringBulkDocTests extends ESTestCase {
             do {
                 timestamp = randomNonNegativeLong();
             } while (timestamp == doc.getTimestamp());
-            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), timestamp, doc.getInterval(),
+            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), timestamp, doc.getIntervalMillis(),
                                          doc.getSource(), doc.getXContentType());
         });
         mutations.add(doc -> {
             long interval;
             do {
                 interval = randomNonNegativeLong();
-            } while (interval == doc.getInterval());
+            } while (interval == doc.getIntervalMillis());
             return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), interval,
                                          doc.getSource(), doc.getXContentType());
         });
         mutations.add(doc -> {
             final BytesReference source = RandomObjects.randomSource(random(), doc.getXContentType());
-            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), doc.getInterval(),
+            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), doc.getIntervalMillis(),
                                          source, doc.getXContentType());
         });
         mutations.add(doc -> {
@@ -135,7 +135,7 @@ public class MonitoringBulkDocTests extends ESTestCase {
             do {
                 xContentType = randomFrom(XContentType.values());
             } while (xContentType == doc.getXContentType());
-            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), doc.getInterval(),
+            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), doc.getIntervalMillis(),
                                          doc.getSource(), xContentType);
         });
 
@@ -168,7 +168,7 @@ public class MonitoringBulkDocTests extends ESTestCase {
             assertEquals("type", bulkDoc.getType());
             assertEquals("id", bulkDoc.getId());
             assertEquals(0L, bulkDoc.getTimestamp());
-            assertEquals(0L, bulkDoc.getInterval());
+            assertEquals(0L, bulkDoc.getIntervalMillis());
             assertEquals("{\"foo\":\"bar\"}", bulkDoc.getSource().utf8ToString());
             assertEquals(XContentType.JSON, bulkDoc.getXContentType());
         }

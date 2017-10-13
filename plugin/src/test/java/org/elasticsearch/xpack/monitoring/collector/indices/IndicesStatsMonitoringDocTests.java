@@ -55,9 +55,9 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
     }
 
     @Override
-    protected IndicesStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, MonitoringDoc.Node node,
+    protected IndicesStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
                                                             MonitoredSystem system, String type, String id) {
-        return new IndicesStatsMonitoringDoc(cluster, timestamp, node, indicesStatsResponse);
+        return new IndicesStatsMonitoringDoc(cluster, timestamp, interval, node, indicesStatsResponse);
     }
 
     @Override
@@ -75,7 +75,7 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
     }
 
     public void testConstructorIndexStatsMustNotBeNull() {
-        expectThrows(NullPointerException.class, () -> new IndicesStatsMonitoringDoc(cluster, timestamp, node, null));
+        expectThrows(NullPointerException.class, () -> new IndicesStatsMonitoringDoc(cluster, timestamp, interval, node, null));
     }
 
     @Override
@@ -91,12 +91,14 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
         };
         final IndicesStatsResponse indicesStatsResponse = newIndicesStatsResponse(shards, -1, -1, -1, emptyList());
 
-        final IndicesStatsMonitoringDoc document = new IndicesStatsMonitoringDoc("_cluster", 1502266739402L, node, indicesStatsResponse);
+        final IndicesStatsMonitoringDoc document =
+                new IndicesStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indicesStatsResponse);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertEquals("{"
                      + "\"cluster_uuid\":\"_cluster\","
                      + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
+                     + "\"interval_ms\":1506593717631,"
                      + "\"type\":\"indices_stats\","
                      + "\"source_node\":{"
                        + "\"uuid\":\"_uuid\","

@@ -56,6 +56,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
 
     ClusterStatsMonitoringDoc(final String cluster,
                               final long timestamp,
+                              final long intervalMillis,
                               final MonitoringDoc.Node node,
                               final String clusterName,
                               final String version,
@@ -65,7 +66,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
                               @Nullable final ClusterStatsResponse clusterStats,
                               @Nullable final ClusterState clusterState) {
 
-        super(cluster, timestamp, node, MonitoredSystem.ES, TYPE, null);
+        super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null);
         this.clusterName = Objects.requireNonNull(clusterName);
         this.version = Objects.requireNonNull(version);
         this.status = Objects.requireNonNull(status);

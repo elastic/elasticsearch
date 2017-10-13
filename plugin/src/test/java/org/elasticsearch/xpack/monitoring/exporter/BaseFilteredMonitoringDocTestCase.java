@@ -56,12 +56,13 @@ public abstract class BaseFilteredMonitoringDocTestCase<F extends FilteredMonito
     }
 
     public void testConstructorFiltersMustNotBeNull() {
-        expectThrows(NullPointerException.class, () -> new TestFilteredMonitoringDoc(cluster, timestamp, node, system, type, id, null));
+        expectThrows(NullPointerException.class,
+                () -> new TestFilteredMonitoringDoc(cluster, timestamp, interval, node, system, type, id, null));
     }
 
     public void testConstructorFiltersMustNotBeEmpty() {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new TestFilteredMonitoringDoc(cluster, timestamp, node, system, type, id, emptySet()));
+                () -> new TestFilteredMonitoringDoc(cluster, timestamp, interval, node, system, type, id, emptySet()));
 
         assertThat(e.getMessage(), equalTo("xContentFilters must not be empty"));
     }
@@ -74,13 +75,14 @@ public abstract class BaseFilteredMonitoringDocTestCase<F extends FilteredMonito
 
         final MonitoringDoc.Node node =
                 new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
-        final TestFilteredMonitoringDoc document =
-                new TestFilteredMonitoringDoc("_cluster", 1502266739402L, node, MonitoredSystem.ES, "_type", "_id", filters);
+        final TestFilteredMonitoringDoc document = new TestFilteredMonitoringDoc("_cluster", 1502266739402L, 1506593717631L,
+                node, MonitoredSystem.ES, "_type", "_id", filters);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertEquals("{"
                      + "\"cluster_uuid\":\"_cluster\","
                      + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
+                     + "\"interval_ms\":1506593717631,"
                      + "\"type\":\"_type\","
                      + "\"source_node\":{"
                        + "\"uuid\":\"_uuid\","
@@ -106,12 +108,13 @@ public abstract class BaseFilteredMonitoringDocTestCase<F extends FilteredMonito
 
         TestFilteredMonitoringDoc(final String cluster,
                                   final long timestamp,
+                                  final long intervalMillis,
                                   final Node node,
                                   final MonitoredSystem system,
                                   final String type,
                                   final String id,
                                   final Set<String> xContentFilters) {
-            super(cluster, timestamp, node, system, type, id, xContentFilters);
+            super(cluster, timestamp, intervalMillis, node, system, type, id, xContentFilters);
         }
 
         @Override

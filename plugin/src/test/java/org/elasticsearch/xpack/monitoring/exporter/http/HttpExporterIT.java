@@ -605,9 +605,10 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     private MonitoringDoc newRandomMonitoringDoc() {
         String clusterUUID = internalCluster().getClusterName();
         long timestamp = System.currentTimeMillis();
+        long intervalMillis = randomNonNegativeLong();
         MonitoringDoc.Node sourceNode = MonitoringTestUtils.randomMonitoringNode(random());
 
-        return new IndexRecoveryMonitoringDoc(clusterUUID, timestamp, sourceNode, new RecoveryResponse());
+        return new IndexRecoveryMonitoringDoc(clusterUUID, timestamp, intervalMillis, sourceNode, new RecoveryResponse());
     }
 
     private List<MonitoringDoc> newRandomMonitoringDocs(int nb) {

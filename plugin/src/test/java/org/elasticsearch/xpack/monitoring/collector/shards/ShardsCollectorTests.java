@@ -81,7 +81,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
 
         final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, licenseState);
 
-        final Collection<MonitoringDoc> results = collector.doCollect(randomMonitoringNode(random()));
+        final Collection<MonitoringDoc> results = collector.doCollect(randomMonitoringNode(random()), randomNonNegativeLong());
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(0));
         verify(clusterService).state();
@@ -112,7 +112,9 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         assertNull(collector.getCollectionTimeout());
         assertArrayEquals(indices, collector.getCollectionIndices());
 
-        final Collection<MonitoringDoc> results = collector.doCollect(node);
+        final long interval = randomNonNegativeLong();
+
+        final Collection<MonitoringDoc> results = collector.doCollect(node, interval);
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo((indices != NONE) ? routingTable.allShards().size() : 0));
 
@@ -123,6 +125,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
             final ShardMonitoringDoc document = (ShardMonitoringDoc) monitoringDoc;
             assertThat(document.getCluster(), equalTo(clusterUUID));
             assertThat(document.getTimestamp(), greaterThan(0L));
+            assertThat(document.getIntervalMillis(), equalTo(interval));
             assertThat(document.getSystem(), is(MonitoredSystem.ES));
             assertThat(document.getType(), equalTo(ShardMonitoringDoc.TYPE));
             assertThat(document.getId(), equalTo(ShardMonitoringDoc.id(stateUUID, document.getShardRouting())));

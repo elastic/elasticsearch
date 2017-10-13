@@ -28,9 +28,10 @@ public class IndexStatsMonitoringDoc extends FilteredMonitoringDoc {
 
     IndexStatsMonitoringDoc(final String cluster,
                             final long timestamp,
+                            final long intervalMillis,
                             final MonitoringDoc.Node node,
                             final IndexStats indexStats) {
-        super(cluster, timestamp, node, MonitoredSystem.ES, TYPE, null, XCONTENT_FILTERS);
+        super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null, XCONTENT_FILTERS);
         this.indexStats = Objects.requireNonNull(indexStats);
     }
 

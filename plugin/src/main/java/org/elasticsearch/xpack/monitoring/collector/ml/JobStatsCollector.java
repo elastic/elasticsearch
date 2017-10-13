@@ -60,7 +60,7 @@ public class JobStatsCollector extends Collector {
     }
 
     @Override
-    protected List<MonitoringDoc> doCollect(final MonitoringDoc.Node node) throws Exception {
+    protected List<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval) throws Exception {
         // fetch details about all jobs
         final GetJobsStatsAction.Response jobs =
                 client.getJobsStats(new GetJobsStatsAction.Request(MetaData.ALL))
@@ -70,7 +70,7 @@ public class JobStatsCollector extends Collector {
         final String clusterUuid = clusterUUID();
 
         return jobs.getResponse().results().stream()
-                   .map(jobStats -> new JobStatsMonitoringDoc(clusterUuid, timestamp, node, jobStats))
+                   .map(jobStats -> new JobStatsMonitoringDoc(clusterUuid, timestamp, interval, node, jobStats))
                    .collect(Collectors.toList());
     }
 

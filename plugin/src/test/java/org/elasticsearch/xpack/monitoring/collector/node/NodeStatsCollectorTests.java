@@ -76,7 +76,8 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
         assertEquals(timeout, collector.getCollectionTimeout());
 
-        final FailedNodeException e = expectThrows(FailedNodeException.class, () -> collector.doCollect(randomMonitoringNode(random())));
+        final FailedNodeException e = expectThrows(FailedNodeException.class, () ->
+                collector.doCollect(randomMonitoringNode(random()), randomNonNegativeLong()));
         assertEquals(exception, e);
     }
 
@@ -109,7 +110,9 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
         assertEquals(timeout, collector.getCollectionTimeout());
 
-        final Collection<MonitoringDoc> results = collector.doCollect(node);
+        final long interval = randomNonNegativeLong();
+
+        final Collection<MonitoringDoc> results = collector.doCollect(node, interval);
         assertEquals(1, results.size());
 
         final MonitoringDoc monitoringDoc = results.iterator().next();
@@ -118,6 +121,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final NodeStatsMonitoringDoc document = (NodeStatsMonitoringDoc) monitoringDoc;
         assertThat(document.getCluster(), equalTo(clusterUUID));
         assertThat(document.getTimestamp(), equalTo(timestamp));
+        assertThat(document.getIntervalMillis(), equalTo(interval));
         assertThat(document.getNode(), equalTo(node));
         assertThat(document.getSystem(), is(MonitoredSystem.ES));
         assertThat(document.getType(), equalTo(NodeStatsMonitoringDoc.TYPE));

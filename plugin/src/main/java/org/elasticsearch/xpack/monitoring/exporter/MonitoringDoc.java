@@ -26,6 +26,7 @@ public abstract class MonitoringDoc implements ToXContentObject {
 
     private final String cluster;
     private final long timestamp;
+    private final long intervalMillis;
     private final Node node;
     private final MonitoredSystem system;
     private final String type;
@@ -33,6 +34,7 @@ public abstract class MonitoringDoc implements ToXContentObject {
 
     public MonitoringDoc(final String cluster,
                          final long timestamp,
+                         final long intervalMillis,
                          @Nullable final Node node,
                          final MonitoredSystem system,
                          final String type,
@@ -40,6 +42,7 @@ public abstract class MonitoringDoc implements ToXContentObject {
 
         this.cluster = Objects.requireNonNull(cluster);
         this.timestamp = timestamp;
+        this.intervalMillis = intervalMillis;
         this.node = node;
         this.system = Objects.requireNonNull(system);
         this.type = Objects.requireNonNull(type);
@@ -52,6 +55,10 @@ public abstract class MonitoringDoc implements ToXContentObject {
 
     public long getTimestamp() {
         return timestamp;
+    }
+
+    public long getIntervalMillis() {
+        return intervalMillis;
     }
 
     public Node getNode() {
@@ -80,6 +87,7 @@ public abstract class MonitoringDoc implements ToXContentObject {
         }
         MonitoringDoc that = (MonitoringDoc) o;
         return timestamp == that.timestamp
+                && intervalMillis == that.intervalMillis
                 && Objects.equals(cluster, that.cluster)
                 && Objects.equals(node, that.node)
                 && system == that.system
@@ -89,7 +97,7 @@ public abstract class MonitoringDoc implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(cluster, timestamp, node, system, type, id);
+        return Objects.hash(cluster, timestamp, intervalMillis, node, system, type, id);
     }
 
     @Override
@@ -98,6 +106,7 @@ public abstract class MonitoringDoc implements ToXContentObject {
         {
             builder.field("cluster_uuid", cluster);
             builder.field("timestamp", toUTC(timestamp));
+            builder.field("interval_ms", intervalMillis);
             builder.field("type", type);
             builder.field("source_node", node);
             innerToXContent(builder, params);

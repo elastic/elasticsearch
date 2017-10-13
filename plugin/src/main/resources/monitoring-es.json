@@ -22,6 +22,9 @@
           "type": "date",
           "format": "date_time"
         },
+        "interval_ms": {
+          "type": "long"
+        },
         "type": {
           "type": "keyword"
         },

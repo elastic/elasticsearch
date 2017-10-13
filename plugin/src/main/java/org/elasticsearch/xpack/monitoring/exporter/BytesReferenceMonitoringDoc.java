@@ -25,13 +25,14 @@ public class BytesReferenceMonitoringDoc extends MonitoringDoc {
 
     public BytesReferenceMonitoringDoc(final String cluster,
                                        final long timestamp,
+                                       final long intervalMillis,
                                        @Nullable final Node node,
                                        final MonitoredSystem system,
                                        final String type,
                                        @Nullable final String id,
                                        final XContentType xContentType,
                                        final BytesReference source) {
-        super(cluster, timestamp, node, system, type, id);
+        super(cluster, timestamp, intervalMillis, node, system, type, id);
         this.xContentType = Objects.requireNonNull(xContentType);
         this.source = Objects.requireNonNull(source);
     }

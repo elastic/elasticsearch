@@ -30,13 +30,14 @@ public class NodeStatsMonitoringDoc extends FilteredMonitoringDoc {
 
     NodeStatsMonitoringDoc(final String cluster,
                            final long timestamp,
+                           final long interval,
                            final MonitoringDoc.Node node,
                            final String nodeId,
                            final boolean isMaster,
                            final NodeStats nodeStats,
                            final boolean mlockall) {
 
-        super(cluster, timestamp, node, MonitoredSystem.ES, TYPE, null, XCONTENT_FILTERS);
+        super(cluster, timestamp, interval, node, MonitoredSystem.ES, TYPE, null, XCONTENT_FILTERS);
         this.nodeId = Objects.requireNonNull(nodeId);
         this.nodeStats = Objects.requireNonNull(nodeStats);
         this.nodeMaster = isMaster;

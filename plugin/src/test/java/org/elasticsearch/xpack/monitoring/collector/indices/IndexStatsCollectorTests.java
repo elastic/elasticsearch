@@ -114,7 +114,9 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
         assertEquals(timeout, collector.getCollectionTimeout());
 
-        final Collection<MonitoringDoc> results = collector.doCollect(node);
+        final long interval = randomNonNegativeLong();
+
+        final Collection<MonitoringDoc> results = collector.doCollect(node, interval);
         verify(indicesAdminClient).prepareStats();
 
         assertEquals(1 + indices, results.size());
@@ -122,6 +124,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         for (MonitoringDoc document : results) {
             assertThat(document.getCluster(), equalTo(clusterUUID));
             assertThat(document.getTimestamp(), greaterThan(0L));
+            assertThat(document.getIntervalMillis(), equalTo(interval));
             assertThat(document.getNode(), equalTo(node));
             assertThat(document.getSystem(), is(MonitoredSystem.ES));
             assertThat(document.getId(), nullValue());

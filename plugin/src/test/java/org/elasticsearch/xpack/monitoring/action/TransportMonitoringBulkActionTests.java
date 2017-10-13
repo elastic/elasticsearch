@@ -135,6 +135,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         final String type = randomAlphaOfLength(5);
         final String id = randomBoolean() ? randomAlphaOfLength(5) : null;
         final long timestamp = randomNonNegativeLong();
+        final long interval = randomNonNegativeLong();
         final XContentType xContentType = randomFrom(XContentType.values());
 
         final int nbDocs = randomIntBetween(1, 50);
@@ -146,6 +147,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             when(mockBulkDoc.getType()).thenReturn(type);
             when(mockBulkDoc.getId()).thenReturn(id + String.valueOf(i));
             when(mockBulkDoc.getTimestamp()).thenReturn(timestamp);
+            when(mockBulkDoc.getIntervalMillis()).thenReturn(interval);
             when(mockBulkDoc.getSource()).thenReturn(RandomObjects.randomSource(random(), xContentType));
             when(mockBulkDoc.getXContentType()).thenReturn(xContentType);
         }
@@ -159,6 +161,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
                 assertThat(exportedDoc.getType(), equalTo(type));
                 assertThat(exportedDoc.getId(), startsWith(id));
                 assertThat(exportedDoc.getTimestamp(), equalTo(timestamp));
+                assertThat(exportedDoc.getIntervalMillis(), equalTo(interval));
                 assertThat(exportedDoc.getNode().getUUID(), equalTo(discoveryNode.getId()));
                 assertThat(exportedDoc.getCluster(), equalTo(clusterUUID));
             });
@@ -202,6 +205,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         final String type = randomAlphaOfLength(5);
         final String id = randomBoolean() ? randomAlphaOfLength(5) : null;
         final long timestamp = randomBoolean() ? randomNonNegativeLong() : 0L;
+        final long interval = randomNonNegativeLong();
         final XContentType xContentType = randomFrom(XContentType.values());
         final MonitoringDoc.Node node = MonitoringTestUtils.randomMonitoringNode(random());
 
@@ -214,6 +218,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             when(mockBulkDoc.getType()).thenReturn(type);
             when(mockBulkDoc.getId()).thenReturn(id);
             when(mockBulkDoc.getTimestamp()).thenReturn(timestamp);
+            when(mockBulkDoc.getIntervalMillis()).thenReturn(interval);
             when(mockBulkDoc.getSource()).thenReturn(BytesArray.EMPTY);
             when(mockBulkDoc.getXContentType()).thenReturn(xContentType);
         }
@@ -228,6 +233,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             assertThat(exportedDoc.getType(), equalTo(type));
             assertThat(exportedDoc.getId(), equalTo(id));
             assertThat(exportedDoc.getTimestamp(), equalTo(timestamp != 0L ? timestamp : 123L));
+            assertThat(exportedDoc.getIntervalMillis(), equalTo(interval));
             assertThat(exportedDoc.getNode(), equalTo(node));
             assertThat(exportedDoc.getCluster(), equalTo("_cluster"));
         });
@@ -264,6 +270,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         assertEquals("{"
                     + "\"cluster_uuid\":\"_cluster_uuid\","
                     + "\"timestamp\":\"2017-08-07T12:03:22.133Z\","
+                    + "\"interval_ms\":15000,"
                     + "\"type\":\"_type\","
                     + "\"source_node\":{"
                         + "\"uuid\":\"_uuid\","

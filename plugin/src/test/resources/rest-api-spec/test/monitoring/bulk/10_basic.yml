@@ -40,7 +40,7 @@
       xpack.monitoring.bulk:
         system_id:          "kibana"
         system_api_version: "6"
-        interval:           "10000ms"
+        interval:           "123456ms"
         type:               "default_type"
         body:
           - '{"index": {}}'
@@ -63,6 +63,8 @@
         body: { "query": { "term" : { "type": "default_type" } } }
 
   - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.interval_ms: 123456 }
+  - match: { hits.hits.1._source.interval_ms: 123456 }
 
   - do:
       search:
@@ -70,6 +72,7 @@
         body: { "query": { "term" : { "type": "custom_type" } } }
 
   - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.interval_ms: 123456 }
 
   # We actively ignore indexing requests made to the _data index starting with 5.5
   - do:

@@ -573,6 +573,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         client().admin().indices().prepareFlush().get();
         client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
+        client().admin().indices().prepareRefresh().get();
         stats = client().admin().indices().prepareStats().setSegments(true).get();
 
         assertThat(stats.getTotal().getSegments(), notNullValue());

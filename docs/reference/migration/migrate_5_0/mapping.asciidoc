@@ -186,7 +186,7 @@ You can no longer create indexes with `_ttl` or `_timestamp` enabled. Indexes
 with them enabled created before 5.0 will continue to work.
 
 You should replace `_timestamp` in new indexes by adding a field to your source
-either in the application producing the data or with an ingest pipline like
+either in the application producing the data or with an ingest pipeline like
 this one:
 
 [source,js]

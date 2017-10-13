@@ -273,18 +273,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 discoverySettings);
     }
 
-    private void assertPublishClusterStateStats(String description,
-                                                MockNode node,
-                                                long expectedFull,
-                                                long expectedDiffs,
-                                                long expectedCompatibleDiffs) {
-        PublishClusterStateStats stats = node.action.stats();
-        assertThat(description + ": full cluster states", stats.getFullClusterStateReceivedCount(), equalTo(expectedFull));
-        assertThat(description + ": cluster state diffs", stats.getClusterStateDiffReceivedCount(), equalTo(expectedDiffs));
-        assertThat(description + ": compatible cluster state diffs", stats.getCompatibleClusterStateDiffReceivedCount(),
-            equalTo(expectedCompatibleDiffs));
-    }
-
     public void testSimpleClusterStatePublishing() throws Exception {
         MockNode nodeA = createMockNode("nodeA").setAsMaster();
         MockNode nodeB = createMockNode("nodeB");
@@ -292,18 +280,12 @@ public class PublishClusterStateActionTests extends ESTestCase {
         // Initial cluster state
         ClusterState clusterState = nodeA.clusterState;
 
-        assertPublishClusterStateStats("nodeA: initial state", nodeA, 0, 0, 0);
-        assertPublishClusterStateStats("nodeB: initial state", nodeB, 0, 0, 0);
-
         // cluster state update - add nodeB
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(clusterState.nodes()).add(nodeB.discoveryNode).build();
         ClusterState previousClusterState = clusterState;
         clusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
         assertSameStateFromFull(nodeB.clusterState, clusterState);
-
-        assertPublishClusterStateStats("nodeA: added nodeB", nodeA, 0, 0, 0);
-        assertPublishClusterStateStats("nodeB: added nodeB", nodeB, 1, 0, 0);
 
         // cluster state update - add block
         previousClusterState = clusterState;
@@ -324,10 +306,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         MockNode nodeC = createMockNode("nodeC");
 
-        assertPublishClusterStateStats("nodeA: adding nodeC", nodeA, 0, 0, 0);
-        assertPublishClusterStateStats("nodeB: adding nodeC", nodeB, 1, 2, 2);
-        assertPublishClusterStateStats("nodeC: adding nodeC", nodeC, 0, 0, 0);
-
         // cluster state update 3 - register node C
         previousClusterState = clusterState;
         discoveryNodes = DiscoveryNodes.builder(discoveryNodes).add(nodeC.discoveryNode).build();
@@ -336,10 +314,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
         assertSameStateFromDiff(nodeB.clusterState, clusterState);
         // First state
         assertSameStateFromFull(nodeC.clusterState, clusterState);
-
-        assertPublishClusterStateStats("nodeA: added nodeC", nodeA, 0, 0, 0);
-        assertPublishClusterStateStats("nodeB: added nodeC", nodeB, 1, 3, 3);
-        assertPublishClusterStateStats("nodeC: added nodeC", nodeC, 1, 0, 0);
 
         // cluster state update 4 - update settings
         previousClusterState = clusterState;
@@ -352,10 +326,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
         assertSameStateFromDiff(nodeC.clusterState, clusterState);
         assertThat(nodeC.clusterState.blocks().global().size(), equalTo(0));
 
-        assertPublishClusterStateStats("nodeA: updated settings", nodeA, 0, 0, 0);
-        assertPublishClusterStateStats("nodeB: updated settings", nodeB, 1, 4, 4);
-        assertPublishClusterStateStats("nodeC: updated settings", nodeC, 1, 1, 1);
-
         // cluster state update - skipping one version change - should request full cluster state
         previousClusterState = ClusterState.builder(clusterState).incrementVersion().build();
         clusterState = ClusterState.builder(clusterState).incrementVersion().build();
@@ -363,10 +333,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
         assertSameStateFromFull(nodeB.clusterState, clusterState);
         assertSameStateFromFull(nodeC.clusterState, clusterState);
         assertFalse(nodeC.clusterState.wasReadFromDiff());
-
-        assertPublishClusterStateStats("nodeA: skipped a version", nodeA, 0, 0, 0);
-        assertPublishClusterStateStats("nodeB: skipped a version", nodeB, 2, 5, 4);
-        assertPublishClusterStateStats("nodeC: skipped a version", nodeC, 2, 2, 1);
 
         // node A steps down from being master
         nodeA.resetMasterId();
@@ -386,10 +352,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
         publishStateAndWait(nodeB.action, clusterState, previousClusterState);
         assertSameStateFromFull(nodeA.clusterState, clusterState);
         assertSameStateFromFull(nodeC.clusterState, clusterState);
-
-        assertPublishClusterStateStats("nodeA: B became master", nodeA, 1, 1, 0);
-        assertPublishClusterStateStats("nodeB: B became master", nodeB, 2, 5, 4);
-        assertPublishClusterStateStats("nodeC: B became master", nodeC, 3, 3, 1);
     }
 
     public void testUnexpectedDiffPublishing() throws Exception {

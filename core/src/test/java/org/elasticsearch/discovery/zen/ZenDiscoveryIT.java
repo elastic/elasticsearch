@@ -255,7 +255,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 "      \"pending\" : 0,\n" +
                 "      \"committed\" : 0\n" +
                 "    },\n" +
-                "    \"publish_cluster_state_received\" : {\n" +
+                "    \"published_cluster_states_received\" : {\n" +
                 "      \"full_cluster_states\" : 0,\n" +
                 "      \"cluster_state_diffs\" : 0,\n" +
                 "      \"compatible_cluster_state_diffs\" : 0\n" +

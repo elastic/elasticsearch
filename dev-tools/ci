@@ -68,10 +68,10 @@ case $key in
             ":x-pack-elasticsearch:qa:sql:multinode:check"
             ":x-pack-elasticsearch:qa:sql:no-security:check"
             ":x-pack-elasticsearch:qa:sql:security:check"
-            "-xforbiddenPatterns"
-            "-x:x-pack-elasticsearch:plugin:forbiddenPatterns"
+            "-x:x-pack-elasticsearch:sql:cli:forbiddenPatterns"
+            "-x:x-pack-elasticsearch:sql:jdbc:forbiddenPatterns"
+            "-x:x-pack-elasticsearch:sql:server:forbiddenPatterns"
             "-x:x-pack-elasticsearch:qa:sql:forbiddenPatterns"
-            "-x:x-pack-elasticsearch:qa:sql:no-security:forbiddenPatterns"
             "-x:x-pack-elasticsearch:qa:sql:security:forbiddenPatterns"
         )
         ;;

@@ -60,6 +60,12 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
     }
 
     @Override
+    public String concreteFunctionName(String alias) {
+        String normalized = normalize(alias);
+        return aliases().getOrDefault(normalized, normalized);
+    }
+
+    @Override
     public boolean functionExists(String name) {
         return defs.containsKey(normalize(name));
     }

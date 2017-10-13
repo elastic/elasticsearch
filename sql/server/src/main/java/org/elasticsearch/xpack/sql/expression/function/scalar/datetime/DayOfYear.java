@@ -23,11 +23,6 @@ public class DayOfYear extends DateTimeFunction {
     }
 
     @Override
-    public String interval() {
-        return "day";
-    }
-
-    @Override
     protected ChronoField chronoField() {
         return ChronoField.DAY_OF_YEAR;
     }

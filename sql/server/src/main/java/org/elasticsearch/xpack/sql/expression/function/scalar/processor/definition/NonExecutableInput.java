@@ -9,10 +9,15 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 
-public class UnresolvedInput<T> extends LeafInput<T> {
+public class NonExecutableInput<T> extends LeafInput<T> {
 
-    UnresolvedInput(Expression expression, T context) {
+    NonExecutableInput(Expression expression, T context) {
         super(expression, context);
+    }
+
+    @Override
+    public boolean resolved() {
+        return false;
     }
 
     @Override

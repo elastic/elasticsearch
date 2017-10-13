@@ -12,18 +12,13 @@ import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
 
-public class Year extends DateTimeFunction {
+public class Year extends DateTimeHistogramFunction {
     public Year(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field, timeZone);
     }
 
     @Override
     public String dateTimeFormat() {
-        return "year";
-    }
-
-    @Override
-    public String interval() {
         return "year";
     }
 
@@ -40,5 +35,10 @@ public class Year extends DateTimeFunction {
     @Override
     protected DateTimeExtractor extractor() {
         return DateTimeExtractor.YEAR;
-}
+    }
+
+    @Override
+    public String interval() {
+        return "year";
+    }
 }

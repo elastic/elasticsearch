@@ -17,9 +17,12 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
+import org.elasticsearch.xpack.sql.ClientSqlException;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
+import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractErrorResponse;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractExceptionResponse;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto;
@@ -81,6 +84,9 @@ public abstract class AbstractSqlProtocolRestAction extends BaseRestHandler {
 
     @Override
     protected final RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        if (restRequest.method() == Method.HEAD) {
+            return channel -> channel.sendResponse(new BytesRestResponse(OK, EMPTY));
+        }
         Request request;
         try (DataInputStream in = new DataInputStream(restRequest.content().streamInput())) {
             request = proto.readRequest(in);
@@ -108,16 +114,22 @@ public abstract class AbstractSqlProtocolRestAction extends BaseRestHandler {
         } else {
             StringWriter sw = new StringWriter();
             e.printStackTrace(new PrintWriter(sw));
+            // TODO: the stack shouldn't be necessary unless for advance diagnostics
             return buildErrorResponse(request, message, cs, sw.toString());
         }
     }
 
     private static SqlExceptionType sqlExceptionType(Throwable cause) {
-        if (cause instanceof AnalysisException || cause instanceof ResourceNotFoundException) {
-            return SqlExceptionType.DATA;
-        }
-        if (cause instanceof ParsingException) {
-            return SqlExceptionType.SYNTAX;
+        if (cause instanceof ClientSqlException) {
+            if (cause instanceof AnalysisException || cause instanceof ResourceNotFoundException) {
+                return SqlExceptionType.DATA;
+            }
+            if (cause instanceof ParsingException) {
+                return SqlExceptionType.SYNTAX;
+            }
+            if (cause instanceof PlanningException) {
+                return SqlExceptionType.NOT_SUPPORTED;
+            }
         }
         if (cause instanceof TimeoutException) {
             return SqlExceptionType.TIMEOUT;

@@ -23,11 +23,6 @@ public class SecondOfMinute extends DateTimeFunction {
     }
 
     @Override
-    public String interval() {
-        return "second";
-    }
-
-    @Override
     protected ChronoField chronoField() {
         return ChronoField.SECOND_OF_MINUTE;
     }

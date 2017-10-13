@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Tests that compare the Elasticsearch JDBC client to some other JDBC client
@@ -121,10 +122,9 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     // returns source file, groupName, testName, its line location, and the custom object (based on each test parser)
     protected static List<Object[]> readScriptSpec(String url, Parser parser) throws Exception {
         URL source = SpecBaseIntegrationTestCase.class.getResource(url);
-        if (source == null) {
-            throw new IllegalArgumentException("Cannot find resource " + url);
-        }
-        String fileName = source.getFile();
+        Objects.requireNonNull(source, "Cannot find resource " + url);
+
+        String fileName = source.getFile().substring(source.getFile().lastIndexOf("/") + 1);
         String groupName = fileName.substring(fileName.lastIndexOf('/') + 1, fileName.lastIndexOf("."));
 
         Map<String, Integer> testNames = new LinkedHashMap<>();

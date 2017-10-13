@@ -18,11 +18,11 @@ public abstract class ProcessorDefinitions {
             return new ConstantInput(ex, ex.fold());
         }
         if (ex instanceof ScalarFunction) {
-            return ((ScalarFunction) ex).asProcessor();
+            return ((ScalarFunction) ex).asProcessorDefinition();
         }
         if (ex instanceof AggregateFunction) {
-            // unresolved AggInput (should always get replaced by the folder)
-            return new AggPathInput(ex, ((AggregateFunction) ex).name());
+            // unresolved AggNameInput (should always get replaced by the folder)
+            return new AggNameInput(ex, ((AggregateFunction) ex).name());
         }
         if (ex instanceof NamedExpression) {
             return new AttributeInput(ex, ((NamedExpression) ex).toAttribute());

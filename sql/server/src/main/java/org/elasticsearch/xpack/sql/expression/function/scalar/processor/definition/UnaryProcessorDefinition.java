@@ -33,6 +33,11 @@ public class UnaryProcessorDefinition extends ProcessorDefinition {
     }
 
     @Override
+    public boolean resolved() {
+        return child.resolved();
+    }
+
+    @Override
     public Processor asProcessor() {
         return new ChainingProcessor(child.asProcessor(), action);
     }

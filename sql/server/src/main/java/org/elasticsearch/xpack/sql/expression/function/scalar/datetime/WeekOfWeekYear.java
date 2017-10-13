@@ -23,11 +23,6 @@ public class WeekOfWeekYear extends DateTimeFunction {
     }
 
     @Override
-    public String interval() {
-        return "week";
-    }
-
-    @Override
     protected ChronoField chronoField() {
         return ChronoField.ALIGNED_WEEK_OF_YEAR;
     }

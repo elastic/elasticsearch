@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
-import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 
-public class AttributeInput extends NonExecutableInput<Attribute> {
+public class AggNameInput extends NonExecutableInput<String> {
 
-    public AttributeInput(Expression expression, Attribute context) {
+    public AggNameInput(Expression expression, String context) {
         super(expression, context);
     }
 }

@@ -32,7 +32,7 @@ public abstract class DateTimeFunction extends UnaryScalarFunction implements Ti
 
     private final DateTimeZone timeZone;
 
-    public DateTimeFunction(Location location, Expression field, DateTimeZone timeZone) {
+    DateTimeFunction(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field);
         this.timeZone = timeZone;
     }
@@ -53,13 +53,17 @@ public abstract class DateTimeFunction extends UnaryScalarFunction implements Ti
     }
 
     @Override
+    public ScriptTemplate asScript() {
+        return super.asScript();
+    }
+
+    @Override
     protected ScriptTemplate asScriptFrom(AggregateFunctionAttribute aggregate) {
         throw new UnsupportedOperationException();
     }
 
     @Override
     protected ScriptTemplate asScriptFrom(FieldAttribute field) {
-        // TODO I think we should investigate registering SQL as a script engine so we don't need to generate painless
         return new ScriptTemplate(createTemplate(), 
                 paramsBuilder()
                     .variable(field.name())
@@ -90,7 +94,12 @@ public abstract class DateTimeFunction extends UnaryScalarFunction implements Ti
         return getClass().getSimpleName();
     }
 
-    protected final ProcessorDefinition makeProcessor() {
+    /**
+     * Used for generating the painless script version of this function when the time zone is not UTC
+     */
+    protected abstract ChronoField chronoField();
+
+    protected final ProcessorDefinition makeProcessorDefinition() {
         return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()), new DateTimeProcessor(extractor(), timeZone));
     }
 
@@ -101,12 +110,6 @@ public abstract class DateTimeFunction extends UnaryScalarFunction implements Ti
         return DataTypes.INTEGER;
     }
 
-    // used for aggregration (date histogram)
-    public abstract String interval();
-
     // used for applying ranges
     public abstract String dateTimeFormat();
-
-    // used for generating the painless script version of this function when the time zone is not utc
-    protected abstract ChronoField chronoField();
 }

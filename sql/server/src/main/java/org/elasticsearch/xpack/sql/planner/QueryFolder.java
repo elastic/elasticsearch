@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -22,10 +21,12 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AggPathInput;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnresolvedInput;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 import org.elasticsearch.xpack.sql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.FilterExec;
@@ -116,7 +117,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             }
                         }
                         else {
-                            throw new SqlIllegalArgumentException("Don't know how to translate expression %s", e);
+                            throw new PlanningException("Don't know how to translate expression %s", e);
                         }
                     }
                     else {
@@ -126,7 +127,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                         if (pj instanceof ScalarFunction) {
                             ScalarFunction f = (ScalarFunction) pj;
-                            processors.put(f.toAttribute(), f.asProcessor());
+                            processors.put(f.toAttribute(), f.asProcessorDefinition());
                         }
                     }
                 }
@@ -149,7 +150,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 QueryTranslation qt = toQuery(plan.condition(), plan.isHaving());
                 
                 Query query = (qContainer.query() != null || qt.query != null) ? and(plan.location(), qContainer.query(), qt.query) : null;
-                Aggs aggs = addPipelineAggs(qContainer, qt);
+                Aggs aggs = addPipelineAggs(qContainer, qt, plan);
 
                 qContainer = new QueryContainer(query, aggs, qContainer.columns(), qContainer.aliases(), 
                         qContainer.pseudoFunctions(), 
@@ -162,7 +163,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return plan;
         }
 
-        private Aggs addPipelineAggs(QueryContainer qContainer, QueryTranslation qt) {
+        private Aggs addPipelineAggs(QueryContainer qContainer, QueryTranslation qt, FilterExec fexec) {
             AggFilter filter = qt.aggFilter;
             Aggs aggs = qContainer.aggs();
 
@@ -190,7 +191,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     }
 
                     if (groupAgg == null) {
-                        throw new SqlIllegalArgumentException("Cannot find group for agg %s referrenced by agg filter %s(%s)", refId, filter.name(), filter);
+                        throw new FoldingException(fexec, "Cannot find group for agg %s referrenced by agg filter %s(%s)", refId, filter.name(), filter);
                     }
 
                     String path = groupAgg.asParentPath();
@@ -204,7 +205,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
             // and finally update the agg groups
             if (targetGroup == GroupingAgg.DEFAULT_GROUP) {
-                throw new SqlIllegalArgumentException("Aggregation filtering not supported (yet) without explicit grouping");
+                throw new PlanningException("Aggregation filtering not supported (yet) without explicit grouping");
                 //aggs = aggs.addAgg(null, filter);
             }
             else {
@@ -268,15 +269,20 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         // (e.g. 
                         // CAST(field) GROUP BY field or 
                         // ABS(YEAR(field)) GROUP BY YEAR(field) or 
-                        // ABS(AVG(salary)) ... GROUP BY salary)
+                        // ABS(AVG(salary)) ... GROUP BY salary
                         // )
                         if (child instanceof ScalarFunction) {
                             ScalarFunction f = (ScalarFunction) child;
-                            ProcessorDefinition proc = f.asProcessor();
+                            ProcessorDefinition proc = f.asProcessorDefinition();
 
                             final AtomicReference<QueryContainer> qC = new AtomicReference<>(queryC);
 
                             proc = proc.transformUp(p -> {
+                                // bail out if the def is resolved
+                                if (p.resolved()) {
+                                    return p;
+                                }
+
                                 // get the backing expression and check if it belongs to a agg group or whether it's an expression in the first place
                                 Expression exp = p.expression();
                                 GroupingAgg matchingGroup = null;
@@ -288,14 +294,20 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                     // a scalar function can be used only if has already been mentioned for grouping
                                     // (otherwise it is the opposite of grouping)
                                     if (exp instanceof ScalarFunction) {
-                                        throw new SqlIllegalArgumentException("Scalar function %s can be used only if included already in grouping", exp.toString());
+                                        throw new FoldingException(exp, "Scalar function %s can be used only if included already in grouping", exp.toString());
                                     }
                                 }
 
                                 // found match for expression; if it's an attribute or scalar, end the processing chain with the reference to the backing agg 
                                 if (matchingGroup != null) {
                                     if (exp instanceof Attribute || exp instanceof ScalarFunction) {
-                                        return new AggPathInput(exp, matchingGroup.propertyPath());    
+                                        Processor action = null;
+                                        // special handling of dates since aggs return the typed Date object which needs extraction
+                                        // instead of handling this in the scroller, the folder handles this as it already got access to the extraction action
+                                        if (exp instanceof DateTimeHistogramFunction) {
+                                            action = ((UnaryProcessorDefinition) p).action();
+                                        }
+                                        return new AggPathInput(exp, matchingGroup.propertyPath(), null, action);
                                     }
                                 }
                                 // or found an aggregate expression (which has to work on an attribute used for grouping)
@@ -305,10 +317,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                     qC.set(withFunction.v1());
                                     return withFunction.v2();
                                 }
-                                // not an aggregate and no matching group means trouble
-                                throw new SqlIllegalArgumentException("Cannot find group '%s'", Expressions.name(exp));
-                            }, UnresolvedInput.class);
+                                // not an aggregate and no matching - go to a higher node (likely a function YEAR(birth_date))
+                                return p;
+                            });
                             
+                            if (!proc.resolved()) {
+                                throw new FoldingException(child, "Cannot find grouping for '%s'", Expressions.name(child));
+                            }
+
                             // add the computed column
                             queryC = qC.get().addColumn(new ComputedRef(proc));
                             
@@ -336,7 +352,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 //FIXME: what about inner key
                                 queryC = withAgg.v1().addAggColumn(withAgg.v2().context());
                                 if (withAgg.v2().innerKey() != null) {
-                                    throw new UnsupportedOperationException("innerkey/matrix stats not handled");
+                                    throw new PlanningException("innerkey/matrix stats not handled (yet)");
                                 }
                             }
                         }
@@ -453,7 +469,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 }
                                 // ignore constant 
                                 else if (!ob.foldable()) {
-                                    throw new SqlIllegalArgumentException("does not know how to order by expression %s", ob);
+                                    throw new PlanningException("does not know how to order by expression %s", ob);
                                 }
                             }
                             // nope, use scripted sorting

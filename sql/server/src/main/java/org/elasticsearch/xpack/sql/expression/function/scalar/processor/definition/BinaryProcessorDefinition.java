@@ -26,4 +26,9 @@ public abstract class BinaryProcessorDefinition extends ProcessorDefinition {
     public ProcessorDefinition right() {
         return right;
     }
+
+    @Override
+    public boolean resolved() {
+        return left().resolved() && right().resolved();
+    }
 }

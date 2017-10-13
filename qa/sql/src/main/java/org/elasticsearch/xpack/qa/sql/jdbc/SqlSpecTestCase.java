@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
-import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.sql.Connection;
@@ -60,11 +59,6 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
     public SqlSpecTestCase(String fileName, String groupName, String testName, Integer lineNumber, String query) {
         super(fileName, groupName, testName, lineNumber);
         this.query = query;
-    }
-
-    @Before
-    public void checkDateTime() {
-        assumeFalse("Date time tests have time zone problems", "datetime".equals(groupName));
     }
 
     @Override

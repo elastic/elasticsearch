@@ -128,7 +128,14 @@ public class Scroller {
                         Object[] value = extractAggValue(new AggRef(a.context()), response);
                         extractedAggs.add(value);
                         final int aggPosition = extractedAggs.size() - 1;
-                        return new AggValueInput(a.expression(), () -> aggValues.column(aggPosition), a.innerKey());
+                        Supplier<Object> action = null;
+                        if (a.action() != null) {
+                            action = () -> a.action().process(aggValues.column(aggPosition));
+                        }
+                        else {
+                            action = () -> aggValues.column(aggPosition);
+                        }
+                        return new AggValueInput(a.expression(), action, a.innerKey());
                     }, AggPathInput.class).asProcessor();
                     // the input is provided through the value input above
                     supplier = () -> processor.process(null);
@@ -187,12 +194,12 @@ public class Scroller {
                     } else {
                         arr = value instanceof Object[] ? (Object[]) value : new Object[] { value };
                     }
-                    }
+                }
     
                 return arr;
-                }
-            throw new SqlIllegalArgumentException("Unexpected non-agg/grouped column specified; %s", col.getClass());
             }
+            throw new SqlIllegalArgumentException("Unexpected non-agg/grouped column specified; %s", col.getClass());
+        }
     
         private static Object getAggProperty(Aggregations aggs, String path) {
             List<String> list = AggregationPath.parse(path).getPathElementsAsStringList();
@@ -203,7 +210,7 @@ public class Scroller {
             }
             return agg.getProperty(list.subList(1, list.size()));
         }
-        }
+    }
     
     // initial scroll used for parsing search hits (handles possible aggs)
     static class HandshakeScrollActionListener extends ScrollerActionListener {

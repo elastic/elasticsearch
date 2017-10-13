@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.Params;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
@@ -59,6 +60,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.CardinalityAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.ExtendedStatsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByColumnAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByScriptAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupingAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MatrixStatsAgg;
@@ -269,7 +271,13 @@ abstract class QueryTranslator {
                 // dates are handled differently because of date histograms
                 if (exp instanceof DateTimeFunction) {
                     DateTimeFunction dtf = (DateTimeFunction) exp;
-                    agg = new GroupByDateAgg(aggId, AggPath.bucketValue(propertyPath), nameOf(exp), dtf.interval(), dtf.timeZone());
+                    if (dtf instanceof DateTimeHistogramFunction) {
+                        DateTimeHistogramFunction dthf = (DateTimeHistogramFunction) dtf;
+                        agg = new GroupByDateAgg(aggId, AggPath.bucketValue(propertyPath), nameOf(exp), dthf.interval(), dthf.timeZone());
+                    }
+                    else {
+                        agg = new GroupByScriptAgg(aggId, AggPath.bucketValue(propertyPath), nameOf(exp), dtf.asScript());
+                    }
                 }
                 else {
                     agg = new GroupByColumnAgg(aggId, AggPath.bucketValue(propertyPath), ne.name());
@@ -405,7 +413,7 @@ abstract class QueryTranslator {
         if (arg instanceof Literal) {
             return String.valueOf(((Literal) arg).value());
         }
-        throw new SqlIllegalArgumentException("Does not know how to convert argument %s for functon %s", arg.nodeString(), af.nodeString());
+        throw new SqlIllegalArgumentException("Does not know how to convert argument %s for function %s", arg.nodeString(), af.nodeString());
     }
 
     // TODO: need to optimize on ngram

@@ -106,9 +106,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 );
 
         Batch operators = new Batch("Operator Optimization",
-                // can't really do it since alias information is lost (packed inside EsQuery)
-                //new ProjectPruning(),
-
                 // folding
                 new ReplaceFoldableAttributes(),
                 new ConstantFolding(),
@@ -597,25 +594,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class ProjectPruning extends OptimizerRule<Project> {
-
-        @Override
-        protected LogicalPlan rule(Project project) {
-            // eliminate Project added for resolving OrderBy
-            if (project.child() instanceof OrderBy) {
-                OrderBy ob = (OrderBy) project.child();
-                if (ob.child() instanceof Project) {
-                    Project grandChild = (Project) ob.child();
-                    if (project.outputSet().substract(grandChild.outputSet()).isEmpty()) {
-                        ob = new OrderBy(ob.location(), grandChild.child(), ob.order());
-                        return new Project(project.location(), ob, project.output());
-                    }
-                }
-            }
-            return project;
-        }
-    }
-
     static class PruneOrderByNestedFields extends OptimizerRule<Project> {
 
         @Override
@@ -886,7 +864,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         if (e instanceof Attribute && attrs.contains(e)) {
                             Alias as = aliases.get(e);
                             if (as == null) {
-                                throw new SqlIllegalArgumentException("need to implement AttributeMap");
+                                // might need to implement an Attribute map
+                                throw new SqlIllegalArgumentException("unsupported");
                             }
                             return as;
                         }

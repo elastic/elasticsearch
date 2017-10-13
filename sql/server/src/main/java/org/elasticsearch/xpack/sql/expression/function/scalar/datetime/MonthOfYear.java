@@ -23,11 +23,6 @@ public class MonthOfYear extends DateTimeFunction {
     }
 
     @Override
-    public String interval() {
-        return "month";
-    }
-
-    @Override
     protected ChronoField chronoField() {
         return ChronoField.MONTH_OF_YEAR;
     }

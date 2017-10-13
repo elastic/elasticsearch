@@ -23,11 +23,6 @@ public class HourOfDay extends DateTimeFunction {
     }
 
     @Override
-    public String interval() {
-        return "hour";
-    }
-
-    @Override
     protected ChronoField chronoField() {
         return ChronoField.HOUR_OF_DAY;
     }

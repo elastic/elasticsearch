@@ -43,7 +43,7 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
 
     @Override
     public ScalarFunctionAttribute toAttribute() {
-        return new ScalarFunctionAttribute(location(), name(), dataType(), id(), asScript(), orderBy(), asProcessor());
+        return new ScalarFunctionAttribute(location(), name(), dataType(), id(), asScript(), orderBy(), asProcessorDefinition());
     }
 
     protected ScriptTemplate asScript() {

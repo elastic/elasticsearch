@@ -12,7 +12,6 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
-import java.util.TimeZone;
 
 public class LocalH2 extends ExternalResource implements CheckedSupplier<Connection, SQLException> {
     static {
@@ -56,13 +55,7 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
     @Override
     protected void before() throws Throwable {
         keepAlive = get();
-        TimeZone tz = TimeZone.getDefault();
-        try {
-            TimeZone.setDefault(TimeZone.getTimeZone("UTC")); // NOCOMMIT requires permissions we'd rather not grant
-            keepAlive.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'");
-        } finally {
-            TimeZone.setDefault(tz);
-        }
+        keepAlive.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'");
     }
 
     @Override

@@ -24,5 +24,7 @@ public abstract class ProcessorDefinition extends Node<ProcessorDefinition> {
         return expression;
     }
 
+    public abstract boolean resolved();
+
     public abstract Processor asProcessor();
 }

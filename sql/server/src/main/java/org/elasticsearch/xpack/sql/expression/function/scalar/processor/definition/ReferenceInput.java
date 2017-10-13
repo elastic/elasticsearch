@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definit
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.querydsl.container.ColumnReference;
 
-public class ReferenceInput extends UnresolvedInput<ColumnReference> {
+public class ReferenceInput extends NonExecutableInput<ColumnReference> {
 
     public ReferenceInput(Expression expression, ColumnReference context) {
         super(expression, context);

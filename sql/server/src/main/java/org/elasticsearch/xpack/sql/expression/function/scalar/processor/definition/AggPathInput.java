@@ -6,24 +6,41 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 
 import java.util.Objects;
 
-public class AggPathInput extends UnresolvedInput<String> {
+public class AggPathInput extends NonExecutableInput<String> {
 
     private final String innerKey;
+    // used in case the agg itself is not returned in a suitable format (like date aggs)
+    private final Processor action;
 
     public AggPathInput(Expression expression, String context) {
-        this(expression, context, null);
+        this(expression, context, null, null);
     }
 
     public AggPathInput(Expression expression, String context, String innerKey) {
+        this(expression, context, innerKey, null);
+    }
+
+    public AggPathInput(Expression expression, String context, String innerKey, Processor action) {
         super(expression, context);
         this.innerKey = innerKey;
+        this.action = action;
     }
 
     public String innerKey() {
         return innerKey;
+    }
+
+    public Processor action() {
+        return action;
+    }
+
+    @Override
+    public boolean resolved() {
+        return true;
     }
 
     @Override
@@ -43,6 +60,7 @@ public class AggPathInput extends UnresolvedInput<String> {
         
         AggPathInput other = (AggPathInput) obj;
         return Objects.equals(context(), other.context())
-                && Objects.equals(innerKey, other.innerKey);
+                && Objects.equals(innerKey, other.innerKey)
+                && Objects.equals(action, other.action);
     }
 }

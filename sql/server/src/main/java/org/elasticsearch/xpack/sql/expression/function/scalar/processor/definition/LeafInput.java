@@ -25,6 +25,11 @@ public abstract class LeafInput<T> extends ProcessorDefinition {
     }
 
     @Override
+    public boolean resolved() {
+        return true;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(expression(), context);
     }

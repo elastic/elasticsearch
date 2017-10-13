@@ -64,6 +64,8 @@ public class GroupByDateAgg extends GroupingAgg {
             }
         }
 
+        dhab.minDocCount(1);
+
         return dhab;
     }
 

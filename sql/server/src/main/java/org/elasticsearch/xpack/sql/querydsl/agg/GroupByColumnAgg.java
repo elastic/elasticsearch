@@ -5,20 +5,19 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 
 public class GroupByColumnAgg extends GroupingAgg {
@@ -34,7 +33,7 @@ public class GroupByColumnAgg extends GroupingAgg {
     @Override
     protected AggregationBuilder toGroupingAgg() {
         // TODO: the size should be configurable
-        TermsAggregationBuilder terms = terms(id()).field(fieldName()).size(100);
+        TermsAggregationBuilder terms = termsTarget(terms(id()).size(100));
 
         List<BucketOrder> termOrders = emptyList();
         if (!order().isEmpty()) {
@@ -57,7 +56,13 @@ public class GroupByColumnAgg extends GroupingAgg {
             }
             terms.order(termOrders);
         }
+
+        terms.minDocCount(1);
         return terms;
+    }
+
+    protected TermsAggregationBuilder termsTarget(TermsAggregationBuilder builder) {
+        return builder.field(fieldName());
     }
 
     @Override

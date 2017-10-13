@@ -3,11 +3,8 @@
 //
 
 debug
-// resolution should happen on the adjiacent nodes as well
-//SELECT 1+2+3 x, x + 3 AS y, y FROM test_emp;
+SELECT DAY_OF_YEAR(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 
-SELECT 2 + 3 x, 'foo', x + 1 z;
-
-x   |  'foo' |  z     
-5   |  'foo' |  6
+table:s
+test_emp
 ;

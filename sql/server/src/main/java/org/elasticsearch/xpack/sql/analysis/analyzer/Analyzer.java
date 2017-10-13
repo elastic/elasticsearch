@@ -667,8 +667,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         return uf;
                     }
 
-                    // need to normalize the name for the lookup
-                    String normalizedName = StringUtils.camelCaseToUnderscore(name);
+                    String normalizedName = functionRegistry.concreteFunctionName(name);
                     
                     List<Function> list = getList(seen, normalizedName);
                     // first try to resolve from seen functions

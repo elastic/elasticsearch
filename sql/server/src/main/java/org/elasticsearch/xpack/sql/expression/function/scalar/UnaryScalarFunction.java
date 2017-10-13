@@ -52,7 +52,7 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
             functionId = afa.functionId();
         }
 
-        return new ScalarFunctionAttribute(location(), name(), dataType(), id(), asScript(), orderBy(), asProcessor());
+        return new ScalarFunctionAttribute(location(), name(), dataType(), id(), asScript(), orderBy(), asProcessorDefinition());
     }
 
     protected ScriptTemplate asScript() {

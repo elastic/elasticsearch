@@ -24,11 +24,6 @@ public class MinuteOfDay extends DateTimeFunction {
     }
 
     @Override
-    public String interval() {
-        return "minute";
-    }
-
-    @Override
     protected ChronoField chronoField() {
         return ChronoField.MINUTE_OF_DAY;
     }

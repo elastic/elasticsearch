@@ -13,6 +13,8 @@ public interface FunctionRegistry {
 
     Function resolveFunction(UnresolvedFunction ur, SqlSettings settings);
 
+    String concreteFunctionName(String alias);
+
     boolean functionExists(String name);
 
     Collection<FunctionDefinition> listFunctions();

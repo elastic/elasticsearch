@@ -13,18 +13,13 @@ import org.joda.time.DateTimeZone;
 import java.time.temporal.ChronoField;
 
 public class MinuteOfHour extends DateTimeFunction {
-    public MinuteOfHour(Location location, Expression argument, DateTimeZone timeZone) {
-        super(location, argument, timeZone);
+    public MinuteOfHour(Location location, Expression field, DateTimeZone timeZone) {
+        super(location, field, timeZone);
     }
 
     @Override
     public String dateTimeFormat() {
         return "m";
-    }
-
-    @Override
-    public String interval() {
-        return "minute";
     }
 
     @Override

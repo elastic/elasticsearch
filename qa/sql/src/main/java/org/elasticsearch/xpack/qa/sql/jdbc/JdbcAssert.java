@@ -68,7 +68,7 @@ public class JdbcAssert {
             String actualName = actualMeta.getColumnName(column);
             
             if (!expectedName.equals(actualName)) {
-                // NOCOMMIT this needs a comment explaining it....
+                // to help debugging, indicate the previous column (which also happened to match and thus was correct)
                 String expectedSet = expectedName;
                 String actualSet = actualName;
                 if (column > 1) {
@@ -83,6 +83,10 @@ public class JdbcAssert {
             int expectedType = expectedMeta.getColumnType(column);
             int actualType = actualMeta.getColumnType(column);
 
+            // since H2 cannot use a fixed timezone, the data is stored in UTC (and thus with timezone)
+            if (expectedType == Types.TIMESTAMP_WITH_TIMEZONE) {
+                expectedType = Types.TIMESTAMP;
+            }
             assertEquals("Different column type for column [" + expectedName + "] (" + JDBCType.valueOf(expectedType) + " != "
                     + JDBCType.valueOf(actualType) + ")", expectedType, actualType);
         }
@@ -107,7 +111,7 @@ public class JdbcAssert {
 
                 String msg = "Different result for column [" + metaData.getColumnName(column)  + "], entry [" + count + "]";
 
-                if (type == Types.TIMESTAMP) {
+                if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {
                     assertEquals(getTime(expected, column), getTime(actual, column));
                 }
 

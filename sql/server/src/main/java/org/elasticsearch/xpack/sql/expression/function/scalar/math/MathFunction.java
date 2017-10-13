@@ -81,7 +81,7 @@ public abstract class MathFunction extends UnaryScalarFunction {
     }
 
     @Override
-    protected final ProcessorDefinition makeProcessor() {
+    protected final ProcessorDefinition makeProcessorDefinition() {
         return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()), new MathProcessor(operation()));
     }
 

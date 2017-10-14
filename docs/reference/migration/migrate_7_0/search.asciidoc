@@ -18,3 +18,7 @@ PUT /_cluster/settings
 --------------------------------------------------
 // CONSOLE
 
+=== Scroll search will response `bad request` if request is invalid
+
+Scroll search will return `illegal_argument_exception` and `400` status instead of 
+`query_phase_execution_exception` if failed to validate search request.

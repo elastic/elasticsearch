@@ -125,7 +125,7 @@ The same script in the normal form:
 ----------------------
   "script": {
     "source": "ctx._source.likes++"
-    }
+  }
 ----------------------
 // NOTCONSOLE
 

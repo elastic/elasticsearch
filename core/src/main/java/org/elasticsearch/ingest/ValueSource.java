@@ -130,9 +130,10 @@ public interface ValueSource {
         @Override
         public Object copyAndResolve(Map<String, Object> model) {
             List<Object> copy = new ArrayList<>(values.size());
-            for (ValueSource value : values) {
-                copy.add(value.copyAndResolve(model));
-            }
+            values.forEach(
+                    value -> {
+                        copy.add(value.copyAndResolve(model));
+                    });
             return copy;
         }
 

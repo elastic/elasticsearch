@@ -147,9 +147,10 @@ public class GrokTests extends ESTestCase {
                 "2001-12-07T23:54:54.123456Z",
                 "2001-12-07T23:54:60.123456Z" // '60' second is a leap second.
         );
-        for (String msg : timeMessages) {
-            assertThat(grok.match(msg), is(true));
-        }
+        timeMessages.forEach(
+                msg -> {
+                    assertThat(grok.match(msg), is(true));
+                });
     }
 
     public void testNotISO8601() {
@@ -178,9 +179,10 @@ public class GrokTests extends ESTestCase {
                 "2001-01-01T00:00:00-2500", // invalid timezone
                 "2001-01-01T00:00:00-00:61" // invalid timezone
         );
-        for (String msg : timeMessages) {
-            assertThat(grok.match(msg), is(false));
-        }
+        timeMessages.forEach(
+                msg -> {
+                    assertThat(grok.match(msg), is(false));
+                });
     }
 
     public void testNoNamedCaptures() {

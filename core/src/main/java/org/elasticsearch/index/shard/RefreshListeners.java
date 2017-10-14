@@ -227,20 +227,20 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         fireListeners(listenersToFire);
     }
 
-    /**
-     * Fire some listeners. Does nothing if the list of listeners is null.
-     */
+    /** Fire some listeners. Does nothing if the list of listeners is null. */
     private void fireListeners(List<Tuple<Translog.Location, Consumer<Boolean>>> listenersToFire) {
         if (listenersToFire != null) {
-            listenerExecutor.execute(() -> {
-                for (Tuple<Translog.Location, Consumer<Boolean>> listener : listenersToFire) {
-                    try {
-                        listener.v2().accept(false);
-                    } catch (Exception e) {
-                        logger.warn("Error firing refresh listener", e);
-                    }
-                }
-            });
+            listenerExecutor.execute(
+                    () -> {
+                        listenersToFire.forEach(
+                                listener -> {
+                                    try {
+                                        listener.v2().accept(false);
+                                    } catch (Exception e) {
+                                        logger.warn("Error firing refresh listener", e);
+                                    }
+                                });
+                    });
         }
     }
 }

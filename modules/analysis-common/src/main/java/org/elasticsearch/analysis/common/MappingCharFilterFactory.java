@@ -58,20 +58,20 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory implemen
     // source => target
     private static Pattern rulePattern = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
 
-    /**
-     * parses a list of MappingCharFilter style rules into a normalize char map
-     */
+    /** parses a list of MappingCharFilter style rules into a normalize char map */
     private void parseRules(List<String> rules, NormalizeCharMap.Builder map) {
-        for (String rule : rules) {
-            Matcher m = rulePattern.matcher(rule);
-            if (!m.find())
-                throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]");
-            String lhs = parseString(m.group(1).trim());
-            String rhs = parseString(m.group(2).trim());
-            if (lhs == null || rhs == null)
-                throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Illegal mapping.");
-            map.add(lhs, rhs);
-        }
+        rules.forEach(
+                rule -> {
+                    Matcher m = rulePattern.matcher(rule);
+                    if (!m.find())
+                        throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]");
+                    String lhs = parseString(m.group(1).trim());
+                    String rhs = parseString(m.group(2).trim());
+                    if (lhs == null || rhs == null)
+                        throw new RuntimeException(
+                                "Invalid Mapping Rule : [" + rule + "]. Illegal mapping.");
+                    map.add(lhs, rhs);
+                });
     }
 
     char[] out = new char[256];

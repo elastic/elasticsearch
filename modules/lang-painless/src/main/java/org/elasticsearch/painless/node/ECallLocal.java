@@ -51,9 +51,10 @@ public final class ECallLocal extends AExpression {
 
     @Override
     void extractVariables(Set<String> variables) {
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
+        arguments.forEach(
+                argument -> {
+                    argument.extractVariables(variables);
+                });
     }
 
     @Override
@@ -82,9 +83,10 @@ public final class ECallLocal extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        for (AExpression argument : arguments) {
-            argument.write(writer, globals);
-        }
+        arguments.forEach(
+                argument -> {
+                    argument.write(writer, globals);
+                });
 
         writer.invokeStatic(CLASS_TYPE, method.method);
     }

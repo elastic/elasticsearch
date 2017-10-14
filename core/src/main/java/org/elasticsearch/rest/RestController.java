@@ -313,13 +313,16 @@ public class RestController extends AbstractComponent implements HttpServerTrans
         return true;
     }
 
-    void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
-        for (String key : headersToCopy) {
-            String httpHeader = request.header(key);
-            if (httpHeader != null) {
-                threadContext.putHeader(key, httpHeader);
-            }
-        }
+    void tryAllHandlers(
+            final RestRequest request, final RestChannel channel, final ThreadContext threadContext)
+            throws Exception {
+        headersToCopy.forEach(
+                key -> {
+                    String httpHeader = request.header(key);
+                    if (httpHeader != null) {
+                        threadContext.putHeader(key, httpHeader);
+                    }
+                });
         // Request execution flag
         boolean requestHandled = false;
 

@@ -24,7 +24,6 @@ import org.elasticsearch.common.inject.internal.Stopwatch;
 import org.elasticsearch.common.inject.spi.Dependency;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Builds a tree of injectors. This is a primary injector, plus child injectors needed for each
@@ -98,9 +97,7 @@ class InjectorBuilder {
         return primaryInjector();
     }
 
-    /**
-     * Initialize and validate everything.
-     */
+    /** Initialize and validate everything. */
     private void initializeStatically() {
         bindingProcesor.initializeBindings();
         stopwatch.resetAndLog("Binding initialization");
@@ -128,18 +125,16 @@ class InjectorBuilder {
         }
         stopwatch.resetAndLog("Provider verification");
 
-        for (InjectorShell shell : shells) {
-            if (!shell.getElements().isEmpty()) {
-                throw new AssertionError("Failed to execute " + shell.getElements());
-            }
-        }
+        shells.stream()
+                .filter(shell -> !shell.getElements().isEmpty())
+                .forEach(
+                        shell -> {
+                            throw new AssertionError("Failed to execute " + shell.getElements());
+                        });
 
         errors.throwCreationExceptionIfErrorsExist();
     }
 
-    /**
-     * Returns the injector being constructed. This is not necessarily the root injector.
-     */
     private Injector primaryInjector() {
         return shells.get(0).getInjector();
     }
@@ -157,17 +152,14 @@ class InjectorBuilder {
         stopwatch.resetAndLog("Instance injection");
         errors.throwCreationExceptionIfErrorsExist();
 
-        for (InjectorShell shell : shells) {
-            loadEagerSingletons(shell.getInjector(), stage, errors);
-        }
+        shells.forEach(
+                shell -> {
+                    loadEagerSingletons(shell.getInjector(), stage, errors);
+                });
         stopwatch.resetAndLog("Preloading singletons");
         errors.throwCreationExceptionIfErrorsExist();
     }
 
-    /**
-     * Loads eager singletons, or all singletons if we're in Stage.PRODUCTION. Bindings discovered
-     * while we're binding these singletons are not be eager.
-     */
     public void loadEagerSingletons(InjectorImpl injector, Stage stage, Errors errors) {
         for (final Binding<?> binding : injector.state.getExplicitBindingsThisLevel().values()) {
             loadEagerSingletons(injector, stage, errors, (BindingImpl<?>)binding);

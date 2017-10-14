@@ -81,13 +81,14 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     public synchronized void clear() {
         List<Exception> exceptions = new ArrayList<>(0);
         final Collection<IndexFieldDataCache> fieldDataCacheValues = fieldDataCaches.values();
-        for (IndexFieldDataCache cache : fieldDataCacheValues) {
-            try {
-                cache.clear();
-            } catch (Exception e) {
-                exceptions.add(e);
-            }
-        }
+        fieldDataCacheValues.forEach(
+                cache -> {
+                    try {
+                        cache.clear();
+                    } catch (Exception e) {
+                        exceptions.add(e);
+                    }
+                });
         fieldDataCacheValues.clear();
         ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
     }

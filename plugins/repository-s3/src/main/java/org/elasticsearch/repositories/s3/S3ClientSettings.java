@@ -137,14 +137,15 @@ class S3ClientSettings {
     /**
      * Load all client settings from the given settings.
      *
-     * Note this will always at least return a client named "default".
+     * <p>Note this will always at least return a client named "default".
      */
     static Map<String, S3ClientSettings> load(Settings settings) {
         Set<String> clientNames = settings.getGroups(PREFIX).keySet();
         Map<String, S3ClientSettings> clients = new HashMap<>();
-        for (String clientName : clientNames) {
-            clients.put(clientName, getClientSettings(settings, clientName));
-        }
+        clientNames.forEach(
+                clientName -> {
+                    clients.put(clientName, getClientSettings(settings, clientName));
+                });
         if (clients.containsKey("default") == false) {
             // this won't find any settings under the default client,
             // but it will pull all the fallback static settings
@@ -153,8 +154,6 @@ class S3ClientSettings {
         return Collections.unmodifiableMap(clients);
     }
 
-    // pkg private for tests
-    /** Parse settings for a single client. */
     static S3ClientSettings getClientSettings(Settings settings, String clientName) {
         try (SecureString accessKey = getConfigValue(settings, clientName, ACCESS_KEY_SETTING);
              SecureString secretKey = getConfigValue(settings, clientName, SECRET_KEY_SETTING);

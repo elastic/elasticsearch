@@ -72,16 +72,19 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalSum doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalSum doReduce(
+            List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double sum = 0;
-        for (InternalAggregation aggregation : aggregations) {
-            sum += ((InternalSum) aggregation).sum;
-        }
+        aggregations
+                .stream()
+                .map(aggregation -> ((InternalSum) aggregation).sum)
+                .reduce(sum, (accumulator, _item) -> accumulator += _item);
         return new InternalSum(name, sum, format, pipelineAggregators(), getMetaData());
     }
 
     @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params)
+            throws IOException {
         builder.field(CommonFields.VALUE.getPreferredName(), sum);
         if (format != DocValueFormat.RAW) {
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(sum));

@@ -79,9 +79,10 @@ public class RetryTests extends ESSingleNodeTestCase {
 
     @After
     public void forceUnblockAllExecutors() {
-        for (CyclicBarrier barrier: blockedExecutors) {
-            barrier.reset();
-        }
+        blockedExecutors.forEach(
+                barrier -> {
+                    barrier.reset();
+                });
     }
 
     @Override

@@ -180,11 +180,12 @@ public class UnifiedHighlighter implements Highlighter {
         //We need to filter the snippets as due to no_match_size we could have
         //either highlighted snippets or non highlighted ones and we don't want to mix those up
         List<Snippet> filteredSnippets = new ArrayList<>(snippets.size());
-        for (Snippet snippet : snippets) {
-            if (snippet.isHighlighted()) {
-                filteredSnippets.add(snippet);
-            }
-        }
+        snippets.stream()
+                .filter(snippet -> snippet.isHighlighted())
+                .forEach(
+                        snippet -> {
+                            filteredSnippets.add(snippet);
+                        });
 
         //if there's at least one highlighted snippet, we return all the highlighted ones
         //otherwise we return the first non highlighted one if available

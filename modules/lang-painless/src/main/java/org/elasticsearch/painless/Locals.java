@@ -78,11 +78,13 @@ public final class Locals {
     }
 
     /** Creates a new function scope inside the current scope */
-    public static Locals newFunctionScope(Locals programScope, Type returnType, List<Parameter> parameters, int maxLoopCounter) {
+    public static Locals newFunctionScope(
+            Locals programScope, Type returnType, List<Parameter> parameters, int maxLoopCounter) {
         Locals locals = new Locals(programScope, programScope.definition, returnType, KEYWORDS);
-        for (Parameter parameter : parameters) {
-            locals.addVariable(parameter.location, parameter.type, parameter.name, false);
-        }
+        parameters.forEach(
+                parameter -> {
+                    locals.addVariable(parameter.location, parameter.type, parameter.name, false);
+                });
         // Loop counter to catch infinite loops.  Internal use only.
         if (maxLoopCounter > 0) {
             locals.defineVariable(null, Definition.INT_TYPE, LOOP, true);
@@ -90,8 +92,8 @@ public final class Locals {
         return locals;
     }
 
-    /** Creates a new main method scope */
-    public static Locals newMainMethodScope(ScriptClassInfo scriptClassInfo, Locals programScope, int maxLoopCounter) {
+    public static Locals newMainMethodScope(
+            ScriptClassInfo scriptClassInfo, Locals programScope, int maxLoopCounter) {
         Locals locals = new Locals(programScope, programScope.definition,
                 scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
         // This reference. Internal use only.
@@ -112,13 +114,13 @@ public final class Locals {
     /** Creates a new program scope: the list of methods. It is the parent for all methods */
     public static Locals newProgramScope(Definition definition, Collection<Method> methods) {
         Locals locals = new Locals(null, definition, null, null);
-        for (Method method : methods) {
-            locals.addMethod(method);
-        }
+        methods.forEach(
+                method -> {
+                    locals.addMethod(method);
+                });
         return locals;
     }
 
-    /** Checks if a variable exists or not, in this scope or any parents. */
     public boolean hasVariable(String name) {
         Variable variable = lookupVariable(null, name);
         if (variable != null) {

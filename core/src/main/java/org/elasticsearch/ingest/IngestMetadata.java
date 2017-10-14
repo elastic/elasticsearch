@@ -94,9 +94,10 @@ public final class IngestMetadata implements MetaData.Custom {
     public static IngestMetadata fromXContent(XContentParser parser) throws IOException {
         Map<String, PipelineConfiguration> pipelines = new HashMap<>();
         List<PipelineConfiguration> configs = INGEST_METADATA_PARSER.parse(parser, null);
-        for (PipelineConfiguration pipeline : configs) {
-            pipelines.put(pipeline.getId(), pipeline);
-        }
+        configs.forEach(
+                pipeline -> {
+                    pipelines.put(pipeline.getId(), pipeline);
+                });
         return new IngestMetadata(pipelines);
     }
 

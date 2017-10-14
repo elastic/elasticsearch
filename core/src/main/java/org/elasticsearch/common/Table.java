@@ -56,7 +56,6 @@ public class Table {
         return this;
     }
 
-
     public Table endHeaders() {
         if (currentCells == null || currentCells.isEmpty()) {
             throw new IllegalStateException("no headers added...");
@@ -75,10 +74,16 @@ public class Table {
          * Also populate map to look up headers by name.
          *
          */
-        for (Cell header : headers) {
-            map.put(header.value.toString(), new ArrayList<Cell>());
-            headerMap.put(header.value.toString(), header);
-        }
+        headers.stream()
+                .map(
+                        header -> {
+                            map.put(header.value.toString(), new ArrayList<Cell>());
+                            return header;
+                        })
+                .forEach(
+                        header -> {
+                            headerMap.put(header.value.toString(), header);
+                        });
 
         return this;
     }

@@ -81,14 +81,18 @@ public class FilterPath {
         }
 
         List<FilterPath> paths = new ArrayList<>();
-        for (String filter : filters) {
-            if (filter != null) {
-                filter = filter.trim();
-                if (filter.length() > 0) {
-                    paths.add(parse(filter, filter));
-                }
-            }
-        }
+        filters.stream()
+                .filter(filter -> filter != null)
+                .map(
+                        filter -> {
+                            filter = filter.trim();
+                            return filter;
+                        })
+                .filter(filter -> filter.length() > 0)
+                .forEach(
+                        filter -> {
+                            paths.add(parse(filter, filter));
+                        });
         return paths.toArray(new FilterPath[paths.size()]);
     }
 

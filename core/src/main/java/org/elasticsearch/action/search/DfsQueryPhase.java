@@ -70,36 +70,59 @@ final class DfsQueryPhase extends SearchPhase {
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(queryResult::consumeResult,
             resultList.size(),
             () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)), context);
-        for (final DfsSearchResult dfsResult : resultList) {
-            final SearchShardTarget searchShardTarget = dfsResult.getSearchShardTarget();
-            Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-            QuerySearchRequest querySearchRequest = new QuerySearchRequest(searchShardTarget.getOriginalIndices(),
-                    dfsResult.getRequestId(), dfs);
-            final int shardIndex = dfsResult.getShardIndex();
-            searchTransportService.sendExecuteQuery(connection, querySearchRequest, context.getTask(),
-                new SearchActionListener<QuerySearchResult>(searchShardTarget, shardIndex) {
+        resultList.forEach(
+                dfsResult -> {
+                    final SearchShardTarget searchShardTarget = dfsResult.getSearchShardTarget();
+                    Transport.Connection connection =
+                            context.getConnection(
+                                    searchShardTarget.getClusterAlias(),
+                                    searchShardTarget.getNodeId());
+                    QuerySearchRequest querySearchRequest =
+                            new QuerySearchRequest(
+                                    searchShardTarget.getOriginalIndices(),
+                                    dfsResult.getRequestId(),
+                                    dfs);
+                    final int shardIndex = dfsResult.getShardIndex();
+                    searchTransportService.sendExecuteQuery(
+                            connection,
+                            querySearchRequest,
+                            context.getTask(),
+                            new SearchActionListener<QuerySearchResult>(
+                                    searchShardTarget, shardIndex) {
 
-                    @Override
-                    protected void innerOnResponse(QuerySearchResult response) {
-                        counter.onResult(response);
-                    }
+                                @Override
+                                protected void innerOnResponse(QuerySearchResult response) {
+                                    counter.onResult(response);
+                                }
 
-                    @Override
-                    public void onFailure(Exception exception) {
-                        try {
-                            if (context.getLogger().isDebugEnabled()) {
-                                context.getLogger().debug((Supplier<?>) () -> new ParameterizedMessage("[{}] Failed to execute query phase",
-                                    querySearchRequest.id()), exception);
-                            }
-                            counter.onFailure(shardIndex, searchShardTarget, exception);
-                        } finally {
-                            // the query might not have been executed at all (for example because thread pool rejected
-                            // execution) and the search context that was created in dfs phase might not be released.
-                            // release it again to be in the safe side
-                            context.sendReleaseSearchContext(querySearchRequest.id(), connection, searchShardTarget.getOriginalIndices());
-                        }
-                    }
+                                @Override
+                                public void onFailure(Exception exception) {
+                                    try {
+                                        if (context.getLogger().isDebugEnabled()) {
+                                            context.getLogger()
+                                                    .debug(
+                                                            (Supplier<?>)
+                                                                    () ->
+                                                                            new ParameterizedMessage(
+                                                                                    "[{}] Failed to execute query phase",
+                                                                                    querySearchRequest
+                                                                                            .id()),
+                                                            exception);
+                                        }
+                                        counter.onFailure(shardIndex, searchShardTarget, exception);
+                                    } finally {
+                                        // the query might not have been executed at all (for
+                                        // example because thread pool rejected
+                                        // execution) and the search context that was created in dfs
+                                        // phase might not be released.
+                                        // release it again to be in the safe side
+                                        context.sendReleaseSearchContext(
+                                                querySearchRequest.id(),
+                                                connection,
+                                                searchShardTarget.getOriginalIndices());
+                                    }
+                                }
+                            });
                 });
-        }
     }
 }

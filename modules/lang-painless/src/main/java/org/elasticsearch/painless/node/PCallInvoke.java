@@ -55,9 +55,10 @@ public final class PCallInvoke extends AExpression {
     void extractVariables(Set<String> variables) {
         prefix.extractVariables(variables);
 
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
+        arguments.forEach(
+                argument -> {
+                    argument.extractVariables(variables);
+                });
     }
 
     @Override

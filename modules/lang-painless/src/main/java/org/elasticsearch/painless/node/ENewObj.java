@@ -51,9 +51,10 @@ public final class ENewObj extends AExpression {
 
     @Override
     void extractVariables(Set<String> variables) {
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
+        arguments.forEach(
+                argument -> {
+                    argument.extractVariables(variables);
+                });
     }
 
     @Override
@@ -104,9 +105,10 @@ public final class ENewObj extends AExpression {
             writer.dup();
         }
 
-        for (AExpression argument : arguments) {
-            argument.write(writer, globals);
-        }
+        arguments.forEach(
+                argument -> {
+                    argument.write(writer, globals);
+                });
 
         writer.invokeConstructor(constructor.owner.type, constructor.method);
     }

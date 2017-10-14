@@ -56,20 +56,16 @@ public final class Dependency<T> {
         return new Dependency<>(null, key, true, -1);
     }
 
-    /**
-     * Returns the dependencies from the given injection points.
-     */
+    /** Returns the dependencies from the given injection points. */
     public static Set<Dependency<?>> forInjectionPoints(Set<InjectionPoint> injectionPoints) {
         Set<Dependency<?>> dependencies = new HashSet<>();
-        for (InjectionPoint injectionPoint : injectionPoints) {
-            dependencies.addAll(injectionPoint.getDependencies());
-        }
+        injectionPoints.forEach(
+                injectionPoint -> {
+                    dependencies.addAll(injectionPoint.getDependencies());
+                });
         return unmodifiableSet(dependencies);
     }
 
-    /**
-     * Returns the key to the binding that satisfies this dependency.
-     */
     public Key<T> getKey() {
         return this.key;
     }

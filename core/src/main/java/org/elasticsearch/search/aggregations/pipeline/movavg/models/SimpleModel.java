@@ -84,9 +84,9 @@ public class SimpleModel extends MovAvgModel {
     @Override
     public <T extends Number> double next(Collection<T> values) {
         double avg = 0;
-        for (T v : values) {
-            avg += v.doubleValue();
-        }
+        values.stream()
+                .map(v -> v.doubleValue())
+                .reduce(avg, (accumulator, _item) -> accumulator += _item);
         return avg / values.size();
     }
 

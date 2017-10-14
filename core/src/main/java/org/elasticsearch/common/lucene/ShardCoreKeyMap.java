@@ -158,10 +158,7 @@ public final class ShardCoreKeyMap {
         }
         Collection<Set<IndexReader.CacheKey>> values = indexToCoreKey.values();
         int size = 0;
-        for (Set<IndexReader.CacheKey> value : values) {
-            size += value.size();
-        }
+        values.stream().map(value -> value.size()).reduce(size, Integer::sum);
         return size == coreKeyToShard.size();
     }
-
 }

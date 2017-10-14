@@ -92,8 +92,9 @@ public class QueryRewriteContext {
     }
 
     /**
-     * Executes all registered async actions and notifies the listener once it's done. The value that is passed to the listener is always
-     * <code>null</code>. The list of registered actions is cleared once this method returns.
+     * Executes all registered async actions and notifies the listener once it's done. The value
+     * that is passed to the listener is always <code>null</code>. The list of registered actions is
+     * cleared once this method returns.
      */
     public void executeAsyncActions(ActionListener listener) {
         if (asyncActions.isEmpty()) {
@@ -118,10 +119,10 @@ public class QueryRewriteContext {
             // make a copy to prevent concurrent modification exception
             List<BiConsumer<Client, ActionListener<?>>> biConsumers = new ArrayList<>(asyncActions);
             asyncActions.clear();
-            for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {
-                action.accept(client, internalListener);
-            }
+            biConsumers.forEach(
+                    action -> {
+                        action.accept(client, internalListener);
+                    });
         }
     }
-
 }

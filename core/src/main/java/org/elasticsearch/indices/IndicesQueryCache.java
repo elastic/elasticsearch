@@ -162,9 +162,10 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
     /** Clear all entries that belong to the given index. */
     public void clearIndex(String index) {
         final Set<Object> coreCacheKeys = shardKeyMap.getCoreKeysForIndex(index);
-        for (Object coreKey : coreCacheKeys) {
-            cache.clearCoreCacheKey(coreKey);
-        }
+        coreCacheKeys.forEach(
+                coreKey -> {
+                    cache.clearCoreCacheKey(coreKey);
+                });
 
         // This cache stores two things: filters, and doc id sets. Calling
         // clear only removes the doc id sets, but if we reach the situation

@@ -360,24 +360,37 @@ public class NodeJoinController extends AbstractComponent {
 
         @Override
         public void onFailure(String source, Exception e) {
-            for (MembershipAction.JoinCallback callback : callbacks) {
-                try {
-                    callback.onFailure(e);
-                } catch (Exception inner) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("error handling task failure [{}]", e), inner);
-                }
-            }
+            callbacks.forEach(
+                    callback -> {
+                        try {
+                            callback.onFailure(e);
+                        } catch (Exception inner) {
+                            logger.error(
+                                    (Supplier<?>)
+                                            () ->
+                                                    new ParameterizedMessage(
+                                                            "error handling task failure [{}]", e),
+                                    inner);
+                        }
+                    });
         }
 
         @Override
-        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-            for (MembershipAction.JoinCallback callback : callbacks) {
-                try {
-                    callback.onSuccess();
-                } catch (Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected error during [{}]", source), e);
-                }
-            }
+        public void clusterStateProcessed(
+                String source, ClusterState oldState, ClusterState newState) {
+            callbacks.forEach(
+                    callback -> {
+                        try {
+                            callback.onSuccess();
+                        } catch (Exception e) {
+                            logger.error(
+                                    (Supplier<?>)
+                                            () ->
+                                                    new ParameterizedMessage(
+                                                            "unexpected error during [{}]", source),
+                                    e);
+                        }
+                    });
         }
     }
 
@@ -475,26 +488,42 @@ public class NodeJoinController extends AbstractComponent {
             }
         }
 
-        private ClusterState.Builder becomeMasterAndTrimConflictingNodes(ClusterState currentState, List<DiscoveryNode> joiningNodes) {
+        private ClusterState.Builder becomeMasterAndTrimConflictingNodes(
+                ClusterState currentState, List<DiscoveryNode> joiningNodes) {
             assert currentState.nodes().getMasterNodeId() == null : currentState;
             DiscoveryNodes currentNodes = currentState.nodes();
             DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
             nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
 
-            for (final DiscoveryNode joiningNode : joiningNodes) {
-                final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());
-                if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
-                    logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
-                    nodesBuilder.remove(nodeWithSameId.getId());
-                }
-                final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());
-                if (nodeWithSameAddress != null && nodeWithSameAddress.equals(joiningNode) == false) {
-                    logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameAddress,
-                        joiningNode);
-                    nodesBuilder.remove(nodeWithSameAddress.getId());
-                }
-            }
-
+            joiningNodes
+                    .stream()
+                    .map(
+                            joiningNode -> {
+                                final DiscoveryNode nodeWithSameId =
+                                        nodesBuilder.get(joiningNode.getId());
+                                if (nodeWithSameId != null
+                                        && nodeWithSameId.equals(joiningNode) == false) {
+                                    logger.debug(
+                                            "removing existing node [{}], which conflicts with incoming join from [{}]",
+                                            nodeWithSameId,
+                                            joiningNode);
+                                    nodesBuilder.remove(nodeWithSameId.getId());
+                                }
+                                return joiningNode;
+                            })
+                    .forEach(
+                            joiningNode -> {
+                                final DiscoveryNode nodeWithSameAddress =
+                                        currentNodes.findByAddress(joiningNode.getAddress());
+                                if (nodeWithSameAddress != null
+                                        && nodeWithSameAddress.equals(joiningNode) == false) {
+                                    logger.debug(
+                                            "removing existing node [{}], which conflicts with incoming join from [{}]",
+                                            nodeWithSameAddress,
+                                            joiningNode);
+                                    nodesBuilder.remove(nodeWithSameAddress.getId());
+                                }
+                            });
 
             // now trim any left over dead nodes - either left there when the previous master stepped down
             // or removed by us above

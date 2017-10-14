@@ -22,17 +22,12 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.conn.ConnectionKeepAliveStrategy;
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.benchmark.AbstractBenchmark;
 import org.elasticsearch.client.benchmark.ops.bulk.BulkRequestExecutor;
 import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
@@ -81,11 +76,17 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
         @Override
         public boolean bulkIndex(List<String> bulkData) {
             StringBuilder bulkRequestBody = new StringBuilder();
-            for (String bulkItem : bulkData) {
-                bulkRequestBody.append(actionMetaData);
-                bulkRequestBody.append(bulkItem);
-                bulkRequestBody.append("\n");
-            }
+            bulkData.stream()
+                    .map(
+                            bulkItem -> {
+                                bulkRequestBody.append(actionMetaData);
+                                bulkRequestBody.append(bulkItem);
+                                return _item;
+                            })
+                    .forEach(
+                            _item -> {
+                                bulkRequestBody.append("\n");
+                            });
             HttpEntity entity = new NStringEntity(bulkRequestBody.toString(), ContentType.APPLICATION_JSON);
             try {
                 Response response = client.performRequest("POST", "/geonames/type/_noop_bulk", Collections.emptyMap(), entity);

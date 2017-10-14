@@ -63,18 +63,19 @@ public class SnapshotFiles {
 
     /**
      * Returns information about a physical file with the given name
+     *
      * @param physicalName the original file name
      * @return information about this file
      */
     public FileInfo findPhysicalIndexFile(String physicalName) {
         if (physicalFiles == null) {
             Map<String, FileInfo> files = new HashMap<>();
-            for(FileInfo fileInfo : indexFiles) {
-                files.put(fileInfo.physicalName(), fileInfo);
-            }
+            indexFiles.forEach(
+                    fileInfo -> {
+                        files.put(fileInfo.physicalName(), fileInfo);
+                    });
             this.physicalFiles = files;
         }
         return physicalFiles.get(physicalName);
     }
-
 }

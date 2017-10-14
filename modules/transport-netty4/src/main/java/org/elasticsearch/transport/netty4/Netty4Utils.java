@@ -156,21 +156,16 @@ public class Netty4Utils {
                 closingExceptions.addSuppressed(e);
             }
         }
-        for (final ChannelFuture future : futures) {
-            future.awaitUninterruptibly();
-        }
+        futures.forEach(
+                future -> {
+                    future.awaitUninterruptibly();
+                });
 
         if (closingExceptions != null) {
             throw closingExceptions;
         }
     }
 
-    /**
-     * If the specified cause is an unrecoverable error, this method will rethrow the cause on a separate thread so that it can not be
-     * caught and bubbles up to the uncaught exception handler.
-     *
-     * @param cause the throwable to test
-     */
     public static void maybeDie(final Throwable cause) {
         final Optional<Error> maybeError = maybeError(cause);
         if (maybeError.isPresent()) {

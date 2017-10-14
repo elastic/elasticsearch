@@ -963,11 +963,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         // nodes discovered during pinging
         List<ElectMasterService.MasterCandidate> masterCandidates = new ArrayList<>();
-        for (ZenPing.PingResponse pingResponse : pingResponses) {
-            if (pingResponse.node().isMasterNode()) {
-                masterCandidates.add(new ElectMasterService.MasterCandidate(pingResponse.node(), pingResponse.getClusterStateVersion()));
-            }
-        }
+        pingResponses
+                .stream()
+                .filter(pingResponse -> pingResponse.node().isMasterNode())
+                .forEach(
+                        pingResponse -> {
+                            masterCandidates.add(
+                                    new ElectMasterService.MasterCandidate(
+                                            pingResponse.node(),
+                                            pingResponse.getClusterStateVersion()));
+                        });
 
         if (activeMasters.isEmpty()) {
             if (electMaster.hasEnoughCandidates(masterCandidates)) {
@@ -987,7 +992,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
     }
 
-    static List<ZenPing.PingResponse> filterPingResponses(List<ZenPing.PingResponse> fullPingResponses, boolean masterElectionIgnoreNonMasters, Logger logger) {
+    static List<ZenPing.PingResponse> filterPingResponses(
+            List<ZenPing.PingResponse> fullPingResponses,
+            boolean masterElectionIgnoreNonMasters,
+            Logger logger) {
         List<ZenPing.PingResponse> pingResponses;
         if (masterElectionIgnoreNonMasters) {
             pingResponses = fullPingResponses.stream().filter(ping -> ping.node().isMasterNode()).collect(Collectors.toList());
@@ -1000,9 +1008,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             if (pingResponses.isEmpty()) {
                 sb.append(" {none}");
             } else {
-                for (ZenPing.PingResponse pingResponse : pingResponses) {
-                    sb.append("\n\t--> ").append(pingResponse);
-                }
+                pingResponses.forEach(
+                        pingResponse -> {
+                            sb.append("\n\t--> ").append(pingResponse);
+                        });
             }
             logger.debug("filtered ping responses: (ignore_non_masters [{}]){}", masterElectionIgnoreNonMasters, sb);
         }

@@ -272,27 +272,6 @@ final class SystemCallFilter {
                 "with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
         }
 
-        // pure paranoia:
-
-        // check that unimplemented syscalls actually return ENOSYS
-        // you never know (e.g. https://code.google.com/p/chromium/issues/detail?id=439795)
-        if (linux_syscall(999) >= 0) {
-            throw new UnsupportedOperationException("seccomp unavailable: your kernel is buggy and you should upgrade");
-        }
-
-        switch (Native.getLastError()) {
-            case ENOSYS:
-                break; // ok
-            case EPERM:
-                // NOT ok, but likely a docker container
-                if (logger.isDebugEnabled()) {
-                    logger.debug("syscall(BOGUS) bogusly gets EPERM instead of ENOSYS");
-                }
-                break;
-            default:
-                throw new UnsupportedOperationException("seccomp unavailable: your kernel is buggy and you should upgrade");
-        }
-
         // try to check system calls really are who they claim
         // you never know (e.g. https://chromium.googlesource.com/chromium/src.git/+/master/sandbox/linux/seccomp-bpf/sandbox_bpf.cc#57)
         final int bogusArg = 0xf7a46a5c;

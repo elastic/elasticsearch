@@ -71,16 +71,19 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation doReduce(
+            List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long valueCount = 0;
-        for (InternalAggregation aggregation : aggregations) {
-            valueCount += ((InternalValueCount) aggregation).value;
-        }
+        aggregations
+                .stream()
+                .map(aggregation -> ((InternalValueCount) aggregation).value)
+                .reduce(valueCount, (accumulator, _item) -> accumulator += _item);
         return new InternalValueCount(name, valueCount, pipelineAggregators(), getMetaData());
     }
 
     @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params)
+            throws IOException {
         builder.field(CommonFields.VALUE.getPreferredName(), value);
         return builder;
     }

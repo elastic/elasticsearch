@@ -83,13 +83,14 @@ class MembersInjectorImpl<T> implements MembersInjector<T> {
 
     void notifyListeners(T instance, Errors errors) throws ErrorsException {
         int numErrorsBefore = errors.size();
-        for (InjectionListener<? super T> injectionListener : injectionListeners) {
-            try {
-                injectionListener.afterInjection(instance);
-            } catch (RuntimeException e) {
-                errors.errorNotifyingInjectionListener(injectionListener, typeLiteral, e);
-            }
-        }
+        injectionListeners.forEach(
+                injectionListener -> {
+                    try {
+                        injectionListener.afterInjection(instance);
+                    } catch (RuntimeException e) {
+                        errors.errorNotifyingInjectionListener(injectionListener, typeLiteral, e);
+                    }
+                });
         errors.throwIfNewErrors(numErrorsBefore);
     }
 

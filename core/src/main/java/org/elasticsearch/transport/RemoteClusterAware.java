@@ -82,16 +82,18 @@ public abstract class RemoteClusterAware extends AbstractComponent {
     }
 
     /**
-     * Groups indices per cluster by splitting remote cluster-alias, index-name pairs on {@link #REMOTE_CLUSTER_INDEX_SEPARATOR}. All
-     * indices per cluster are collected as a list in the returned map keyed by the cluster alias. Local indices are grouped under
-     * {@link #LOCAL_CLUSTER_GROUP_KEY}. The returned map is mutable.
+     * Groups indices per cluster by splitting remote cluster-alias, index-name pairs on {@link
+     * #REMOTE_CLUSTER_INDEX_SEPARATOR}. All indices per cluster are collected as a list in the
+     * returned map keyed by the cluster alias. Local indices are grouped under {@link
+     * #LOCAL_CLUSTER_GROUP_KEY}. The returned map is mutable.
      *
      * @param requestIndices the indices in the search request to filter
-     * @param indexExists a predicate that can test if a certain index or alias exists in the local cluster
-     *
+     * @param indexExists a predicate that can test if a certain index or alias exists in the local
+     *     cluster
      * @return a map of grouped remote and local indices
      */
-    public Map<String, List<String>> groupClusterIndices(String[] requestIndices, Predicate<String> indexExists) {
+    public Map<String, List<String>> groupClusterIndices(
+            String[] requestIndices, Predicate<String> indexExists) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
         Set<String> remoteClusterNames = getRemoteClusterNames();
         for (String index : requestIndices) {
@@ -108,9 +110,12 @@ public abstract class RemoteClusterAware extends AbstractComponent {
                             " exists but there is also a remote cluster named: " + remoteClusterName);
                         }
                     String indexName = index.substring(i + 1);
-                    for (String clusterName : clusters) {
-                        perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);
-                    }
+                    clusters.forEach(
+                            clusterName -> {
+                                perClusterIndices
+                                        .computeIfAbsent(clusterName, k -> new ArrayList<>())
+                                        .add(indexName);
+                            });
                 } else {
                     perClusterIndices.computeIfAbsent(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>()).add(index);
                 }

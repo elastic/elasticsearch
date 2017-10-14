@@ -96,9 +96,11 @@ public final class PrivateElementsImpl implements PrivateElements {
     public Set<Key<?>> getExposedKeys() {
         if (exposedKeysToSources == null) {
             Map<Key<?>, Object> exposedKeysToSourcesMutable = new LinkedHashMap<>();
-            for (ExposureBuilder<?> exposureBuilder : exposureBuilders) {
-                exposedKeysToSourcesMutable.put(exposureBuilder.getKey(), exposureBuilder.getSource());
-            }
+            exposureBuilders.forEach(
+                    exposureBuilder -> {
+                        exposedKeysToSourcesMutable.put(
+                                exposureBuilder.getKey(), exposureBuilder.getSource());
+                    });
             exposedKeysToSources = unmodifiableMap(exposedKeysToSourcesMutable);
             exposureBuilders = null;
         }

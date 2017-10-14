@@ -55,19 +55,17 @@ public abstract class RestResponse {
         if (customHeaders == null) {
             customHeaders = new HashMap<>(headerKeySet.size());
         }
-        for (String key : headerKeySet) {
-            List<String> values = customHeaders.get(key);
-            if (values == null) {
-                values = new ArrayList<>();
-                customHeaders.put(key, values);
-            }
-            values.addAll(ex.getHeader(key));
-        }
+        headerKeySet.forEach(
+                key -> {
+                    List<String> values = customHeaders.get(key);
+                    if (values == null) {
+                        values = new ArrayList<>();
+                        customHeaders.put(key, values);
+                    }
+                    values.addAll(ex.getHeader(key));
+                });
     }
 
-    /**
-     * Add a custom header.
-     */
     public void addHeader(String name, String value) {
         if (customHeaders == null) {
             customHeaders = new HashMap<>(2);

@@ -24,7 +24,6 @@ import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -107,16 +106,18 @@ public class Queries {
         if (isNegativeQuery(q)) {
             BooleanQuery bq = (BooleanQuery) q;
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            for (BooleanClause clause : bq) {
-                builder.add(clause);
-            }
+            bq.forEach(
+                    clause -> {
+                        builder.add(clause);
+                    });
             builder.add(newMatchAllQuery(), BooleanClause.Occur.MUST);
             return builder.build();
         }
         return q;
     }
 
-    public static Query applyMinimumShouldMatch(BooleanQuery query, @Nullable String minimumShouldMatch) {
+    public static Query applyMinimumShouldMatch(
+            BooleanQuery query, @Nullable String minimumShouldMatch) {
         if (minimumShouldMatch == null) {
             return query;
         }
@@ -130,9 +131,10 @@ public class Queries {
         int msm = calculateMinShouldMatch(optionalClauses, minimumShouldMatch);
         if (0 < msm) {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            for (BooleanClause clause : query) {
-                builder.add(clause);
-            }
+            query.forEach(
+                    clause -> {
+                        builder.add(clause);
+                    });
             builder.setMinimumNumberShouldMatch(msm);
             return builder.build();
         } else {
@@ -140,11 +142,8 @@ public class Queries {
         }
     }
 
-    /**
-     * Potentially apply minimum should match value if we have a query that it can be applied to,
-     * otherwise return the original query.
-     */
-    public static Query maybeApplyMinimumShouldMatch(Query query, @Nullable String minimumShouldMatch) {
+    public static Query maybeApplyMinimumShouldMatch(
+            Query query, @Nullable String minimumShouldMatch) {
         if (query instanceof BooleanQuery) {
             return applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         } else if (query instanceof ExtendedCommonTermsQuery) {

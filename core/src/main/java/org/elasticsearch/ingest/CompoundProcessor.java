@@ -115,16 +115,19 @@ public class CompoundProcessor implements Processor {
         }
     }
 
-    void executeOnFailure(IngestDocument ingestDocument, ElasticsearchException exception) throws Exception {
+    void executeOnFailure(IngestDocument ingestDocument, ElasticsearchException exception)
+            throws Exception {
         try {
             putFailureMetadata(ingestDocument, exception);
-            for (Processor processor : onFailureProcessors) {
-                try {
-                    processor.execute(ingestDocument);
-                } catch (Exception e) {
-                    throw newCompoundProcessorException(e, processor.getType(), processor.getTag());
-                }
-            }
+            onFailureProcessors.forEach(
+                    processor -> {
+                        try {
+                            processor.execute(ingestDocument);
+                        } catch (Exception e) {
+                            throw newCompoundProcessorException(
+                                    e, processor.getType(), processor.getTag());
+                        }
+                    });
         } finally {
             removeFailureMetadata(ingestDocument);
         }

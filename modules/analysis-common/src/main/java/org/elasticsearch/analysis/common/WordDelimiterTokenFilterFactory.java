@@ -113,24 +113,26 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     // source => type
     private static Pattern typePattern = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
 
-    /**
-     * parses a list of MappingCharFilter style rules into a custom byte[] type table
-     */
+    /** parses a list of MappingCharFilter style rules into a custom byte[] type table */
     static byte[] parseTypes(Collection<String> rules) {
         SortedMap<Character, Byte> typeMap = new TreeMap<>();
-        for (String rule : rules) {
-            Matcher m = typePattern.matcher(rule);
-            if (!m.find())
-                throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]");
-            String lhs = parseString(m.group(1).trim());
-            Byte rhs = parseType(m.group(2).trim());
-            if (lhs.length() != 1)
-                throw new RuntimeException("Invalid Mapping Rule : ["
-                        + rule + "]. Only a single character is allowed.");
-            if (rhs == null)
-                throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Illegal type.");
-            typeMap.put(lhs.charAt(0), rhs);
-        }
+        rules.forEach(
+                rule -> {
+                    Matcher m = typePattern.matcher(rule);
+                    if (!m.find())
+                        throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]");
+                    String lhs = parseString(m.group(1).trim());
+                    Byte rhs = parseType(m.group(2).trim());
+                    if (lhs.length() != 1)
+                        throw new RuntimeException(
+                                "Invalid Mapping Rule : ["
+                                        + rule
+                                        + "]. Only a single character is allowed.");
+                    if (rhs == null)
+                        throw new RuntimeException(
+                                "Invalid Mapping Rule : [" + rule + "]. Illegal type.");
+                    typeMap.put(lhs.charAt(0), rhs);
+                });
 
         // ensure the table is always at least as big as DEFAULT_WORD_DELIM_TABLE for performance
         byte types[] = new byte[Math.max(

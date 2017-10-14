@@ -72,9 +72,10 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
         if (listeners != null) {
             if (listeners instanceof List) {
                 List list = (List) listeners;
-                for (Object listener : list) {
-                    executeListener((ActionListener<T>) listener);
-                }
+                list.forEach(
+                        listener -> {
+                            executeListener((ActionListener<T>) listener);
+                        });
             } else {
                 executeListener((ActionListener<T>) listeners);
             }

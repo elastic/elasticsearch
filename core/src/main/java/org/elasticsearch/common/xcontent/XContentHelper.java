@@ -213,8 +213,8 @@ public class XContentHelper {
     }
 
     /**
-     * Merges the defaults provided as the second parameter into the content of the first. Only does recursive merge
-     * for inner maps.
+     * Merges the defaults provided as the second parameter into the content of the first. Only does
+     * recursive merge for inner maps.
      */
     public static void mergeDefaults(Map<String, Object> content, Map<String, Object> defaults) {
         for (Map.Entry<String, Object> defaultEntry : defaults.entrySet()) {
@@ -255,11 +255,12 @@ public class XContentHelper {
                         // if both are lists, simply combine them, first the defaults, then the content
                         // just make sure not to add the same value twice
                         mergedList.addAll(defaultList);
-                        for (Object o : contentList) {
-                            if (!mergedList.contains(o)) {
-                                mergedList.add(o);
-                            }
-                        }
+                        contentList.forEach(
+                                o -> {
+                                    if (!mergedList.contains(o)) {
+                                        mergedList.add(o);
+                                    }
+                                });
                     }
                     content.put(defaultEntry.getKey(), mergedList);
                 }

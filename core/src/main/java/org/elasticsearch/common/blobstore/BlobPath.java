@@ -71,9 +71,10 @@ public class BlobPath implements Iterable<String> {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        for (String path : paths) {
-            sb.append('[').append(path).append(']');
-        }
+        paths.forEach(
+                path -> {
+                    sb.append('[').append(path).append(']');
+                });
         return sb.toString();
     }
 }

@@ -126,25 +126,20 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
     }
 
     /**
-     * After the query has been run and profiled, we need to merge the flat timing map
-     * with the dependency graph to build a data structure that mirrors the original
-     * query tree
+     * After the query has been run and profiled, we need to merge the flat timing map with the
+     * dependency graph to build a data structure that mirrors the original query tree
      *
      * @return a hierarchical representation of the profiled query tree
      */
     public List<ProfileResult> getTree() {
         ArrayList<ProfileResult> results = new ArrayList<>(5);
-        for (Integer root : roots) {
-            results.add(doGetTree(root));
-        }
+        roots.forEach(
+                root -> {
+                    results.add(doGetTree(root));
+                });
         return results;
     }
 
-    /**
-     * Recursive helper to finalize a node in the dependency tree
-     * @param token  The node we are currently finalizing
-     * @return       A hierarchical representation of the tree inclusive of children at this level
-     */
     private ProfileResult doGetTree(int token) {
         E element = elements.get(token);
         PB breakdown = timings.get(token);

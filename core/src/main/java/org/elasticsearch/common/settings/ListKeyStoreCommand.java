@@ -51,8 +51,9 @@ class ListKeyStoreCommand extends EnvironmentAwareCommand {
 
         List<String> sortedEntries = new ArrayList<>(keystore.getSettingNames());
         Collections.sort(sortedEntries);
-        for (String entry : sortedEntries) {
-            terminal.println(entry);
-        }
+        sortedEntries.forEach(
+                entry -> {
+                    terminal.println(entry);
+                });
     }
 }

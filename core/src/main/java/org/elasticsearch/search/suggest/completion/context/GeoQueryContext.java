@@ -184,23 +184,22 @@ public final class GeoQueryContext implements ToXContentObject {
         }
 
         /**
-         * Sets the precision levels at which geohash cells neighbours are considered.
-         * Defaults to only considering neighbours at the index-time precision level
+         * Sets the precision levels at which geohash cells neighbours are considered. Defaults to
+         * only considering neighbours at the index-time precision level
          */
         public Builder setNeighbours(List<Integer> neighbours) {
-            for (int neighbour : neighbours) {
-                if (neighbour < 1 || neighbour > 12) {
-                    throw new IllegalArgumentException("neighbour value must be between 1 and 12");
-                }
-            }
+            neighbours
+                    .stream()
+                    .filter(neighbour -> neighbour < 1 || neighbour > 12)
+                    .forEach(
+                            _item -> {
+                                throw new IllegalArgumentException(
+                                        "neighbour value must be between 1 and 12");
+                            });
             this.neighbours = neighbours;
             return this;
         }
 
-        /**
-         * Sets the geo point of the context.
-         * This is a required field
-         */
         public Builder setGeoPoint(GeoPoint geoPoint) {
             Objects.requireNonNull(geoPoint, "geoPoint must not be null");
             this.geoPoint = geoPoint;

@@ -86,9 +86,10 @@ public class ConstructionContext<T> {
 
     public void setProxyDelegates(T delegate) {
         if (invocationHandlers != null) {
-            for (DelegatingInvocationHandler<T> handler : invocationHandlers) {
-                handler.setDelegate(delegate);
-            }
+            invocationHandlers.forEach(
+                    handler -> {
+                        handler.setDelegate(delegate);
+                    });
         }
     }
 

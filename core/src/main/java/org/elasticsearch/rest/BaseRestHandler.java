@@ -98,10 +98,10 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     }
 
     protected final String unrecognized(
-        final RestRequest request,
-        final Set<String> invalids,
-        final Set<String> candidates,
-        final String detail) {
+            final RestRequest request,
+            final Set<String> invalids,
+            final Set<String> candidates,
+            final String detail) {
         StringBuilder message = new StringBuilder(String.format(
             Locale.ROOT,
             "request [%s] contains unrecognized %s%s: ",
@@ -112,12 +112,13 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         for (final String invalid : invalids) {
             final LevensteinDistance ld = new LevensteinDistance();
             final List<Tuple<Float, String>> scoredParams = new ArrayList<>();
-            for (final String candidate : candidates) {
-                final float distance = ld.getDistance(invalid, candidate);
-                if (distance > 0.5f) {
-                    scoredParams.add(new Tuple<>(distance, candidate));
-                }
-            }
+            candidates.forEach(
+                    candidate -> {
+                        final float distance = ld.getDistance(invalid, candidate);
+                        if (distance > 0.5f) {
+                            scoredParams.add(new Tuple<>(distance, candidate));
+                        }
+                    });
             CollectionUtil.timSort(scoredParams, (a, b) -> {
                 // sort by distance in reverse order, then parameter name for equal distances
                 int compare = a.v1().compareTo(b.v1());
@@ -144,13 +145,8 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         return message.toString();
     }
 
-    /**
-     * REST requests are handled by preparing a channel consumer that represents the execution of
-     * the request against a channel.
-     */
     @FunctionalInterface
-    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {
-    }
+    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {}
 
     /**
      * Prepare the request for execution. Implementations should consume all request params before

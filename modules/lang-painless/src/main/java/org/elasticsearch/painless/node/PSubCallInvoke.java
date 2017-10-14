@@ -75,9 +75,10 @@ final class PSubCallInvoke extends AExpression {
             writer.box(box.type);
         }
 
-        for (AExpression argument : arguments) {
-            argument.write(writer, globals);
-        }
+        arguments.forEach(
+                argument -> {
+                    argument.write(writer, globals);
+                });
 
         method.write(writer);
     }

@@ -398,10 +398,18 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertEquals(0, options.getOffset());
             assertEquals(4, options.getLength());
             assertEquals(2 ,options.getOptions().size());
-            for (Suggest.Suggestion.Entry.Option option : options) {
-                assertThat(option.getScore(), greaterThan(0f));
-                assertThat(option.getText().string(), either(equalTo("type1")).or(equalTo("type2")));
-            }
+            options.stream()
+                    .map(
+                            option -> {
+                                assertThat(option.getScore(), greaterThan(0f));
+                                return option;
+                            })
+                    .forEach(
+                            option -> {
+                                assertThat(
+                                        option.getText().string(),
+                                        either(equalTo("type1")).or(equalTo("type2")));
+                            });
         }
     }
 

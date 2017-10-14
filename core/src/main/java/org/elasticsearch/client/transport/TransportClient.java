@@ -105,20 +105,30 @@ public abstract class TransportClient extends AbstractClient {
         return addPlugins(collection, Arrays.asList(plugins));
     }
 
-    protected static Collection<Class<? extends Plugin>> addPlugins(Collection<Class<? extends Plugin>> collection,
+    protected static Collection<Class<? extends Plugin>> addPlugins(
+            Collection<Class<? extends Plugin>> collection,
             Collection<Class<? extends Plugin>> plugins) {
         ArrayList<Class<? extends Plugin>> list = new ArrayList<>(collection);
-        for (Class<? extends Plugin> p : plugins) {
-            if (list.contains(p)) {
-                throw new IllegalArgumentException("plugin already exists: " + p);
-            }
-            list.add(p);
-        }
+        plugins.stream()
+                .map(
+                        p -> {
+                            if (list.contains(p)) {
+                                throw new IllegalArgumentException("plugin already exists: " + p);
+                            }
+                            return p;
+                        })
+                .forEach(
+                        p -> {
+                            list.add(p);
+                        });
         return list;
     }
 
-    private static ClientTemplate buildTemplate(Settings providedSettings, Settings defaultSettings,
-                                                Collection<Class<? extends Plugin>> plugins, HostFailureListener failureListner) {
+    private static ClientTemplate buildTemplate(
+            Settings providedSettings,
+            Settings defaultSettings,
+            Collection<Class<? extends Plugin>> plugins,
+            HostFailureListener failureListner) {
         if (Node.NODE_NAME_SETTING.exists(providedSettings) == false) {
             providedSettings = Settings.builder().put(providedSettings).put(Node.NODE_NAME_SETTING.getKey(), "_client_").build();
         }
@@ -335,25 +345,31 @@ public abstract class TransportClient extends AbstractClient {
         return this;
     }
 
-    /**
-     * Closes the client.
-     */
+    /** Closes the client. */
     @Override
     public void close() {
         List<Closeable> closeables = new ArrayList<>();
         closeables.add(nodesService);
         closeables.add(injector.getInstance(TransportService.class));
 
-        for (LifecycleComponent plugin : pluginLifecycleComponents) {
-            closeables.add(plugin);
-        }
+        pluginLifecycleComponents.forEach(
+                plugin -> {
+                    closeables.add(plugin);
+                });
         closeables.add(() -> ThreadPool.terminate(injector.getInstance(ThreadPool.class), 10, TimeUnit.SECONDS));
         closeables.add(injector.getInstance(BigArrays.class));
         IOUtils.closeWhileHandlingException(closeables);
     }
 
     @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+    protected <
+                    Request extends ActionRequest,
+                    Response extends ActionResponse,
+                    RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
+            void doExecute(
+                    Action<Request, Response, RequestBuilder> action,
+                    Request request,
+                    ActionListener<Response> listener) {
         proxy.execute(action, request, listener);
     }
 

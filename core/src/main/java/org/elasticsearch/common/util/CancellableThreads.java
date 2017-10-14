@@ -149,7 +149,10 @@ public class CancellableThreads {
         threads.remove(Thread.currentThread());
     }
 
-    /** cancel all current running operations. Future calls to {@link #checkForCancel()} will be failed with the given reason */
+    /**
+     * cancel all current running operations. Future calls to {@link #checkForCancel()} will be
+     * failed with the given reason
+     */
     public synchronized void cancel(String reason) {
         if (cancelled) {
             // we were already cancelled, make sure we don't interrupt threads twice
@@ -159,12 +162,12 @@ public class CancellableThreads {
         }
         cancelled = true;
         this.reason = reason;
-        for (Thread thread : threads) {
-            thread.interrupt();
-        }
+        threads.forEach(
+                thread -> {
+                    thread.interrupt();
+                });
         threads.clear();
     }
-
 
     public interface Interruptable extends IOInterruptable {
         void run() throws InterruptedException;

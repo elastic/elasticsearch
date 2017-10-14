@@ -54,17 +54,17 @@ public class BroadcastResponse extends ActionResponse {
                 shardFailures.toArray(new ShardOperationFailedException[shardFailures.size()]);
     }
 
-    private void assertNoShardNotAvailableFailures(List<? extends ShardOperationFailedException> shardFailures) {
+    private void assertNoShardNotAvailableFailures(
+            List<? extends ShardOperationFailedException> shardFailures) {
         if (shardFailures != null) {
-            for (Object e : shardFailures) {
-                assert (e instanceof ShardNotFoundException) == false : "expected no ShardNotFoundException failures, but got " + e;
-            }
+            shardFailures.forEach(
+                    e -> {
+                        assert (e instanceof ShardNotFoundException) == false
+                                : "expected no ShardNotFoundException failures, but got " + e;
+                    });
         }
     }
 
-    /**
-     * The total shards this request ran against.
-     */
     public int getTotalShards() {
         return totalShards;
     }

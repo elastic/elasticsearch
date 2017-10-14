@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAggregatorFactory> {
 
@@ -98,7 +97,7 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         }
     }
 
-    @SuppressWarnings({ "unchecked" })
+    @SuppressWarnings({"unchecked"})
     private static <T> T deepCopyParams(T original, SearchContext context) {
         T clone;
         if (original instanceof Map) {
@@ -111,9 +110,10 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         } else if (original instanceof List) {
             List<?> originalList = (List<?>) original;
             List<Object> clonedList = new ArrayList<>();
-            for (Object o : originalList) {
-                clonedList.add(deepCopyParams(o, context));
-            }
+            originalList.forEach(
+                    o -> {
+                        clonedList.add(deepCopyParams(o, context));
+                    });
             clone = (T) clonedList;
         } else if (original instanceof String || original instanceof Integer || original instanceof Long || original instanceof Short
             || original instanceof Byte || original instanceof Float || original instanceof Double || original instanceof Character
@@ -125,6 +125,4 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         }
         return clone;
     }
-
-
 }

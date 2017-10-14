@@ -71,20 +71,27 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
     }
 
     @Override
-    protected FieldCapabilitiesIndexResponse shardOperation(final FieldCapabilitiesIndexRequest request, ShardId shardId) {
+    protected FieldCapabilitiesIndexResponse shardOperation(
+            final FieldCapabilitiesIndexRequest request, ShardId shardId) {
         MapperService mapperService = indicesService.indexServiceSafe(shardId.getIndex()).mapperService();
         Set<String> fieldNames = new HashSet<>();
         for (String field : request.fields()) {
             fieldNames.addAll(mapperService.simpleMatchToIndexNames(field));
         }
         Map<String, FieldCapabilities> responseMap = new HashMap<>();
-        for (String field : fieldNames) {
-            MappedFieldType ft = mapperService.fullName(field);
-            if (ft != null) {
-                FieldCapabilities fieldCap = new FieldCapabilities(field, ft.typeName(), ft.isSearchable(), ft.isAggregatable());
-                responseMap.put(field, fieldCap);
-            }
-        }
+        fieldNames.forEach(
+                field -> {
+                    MappedFieldType ft = mapperService.fullName(field);
+                    if (ft != null) {
+                        FieldCapabilities fieldCap =
+                                new FieldCapabilities(
+                                        field,
+                                        ft.typeName(),
+                                        ft.isSearchable(),
+                                        ft.isAggregatable());
+                        responseMap.put(field, fieldCap);
+                    }
+                });
         return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), responseMap);
     }
 

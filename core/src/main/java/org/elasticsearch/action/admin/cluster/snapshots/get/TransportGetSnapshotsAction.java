@@ -159,15 +159,18 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return (snapshots.length == 1 && GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshots[0]));
     }
 
-    private List<SnapshotInfo> buildSimpleSnapshotInfos(final Set<SnapshotId> toResolve,
-                                                        final RepositoryData repositoryData,
-                                                        final List<SnapshotInfo> currentSnapshots) {
+    private List<SnapshotInfo> buildSimpleSnapshotInfos(
+            final Set<SnapshotId> toResolve,
+            final RepositoryData repositoryData,
+            final List<SnapshotInfo> currentSnapshots) {
         List<SnapshotInfo> snapshotInfos = new ArrayList<>();
-        for (SnapshotInfo snapshotInfo : currentSnapshots) {
-            if (toResolve.remove(snapshotInfo.snapshotId())) {
-                snapshotInfos.add(snapshotInfo.basic());
-            }
-        }
+        currentSnapshots
+                .stream()
+                .filter(snapshotInfo -> toResolve.remove(snapshotInfo.snapshotId()))
+                .forEach(
+                        snapshotInfo -> {
+                            snapshotInfos.add(snapshotInfo.basic());
+                        });
         Map<SnapshotId, List<String>> snapshotsToIndices = new HashMap<>();
         for (IndexId indexId : repositoryData.getIndices().values()) {
             for (SnapshotId snapshotId : repositoryData.getSnapshots(indexId)) {

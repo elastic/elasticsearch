@@ -203,36 +203,32 @@ public class Augmentation {
         }
         return sum;
     }
-    
+
     // some groovy methods on collection
     // see http://docs.groovy-lang.org/latest/html/groovy-jdk/java/util/Collection.html
-    
+
     /**
-     * Iterates through this collection transforming each entry into a new value using 
-     * the function, returning a list of transformed values. 
+     * Iterates through this collection transforming each entry into a new value using the function,
+     * returning a list of transformed values.
      */
-    public static <T,U> List<U> collect(Collection<T> receiver, Function<T,U> function) {
+    public static <T, U> List<U> collect(Collection<T> receiver, Function<T, U> function) {
         List<U> list = new ArrayList<>();
-        for (T t : receiver) {
-            list.add(function.apply(t));
-        }
+        receiver.forEach(
+                t -> {
+                    list.add(function.apply(t));
+                });
         return list;
     }
-    
-    /**
-     * Iterates through this collection transforming each entry into a new value using 
-     * the function, adding the values to the specified collection.
-     */
-    public static <T,U> Object collect(Collection<T> receiver, Collection<U> collection, Function<T,U> function) {
-        for (T t : receiver) {
-            collection.add(function.apply(t));
-        }
+
+    public static <T, U> Object collect(
+            Collection<T> receiver, Collection<U> collection, Function<T, U> function) {
+        receiver.forEach(
+                t -> {
+                    collection.add(function.apply(t));
+                });
         return collection;
     }
-    
-    /**
-     * Finds the first value matching the predicate, or returns null.
-     */
+
     public static <T> T find(Collection<T> receiver, Predicate<T> predicate) {
         for (T t : receiver) {
             if (predicate.test(t)) {
@@ -241,26 +237,20 @@ public class Augmentation {
         }
         return null;
     }
-    
-    /**
-     * Finds all values matching the predicate, returns as a list
-     */
+
+    /** Finds all values matching the predicate, returns as a list */
     public static <T> List<T> findAll(Collection<T> receiver, Predicate<T> predicate) {
         List<T> list = new ArrayList<>();
-        for (T t : receiver) {
-            if (predicate.test(t)) {
-                list.add(t);
-            }
-        }
+        receiver.stream()
+                .filter(t -> predicate.test(t))
+                .forEach(
+                        t -> {
+                            list.add(t);
+                        });
         return list;
     }
-    
-    /**
-     * Iterates through the collection calling the given function for each item 
-     * but stopping once the first non-null result is found and returning that result. 
-     * If all results are null, null is returned. 
-     */
-    public static <T,U> Object findResult(Collection<T> receiver, Function<T,U> function) {
+
+    public static <T, U> Object findResult(Collection<T> receiver, Function<T, U> function) {
         return findResult(receiver, null, function);
     }
     

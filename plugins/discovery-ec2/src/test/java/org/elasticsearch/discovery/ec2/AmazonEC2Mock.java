@@ -556,7 +556,9 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
-    public DescribeInstancesResult describeInstances(DescribeInstancesRequest describeInstancesRequest) throws AmazonServiceException, AmazonClientException {
+    public DescribeInstancesResult describeInstances(
+            DescribeInstancesRequest describeInstancesRequest)
+            throws AmazonServiceException, AmazonClientException {
         Collection<Instance> filteredInstances = new ArrayList<>();
 
         logger.debug("--> mocking describeInstances");
@@ -613,11 +615,12 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
                     for (String expectedValue : expectedTagsEntry.getValue()) {
                         boolean valueFound = false;
-                        for (String instanceTagValue : instanceTagValues) {
-                            if (instanceTagValue.equals(expectedValue)) {
-                                valueFound = true;
-                            }
-                        }
+                        instanceTagValues.forEach(
+                                instanceTagValue -> {
+                                    if (instanceTagValue.equals(expectedValue)) {
+                                        valueFound = true;
+                                    }
+                                });
                         if (valueFound == false) {
                             instanceFound = false;
                         }
@@ -637,8 +640,6 @@ public class AmazonEC2Mock implements AmazonEC2 {
                 new Reservation().withInstances(filteredInstances)
         );
     }
-
-    // Not implemented methods in Mock
 
     @Override
     public void setEndpoint(String endpoint) throws IllegalArgumentException {

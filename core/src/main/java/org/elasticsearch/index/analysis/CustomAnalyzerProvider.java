@@ -46,8 +46,10 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         this.environment = environment;
     }
 
-    public void build(final Map<String, TokenizerFactory> tokenizers, final Map<String, CharFilterFactory> charFilters,
-                      final Map<String, TokenFilterFactory> tokenFilters) {
+    public void build(
+            final Map<String, TokenizerFactory> tokenizers,
+            final Map<String, CharFilterFactory> charFilters,
+            final Map<String, TokenFilterFactory> tokenFilters) {
         String tokenizerName = analyzerSettings.get("tokenizer");
         if (tokenizerName == null) {
             throw new IllegalArgumentException("Custom Analyzer [" + name() + "] must be configured with a tokenizer");
@@ -76,16 +78,37 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
 
         List<String> tokenFilterNames = analyzerSettings.getAsList("filter");
         List<TokenFilterFactory> tokenFilterList = new ArrayList<>(tokenFilterNames.size());
-        for (String tokenFilterName : tokenFilterNames) {
-            TokenFilterFactory tokenFilter = tokenFilters.get(tokenFilterName);
-            if (tokenFilter == null) {
-                throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find filter under name [" + tokenFilterName + "]");
-            }
-            // no need offsetGap for tokenize synonyms
-            tokenFilter = checkAndApplySynonymFilter(tokenFilter, tokenizerName, tokenizer, tokenFilterList, charFiltersList,
-                this.environment);
-            tokenFilterList.add(tokenFilter);
-        }
+        tokenFilterNames
+                .stream()
+                .map(
+                        tokenFilterName -> {
+                            TokenFilterFactory tokenFilter = tokenFilters.get(tokenFilterName);
+                            if (tokenFilter == null) {
+                                throw new IllegalArgumentException(
+                                        "Custom Analyzer ["
+                                                + name()
+                                                + "] failed to find filter under name ["
+                                                + tokenFilterName
+                                                + "]");
+                            }
+                            return tokenFilter;
+                        })
+                .map(
+                        tokenFilter -> {
+                            tokenFilter =
+                                    checkAndApplySynonymFilter(
+                                            tokenFilter,
+                                            tokenizerName,
+                                            tokenizer,
+                                            tokenFilterList,
+                                            charFiltersList,
+                                            this.environment);
+                            return tokenFilter;
+                        })
+                .forEach(
+                        tokenFilter -> {
+                            tokenFilterList.add(tokenFilter);
+                        });
 
         this.customAnalyzer = new CustomAnalyzer(tokenizerName, tokenizer,
                 charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
@@ -95,9 +118,13 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         );
     }
 
-    public static TokenFilterFactory checkAndApplySynonymFilter(TokenFilterFactory tokenFilter, String tokenizerName, TokenizerFactory tokenizer,
-                                                                List<TokenFilterFactory> tokenFilterList,
-                                                                List<CharFilterFactory> charFiltersList, Environment env) {
+    public static TokenFilterFactory checkAndApplySynonymFilter(
+            TokenFilterFactory tokenFilter,
+            String tokenizerName,
+            TokenizerFactory tokenizer,
+            List<TokenFilterFactory> tokenFilterList,
+            List<CharFilterFactory> charFiltersList,
+            Environment env) {
         if (tokenFilter instanceof SynonymGraphTokenFilterFactory) {
             List<TokenFilterFactory> tokenFiltersListForSynonym = new ArrayList<>(tokenFilterList);
 

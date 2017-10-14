@@ -53,9 +53,10 @@ public final class EMapInit extends AExpression {
             key.extractVariables(variables);
         }
 
-        for (AExpression value : values) {
-            value.extractVariables(variables);
-        }
+        values.forEach(
+                value -> {
+                    value.extractVariables(variables);
+                });
     }
 
     @Override

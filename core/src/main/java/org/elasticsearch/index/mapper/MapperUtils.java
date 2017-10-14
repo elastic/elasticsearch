@@ -25,7 +25,10 @@ enum MapperUtils {
     ;
 
     /** Split mapper and its descendants into object and field mappers. */
-    public static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
+    public static void collect(
+            Mapper mapper,
+            Collection<ObjectMapper> objectMappers,
+            Collection<FieldMapper> fieldMappers) {
         if (mapper instanceof RootObjectMapper) {
             // root mapper isn't really an object mapper
         } else if (mapper instanceof ObjectMapper) {
@@ -33,8 +36,9 @@ enum MapperUtils {
         } else if (mapper instanceof FieldMapper) {
             fieldMappers.add((FieldMapper)mapper);
         }
-        for (Mapper child : mapper) {
-            collect(child, objectMappers, fieldMappers);
-        }
+        mapper.forEach(
+                child -> {
+                    collect(child, objectMappers, fieldMappers);
+                });
     }
 }

@@ -339,21 +339,29 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest.getPreFilterShardSize() < shardIterators.size();
     }
 
-    static GroupShardsIterator<SearchShardIterator> mergeShardsIterators(GroupShardsIterator<ShardIterator> localShardsIterator,
-                                                             OriginalIndices localIndices,
-                                                             List<SearchShardIterator> remoteShardIterators) {
+    static GroupShardsIterator<SearchShardIterator> mergeShardsIterators(
+            GroupShardsIterator<ShardIterator> localShardsIterator,
+            OriginalIndices localIndices,
+            List<SearchShardIterator> remoteShardIterators) {
         List<SearchShardIterator> shards = new ArrayList<>();
         for (SearchShardIterator shardIterator : remoteShardIterators) {
             shards.add(shardIterator);
         }
-        for (ShardIterator shardIterator : localShardsIterator) {
-            shards.add(new SearchShardIterator(null, shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
-        }
+        localShardsIterator.forEach(
+                shardIterator -> {
+                    shards.add(
+                            new SearchShardIterator(
+                                    null,
+                                    shardIterator.shardId(),
+                                    shardIterator.getShardRoutings(),
+                                    localIndices));
+                });
         return new GroupShardsIterator<>(shards);
     }
 
     @Override
-    protected final void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+    protected final void doExecute(
+            SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         throw new UnsupportedOperationException("the task parameter is required");
     }
 

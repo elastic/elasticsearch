@@ -182,14 +182,19 @@ public class MasterFaultDetection extends FaultDetection {
         }
     }
 
-    private void notifyMasterFailure(final DiscoveryNode masterNode, final Throwable cause, final String reason) {
+    private void notifyMasterFailure(
+            final DiscoveryNode masterNode, final Throwable cause, final String reason) {
         if (notifiedMasterFailure.compareAndSet(false, true)) {
             try {
-                threadPool.generic().execute(() -> {
-                    for (Listener listener : listeners) {
-                        listener.onMasterFailure(masterNode, cause, reason);
-                    }
-                });
+                threadPool
+                        .generic()
+                        .execute(
+                                () -> {
+                                    listeners.forEach(
+                                            listener -> {
+                                                listener.onMasterFailure(masterNode, cause, reason);
+                                            });
+                                });
             } catch (EsRejectedExecutionException e) {
                 logger.error("master failure notification was rejected, it's highly likely the node is shutting down", e);
             }

@@ -178,13 +178,17 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         assertTrue(latch.await(5, TimeUnit.SECONDS));
 
         assertEquals(numRequests, responses.size());
-        for (TestResponse testResponse : responses) {
-            Response response = testResponse.getResponse();
-            assertEquals(testResponse.method, response.getRequestLine().getMethod());
-            assertEquals(testResponse.statusCode, response.getStatusLine().getStatusCode());
-            assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + testResponse.statusCode,
-                    response.getRequestLine().getUri());
-        }
+        responses.forEach(
+                testResponse -> {
+                    Response response = testResponse.getResponse();
+                    assertEquals(testResponse.method, response.getRequestLine().getMethod());
+                    assertEquals(testResponse.statusCode, response.getStatusLine().getStatusCode());
+                    assertEquals(
+                            (pathPrefix.length() > 0 ? pathPrefix : "")
+                                    + "/"
+                                    + testResponse.statusCode,
+                            response.getRequestLine().getUri());
+                });
     }
 
     private static class TestResponse {

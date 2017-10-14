@@ -99,9 +99,10 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             latches.add(finishRequest(url));
         }
 
-        for (final CountDownLatch latch : latches) {
-            latch.await();
-        }
+        latches.forEach(
+                latch -> {
+                    latch.await();
+                });
 
         embeddedChannel.flush();
 
@@ -112,7 +113,8 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertTrue(embeddedChannel.isOpen());
     }
 
-    public void testThatPipeliningWorksWhenSlowRequestsInDifferentOrder() throws InterruptedException {
+    public void testThatPipeliningWorksWhenSlowRequestsInDifferentOrder()
+            throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new HttpPipeliningHandler(logger, numberOfRequests),
             new WorkEmulatorHandler());
@@ -129,9 +131,10 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             latches.add(finishRequest(url));
         }
 
-        for (final CountDownLatch latch : latches) {
-            latch.await();
-        }
+        latches.forEach(
+                latch -> {
+                    latch.await();
+                });
 
         embeddedChannel.flush();
 
@@ -161,9 +164,10 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             latches.add(finishRequest(Integer.toString(i)));
         }
 
-        for (final CountDownLatch latch : latches) {
-            latch.await();
-        }
+        latches.forEach(
+                latch -> {
+                    latch.await();
+                });
 
         embeddedChannel.flush();
 
@@ -191,9 +195,10 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             latches.add(finishRequest(request.toString()));
         }
 
-        for (final CountDownLatch latch : latches) {
-            latch.await();
-        }
+        latches.forEach(
+                latch -> {
+                    latch.await();
+                });
 
         finishRequest(Integer.toString(numberOfRequests + 1)).await();
 
@@ -230,14 +235,20 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             assertFalse(promise.isDone());
         }
         embeddedChannel.close().syncUninterruptibly();
-        for (ChannelPromise promise : promises) {
-            assertTrue(promise.isDone());
-            assertTrue(promise.cause() instanceof ClosedChannelException);
-        }
+        promises.stream()
+                .map(
+                        promise -> {
+                            assertTrue(promise.isDone());
+                            return promise;
+                        })
+                .forEach(
+                        promise -> {
+                            assertTrue(promise.cause() instanceof ClosedChannelException);
+                        });
     }
 
-
-    private void assertReadHttpMessageHasContent(EmbeddedChannel embeddedChannel, String expectedContent) {
+    private void assertReadHttpMessageHasContent(
+            EmbeddedChannel embeddedChannel, String expectedContent) {
         FullHttpResponse response = (FullHttpResponse) embeddedChannel.outboundMessages().poll();
         assertNotNull("Expected response to exist, maybe you did not wait long enough?", response);
         assertNotNull("Expected response to have content " + expectedContent, response.content());

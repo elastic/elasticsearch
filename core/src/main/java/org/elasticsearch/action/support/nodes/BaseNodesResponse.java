@@ -93,9 +93,10 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
     public Map<String, TNodeResponse> getNodesMap() {
         if (nodesMap == null) {
             nodesMap = new HashMap<>();
-            for (TNodeResponse nodeResponse : nodes) {
-                nodesMap.put(nodeResponse.getNode().getId(), nodeResponse);
-            }
+            nodes.forEach(
+                    nodeResponse -> {
+                        nodesMap.put(nodeResponse.getNode().getId(), nodeResponse);
+                    });
         }
         return nodesMap;
     }

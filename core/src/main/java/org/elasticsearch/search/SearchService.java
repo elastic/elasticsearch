@@ -849,8 +849,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Shortcut ids to load, we load only "from" and up to "size". The phase controller
-     * handles this as well since the result is always size * shards for Q_A_F
+     * Shortcut ids to load, we load only "from" and up to "size". The phase controller handles this
+     * as well since the result is always size * shards for Q_A_F
      */
     private void shortcutDocIdsToLoad(SearchContext context) {
         final int[] docIdsToLoad;
@@ -860,9 +860,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final List<CompletionSuggestion> completionSuggestions;
         if (suggest != null && suggest.hasScoreDocs()) {
             completionSuggestions = suggest.filter(CompletionSuggestion.class);
-            for (CompletionSuggestion completionSuggestion : completionSuggestions) {
-                numSuggestDocs += completionSuggestion.getOptions().size();
-            }
+            completionSuggestions
+                    .stream()
+                    .map(completionSuggestion -> completionSuggestion.getOptions().size())
+                    .reduce(numSuggestDocs, Integer::sum);
         } else {
             completionSuggestions = Collections.emptyList();
         }
@@ -894,7 +895,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
     }
 
-    private void processScroll(InternalScrollSearchRequest request, SearchContext context) throws IOException {
+    private void processScroll(InternalScrollSearchRequest request, SearchContext context)
+            throws IOException {
         // process scroll
         context.from(context.from() + context.size());
         context.scrollContext().scroll = request.scroll();

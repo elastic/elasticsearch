@@ -201,23 +201,18 @@ public class PendingClusterStatesQueue {
         return null;
     }
 
-    /** clear the incoming queue. any committed state will be failed
-     */
+    /** clear the incoming queue. any committed state will be failed */
     public synchronized void failAllStatesAndClear(Exception reason) {
-        for (ClusterStateContext pendingState : pendingStates) {
-            if (pendingState.committed()) {
-                pendingState.listener.onNewClusterStateFailed(reason);
-            }
-        }
+        pendingStates
+                .stream()
+                .filter(pendingState -> pendingState.committed())
+                .forEach(
+                        pendingState -> {
+                            pendingState.listener.onNewClusterStateFailed(reason);
+                        });
         pendingStates.clear();
     }
 
-    /**
-     * Gets the next committed state to process.
-     * <p>
-     * The method tries to batch operation by getting the cluster state the highest possible committed states
-     * which succeeds the first committed state in queue (i.e., it comes from the same master).
-     */
     public synchronized ClusterState getNextClusterStateToProcess() {
         if (pendingStates.isEmpty()) {
             return null;
@@ -252,9 +247,10 @@ public class PendingClusterStatesQueue {
     /** returns all pending states, committed or not */
     public synchronized ClusterState[] pendingClusterStates() {
         ArrayList<ClusterState> states = new ArrayList<>();
-        for (ClusterStateContext context : pendingStates) {
-            states.add(context.state);
-        }
+        pendingStates.forEach(
+                context -> {
+                    states.add(context.state);
+                });
         return states.toArray(new ClusterState[states.size()]);
     }
 
@@ -297,13 +293,12 @@ public class PendingClusterStatesQueue {
 
         // calculate committed cluster state
         int committed = 0;
-        for (ClusterStateContext clusterStatsContext : pendingStates) {
-            if (clusterStatsContext.committed()) {
-                committed += 1;
-            }
-        }
+        pendingStates
+                .stream()
+                .filter(clusterStatsContext -> clusterStatsContext.committed())
+                .map(_item -> 1)
+                .reduce(committed, Integer::sum);
 
         return new PendingClusterStateStats(pendingStates.size(), pendingStates.size() - committed, committed);
     }
-
 }

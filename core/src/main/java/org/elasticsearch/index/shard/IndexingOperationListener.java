@@ -90,77 +90,119 @@ public interface IndexingOperationListener {
         @Override
         public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
             assert operation != null;
-            for (IndexingOperationListener listener : listeners) {
-                try {
-                    listener.preIndex(shardId, operation);
-                } catch (Exception e) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("preIndex listener [{}] failed", listener), e);
-                }
-            }
+            listeners.forEach(
+                    listener -> {
+                        try {
+                            listener.preIndex(shardId, operation);
+                        } catch (Exception e) {
+                            logger.warn(
+                                    (Supplier<?>)
+                                            () ->
+                                                    new ParameterizedMessage(
+                                                            "preIndex listener [{}] failed",
+                                                            listener),
+                                    e);
+                        }
+                    });
             return operation;
         }
 
         @Override
         public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
             assert index != null;
-            for (IndexingOperationListener listener : listeners) {
-                try {
-                    listener.postIndex(shardId, index, result);
-                } catch (Exception e) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postIndex listener [{}] failed", listener), e);
-                }
-            }
+            listeners.forEach(
+                    listener -> {
+                        try {
+                            listener.postIndex(shardId, index, result);
+                        } catch (Exception e) {
+                            logger.warn(
+                                    (Supplier<?>)
+                                            () ->
+                                                    new ParameterizedMessage(
+                                                            "postIndex listener [{}] failed",
+                                                            listener),
+                                    e);
+                        }
+                    });
         }
 
         @Override
         public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
             assert index != null && ex != null;
-            for (IndexingOperationListener listener : listeners) {
-                try {
-                    listener.postIndex(shardId, index, ex);
-                } catch (Exception inner) {
-                    inner.addSuppressed(ex);
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postIndex listener [{}] failed", listener), inner);
-                }
-            }
+            listeners.forEach(
+                    listener -> {
+                        try {
+                            listener.postIndex(shardId, index, ex);
+                        } catch (Exception inner) {
+                            inner.addSuppressed(ex);
+                            logger.warn(
+                                    (Supplier<?>)
+                                            () ->
+                                                    new ParameterizedMessage(
+                                                            "postIndex listener [{}] failed",
+                                                            listener),
+                                    inner);
+                        }
+                    });
         }
 
         @Override
         public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
             assert delete != null;
-            for (IndexingOperationListener listener : listeners) {
-                try {
-                    listener.preDelete(shardId, delete);
-                } catch (Exception e) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("preDelete listener [{}] failed", listener), e);
-                }
-            }
+            listeners.forEach(
+                    listener -> {
+                        try {
+                            listener.preDelete(shardId, delete);
+                        } catch (Exception e) {
+                            logger.warn(
+                                    (Supplier<?>)
+                                            () ->
+                                                    new ParameterizedMessage(
+                                                            "preDelete listener [{}] failed",
+                                                            listener),
+                                    e);
+                        }
+                    });
             return delete;
         }
 
         @Override
         public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
             assert delete != null;
-            for (IndexingOperationListener listener : listeners) {
-                try {
-                    listener.postDelete(shardId, delete, result);
-                } catch (Exception e) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postDelete listener [{}] failed", listener), e);
-                }
-            }
+            listeners.forEach(
+                    listener -> {
+                        try {
+                            listener.postDelete(shardId, delete, result);
+                        } catch (Exception e) {
+                            logger.warn(
+                                    (Supplier<?>)
+                                            () ->
+                                                    new ParameterizedMessage(
+                                                            "postDelete listener [{}] failed",
+                                                            listener),
+                                    e);
+                        }
+                    });
         }
 
         @Override
         public void postDelete(ShardId shardId, Engine.Delete delete, Exception ex) {
             assert delete != null && ex != null;
-            for (IndexingOperationListener listener : listeners) {
-                try {
-                    listener.postDelete(shardId, delete, ex);
-                } catch (Exception inner) {
-                    inner.addSuppressed(ex);
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postDelete listener [{}] failed", listener), inner);
-                }
-            }
+            listeners.forEach(
+                    listener -> {
+                        try {
+                            listener.postDelete(shardId, delete, ex);
+                        } catch (Exception inner) {
+                            inner.addSuppressed(ex);
+                            logger.warn(
+                                    (Supplier<?>)
+                                            () ->
+                                                    new ParameterizedMessage(
+                                                            "postDelete listener [{}] failed",
+                                                            listener),
+                                    inner);
+                        }
+                    });
         }
     }
 }

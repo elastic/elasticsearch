@@ -228,16 +228,20 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
 
     protected Map<String, ValuesSourceConfig<VS>> resolveConfig(SearchContext context) {
         HashMap<String, ValuesSourceConfig<VS>> configs = new HashMap<>();
-        for (String field : fields) {
-            ValuesSourceConfig<VS> config = config(context, field, null);
-            configs.put(field, config);
-        }
+        fields.forEach(
+                field -> {
+                    ValuesSourceConfig<VS> config = config(context, field, null);
+                    configs.put(field, config);
+                });
         return configs;
     }
 
-    protected abstract MultiValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context,
-            Map<String, ValuesSourceConfig<VS>> configs, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+    protected abstract MultiValuesSourceAggregatorFactory<VS, ?> innerBuild(
+            SearchContext context,
+            Map<String, ValuesSourceConfig<VS>> configs,
+            AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subFactoriesBuilder)
+            throws IOException;
 
     public ValuesSourceConfig<VS> config(SearchContext context, String field, Script script) {
 

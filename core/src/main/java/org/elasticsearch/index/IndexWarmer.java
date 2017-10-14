@@ -74,9 +74,10 @@ public final class IndexWarmer extends AbstractComponent {
         long time = System.nanoTime();
         final List<TerminationHandle> terminationHandles = new ArrayList<>();
         // get a handle on pending tasks
-        for (final Listener listener : listeners) {
-            terminationHandles.add(listener.warmReader(shard, searcher));
-        }
+        listeners.forEach(
+                listener -> {
+                    terminationHandles.add(listener.warmReader(shard, searcher));
+                });
         // wait for termination
         for (TerminationHandle terminationHandle : terminationHandles) {
             try {
@@ -94,7 +95,6 @@ public final class IndexWarmer extends AbstractComponent {
         }
     }
 
-    /** A handle on the execution of  warm-up action. */
     public interface TerminationHandle {
 
         TerminationHandle NO_WAIT = () -> {};

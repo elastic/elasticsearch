@@ -21,14 +21,21 @@ package org.elasticsearch.action.support.master;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Abstract class that allows to mark action responses that support acknowledgements.
  * Facilitates consistency across different api.
  */
-public abstract class AcknowledgedResponse extends ActionResponse {
+public abstract class AcknowledgedResponse extends ActionResponse implements ToXContentObject {
+
+    private static final String ACKNOWLEDGED = "acknowledged";
 
     private boolean acknowledged;
 
@@ -60,5 +67,42 @@ public abstract class AcknowledgedResponse extends ActionResponse {
      */
     protected void writeAcknowledged(StreamOutput out) throws IOException {
         out.writeBoolean(acknowledged);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("acknowledged", acknowledged);
+        builder.endObject();
+        return builder;
+    }
+
+    protected static void parseInnerToXContent(XContentParser parser, AcknowledgedResponse.Builder context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+
+        String currentFieldName = parser.currentName();
+        token = parser.nextToken();
+
+        if (token.isValue()) {
+            if (ACKNOWLEDGED.equals(currentFieldName)) {
+                context.setAcknowledged(parser.booleanValue());
+            }
+        }
+    }
+
+    public abstract static class Builder {
+
+        protected boolean acknowledged = false;
+
+        public boolean isAcknowledged() {
+            return acknowledged;
+        }
+
+        public void setAcknowledged(boolean acknowledged) {
+            this.acknowledged = acknowledged;
+        }
+
+        public abstract AcknowledgedResponse build();
     }
 }

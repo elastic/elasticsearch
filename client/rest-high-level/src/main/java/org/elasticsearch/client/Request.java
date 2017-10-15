@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -119,6 +120,17 @@ public final class Request {
         parameters.withVersionType(deleteRequest.versionType());
         parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
+
+        return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+
+    static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
+        String endpoint = endpoint(deleteIndexRequest.indices(), "");
+
+        Params parameters = Params.builder();
+        parameters.withTimeout(deleteIndexRequest.timeout());
+        parameters.withIndicesOptions(deleteIndexRequest.indicesOptions());
 
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
@@ -376,6 +388,11 @@ public final class Request {
 
     static String endpoint(String[] indices, String[] types, String endpoint) {
         return endpoint(String.join(",", indices), String.join(",", types), endpoint);
+    }
+
+
+    static String endpoint(String[] indices, String endpoint) {
+        return endpoint(String.join(",", indices), endpoint);
     }
 
     /**

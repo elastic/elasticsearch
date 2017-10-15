@@ -26,6 +26,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -328,7 +330,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Deletes a document by id using the Delete api
-     *
+     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
      */
     public DeleteResponse delete(DeleteRequest deleteRequest, Header... headers) throws IOException {
@@ -344,6 +346,26 @@ public class RestHighLevelClient implements Closeable {
     public void deleteAsync(DeleteRequest deleteRequest, ActionListener<DeleteResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(deleteRequest, Request::delete, DeleteResponse::fromXContent, listener,
             Collections.singleton(404), headers);
+    }
+
+    /**
+     * Deletes an index using the Delete Index api
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-delete-index.html">Delete API on elastic.co</a>
+     */
+    public DeleteIndexResponse deleteIndex(DeleteIndexRequest deleteIndexRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(deleteIndexRequest, Request::deleteIndex, DeleteIndexResponse::fromXContent, Collections.singleton(404),
+            headers);
+    }
+
+    /**
+     * Asynchronously deletes an index using the Delete Index api
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-delete-index.html">Delete API on elastic.co</a>
+     */
+    public void deleteIndexAsync(DeleteIndexRequest deleteIndexRequest, ActionListener<DeleteIndexResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(deleteIndexRequest, Request::deleteIndex, DeleteIndexResponse::fromXContent, listener, Collections.singleton(404),
+            headers);
     }
 
     /**

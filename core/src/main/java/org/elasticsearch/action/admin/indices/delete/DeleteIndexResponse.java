@@ -22,8 +22,11 @@ package org.elasticsearch.action.admin.indices.delete;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A response for a delete index action.
@@ -47,5 +50,35 @@ public class DeleteIndexResponse extends AcknowledgedResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
+    }
+
+    public static DeleteIndexResponse fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+
+        DeleteIndexResponse.Builder context = new DeleteIndexResponse.Builder();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            parseXContentFields(parser, context);
+        }
+        return context.build();
+    }
+
+    /**
+     * Parse the current token and update the parsing context appropriately.
+     */
+    private static void parseXContentFields(XContentParser parser, DeleteIndexResponse.Builder context) throws IOException {
+        AcknowledgedResponse.parseInnerToXContent(parser, context);
+    }
+
+    /**
+     * Builder class for {@link DeleteIndexResponse}. This builder is usually used during xcontent parsing to
+     * temporarily store the parsed values, then the {@link AcknowledgedResponse.Builder#build()} method is called to
+     * instantiate the {@link DeleteIndexResponse}.
+     */
+    public static class Builder extends AcknowledgedResponse.Builder {
+
+        @Override
+        public DeleteIndexResponse build() {
+            return new DeleteIndexResponse(acknowledged);
+        }
     }
 }

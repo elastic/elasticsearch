@@ -9,6 +9,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -25,12 +27,14 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardChangesActionTests extends ESSingleNodeTestCase {
 
     public void testGetOperationsBetween() throws Exception {
-        IndexService indexService = createIndex("index", Settings.builder()
+        final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
-                .build());
+                .put("index.translog.generation_threshold_size", new ByteSizeValue(randomIntBetween(8, 64), ByteSizeUnit.KB))
+                .build();
+        final IndexService indexService = createIndex("index", settings);
 
-        final int numWrites = randomIntBetween(2, 2048);
+        final int numWrites = randomIntBetween(2, 8192);
         for (int i = 0; i < numWrites; i++) {
             client().prepareIndex("index", "doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }

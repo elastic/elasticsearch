@@ -72,13 +72,6 @@ public class PublishClusterStateAction extends AbstractComponent {
     public static final String SEND_ACTION_NAME = "internal:discovery/zen/publish/send";
     public static final String COMMIT_ACTION_NAME = "internal:discovery/zen/publish/commit";
 
-    public PublishClusterStateStats stats() {
-        return new PublishClusterStateStats(
-            fullClusterStateReceivedCount.get(),
-            clusterStateDiffReceivedCount.get(),
-            compatibleClusterStateDiffReceivedCount.get());
-    }
-
     public interface IncomingClusterStateListener {
 
         /**
@@ -99,7 +92,7 @@ public class PublishClusterStateAction extends AbstractComponent {
     private final DiscoverySettings discoverySettings;
 
     private final AtomicLong fullClusterStateReceivedCount = new AtomicLong();
-    private final AtomicLong clusterStateDiffReceivedCount = new AtomicLong();
+    private final AtomicLong incompatibleClusterStateDiffReceivedCount = new AtomicLong();
     private final AtomicLong compatibleClusterStateDiffReceivedCount = new AtomicLong();
 
     public PublishClusterStateAction(
@@ -396,14 +389,15 @@ public class PublishClusterStateAction extends AbstractComponent {
                     logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(),
                         request.bytes().length());
                 } else if (lastSeenClusterState != null) {
-                    clusterStateDiffReceivedCount.incrementAndGet();
+                    incompatibleClusterStateDiffReceivedCount.incrementAndGet();
                     Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeenClusterState.nodes().getLocalNode());
                     incomingState = diff.apply(lastSeenClusterState);
+                    incompatibleClusterStateDiffReceivedCount.decrementAndGet();
                     compatibleClusterStateDiffReceivedCount.incrementAndGet();
                     logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
                         incomingState.version(), incomingState.stateUUID(), request.bytes().length());
                 } else {
-                    clusterStateDiffReceivedCount.incrementAndGet();
+                    incompatibleClusterStateDiffReceivedCount.incrementAndGet();
                     logger.debug("received diff for but don't have any local cluster state - requesting full state");
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 }
@@ -651,5 +645,12 @@ public class PublishClusterStateAction extends AbstractComponent {
         public void setPublishingTimedOut(boolean isTimedOut) {
             publishingTimedOut.set(isTimedOut);
         }
+    }
+
+    public PublishClusterStateStats stats() {
+        return new PublishClusterStateStats(
+            fullClusterStateReceivedCount.get(),
+            incompatibleClusterStateDiffReceivedCount.get(),
+            compatibleClusterStateDiffReceivedCount.get());
     }
 }

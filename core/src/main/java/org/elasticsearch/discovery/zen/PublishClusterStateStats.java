@@ -33,32 +33,32 @@ import java.io.IOException;
 public class PublishClusterStateStats implements Writeable, ToXContentObject {
 
     private final long fullClusterStateReceivedCount;
-    private final long clusterStateDiffReceivedCount;
+    private final long incompatibleClusterStateDiffReceivedCount;
     private final long compatibleClusterStateDiffReceivedCount;
 
     /**
      * @param fullClusterStateReceivedCount the number of times this node has received a full copy of the cluster state from the master.
-     * @param clusterStateDiffReceivedCount the number of times this node has received a cluster-state diff from the master.
+     * @param incompatibleClusterStateDiffReceivedCount the number of times this node has received a cluster-state diff from the master.
      * @param compatibleClusterStateDiffReceivedCount the number of times that received cluster-state diffs were compatible with
      */
     public PublishClusterStateStats(long fullClusterStateReceivedCount,
-                                    long clusterStateDiffReceivedCount,
+                                    long incompatibleClusterStateDiffReceivedCount,
                                     long compatibleClusterStateDiffReceivedCount) {
         this.fullClusterStateReceivedCount = fullClusterStateReceivedCount;
-        this.clusterStateDiffReceivedCount = clusterStateDiffReceivedCount;
+        this.incompatibleClusterStateDiffReceivedCount = incompatibleClusterStateDiffReceivedCount;
         this.compatibleClusterStateDiffReceivedCount = compatibleClusterStateDiffReceivedCount;
     }
 
     public PublishClusterStateStats(StreamInput in) throws IOException {
         fullClusterStateReceivedCount = in.readVLong();
-        clusterStateDiffReceivedCount = in.readVLong();
+        incompatibleClusterStateDiffReceivedCount = in.readVLong();
         compatibleClusterStateDiffReceivedCount = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(fullClusterStateReceivedCount);
-        out.writeVLong(clusterStateDiffReceivedCount);
+        out.writeVLong(incompatibleClusterStateDiffReceivedCount);
         out.writeVLong(compatibleClusterStateDiffReceivedCount);
     }
 
@@ -66,7 +66,7 @@ public class PublishClusterStateStats implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("published_cluster_states_received");
         builder.field("full_cluster_states", fullClusterStateReceivedCount);
-        builder.field("cluster_state_diffs", clusterStateDiffReceivedCount);
+        builder.field("incompatible_cluster_state_diffs", incompatibleClusterStateDiffReceivedCount);
         builder.field("compatible_cluster_state_diffs", compatibleClusterStateDiffReceivedCount);
         builder.endObject();
         return builder;
@@ -74,14 +74,14 @@ public class PublishClusterStateStats implements Writeable, ToXContentObject {
 
     public long getFullClusterStateReceivedCount() { return fullClusterStateReceivedCount; }
 
-    public long getClusterStateDiffReceivedCount() { return clusterStateDiffReceivedCount; }
+    public long getIncompatibleClusterStateDiffReceivedCount() { return incompatibleClusterStateDiffReceivedCount; }
 
     public long getCompatibleClusterStateDiffReceivedCount() { return compatibleClusterStateDiffReceivedCount; }
 
     @Override
     public String toString() {
         return "PublishClusterStateStats(full=" + fullClusterStateReceivedCount
-            + ", diffs=" + clusterStateDiffReceivedCount
+            + ", incompatible=" + incompatibleClusterStateDiffReceivedCount
             + ", compatible=" + compatibleClusterStateDiffReceivedCount
             + ")";
     }

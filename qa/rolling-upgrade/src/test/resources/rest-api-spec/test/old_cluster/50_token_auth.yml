@@ -68,12 +68,6 @@
   - do:
       headers:
         Authorization: Bearer ${token}
-      indices.flush:
-        index: token_index
-
-  - do:
-      headers:
-        Authorization: Bearer ${token}
       search:
         index: token_index
 

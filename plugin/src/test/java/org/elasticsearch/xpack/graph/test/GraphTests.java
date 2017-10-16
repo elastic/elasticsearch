@@ -101,6 +101,7 @@ public class GraphTests extends XPackSingleNodeTestCase {
         // issue https://github.com/elastic/x-pack-elasticsearch/issues/918
         ForceMergeResponse actionGet = client().admin().indices().prepareForceMerge("test").setFlush(true).setMaxNumSegments(1)
                 .execute().actionGet();
+        client().admin().indices().prepareRefresh("test").get();
         assertAllSuccessful(actionGet);
         for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get("test")) {
             ShardSegments[] shards = seg.getShards();

@@ -45,7 +45,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/** Unit tests for TCPTransport */
+/** Unit tests for {@link TcpTransport} */
 public class TcpTransportTests extends ESTestCase {
 
     /** Test ipv4 host with a default port works */
@@ -191,7 +191,7 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void closeChannels(List channel, boolean blocking, boolean closingTransport) throws IOException {
+                protected void closeChannels(List channel, boolean blocking, boolean doNotLinger) throws IOException {
 
                 }
 

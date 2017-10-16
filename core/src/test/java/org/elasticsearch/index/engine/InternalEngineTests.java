@@ -86,6 +86,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
@@ -942,7 +943,7 @@ public class InternalEngineTests extends ESTestCase {
         engine.index(indexForDoc(doc));
 
         final AtomicReference<Engine.GetResult> latestGetResult = new AtomicReference<>();
-        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+        final BiFunction<String, Engine.SearcherScope, Searcher> searcherFactory = engine::acquireSearcher;
         latestGetResult.set(engine.get(newGet(true, doc), searcherFactory));
         final AtomicBoolean flushFinished = new AtomicBoolean(false);
         final CyclicBarrier barrier = new CyclicBarrier(2);
@@ -977,7 +978,7 @@ public class InternalEngineTests extends ESTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         searchResult.close();
 
-        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+        final BiFunction<String, Engine.SearcherScope, Searcher> searcherFactory = engine::acquireSearcher;
 
         // create a document
         Document document = testDocumentWithTextField();
@@ -1001,6 +1002,12 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
+
+        // but not real time is not yet visible
+        getResult = engine.get(newGet(false, doc), searcherFactory);
+        assertThat(getResult.exists(), equalTo(false));
+        getResult.release();
+
 
         // refresh and it should be there
         engine.refresh("test");
@@ -1237,6 +1244,7 @@ public class InternalEngineTests extends ESTestCase {
                     assertTrue(engine.tryRenewSyncCommit());
                     assertEquals(1, engine.segments(false).size());
                 } else {
+                    engine.refresh("test");
                     assertBusy(() -> assertEquals(1, engine.segments(false).size()));
                 }
                 assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
@@ -1306,9 +1314,85 @@ public class InternalEngineTests extends ESTestCase {
         Engine.IndexResult indexResult = engine.index(create);
         assertThat(indexResult.getVersion(), equalTo(1L));
 
-        create = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), create.primaryTerm(), indexResult.getVersion(), create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
+        create = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), create.primaryTerm(), indexResult.getVersion(),
+            create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
         indexResult = replicaEngine.index(create);
         assertThat(indexResult.getVersion(), equalTo(1L));
+    }
+
+    public void testReplicatedVersioningWithFlush() throws IOException {
+        ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
+        Engine.Index create = new Engine.Index(newUid(doc), doc, Versions.MATCH_DELETED);
+        Engine.IndexResult indexResult = engine.index(create);
+        assertThat(indexResult.getVersion(), equalTo(1L));
+        assertTrue(indexResult.isCreated());
+
+
+        create = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), create.primaryTerm(), indexResult.getVersion(),
+            create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
+        indexResult = replicaEngine.index(create);
+        assertThat(indexResult.getVersion(), equalTo(1L));
+        assertTrue(indexResult.isCreated());
+
+        if (randomBoolean()) {
+            engine.flush();
+        }
+        if (randomBoolean()) {
+            replicaEngine.flush();
+        }
+
+        Engine.Index update = new Engine.Index(newUid(doc), doc, 1);
+        Engine.IndexResult updateResult = engine.index(update);
+        assertThat(updateResult.getVersion(), equalTo(2L));
+        assertFalse(updateResult.isCreated());
+
+
+        update = new Engine.Index(newUid(doc), doc, updateResult.getSeqNo(), update.primaryTerm(), updateResult.getVersion(),
+            update.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
+        updateResult = replicaEngine.index(update);
+        assertThat(updateResult.getVersion(), equalTo(2L));
+        assertFalse(updateResult.isCreated());
+        replicaEngine.refresh("test");
+        try (Searcher searcher = replicaEngine.acquireSearcher("test")) {
+            assertEquals(1, searcher.getDirectoryReader().numDocs());
+        }
+
+        engine.refresh("test");
+        try (Searcher searcher = engine.acquireSearcher("test")) {
+            assertEquals(1, searcher.getDirectoryReader().numDocs());
+        }
+    }
+
+    /**
+     * simulates what an upsert / update API does
+     */
+    public void testVersionedUpdate() throws IOException {
+        final BiFunction<String, Engine.SearcherScope, Searcher> searcherFactory = engine::acquireSearcher;
+
+        ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
+        Engine.Index create = new Engine.Index(newUid(doc), doc, Versions.MATCH_DELETED);
+        Engine.IndexResult indexResult = engine.index(create);
+        assertThat(indexResult.getVersion(), equalTo(1L));
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, doc.type(), doc.id(), create.uid()), searcherFactory)) {
+            assertEquals(1, get.version());
+        }
+
+        Engine.Index update_1 = new Engine.Index(newUid(doc), doc, 1);
+        Engine.IndexResult update_1_result = engine.index(update_1);
+        assertThat(update_1_result.getVersion(), equalTo(2L));
+
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, doc.type(), doc.id(), create.uid()), searcherFactory)) {
+            assertEquals(2, get.version());
+        }
+
+        Engine.Index update_2 = new Engine.Index(newUid(doc), doc, 2);
+        Engine.IndexResult update_2_result = engine.index(update_2);
+        assertThat(update_2_result.getVersion(), equalTo(3L));
+
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, doc.type(), doc.id(), create.uid()), searcherFactory)) {
+            assertEquals(3, get.version());
+        }
+
     }
 
     public void testVersioningNewIndex() throws IOException {
@@ -1337,12 +1421,14 @@ public class InternalEngineTests extends ESTestCase {
                 assertEquals(numDocs, test.reader().numDocs());
             }
             engine.forceMerge(true, 1, false, false, false);
+            engine.refresh("test");
             assertEquals(engine.segments(true).size(), 1);
 
             ParsedDocument doc = testParsedDocument(Integer.toString(0), null, testDocument(), B_1, null);
             Engine.Index index = indexForDoc(doc);
             engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
             engine.forceMerge(true, 10, true, false, false); //expunge deletes
+            engine.refresh("test");
 
             assertEquals(engine.segments(true).size(), 1);
             try (Engine.Searcher test = engine.acquireSearcher("test")) {
@@ -1354,7 +1440,7 @@ public class InternalEngineTests extends ESTestCase {
             index = indexForDoc(doc);
             engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
             engine.forceMerge(true, 10, false, false, false); //expunge deletes
-
+            engine.refresh("test");
             assertEquals(engine.segments(true).size(), 1);
             try (Engine.Searcher test = engine.acquireSearcher("test")) {
                 assertEquals(numDocs - 2, test.reader().numDocs());
@@ -1561,6 +1647,7 @@ public class InternalEngineTests extends ESTestCase {
             }
             if (randomBoolean()) {
                 engine.flush();
+                engine.refresh("test");
             }
             firstOp = false;
         }
@@ -1716,11 +1803,12 @@ public class InternalEngineTests extends ESTestCase {
             }
             if (randomBoolean()) {
                 engine.flush();
+                engine.refresh("test");
             }
 
             if (rarely()) {
                 // simulate GC deletes
-                engine.refresh("gc_simulation");
+                engine.refresh("gc_simulation", Engine.SearcherScope.INTERNAL);
                 engine.clearDeletedTombstones();
                 if (docDeleted) {
                     lastOpVersion = Versions.NOT_FOUND;
@@ -1805,6 +1893,7 @@ public class InternalEngineTests extends ESTestCase {
             }
             if (randomBoolean()) {
                 engine.flush();
+                engine.refresh("test");
             }
         }
 
@@ -1884,7 +1973,7 @@ public class InternalEngineTests extends ESTestCase {
         ParsedDocument doc = testParsedDocument("1", null, testDocument(), bytesArray(""), null);
         final Term uidTerm = newUid(doc);
         engine.index(indexForDoc(doc));
-        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+        final BiFunction<String, Engine.SearcherScope, Searcher> searcherFactory = engine::acquireSearcher;
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
                 startGun.countDown();
@@ -2314,7 +2403,7 @@ public class InternalEngineTests extends ESTestCase {
              Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null))) {
             engine.config().setEnableGcDeletes(false);
 
-            final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+            final BiFunction<String, Engine.SearcherScope, Searcher> searcherFactory = engine::acquireSearcher;
 
             // Add document
             Document document = testDocument();
@@ -2644,6 +2733,7 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(indexResult.getVersion(), equalTo(1L));
         if (flush) {
             engine.flush();
+            engine.refresh("test");
         }
 
         doc = testParsedDocument(Integer.toString(randomId), null, testDocument(), new BytesArray("{}"), null);
@@ -3847,7 +3937,7 @@ public class InternalEngineTests extends ESTestCase {
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         final ParsedDocument doc = testParsedDocument("1", null, document, B_1, null);
         final Term uid = newUid(doc);
-        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+        final BiFunction<String, Engine.SearcherScope, Searcher> searcherFactory = engine::acquireSearcher;
         for (int i = 0; i < numberOfOperations; i++) {
             if (randomBoolean()) {
                 final Engine.Index index = new Engine.Index(
@@ -4201,6 +4291,60 @@ public class InternalEngineTests extends ESTestCase {
             assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getLocalCheckpoint());
         } finally {
             IOUtils.close(recoveringEngine);
+        }
+    }
+
+
+    public void assertSameReader(Searcher left, Searcher right) {
+        List<LeafReaderContext> leftLeaves = ElasticsearchDirectoryReader.unwrap(left.getDirectoryReader()).leaves();
+        List<LeafReaderContext> rightLeaves = ElasticsearchDirectoryReader.unwrap(right.getDirectoryReader()).leaves();
+        assertEquals(rightLeaves.size(), leftLeaves.size());
+        for (int i = 0; i < leftLeaves.size(); i++) {
+            assertSame(leftLeaves.get(i).reader(), rightLeaves.get(0).reader());
+        }
+    }
+
+    public void assertNotSameReader(Searcher left, Searcher right) {
+        List<LeafReaderContext> leftLeaves = ElasticsearchDirectoryReader.unwrap(left.getDirectoryReader()).leaves();
+        List<LeafReaderContext> rightLeaves = ElasticsearchDirectoryReader.unwrap(right.getDirectoryReader()).leaves();
+        if (rightLeaves.size() == leftLeaves.size()) {
+            for (int i = 0; i < leftLeaves.size(); i++) {
+                if (leftLeaves.get(i).reader() != rightLeaves.get(0).reader()) {
+                    return; // all is well
+                }
+            }
+            fail("readers are same");
+        }
+    }
+
+    public void testRefreshScopedSearcher() throws IOException {
+        try (Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+                Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)){
+            assertSameReader(getSearcher, searchSearcher);
+        }
+        for (int i = 0; i < 10; i++) {
+            final String docId = Integer.toString(i);
+            final ParsedDocument doc =
+                testParsedDocument(docId, null, testDocumentWithTextField(), SOURCE, null);
+            Engine.Index primaryResponse = indexForDoc(doc);
+            engine.index(primaryResponse);
+        }
+        assertTrue(engine.refreshNeeded());
+        engine.refresh("test", Engine.SearcherScope.INTERNAL);
+        try (Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+             Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)){
+            assertEquals(10, getSearcher.reader().numDocs());
+            assertEquals(0, searchSearcher.reader().numDocs());
+            assertNotSameReader(getSearcher, searchSearcher);
+        }
+
+        engine.refresh("test", Engine.SearcherScope.EXTERNAL);
+
+        try (Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+             Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)){
+            assertEquals(10, getSearcher.reader().numDocs());
+            assertEquals(10, searchSearcher.reader().numDocs());
+            assertSameReader(getSearcher, searchSearcher);
         }
     }
 }

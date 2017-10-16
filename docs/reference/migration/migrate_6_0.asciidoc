@@ -21,6 +21,20 @@ way to reindex old indices is to use the `reindex` API.
 
 =========================================
 
+[IMPORTANT]
+.Multiple mapping types are not supported in indices created in 6.0
+=========================================
+
+The ability to have multiple mapping types per index has been removed in 6.0.
+New indices will be restricted to a single type. This is the first step in the
+plan to remove mapping types altogether.  Indices created in 5.x will continue
+to support multiple mapping types.
+
+See <<removal-of-types>> for more information.
+
+=========================================
+
+
 [float]
 === Also see:
 

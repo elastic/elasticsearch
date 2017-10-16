@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;

@@ -46,7 +46,7 @@
           - '{"f1": "d_old"}'
 
   - do:
-      indices.flush:
+      indices.refresh:
         index: test_index,index_with_replicas
 
   - do:

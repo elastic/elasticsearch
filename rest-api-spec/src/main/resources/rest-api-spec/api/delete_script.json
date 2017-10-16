@@ -10,11 +10,6 @@
           "type" : "string",
           "description" : "Script ID",
           "required" : true
-        },
-        "lang" : {
-          "type" : "string",
-          "description" : "Script language",
-          "required" : true
         }
       },
       "params" : {

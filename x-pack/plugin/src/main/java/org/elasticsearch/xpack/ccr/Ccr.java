@@ -5,15 +5,22 @@
  */
 package org.elasticsearch.xpack.ccr;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ccr.CcrSettings.CCR_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ccr.CcrSettings.CCR_FOLLOWING_INDEX_SETTING;
 
@@ -22,8 +29,9 @@ import static org.elasticsearch.xpack.ccr.CcrSettings.CCR_FOLLOWING_INDEX_SETTIN
  */
 public final class Ccr {
 
-    @SuppressWarnings("unused,FieldCanBeLocal")
     private final boolean enabled;
+    private final boolean tribeNode;
+    private final boolean tribeNodeClient;
 
     /**
      * Construct an instance of the CCR container with the specified settings.
@@ -32,6 +40,16 @@ public final class Ccr {
      */
     public Ccr(final Settings settings) {
         this.enabled = CCR_ENABLED_SETTING.get(settings);
+        this.tribeNode = XPackPlugin.isTribeNode(settings);
+        this.tribeNodeClient = XPackPlugin.isTribeClientNode(settings);
+    }
+
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        if (!enabled || tribeNodeClient || tribeNode) {
+            return emptyList();
+        }
+
+        return Collections.singletonList(new ActionHandler<>(ShardChangesAction.INSTANCE, ShardChangesAction.TransportAction.class));
     }
 
     /**

@@ -53,6 +53,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -164,9 +165,9 @@ public class MultiSearchActionTookTests extends ESTestCase {
                     availableProcessors, expected::get) {
                 @Override
                 void executeSearch(final Queue<SearchRequestSlot> requests, final AtomicArray<MultiSearchResponse.Item> responses,
-                        final AtomicInteger responseCounter, final ActionListener<MultiSearchResponse> listener) {
+                        final AtomicInteger responseCounter, final ActionListener<MultiSearchResponse> listener, long startTimeInNanos) {
                     expected.set(1000000);
-                    super.executeSearch(requests, responses, responseCounter, listener);
+                    super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos);
                 }
             };
         } else {
@@ -175,10 +176,10 @@ public class MultiSearchActionTookTests extends ESTestCase {
 
                 @Override
                 void executeSearch(final Queue<SearchRequestSlot> requests, final AtomicArray<MultiSearchResponse.Item> responses,
-                        final AtomicInteger responseCounter, final ActionListener<MultiSearchResponse> listener) {
+                        final AtomicInteger responseCounter, final ActionListener<MultiSearchResponse> listener, long startTimeInNanos) {
                     long elapsed = spinForAtLeastNMilliseconds(randomIntBetween(0, 10));
                     expected.set(elapsed);
-                    super.executeSearch(requests, responses, responseCounter, listener);
+                    super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos);
                 }
             };
         }

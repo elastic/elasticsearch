@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -47,7 +46,6 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     private final ClusterService clusterService;
     private final TransportAction<SearchRequest, SearchResponse> searchAction;
     private final LongSupplier relativeTimeProvider;
-    private SetOnce<Long> startTimeInNanos;
 
     @Inject
     public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
@@ -72,7 +70,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
     @Override
     protected void doExecute(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
-        startTimeInNanos = new SetOnce<>(relativeTime());
+        long startTimeInNanos = relativeTime();
         
         ClusterState clusterState = clusterService.state();
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
@@ -93,7 +91,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         final AtomicInteger responseCounter = new AtomicInteger(numRequests);
         int numConcurrentSearches = Math.min(numRequests, maxConcurrentSearches);
         for (int i = 0; i < numConcurrentSearches; i++) {
-            executeSearch(searchRequestSlots, responses, responseCounter, listener);
+            executeSearch(searchRequestSlots, responses, responseCounter, listener, startTimeInNanos);
         }
     }
 
@@ -123,7 +121,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             final Queue<SearchRequestSlot> requests,
             final AtomicArray<MultiSearchResponse.Item> responses,
             final AtomicInteger responseCounter,
-            final ActionListener<MultiSearchResponse> listener) {
+            final ActionListener<MultiSearchResponse> listener,
+            long startTimeInNanos) {
         SearchRequestSlot request = requests.poll();
         if (request == null) {
             /*
@@ -163,10 +162,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                 } else {
                     if (thread == Thread.currentThread()) {
                         // we are on the same thread, we need to fork to another thread to avoid recursive stack overflow on a single thread
-                        threadPool.generic().execute(() -> executeSearch(requests, responses, responseCounter, listener));
+                        threadPool.generic().execute(() -> executeSearch(requests, responses, responseCounter, listener, startTimeInNanos));
                     } else {
                         // we are on a different thread (we went asynchronous), it's safe to recurse
-                        executeSearch(requests, responses, responseCounter, listener);
+                        executeSearch(requests, responses, responseCounter, listener, startTimeInNanos);
                     }
                 }
             }
@@ -180,7 +179,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
              * Builds how long it took to execute the msearch.
              */
             private long buildTookInMillis() {
-                return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeInNanos.get());
+                return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeInNanos);
             }
         });
     }

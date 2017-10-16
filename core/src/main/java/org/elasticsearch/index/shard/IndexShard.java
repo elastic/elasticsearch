@@ -1005,7 +1005,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         final long time = System.nanoTime();
         final Engine.CommitId commitId = engine.flush(force, waitIfOngoing);
-        engine.refresh("flush"); // TODO this is technically wrong we should remove this in 7.0
         flushMetric.inc(System.nanoTime() - time);
         return commitId;
     }
@@ -1036,9 +1035,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Engine engine = getEngine();
         engine.forceMerge(forceMerge.flush(), forceMerge.maxNumSegments(),
             forceMerge.onlyExpungeDeletes(), false, false);
-        if (forceMerge.flush()) {
-            engine.refresh("force_merge"); // TODO this is technically wrong we should remove this in 7.0
-        }
     }
 
     /**
@@ -1055,8 +1051,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         engine.forceMerge(true,  // we need to flush at the end to make sure the upgrade is durable
             Integer.MAX_VALUE, // we just want to upgrade the segments, not actually optimize to a single segment
             false, true, upgrade.upgradeOnlyAncientSegments());
-        engine.refresh("upgrade"); // TODO this is technically wrong we should remove this in 7.0
-
         org.apache.lucene.util.Version version = minimumCompatibleVersion();
         if (logger.isTraceEnabled()) {
             logger.trace("upgraded segments for {} from version {} to version {}", shardId, previousVersion, version);

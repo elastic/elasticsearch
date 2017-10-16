@@ -134,7 +134,7 @@ public class InternalSettingsPreparer {
     private static void finalizeSettings(Settings.Builder output, Terminal terminal) {
         // allow to force set properties based on configuration of the settings provided
         List<String> forcedSettings = new ArrayList<>();
-        for (String setting : output.internalMap().keySet()) {
+        for (String setting : output.keys()) {
             if (setting.startsWith("force.")) {
                 forcedSettings.add(setting);
             }
@@ -156,13 +156,13 @@ public class InternalSettingsPreparer {
     private static void replacePromptPlaceholders(Settings.Builder settings, Terminal terminal) {
         List<String> secretToPrompt = new ArrayList<>();
         List<String> textToPrompt = new ArrayList<>();
-        for (Map.Entry<String, String> entry : settings.internalMap().entrySet()) {
-            switch (entry.getValue()) {
+        for (String key : settings.keys()) {
+            switch (settings.get(key)) {
                 case SECRET_PROMPT_VALUE:
-                    secretToPrompt.add(entry.getKey());
+                    secretToPrompt.add(key);
                     break;
                 case TEXT_PROMPT_VALUE:
-                    textToPrompt.add(entry.getKey());
+                    textToPrompt.add(key);
                     break;
             }
         }

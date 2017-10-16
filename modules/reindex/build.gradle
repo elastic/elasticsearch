@@ -26,12 +26,12 @@ esplugin {
 }
 
 integTestCluster {
-  // Whitelist reindexing from the local node so we can test it.
+  // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
 run {
-  // Whitelist reindexing from the local node so we can test it.
+  // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
@@ -54,7 +54,7 @@ thirdPartyAudit.excludes = [
   // Commons logging
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
-  'org.elasticsearch.client.avalon.framework.logger.Logger',
-  'org.elasticsearch.client.log.Hierarchy',
-  'org.elasticsearch.client.log.Logger',
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
+  'org.apache.log.Logger',
 ]

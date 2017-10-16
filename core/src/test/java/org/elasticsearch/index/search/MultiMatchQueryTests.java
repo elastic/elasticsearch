@@ -30,7 +30,6 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -47,7 +46,6 @@ import java.util.Arrays;
 
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class MultiMatchQueryTests extends ESSingleNodeTestCase {
 
@@ -57,7 +55,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
     public void setup() throws IOException {
         Settings settings = Settings.builder()
             .put("index.analysis.filter.syns.type","synonym")
-            .putArray("index.analysis.filter.syns.synonyms","quick,fast")
+            .putList("index.analysis.filter.syns.synonyms","quick,fast")
             .put("index.analysis.analyzer.syns.tokenizer","standard")
             .put("index.analysis.analyzer.syns.filter","syns").build();
         IndexService indexService = createIndex("test", settings);
@@ -174,16 +172,6 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
                 new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
         assertEquals(expected, actual);
-    }
-
-    public void testMultiMatchPrefixWithAllField() throws IOException {
-        QueryShardContext queryShardContext = indexService.newQueryShardContext(
-                randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
-        queryShardContext.setAllowUnmappedFields(true);
-        Query parsedQuery =
-            multiMatchQuery("foo").field("_all").type(MultiMatchQueryBuilder.Type.PHRASE_PREFIX).toQuery(queryShardContext);
-        assertThat(parsedQuery, instanceOf(MultiPhrasePrefixQuery.class));
-        assertThat(parsedQuery.toString(), equalTo("_all:\"foo*\""));
     }
 
     public void testMultiMatchCrossFieldsWithSynonyms() throws IOException {

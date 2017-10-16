@@ -33,7 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -60,7 +60,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     private static final String FORCED_REFRESH = "forced_refresh";
 
     /**
-     * An enum that represents the the results of CRUD operations, primarily used to communicate the type of
+     * An enum that represents the results of CRUD operations, primarily used to communicate the type of
      * operation that occurred.
      */
     public enum Result implements Writeable {
@@ -176,7 +176,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /**
-     * Returns the sequence number assigned for this change. Returns {@link SequenceNumbersService#UNASSIGNED_SEQ_NO} if the operation
+     * Returns the sequence number assigned for this change. Returns {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if the operation
      * wasn't performed (i.e., an update operation that resulted in a NOOP).
      */
     public long getSeqNo() {
@@ -263,7 +263,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             seqNo = in.readZLong();
             primaryTerm = in.readVLong();
         } else {
-            seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
             primaryTerm = 0;
         }
         forcedRefresh = in.readBoolean();
@@ -375,7 +375,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         protected Result result = null;
         protected boolean forcedRefresh;
         protected ShardInfo shardInfo = null;
-        protected Long seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        protected Long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         protected Long primaryTerm = 0L;
 
         public ShardId getShardId() {

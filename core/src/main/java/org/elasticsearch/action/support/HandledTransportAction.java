@@ -47,7 +47,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
     protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService,
                                      ActionFilters actionFilters, Writeable.Reader<Request> requestReader,
                                      IndexNameExpressionResolver indexNameExpressionResolver) {
-        this(settings, actionName, true, threadPool, transportService, actionFilters, indexNameExpressionResolver, requestReader);
+        this(settings, actionName, true, threadPool, transportService, actionFilters, requestReader, indexNameExpressionResolver);
     }
 
     protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker, ThreadPool threadPool,
@@ -60,7 +60,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
 
     protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker, ThreadPool threadPool,
                                      TransportService transportService, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> requestReader) {
+                                     Writeable.Reader<Request> requestReader, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, false, canTripCircuitBreaker, requestReader,
             new TransportHandler());

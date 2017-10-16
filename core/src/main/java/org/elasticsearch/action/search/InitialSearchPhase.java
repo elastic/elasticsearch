@@ -52,7 +52,8 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     private final AtomicInteger shardExecutionIndex = new AtomicInteger(0);
     private final int maxConcurrentShardRequests;
 
-    InitialSearchPhase(String name, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts, Logger logger) {
+    InitialSearchPhase(String name, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts, Logger logger,
+                       int maxConcurrentShardRequests) {
         super(name);
         this.request = request;
         this.shardsIts = shardsIts;
@@ -62,7 +63,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
         // we process hence we add one for the non active partition here.
         this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
-        maxConcurrentShardRequests = Math.min(request.getMaxConcurrentShardRequests(), shardsIts.size());
+        this.maxConcurrentShardRequests = Math.min(maxConcurrentShardRequests, shardsIts.size());
     }
 
     private void onShardFailure(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,

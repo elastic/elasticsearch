@@ -51,6 +51,58 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         this.indices = indices;
     }
 
+    public ClusterHealthRequest(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        if (size == 0) {
+            indices = Strings.EMPTY_ARRAY;
+        } else {
+            indices = new String[size];
+            for (int i = 0; i < indices.length; i++) {
+                indices[i] = in.readString();
+            }
+        }
+        timeout = new TimeValue(in);
+        if (in.readBoolean()) {
+            waitForStatus = ClusterHealthStatus.fromValue(in.readByte());
+        }
+        waitForNoRelocatingShards = in.readBoolean();
+        waitForActiveShards = ActiveShardCount.readFrom(in);
+        waitForNodes = in.readString();
+        if (in.readBoolean()) {
+            waitForEvents = Priority.readFrom(in);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (indices == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(indices.length);
+            for (String index : indices) {
+                out.writeString(index);
+            }
+        }
+        timeout.writeTo(out);
+        if (waitForStatus == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeByte(waitForStatus.value());
+        }
+        out.writeBoolean(waitForNoRelocatingShards);
+        waitForActiveShards.writeTo(out);
+        out.writeString(waitForNodes);
+        if (waitForEvents == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            Priority.writeTo(waitForEvents, out);
+        }
+    }
+
     @Override
     public String[] indices() {
         return indices;
@@ -174,54 +226,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        if (size == 0) {
-            indices = Strings.EMPTY_ARRAY;
-        } else {
-            indices = new String[size];
-            for (int i = 0; i < indices.length; i++) {
-                indices[i] = in.readString();
-            }
-        }
-        timeout = new TimeValue(in);
-        if (in.readBoolean()) {
-            waitForStatus = ClusterHealthStatus.fromValue(in.readByte());
-        }
-        waitForNoRelocatingShards = in.readBoolean();
-        waitForActiveShards = ActiveShardCount.readFrom(in);
-        waitForNodes = in.readString();
-        if (in.readBoolean()) {
-            waitForEvents = Priority.readFrom(in);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        if (indices == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(indices.length);
-            for (String index : indices) {
-                out.writeString(index);
-            }
-        }
-        timeout.writeTo(out);
-        if (waitForStatus == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeByte(waitForStatus.value());
-        }
-        out.writeBoolean(waitForNoRelocatingShards);
-        waitForActiveShards.writeTo(out);
-        out.writeString(waitForNodes);
-        if (waitForEvents == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            Priority.writeTo(waitForEvents, out);
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

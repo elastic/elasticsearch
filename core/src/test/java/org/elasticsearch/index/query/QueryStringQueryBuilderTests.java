@@ -45,12 +45,9 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -165,6 +162,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         if (randomBoolean()) {
             queryStringQueryBuilder.autoGenerateSynonymsPhraseQuery(randomBoolean());
         }
+        if (randomBoolean()) {
+            queryStringQueryBuilder.fuzzyTranspositions(randomBoolean());
+        }
         queryStringQueryBuilder.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
         return queryStringQueryBuilder;
     }
@@ -172,7 +172,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     @Override
     protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder,
                                        Query query, SearchContext context) throws IOException {
-        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class))
+        assertThat(query, either(instanceOf(TermQuery.class))
             .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
             .or(instanceOf(PhraseQuery.class)).or(instanceOf(BoostQuery.class))
             .or(instanceOf(MultiPhrasePrefixQuery.class)).or(instanceOf(PrefixQuery.class)).or(instanceOf(SpanQuery.class))
@@ -811,11 +811,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         assertThat(query, equalTo(expected));
 
-        queryBuilder = new QueryStringQueryBuilder("_all:*");
-        query = queryBuilder.toQuery(context);
-        expected = new MatchAllDocsQuery();
-        assertThat(query, equalTo(expected));
-
         queryBuilder = new QueryStringQueryBuilder("*:*");
         query = queryBuilder.toQuery(context);
         expected = new MatchAllDocsQuery();
@@ -872,6 +867,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"phrase_slop\" : 0,\n" +
                 "    \"escape\" : false,\n" +
                 "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
+                "    \"fuzzy_transpositions\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -881,6 +877,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
         assertEquals(json, "this AND that OR thus", parsed.queryString());
         assertEquals(json, "content", parsed.defaultField());
+        assertEquals(json, false, parsed.fuzzyTranspositions());
     }
 
     public void testExpandedTerms() throws Exception {
@@ -996,7 +993,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
         context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putArray("index.query.default_field",
+            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                 STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
         );
         Query query = new QueryStringQueryBuilder("hello")
@@ -1011,8 +1008,43 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         // Reset the default value
         context.getIndexSettings().updateIndexMetaData(
             newIndexMeta("index",
-                context.getIndexSettings().getSettings(), Settings.builder().putArray("index.query.default_field", "*").build())
+                context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
         );
+    }
+
+    /**
+     * the quote analyzer should overwrite any other forced analyzer in quoted parts of the query
+     */
+    public void testQuoteAnalyzer() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        // Prefix
+        Query query = new QueryStringQueryBuilder("ONE \"TWO THREE\"")
+                .field(STRING_FIELD_NAME)
+                .analyzer("whitespace")
+                .quoteAnalyzer("simple")
+                .toQuery(createShardContext());
+        Query expectedQuery =
+                new BooleanQuery.Builder()
+                        .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "ONE")), Occur.SHOULD))
+                        .add(new BooleanClause(new PhraseQuery.Builder()
+                                .add(new Term(STRING_FIELD_NAME, "two"), 0)
+                                .add(new Term(STRING_FIELD_NAME, "three"), 1)
+                                .build(), Occur.SHOULD))
+                    .build();
+        assertEquals(expectedQuery, query);
+    }
+
+    public void testToFuzzyQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+
+        Query query = new QueryStringQueryBuilder("text~2")
+            .field(STRING_FIELD_NAME)
+            .fuzzyPrefixLength(2)
+            .fuzzyMaxExpansions(5)
+            .fuzzyTranspositions(false)
+            .toQuery(createShardContext());
+        FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "text"), 2, 2, 5, false);
+        assertEquals(expected, query);
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

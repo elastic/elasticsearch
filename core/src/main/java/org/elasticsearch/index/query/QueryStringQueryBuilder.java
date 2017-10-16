@@ -34,7 +34,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.QueryStringQueryParser;
@@ -69,6 +68,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public static final Fuzziness DEFAULT_FUZZINESS = Fuzziness.AUTO;
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
     public static final MultiMatchQueryBuilder.Type DEFAULT_TYPE = MultiMatchQueryBuilder.Type.BEST_FIELDS;
+    public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
@@ -105,6 +105,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             .withAllDeprecated("Set [default_field] to `*` instead");
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
+    private static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
 
     private final String queryString;
 
@@ -161,6 +162,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private int maxDeterminizedStates = DEFAULT_MAX_DETERMINED_STATES;
 
     private boolean autoGenerateSynonymsPhraseQuery = true;
+
+    private boolean fuzzyTranspositions = DEFAULT_FUZZY_TRANSPOSITIONS;
 
     public QueryStringQueryBuilder(String queryString) {
         if (queryString == null) {
@@ -226,6 +229,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             autoGenerateSynonymsPhraseQuery = in.readBoolean();
+            fuzzyTranspositions = in.readBoolean();
         }
     }
 
@@ -281,6 +285,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeBoolean(autoGenerateSynonymsPhraseQuery);
+            out.writeBoolean(fuzzyTranspositions);
         }
     }
 
@@ -649,6 +654,22 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return autoGenerateSynonymsPhraseQuery;
     }
 
+    public boolean fuzzyTranspositions() {
+        return fuzzyTranspositions;
+    }
+
+    /**
+     * Sets whether transpositions are supported in fuzzy queries.<p>
+     * The default metric used by fuzzy queries to determine a match is the Damerau-Levenshtein
+     * distance formula which supports transpositions. Setting transposition to false will
+     * switch to classic Levenshtein distance.<br>
+     * If not set, Damerau-Levenshtein distance metric will be used.
+     */
+    public QueryStringQueryBuilder fuzzyTranspositions(boolean fuzzyTranspositions) {
+        this.fuzzyTranspositions = fuzzyTranspositions;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -707,6 +728,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
         builder.field(ESCAPE_FIELD.getPreferredName(), this.escape);
         builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
+        builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -740,6 +762,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         String rewrite = null;
         Map<String, Float> fieldsAndWeights = null;
         boolean autoGenerateSynonymsPhraseQuery = true;
+        boolean fuzzyTranspositions = DEFAULT_FUZZY_TRANSPOSITIONS;
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -814,6 +838,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                     queryName = parser.text();
                 } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName)) {
                     autoGenerateSynonymsPhraseQuery = parser.booleanValue();
+                } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName)) {
+                    fuzzyTranspositions = parser.booleanValue();
                 } else if (AUTO_GENERATE_PHRASE_QUERIES_FIELD.match(currentFieldName)) {
                     // ignore, deprecated setting
                 } else if (LOWERCASE_EXPANDED_TERMS_FIELD.match(currentFieldName)) {
@@ -867,6 +893,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryStringQuery.boost(boost);
         queryStringQuery.queryName(queryName);
         queryStringQuery.autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
+        queryStringQuery.fuzzyTranspositions(fuzzyTranspositions);
         return queryStringQuery;
     }
 
@@ -901,7 +928,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(timeZone.getID(), other.timeZone.getID()) &&
                 Objects.equals(escape, other.escape) &&
                 Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
-                Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
+                Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&
+                Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions);
     }
 
     @Override
@@ -910,7 +938,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 quoteFieldSuffix, allowLeadingWildcard, analyzeWildcard,
                 enablePositionIncrements, fuzziness, fuzzyPrefixLength,
                 fuzzyMaxExpansions, fuzzyRewrite, phraseSlop, type, tieBreaker, rewrite, minimumShouldMatch, lenient,
-                timeZone == null ? 0 : timeZone.getID(), escape, maxDeterminizedStates, autoGenerateSynonymsPhraseQuery);
+                timeZone == null ? 0 : timeZone.getID(), escape, maxDeterminizedStates, autoGenerateSynonymsPhraseQuery,
+                fuzzyTranspositions);
     }
 
     @Override
@@ -933,11 +962,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
         } else {
             List<String> defaultFields = context.defaultFields();
-            if (context.getMapperService().allEnabled() == false &&
-                    defaultFields.size() == 1 && AllFieldMapper.NAME.equals(defaultFields.get(0))) {
-                // For indices created before 6.0 with _all disabled
-                defaultFields = Collections.singletonList("*");
-            }
             boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
             if (isAllField) {
                 queryParser = new QueryStringQueryParser(context, lenient == null ? true : lenient);
@@ -985,6 +1009,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryParser.setTimeZone(timeZone);
         queryParser.setMaxDeterminizedStates(maxDeterminizedStates);
         queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
+        queryParser.setFuzzyTranspositions(fuzzyTranspositions);
 
         Query query;
         try {

@@ -71,7 +71,7 @@ public abstract class TransportWriteAction<
             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
                                    Supplier<ReplicaRequest> replicaRequest, String executor) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                indexNameExpressionResolver, request, replicaRequest, executor);
+                indexNameExpressionResolver, request, replicaRequest, executor, true);
     }
 
     /** Syncs operation result to the translog or throws a shard not available failure */

@@ -102,7 +102,7 @@ public class PluginsService extends AbstractComponent {
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", pluginClass.getName(), false);
+            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", pluginClass.getName(), false, false);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
@@ -186,7 +186,7 @@ public class PluginsService extends AbstractComponent {
         final Settings.Builder builder = Settings.builder();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             Settings settings = plugin.v2().additionalSettings();
-            for (String setting : settings.getAsMap().keySet()) {
+            for (String setting : settings.keySet()) {
                 String oldPlugin = foundSettings.put(setting, plugin.v1().getName());
                 if (oldPlugin != null) {
                     throw new IllegalArgumentException("Cannot have additional setting [" + setting + "] " +

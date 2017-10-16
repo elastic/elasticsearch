@@ -23,7 +23,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
-import org.elasticsearch.client.http.HttpHost;
+import org.apache.http.HttpHost;
 import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;

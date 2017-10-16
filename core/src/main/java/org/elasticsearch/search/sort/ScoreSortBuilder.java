@@ -124,7 +124,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     }
 
     @Override
-    public SortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+    public ScoreSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         return this;
     }
 }

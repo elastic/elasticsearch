@@ -599,7 +599,8 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(client().admin().indices().preparePutMapping("_all").setType("type1").setSource("field", "type=text"), true);
 
         for (String index : Arrays.asList("foo", "foobar", "bar", "barbaz")) {
-            assertAcked(prepareCreate(index).setSettings("index.version.created", Version.V_5_6_0.id)); // allows for multiple types
+            assertAcked(prepareCreate(index).setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
+            // allows for multiple types
         }
 
         verify(client().admin().indices().preparePutMapping("foo").setType("type1").setSource("field", "type=text"), false);

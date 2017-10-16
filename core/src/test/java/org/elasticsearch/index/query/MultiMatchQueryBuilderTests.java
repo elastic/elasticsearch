@@ -33,8 +33,8 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.search.internal.SearchContext;
@@ -124,6 +124,9 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.autoGenerateSynonymsPhraseQuery(randomBoolean());
         }
+        if (randomBoolean()) {
+            query.fuzzyTranspositions(randomBoolean());
+        }
         // test with fields with boost and patterns delegated to the tests further below
         return query;
     }
@@ -144,7 +147,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     @Override
     protected void doAssertLuceneQuery(MultiMatchQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         // we rely on integration tests for deeper checks here
-        assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class))
+        assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(TermQuery.class))
                 .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
                 .or(instanceOf(FuzzyQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
                 .or(instanceOf(MatchAllDocsQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
@@ -242,6 +245,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 "    \"lenient\" : false,\n" +
                 "    \"zero_terms_query\" : \"NONE\",\n" +
                 "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
+                "    \"fuzzy_transpositions\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -253,6 +257,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertEquals(json, 3, parsed.fields().size());
         assertEquals(json, MultiMatchQueryBuilder.Type.MOST_FIELDS, parsed.type());
         assertEquals(json, Operator.OR, parsed.operator());
+        assertEquals(json, false, parsed.fuzzyTranspositions());
     }
 
     /**
@@ -317,5 +322,20 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         query.toQuery(context); // no exception
         query.analyzer(null);
         query.toQuery(context); // no exception
+    }
+
+    public void testToFuzzyQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+
+        MultiMatchQueryBuilder qb = new MultiMatchQueryBuilder("text").field(STRING_FIELD_NAME);
+        qb.fuzziness(Fuzziness.TWO);
+        qb.prefixLength(2);
+        qb.maxExpansions(5);
+        qb.fuzzyTranspositions(false);
+
+        Query query = qb.toQuery(createShardContext());
+        FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "text"), 2, 2, 5, false);
+
+        assertEquals(expected, query);
     }
 }

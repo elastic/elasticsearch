@@ -320,18 +320,30 @@ public class Netty4Transport extends TcpTransport<Channel> {
             if (f.isSuccess()) {
                 listener.onResponse(channel);
             } else {
-                Throwable cause = f.cause();
-                // If the Throwable is an Error something has gone very wrong and Netty4MessageChannelHandler is
-                // going to cause that to bubble up and kill the process.
-                if (cause instanceof Exception) {
-                    listener.onFailure((Exception) cause);
-                }
+                final Throwable cause = f.cause();
+                Netty4Utils.maybeDie(cause);
+                logger.warn((Supplier<?>) () ->
+                    new ParameterizedMessage("write and flush on the network layer failed (channel: {})", channel), cause);
+                assert cause instanceof Exception;
+                listener.onFailure((Exception) cause);
             }
         });
     }
 
     @Override
-    protected void closeChannels(final List<Channel> channels, boolean blocking) throws IOException {
+    protected void closeChannels(final List<Channel> channels, boolean blocking, boolean doNotLinger) throws IOException {
+        if (doNotLinger) {
+            for (Channel channel : channels) {
+                /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't have a gazillion connections sitting
+                 * in TIME_WAIT to free up resources quickly. This is really the only part where we close the connection from the server
+                 * side otherwise the client (node) initiates the TCP closing sequence which doesn't cause these issues. Setting this
+                 * by default from the beginning can have unexpected side-effects an should be avoided, our protocol is designed
+                 * in a way that clients close connection which is how it should be*/
+                if (channel.isOpen()) {
+                    channel.config().setOption(ChannelOption.SO_LINGER, 0);
+                }
+            }
+        }
         if (blocking) {
             Netty4Utils.closeChannels(channels);
         } else {
@@ -397,6 +409,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             // using a dot as a prefix means this cannot come from any settings parsed
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, ".client"));
@@ -420,6 +433,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("open_channels", Netty4Transport.this.serverOpenChannels);
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, name));

@@ -24,6 +24,10 @@ esplugin {
   classname 'org.elasticsearch.painless.PainlessPlugin'
 }
 
+integTestCluster {
+  module project.project(':modules:mapper-extras')
+}
+
 dependencies {
   compile 'org.antlr:antlr4-runtime:4.5.1-1'
   compile 'org.ow2.asm:asm-debug-all:5.1'
@@ -35,10 +39,6 @@ dependencyLicenses {
 
 test {
   jvmArg '-XX:-OmitStackTraceInFastThrow'
-}
-
-integTestCluster {
-  setting 'script.max_compilations_per_minute', '1000'
 }
 
 /* Build Javadoc for the Java classes in Painless's public API that are in the
@@ -146,7 +146,7 @@ task regen {
       fileset(dir: outputPath, includes: 'Painless*.java')
     }
     // fix line endings
-    ant.fixcrlf(srcdir: outputPath) {
+    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
       patternset(includes: 'Painless*.java')
     }
   }

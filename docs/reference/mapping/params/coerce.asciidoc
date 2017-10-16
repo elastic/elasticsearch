@@ -45,7 +45,7 @@ PUT my_index/my_type/2
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[catch:request]
+// TEST[catch:bad_request]
 <1> The `number_one` field will contain the integer `10`.
 <2> This document will be rejected because coercion is disabled.
 
@@ -88,6 +88,6 @@ PUT my_index/my_type/2
 { "number_two": "10" } <2>
 --------------------------------------------------
 // CONSOLE
-// TEST[catch:request]
+// TEST[catch:bad_request]
 <1> The `number_one` field overrides the index level setting to enable coercion.
 <2> This document will be rejected because the `number_two` field inherits the index-level coercion setting.

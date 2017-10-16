@@ -28,6 +28,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -98,6 +99,7 @@ public class RefreshListenersTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestName());
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
+        String allocationId = UUIDs.randomBase64UUID(random());
         Directory directory = newDirectory();
         DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
             @Override
@@ -115,10 +117,9 @@ public class RefreshListenersTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        EngineConfig config = new EngineConfig(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, shardId, threadPool, indexSettings, null,
-                store, newMergePolicy(), iwc.getAnalyzer(),
-                iwc.getSimilarity(), new CodecService(null, logger), eventListener,
-                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
+        EngineConfig config = new EngineConfig(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, shardId, allocationId, threadPool,
+                indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
+                eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig,
                 TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), null, null);
         engine = new InternalEngine(config);
         listeners.setTranslog(engine.getTranslog());
@@ -269,7 +270,6 @@ public class RefreshListenersTests extends ESTestCase {
      * Uses a bunch of threads to index, wait for refresh, and non-realtime get documents to validate that they are visible after waiting
      * regardless of what crazy sequence of events causes the refresh listener to fire.
      */
-    @TestLogging("_root:debug,org.elasticsearch.index.engine.Engine.DW:trace")
     public void testLotsOfThreads() throws Exception {
         int threadCount = between(3, 10);
         maxListeners = between(1, threadCount * 2);

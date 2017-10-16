@@ -43,7 +43,7 @@ class Collector -> java.util.stream.Collector {
   Supplier supplier()
 }
 
-class DoubleStream -> java.util.stream.DoubleStream extends BaseStream {
+class DoubleStream -> java.util.stream.DoubleStream {
   boolean allMatch(DoublePredicate)
   boolean anyMatch(DoublePredicate)
   OptionalDouble average()
@@ -82,12 +82,12 @@ class DoubleStream -> java.util.stream.DoubleStream extends BaseStream {
   double[] toArray()
 }
 
-class DoubleStream.Builder -> java.util.stream.DoubleStream$Builder extends DoubleConsumer {
+class DoubleStream.Builder -> java.util.stream.DoubleStream$Builder {
   DoubleStream.Builder add(double)
   DoubleStream build()
 }
 
-class IntStream -> java.util.stream.IntStream extends BaseStream {
+class IntStream -> java.util.stream.IntStream {
   boolean allMatch(IntPredicate)
   boolean anyMatch(IntPredicate)
   DoubleStream asDoubleStream()
@@ -130,12 +130,12 @@ class IntStream -> java.util.stream.IntStream extends BaseStream {
   int[] toArray()
 }
 
-class IntStream.Builder -> java.util.stream.IntStream$Builder extends IntConsumer {
+class IntStream.Builder -> java.util.stream.IntStream$Builder {
   IntStream.Builder add(int)
   IntStream build()
 }
 
-class LongStream -> java.util.stream.LongStream extends BaseStream {
+class LongStream -> java.util.stream.LongStream {
   boolean allMatch(LongPredicate)
   boolean anyMatch(LongPredicate)
   DoubleStream asDoubleStream()
@@ -177,12 +177,12 @@ class LongStream -> java.util.stream.LongStream extends BaseStream {
   long[] toArray()
 }
 
-class LongStream.Builder -> java.util.stream.LongStream$Builder extends LongConsumer {
+class LongStream.Builder -> java.util.stream.LongStream$Builder {
   LongStream.Builder add(long)
   LongStream build()
 }
 
-class Stream -> java.util.stream.Stream extends BaseStream {
+class Stream -> java.util.stream.Stream {
   boolean allMatch(Predicate)
   boolean anyMatch(Predicate)
   Stream.Builder builder()
@@ -221,14 +221,14 @@ class Stream -> java.util.stream.Stream extends BaseStream {
   def[] toArray(IntFunction)
 }
 
-class Stream.Builder -> java.util.stream.Stream$Builder extends Consumer {
+class Stream.Builder -> java.util.stream.Stream$Builder {
   Stream.Builder add(def)
   Stream build()
 }
 
 #### Classes
 
-class Collectors -> java.util.stream.Collectors extends Object {
+class Collectors -> java.util.stream.Collectors {
   Collector averagingDouble(ToDoubleFunction)
   Collector averagingInt(ToIntFunction)
   Collector averagingLong(ToLongFunction)
@@ -264,7 +264,7 @@ class Collectors -> java.util.stream.Collectors extends Object {
 
 #### Enums
 
-class Collector.Characteristics -> java.util.stream.Collector$Characteristics extends Enum,Object {
+class Collector.Characteristics -> java.util.stream.Collector$Characteristics {
   Collector.Characteristics CONCURRENT
   Collector.Characteristics IDENTITY_FINISH
   Collector.Characteristics UNORDERED

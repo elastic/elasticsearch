@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -77,7 +78,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -144,16 +144,12 @@ public class TruncateTranslogIT extends ESIntegTestCase {
             }
         }
 
-        final boolean expectSeqNoRecovery;
         if (randomBoolean() && numDocsToTruncate > 0) {
             // flush the replica, so it will have more docs than what the primary will have
             Index index = resolveIndex("test");
             IndexShard replica = internalCluster().getInstance(IndicesService.class, replicaNode).getShardOrNull(new ShardId(index, 0));
             replica.flush(new FlushRequest());
-            expectSeqNoRecovery = false;
-            logger.info("--> ops based recovery disabled by flushing replica");
-        } else {
-            expectSeqNoRecovery = true;
+            logger.info("--> performed extra flushing on replica");
         }
 
         // shut down the replica node to be tested later
@@ -215,12 +211,14 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         logger.info("--> starting the replica node to test recovery");
         internalCluster().startNode();
         ensureGreen("test");
-        assertHitCount(client().prepareSearch("test").setPreference("_replica").setQuery(matchAllQuery()).get(), numDocsToKeep);
+        for (String node : internalCluster().nodesInclude("test")) {
+            SearchRequestBuilder q = client().prepareSearch("test").setPreference("_only_nodes:" + node).setQuery(matchAllQuery());
+            assertHitCount(q.get(), numDocsToKeep);
+        }
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").setActiveOnly(false).get();
         final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates().get("test").stream()
             .filter(recoveryState -> recoveryState.getPrimary() == false).findFirst().get();
-        assertThat(replicaRecoveryState.getIndex().toString(), replicaRecoveryState.getIndex().recoveredFileCount(),
-            expectSeqNoRecovery ? equalTo(0) : greaterThan(0));
+        assertThat(replicaRecoveryState.getIndex().toString(), replicaRecoveryState.getIndex().recoveredFileCount(), greaterThan(0));
     }
 
     public void testCorruptTranslogTruncationOfReplica() throws Exception {
@@ -314,7 +312,9 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         logger.info("--> starting the replica node to test recovery");
         internalCluster().startNode();
         ensureGreen("test");
-        assertHitCount(client().prepareSearch("test").setPreference("_replica").setQuery(matchAllQuery()).get(), totalDocs);
+        for (String node : internalCluster().nodesInclude("test")) {
+            assertHitCount(client().prepareSearch("test").setPreference("_only_nodes:" + node).setQuery(matchAllQuery()).get(), totalDocs);
+        }
 
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").setActiveOnly(false).get();
         final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates().get("test").stream()

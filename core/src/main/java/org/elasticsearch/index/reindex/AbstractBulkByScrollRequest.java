@@ -43,7 +43,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     public static final int SIZE_ALL_MATCHES = -1;
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
-    private static final int DEFAULT_SCROLL_SIZE = 1000;
+    static final int DEFAULT_SCROLL_SIZE = 1000;
 
     public static final int AUTO_SLICES = 0;
     public static final String AUTO_SLICES_VALUE = "auto";
@@ -399,8 +399,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        searchRequest = new SearchRequest();
-        searchRequest.readFrom(in);
+        searchRequest = new SearchRequest(in);
         abortOnVersionConflict = in.readBoolean();
         size = in.readVInt();
         refresh = in.readBoolean();

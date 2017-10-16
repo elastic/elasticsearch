@@ -206,7 +206,19 @@ class ClusterFormationTasks {
         for (Map.Entry<String, Object[]> command : node.config.setupCommands.entrySet()) {
             // the first argument is the actual script name, relative to home
             Object[] args = command.getValue().clone()
-            args[0] = new File(node.homeDir, args[0].toString())
+            final Object commandPath
+            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                /*
+                 * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+                 * getting the short name requiring the path to already exist. Note that we have to capture the value of arg[0] now
+                 * otherwise we would stack overflow later since arg[0] is replaced below.
+                 */
+                String argsZero = args[0]
+                commandPath = "${-> Paths.get(NodeInfo.getShortPathName(node.homeDir.toString())).resolve(argsZero.toString()).toString()}"
+            } else {
+                commandPath = node.homeDir.toPath().resolve(args[0].toString()).toString()
+            }
+            args[0] = commandPath
             setup = configureExecTask(taskName(prefix, node, command.getKey()), project, setup, node, args)
         }
 
@@ -299,13 +311,14 @@ class ClusterFormationTasks {
                 // Define a node attribute so we can test that it exists
                 'node.attr.testattr'           : 'test'
         ]
-        // we set min master nodes to the total number of nodes in the cluster and
-        // basically skip initial state recovery to allow the cluster to form using a realistic master election
-        // this means all nodes must be up, join the seed node and do a master election. This will also allow new and
-        // old nodes in the BWC case to become the master
-        if (node.config.useMinimumMasterNodes && node.config.numNodes > 1) {
-            esConfig['discovery.zen.minimum_master_nodes'] = node.config.numNodes
-            esConfig['discovery.initial_state_timeout'] = '0s' // don't wait for state.. just start up quickly
+        int minimumMasterNodes = node.config.minimumMasterNodes.call()
+        if (minimumMasterNodes > 0) {
+            esConfig['discovery.zen.minimum_master_nodes'] = minimumMasterNodes
+        }
+        if (node.config.numNodes > 1) {
+            // don't wait for state.. just start up quickly
+            // this will also allow new and old nodes in the BWC case to become the master
+            esConfig['discovery.initial_state_timeout'] = '0s'
         }
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
@@ -317,7 +330,7 @@ class ClusterFormationTasks {
             esConfig['cluster.routing.allocation.disk.watermark.flood_stage'] = '1b'
         }
         // increase script compilation limit since tests can rapid-fire script compilations
-        esConfig['script.max_compilations_per_minute'] = 2048
+        esConfig['script.max_compilations_rate'] = '2048/1m'
         esConfig.putAll(node.config.settings)
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
@@ -337,7 +350,11 @@ class ClusterFormationTasks {
         if (node.config.keystoreSettings.isEmpty()) {
             return setup
         } else {
-            File esKeystoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
+            /*
+             * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+             * getting the short name requiring the path to already exist.
+             */
+            final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch-keystore').toString()}"
             return configureExecTask(name, project, setup, node, esKeystoreUtil, 'create')
         }
     }
@@ -345,8 +362,12 @@ class ClusterFormationTasks {
     /** Adds tasks to add settings to the keystore */
     static Task configureAddKeystoreSettingTasks(String parent, Project project, Task setup, NodeInfo node) {
         Map kvs = node.config.keystoreSettings
-        File esKeystoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
         Task parentTask = setup
+        /*
+         * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to getting
+         * the short name requiring the path to already exist.
+         */
+        final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch-keystore').toString()}"
         for (Map.Entry<String, String> entry in kvs) {
             String key = entry.getKey()
             String name = taskName(parent, node, 'addToKeystore#' + key)
@@ -469,6 +490,7 @@ class ClusterFormationTasks {
         }
         Copy installModule = project.tasks.create(name, Copy.class)
         installModule.dependsOn(setup)
+        installModule.dependsOn(module.tasks.bundlePlugin)
         installModule.into(new File(node.homeDir, "modules/${module.name}"))
         installModule.from({ project.zipTree(module.tasks.bundlePlugin.outputs.files.singleFile) })
         return installModule
@@ -482,8 +504,13 @@ class ClusterFormationTasks {
             pluginZip = project.configurations.getByName("_plugin_${prefix}_${plugin.path}")
         }
         // delay reading the file location until execution time by wrapping in a closure within a GString
-        Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
-        Object[] args = [new File(node.homeDir, 'bin/elasticsearch-plugin'), 'install', file]
+        final Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
+        /*
+         * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to getting
+         * the short name requiring the path to already exist.
+         */
+        final Object esPluginUtil = "${-> node.binPath().resolve('elasticsearch-plugin').toString()}"
+        final Object[] args = [esPluginUtil, 'install', file]
         return configureExecTask(name, project, setup, node, args)
     }
 

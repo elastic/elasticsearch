@@ -70,7 +70,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
     @Override
     protected void doExecute(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
-        long startTimeInNanos = relativeTime();
+        final long relativeStartTime = relativeTimeProvider.getAsLong();
         
         ClusterState clusterState = clusterService.state();
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
@@ -91,7 +91,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         final AtomicInteger responseCounter = new AtomicInteger(numRequests);
         int numConcurrentSearches = Math.min(numRequests, maxConcurrentSearches);
         for (int i = 0; i < numConcurrentSearches; i++) {
-            executeSearch(searchRequestSlots, responses, responseCounter, listener, startTimeInNanos);
+            executeSearch(searchRequestSlots, responses, responseCounter, listener, relativeStartTime);
         }
     }
 
@@ -122,7 +122,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             final AtomicArray<MultiSearchResponse.Item> responses,
             final AtomicInteger responseCounter,
             final ActionListener<MultiSearchResponse> listener,
-            long startTimeInNanos) {
+            final long relativeStartTime) {
         SearchRequestSlot request = requests.poll();
         if (request == null) {
             /*
@@ -162,10 +162,11 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                 } else {
                     if (thread == Thread.currentThread()) {
                         // we are on the same thread, we need to fork to another thread to avoid recursive stack overflow on a single thread
-                        threadPool.generic().execute(() -> executeSearch(requests, responses, responseCounter, listener, startTimeInNanos));
+                        threadPool.generic()
+                                .execute(() -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime));
                     } else {
                         // we are on a different thread (we went asynchronous), it's safe to recurse
-                        executeSearch(requests, responses, responseCounter, listener, startTimeInNanos);
+                        executeSearch(requests, responses, responseCounter, listener, relativeStartTime);
                     }
                 }
             }
@@ -179,15 +180,11 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
              * Builds how long it took to execute the msearch.
              */
             private long buildTookInMillis() {
-                return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeInNanos);
+                return TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - relativeStartTime);
             }
         });
     }
 
-    private long relativeTime() {
-        return relativeTimeProvider.getAsLong();
-    }
-    
     static final class SearchRequestSlot {
 
         final SearchRequest request;

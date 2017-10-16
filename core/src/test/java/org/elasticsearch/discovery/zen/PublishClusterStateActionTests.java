@@ -712,7 +712,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
                                                 long expectedCompatibleDiffs) {
         PublishClusterStateStats stats = node.action.stats();
         assertThat(description + ": full cluster states", stats.getFullClusterStateReceivedCount(), equalTo(expectedFull));
-        assertThat(description + ": incompatible cluster state diffs", stats.getIncompatibleClusterStateDiffReceivedCount(), equalTo(expectedIncompatibleDiffs));
+        assertThat(description + ": incompatible cluster state diffs", stats.getIncompatibleClusterStateDiffReceivedCount(),
+            equalTo(expectedIncompatibleDiffs));
         assertThat(description + ": compatible cluster state diffs", stats.getCompatibleClusterStateDiffReceivedCount(),
             equalTo(expectedCompatibleDiffs));
     }

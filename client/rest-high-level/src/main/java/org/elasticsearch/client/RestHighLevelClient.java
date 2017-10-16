@@ -330,7 +330,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Deletes a document by id using the Delete api
-     * <p>
+     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
      */
     public DeleteResponse delete(DeleteRequest deleteRequest, Header... headers) throws IOException {
@@ -354,8 +354,8 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-delete-index.html">Delete API on elastic.co</a>
      */
     public DeleteIndexResponse deleteIndex(DeleteIndexRequest deleteIndexRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(deleteIndexRequest, Request::deleteIndex, DeleteIndexResponse::fromXContent, Collections.singleton(404),
-            headers);
+        return performRequestAndParseEntity(deleteIndexRequest, Request::deleteIndex, DeleteIndexResponse::fromXContent,
+            Collections.singleton(404), headers);
     }
 
     /**
@@ -364,8 +364,8 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-delete-index.html">Delete API on elastic.co</a>
      */
     public void deleteIndexAsync(DeleteIndexRequest deleteIndexRequest, ActionListener<DeleteIndexResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(deleteIndexRequest, Request::deleteIndex, DeleteIndexResponse::fromXContent, listener, Collections.singleton(404),
-            headers);
+        performRequestAsyncAndParseEntity(deleteIndexRequest, Request::deleteIndex, DeleteIndexResponse::fromXContent, listener,
+            Collections.singleton(404), headers);
     }
 
     /**

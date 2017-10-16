@@ -40,7 +40,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         IndexShard indexShard = indexService.getShard(0);
         for (int iter = 0; iter < iters; iter++) {
             int min = randomIntBetween(0, numWrites - 1);
-            int max = randomIntBetween(min, numWrites);
+            int max = randomIntBetween(min, numWrites - 1);
 
             int index = 0;
             List<Translog.Operation> operations = ShardChangesAction.getOperationsBetween(indexShard, min, max);

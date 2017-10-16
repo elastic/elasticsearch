@@ -37,7 +37,8 @@ public class IndexAdminIT extends ESRestHighLevelClientTestCase {
         highLevelClient().index(new IndexRequest("test_index", "type", "id").source(Collections.singletonMap("foo", "bar")));
 
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest("test_index");
-        DeleteIndexResponse deleteIndexResponse = execute(deleteIndexRequest, highLevelClient()::deleteIndex, highLevelClient()::deleteIndexAsync);
+        DeleteIndexResponse deleteIndexResponse =
+            execute(deleteIndexRequest, highLevelClient()::deleteIndex, highLevelClient()::deleteIndexAsync);
         assertTrue(deleteIndexResponse.isAcknowledged());
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,

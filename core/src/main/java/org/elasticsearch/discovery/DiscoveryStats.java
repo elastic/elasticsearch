@@ -33,10 +33,7 @@ import java.io.IOException;
 
 public class DiscoveryStats implements Writeable, ToXContentFragment {
 
-    @Nullable
     private final PendingClusterStateStats queueStats;
-
-    @Nullable
     private final PublishClusterStateStats publishStats;
 
     public DiscoveryStats(PendingClusterStateStats queueStats, PublishClusterStateStats publishStats) {

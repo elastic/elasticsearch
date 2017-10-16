@@ -98,9 +98,9 @@ public class PublishClusterStateAction extends AbstractComponent {
     private final IncomingClusterStateListener incomingClusterStateListener;
     private final DiscoverySettings discoverySettings;
 
-    private AtomicLong fullClusterStateReceivedCount = new AtomicLong();
-    private AtomicLong clusterStateDiffReceivedCount = new AtomicLong();
-    private AtomicLong compatibleClusterStateDiffReceivedCount = new AtomicLong();
+    private final AtomicLong fullClusterStateReceivedCount = new AtomicLong();
+    private final AtomicLong clusterStateDiffReceivedCount = new AtomicLong();
+    private final AtomicLong compatibleClusterStateDiffReceivedCount = new AtomicLong();
 
     public PublishClusterStateAction(
             Settings settings,

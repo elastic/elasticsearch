@@ -232,7 +232,7 @@ public class NewPathForShardTests extends ESTestCase {
 
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putArray(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
 
         // Make sure all our mocking above actually worked:
@@ -289,7 +289,7 @@ public class NewPathForShardTests extends ESTestCase {
 
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putArray(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
 
         aFileStore.usableSpace = 100000;

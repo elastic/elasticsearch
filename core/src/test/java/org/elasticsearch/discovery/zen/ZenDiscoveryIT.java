@@ -255,10 +255,10 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 "      \"pending\" : 0,\n" +
                 "      \"committed\" : 0\n" +
                 "    },\n" +
-                "    \"published_cluster_states_received\" : {\n" +
-                "      \"full_cluster_states\" : 0,\n" +
-                "      \"incompatible_cluster_state_diffs\" : 0,\n" +
-                "      \"compatible_cluster_state_diffs\" : 0\n" +
+                "    \"published_cluster_states\" : {\n" +
+                "      \"full_states\" : 0,\n" +
+                "      \"incompatible_diffs\" : 0,\n" +
+                "      \"compatible_diffs\" : 0\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";

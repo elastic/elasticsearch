@@ -705,10 +705,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
     }
 
-    private void assertPublishClusterStateStats(String description,
-                                                MockNode node,
-                                                long expectedFull,
-                                                long expectedIncompatibleDiffs,
+    private void assertPublishClusterStateStats(String description, MockNode node, long expectedFull, long expectedIncompatibleDiffs,
                                                 long expectedCompatibleDiffs) {
         PublishClusterStateStats stats = node.action.stats();
         assertThat(description + ": full cluster states", stats.getFullClusterStateReceivedCount(), equalTo(expectedFull));

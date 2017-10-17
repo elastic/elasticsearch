@@ -32,7 +32,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Main class to initiate shrinking an index into a new index
  * This class is only here for backwards compatibility. It will be replaced by
- * TransportResizeAction in 8.0
+ * TransportResizeAction in 7.x once this is backported
  */
 public class TransportShrinkAction extends TransportResizeAction {
 

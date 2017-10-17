@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -36,7 +37,6 @@ import java.util.Set;
 
 /**
  * An allocation decider that ensures we allocate the shards of a target index for resize operations next to the source primaries
- * // TODO add tests!!
  */
 public class ResizeAllocationDecider extends AllocationDecider {
 
@@ -79,7 +79,7 @@ public class ResizeAllocationDecider extends AllocationDecider {
                 return allocation.decision(Decision.NO, NAME, "source primary shard [%s] is not active", shardId);
             }
             if (node != null) { // we might get called from the 2 param canAllocate method..
-                if (node.node().getVersion().before(Version.V_7_0_0_alpha1)) {
+                if (node.node().getVersion().before(ResizeAction.COMPATIBILITY_VERSION)) {
                     return allocation.decision(Decision.NO, NAME, "node [%s] is too old to split a shard", node.nodeId());
                 }
                 if (sourceShardRouting.currentNodeId().equals(node.nodeId())) {

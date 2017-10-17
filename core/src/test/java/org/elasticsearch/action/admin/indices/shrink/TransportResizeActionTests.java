@@ -73,7 +73,7 @@ public class TransportResizeActionTests extends ESTestCase {
         assertTrue(
             expectThrows(IllegalStateException.class, () ->
             TransportResizeAction.prepareCreateIndexRequest(new ResizeRequest("target", "source"), state,
-                (i) -> new DocsStats(Integer.MAX_VALUE, randomIntBetween(1, 1000)), new IndexNameExpressionResolver(Settings.EMPTY))
+                (i) -> new DocsStats(Integer.MAX_VALUE, randomIntBetween(1, 1000)), "target", "source")
         ).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards "));
 
 
@@ -84,8 +84,7 @@ public class TransportResizeActionTests extends ESTestCase {
                 ClusterState clusterState = createClusterState("source", 8, 1,
                     Settings.builder().put("index.blocks.write", true).build());
                     TransportResizeAction.prepareCreateIndexRequest(req, clusterState,
-                        (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE/2, randomIntBetween(1, 1000)) : null,
-                        new IndexNameExpressionResolver(Settings.EMPTY));
+                        (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE/2, randomIntBetween(1, 1000)) : null, "target", "source");
                 }
             ).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards "));
 
@@ -106,7 +105,7 @@ public class TransportResizeActionTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         TransportResizeAction.prepareCreateIndexRequest(new ResizeRequest("target", "source"), clusterState,
-            (i) -> new DocsStats(randomIntBetween(1, 1000), randomIntBetween(1, 1000)), new IndexNameExpressionResolver(Settings.EMPTY));
+            (i) -> new DocsStats(randomIntBetween(1, 1000), randomIntBetween(1, 1000)), "target", "source");
     }
 
     public void testShrinkIndexSettings() {
@@ -133,8 +132,7 @@ public class TransportResizeActionTests extends ESTestCase {
         final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
         target.setWaitForActiveShards(activeShardCount);
         CreateIndexClusterStateUpdateRequest request = TransportResizeAction.prepareCreateIndexRequest(
-            target, clusterState, (i) -> stats,
-            new IndexNameExpressionResolver(Settings.EMPTY));
+            target, clusterState, (i) -> stats, "target", "source");
         assertNotNull(request.recoverFrom());
         assertEquals(indexName, request.recoverFrom().getName());
         assertEquals("1", request.settings().get("index.number_of_shards"));

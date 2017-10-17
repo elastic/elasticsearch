@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -58,7 +59,9 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -128,12 +131,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
             .getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
-        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
-        // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
-        // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
-        // to the require._name below.
         ensureYellow();
-        // relocate all shards to one node such that we can merge it.
         client().admin().indices().prepareUpdateSettings("source")
             .setSettings(Settings.builder()
                 .put("index.blocks.write", true)).get();
@@ -162,12 +160,11 @@ public class SplitIndexIT extends ESIntegTestCase {
             assertTrue(getResponse.isExists());
         }
 
-        // relocate all shards to one node such that we can merge it.
         client().admin().indices().prepareUpdateSettings("first_split")
             .setSettings(Settings.builder()
                 .put("index.blocks.write", true)).get();
         ensureGreen();
-        // now merge source into a 2 shard index
+        // now split source into a new index
         assertAcked(client().admin().indices().prepareResizeIndex("first_split", "second_split")
             .setResizeType(ResizeType.SPLIT)
             .setSettings(Settings.builder()
@@ -198,6 +195,23 @@ public class SplitIndexIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
         assertHitCount(client().prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
         assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+
+        assertAllUniqueDocs(client().prepareSearch("second_split").setSize(100)
+            .setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+        assertAllUniqueDocs(client().prepareSearch("first_split").setSize(100)
+            .setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+        assertAllUniqueDocs(client().prepareSearch("source").setSize(100)
+            .setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+
+    }
+
+    public void assertAllUniqueDocs(SearchResponse response, int numDocs) {
+        Set<String> ids = new HashSet<>();
+        for (int i = 0; i < response.getHits().getHits().length; i++) {
+            String id = response.getHits().getHits()[i].getId();
+            assertTrue("found ID "+ id + " more than once", ids.add(id));
+        }
+        assertEquals(numDocs, ids.size());
     }
 
     public void testSplitIndexPrimaryTerm() throws Exception {
@@ -310,7 +324,6 @@ public class SplitIndexIT extends ESIntegTestCase {
         )).get();
         try {
 
-            // now merge source into a single shard index
             final boolean createWithReplicas = randomBoolean();
             assertAcked(client().admin().indices().prepareResizeIndex("source", "target")
                 .setResizeType(ResizeType.SPLIT)
@@ -319,7 +332,6 @@ public class SplitIndexIT extends ESIntegTestCase {
                     .put("index.number_of_shards", 2).build()).get());
             ensureGreen();
 
-            // resolve true merge node - this is not always the node we required as all shards may be on another node
             final ClusterState state = client().admin().cluster().prepareState().get().getState();
             DiscoveryNode mergeNode = state.nodes().get(state.getRoutingTable().index("target").shard(0).primaryShard().currentNodeId());
             logger.info("split node {}", mergeNode);
@@ -410,7 +422,6 @@ public class SplitIndexIT extends ESIntegTestCase {
         flushAndRefresh();
         assertSortedSegments("source", expectedIndexSort);
 
-        // relocate all shards to one node such that we can merge it.
         client().admin().indices().prepareUpdateSettings("source")
             .setSettings(Settings.builder()
                 .put("index.blocks.write", true)).get();

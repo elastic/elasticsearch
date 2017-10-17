@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.shrink;
 
 import org.apache.lucene.index.IndexWriter;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -34,6 +35,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -94,6 +96,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
 
         // there is no need to fetch docs stats for split but we keep it simple and do it anyway for simplicity of the code
         final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getSourceIndex());
+        final String targetIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
         client.admin().indices().prepareStats(sourceIndex).clear().setDocs(true).execute(new ActionListener<IndicesStatsResponse>() {
             @Override
             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
@@ -101,7 +104,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                     (i) -> {
                         IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                         return shard == null ? null : shard.getPrimary().getDocs();
-                    }, indexNameExpressionResolver);
+                    }, sourceIndex, targetIndex);
                 createIndexService.createIndex(
                     updateRequest,
                     ActionListener.wrap(response ->
@@ -121,11 +124,9 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
 
     // static for unittesting this method
     static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(final ResizeRequest resizeRequest, final ClusterState state
-        , final IntFunction<DocsStats> perShardDocStats, IndexNameExpressionResolver indexNameExpressionResolver) {
-        final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getSourceIndex());
+        , final IntFunction<DocsStats> perShardDocStats, String sourceIndexName, String targetIndexName) {
         final CreateIndexRequest targetIndex = resizeRequest.getTargetIndexRequest();
-        final String targetIndexName = indexNameExpressionResolver.resolveDateMathExpression(targetIndex.index());
-        final IndexMetaData metaData = state.metaData().index(sourceIndex);
+        final IndexMetaData metaData = state.metaData().index(sourceIndexName);
         final Settings targetIndexSettings = Settings.builder().put(targetIndex.settings())
             .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
         int numShards = 1;
@@ -177,4 +178,14 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             .resizeType(resizeRequest.getResizeType());
     }
 
+    @Override
+    protected String getMasterActionName(DiscoveryNode node) {
+        if (node.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)){
+            return super.getMasterActionName(node);
+        } else {
+            // this is for BWC - when we send this to version that doesn't have ResizeAction.NAME registered
+            // we have to send to shrink instead.
+            return ShrinkAction.NAME;
+        }
+    }
 }

@@ -40,7 +40,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest {
 
-    public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("shrink_request", null);
+    public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request", null);
     static {
         PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
             new ParseField("settings"), ObjectParser.ValueType.OBJECT);
@@ -84,7 +84,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         targetIndexRequest = new CreateIndexRequest();
         targetIndexRequest.readFrom(in);
         sourceIndex = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)) {
             type = in.readEnum(ResizeType.class);
         } else {
             type = ResizeType.SHRINK; // BWC this used to be shrink only
@@ -96,7 +96,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         super.writeTo(out);
         targetIndexRequest.writeTo(out);
         out.writeString(sourceIndex);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)) {
             out.writeEnum(type);
         }
     }

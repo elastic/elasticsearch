@@ -2032,9 +2032,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 break;
             case LOCAL_SHARDS:
                 final IndexMetaData indexMetaData = indexSettings().getIndexMetaData();
-                final Index mergeSourceIndex = indexMetaData.getResizeSourceIndex();
+                final Index resizeSourceIndex = indexMetaData.getResizeSourceIndex();
                 final List<IndexShard> startedShards = new ArrayList<>();
-                final IndexService sourceIndexService = indicesService.indexService(mergeSourceIndex);
+                final IndexService sourceIndexService = indicesService.indexService(resizeSourceIndex);
                 final Set<ShardId> requiredShards;
                 final int numShards;
                 if (sourceIndexService != null) {
@@ -2068,9 +2068,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } else {
                     final RuntimeException e;
                     if (numShards == -1) {
-                        e = new IndexNotFoundException(mergeSourceIndex);
+                        e = new IndexNotFoundException(resizeSourceIndex);
                     } else {
-                        e = new IllegalStateException("not all shards from index " + mergeSourceIndex
+                        e = new IllegalStateException("not all shards from index " + resizeSourceIndex
                             + " are started yet, expected " + numShards + " found " + startedShards.size() + " can't recover shard "
                             + shardId());
                     }

@@ -389,21 +389,21 @@ public class PublishClusterStateAction extends AbstractComponent {
                     logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(),
                         request.bytes().length());
                 } else if (lastSeenClusterState != null) {
-                    incompatibleClusterStateDiffReceivedCount.incrementAndGet();
                     Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeenClusterState.nodes().getLocalNode());
                     incomingState = diff.apply(lastSeenClusterState);
-                    incompatibleClusterStateDiffReceivedCount.decrementAndGet();
                     compatibleClusterStateDiffReceivedCount.incrementAndGet();
                     logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
                         incomingState.version(), incomingState.stateUUID(), request.bytes().length());
                 } else {
-                    incompatibleClusterStateDiffReceivedCount.incrementAndGet();
                     logger.debug("received diff for but don't have any local cluster state - requesting full state");
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 }
                 incomingClusterStateListener.onIncomingClusterState(incomingState);
                 lastSeenClusterState = incomingState;
             }
+        } catch (IncompatibleClusterStateVersionException e) {
+            incompatibleClusterStateDiffReceivedCount.incrementAndGet();
+            throw e;
         } finally {
             IOUtils.close(in);
         }

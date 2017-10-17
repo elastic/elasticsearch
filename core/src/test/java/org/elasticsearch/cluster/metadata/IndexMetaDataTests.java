@@ -202,4 +202,26 @@ public class IndexMetaDataTests extends ESTestCase {
             assertThat(metaData.getSettings().getAsInt(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 0), is(0));
         }
     }
+
+    public void testNumberOfRoutingShards() {
+        Settings build = Settings.builder().put("index.number_of_shards", 5).put("index.number_of_routing_shards", 10).build();
+        assertEquals(10, IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(build).intValue());
+
+        build = Settings.builder().put("index.number_of_shards", 5).put("index.number_of_routing_shards", 5).build();
+        assertEquals(5, IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(build).intValue());
+
+        int numShards = randomIntBetween(1, 10);
+        build = Settings.builder().put("index.number_of_shards", numShards).build();
+        assertEquals(numShards, IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(build).intValue());
+
+        Settings lessThanSettings = Settings.builder().put("index.number_of_shards", 8).put("index.number_of_routing_shards", 4).build();
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            () -> IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(lessThanSettings));
+        assertEquals("index.number_of_routing_shards [4] must be >= index.number_of_shards [8]", iae.getMessage());
+
+        Settings notAFactorySettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_routing_shards", 3).build();
+        iae = expectThrows(IllegalArgumentException.class,
+            () -> IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings));
+        assertEquals("the number of source shards [2] must be a must be a factor of [3]", iae.getMessage());
+    }
 }

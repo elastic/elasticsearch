@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -127,6 +128,9 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         , final IntFunction<DocsStats> perShardDocStats, String sourceIndexName, String targetIndexName) {
         final CreateIndexRequest targetIndex = resizeRequest.getTargetIndexRequest();
         final IndexMetaData metaData = state.metaData().index(sourceIndexName);
+        if (metaData == null) {
+            throw new IndexNotFoundException(sourceIndexName);
+        }
         final Settings targetIndexSettings = Settings.builder().put(targetIndex.settings())
             .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
         int numShards = 1;

@@ -65,6 +65,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -195,8 +196,23 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public static final Setting<Integer> INDEX_ROUTING_PARTITION_SIZE_SETTING =
             Setting.intSetting(SETTING_ROUTING_PARTITION_SIZE, 1, 1, Property.IndexScope);
 
-    public static final Setting<Integer> INDEX_ROUTING_SHARDS_FACTOR_SETTING =
-        Setting.intSetting("index.routing_shards_factor", 1, 1, Property.IndexScope);
+    public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING =
+        Setting.intSetting("index.number_of_routing_shards", INDEX_NUMBER_OF_SHARDS_SETTING, 1, new Setting.Validator<Integer>() {
+            @Override
+            public void validate(Integer numRoutingShards, Map<Setting<Integer>, Integer> settings) {
+                Integer numShards = settings.get(INDEX_NUMBER_OF_SHARDS_SETTING);
+                if (numRoutingShards < numShards) {
+                    throw new IllegalArgumentException("index.number_of_routing_shards [" + numRoutingShards
+                        + "] must be >= index.number_of_shards [" + numShards + "]");
+                }
+                getRoutingFactor(numShards, numRoutingShards);
+            }
+
+            @Override
+            public Iterator<Setting<Integer>> settings() {
+                return Collections.singleton(INDEX_NUMBER_OF_SHARDS_SETTING).iterator();
+            }
+        }, Property.IndexScope);
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;

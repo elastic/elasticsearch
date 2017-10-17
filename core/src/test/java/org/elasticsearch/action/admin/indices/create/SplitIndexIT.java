@@ -89,7 +89,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         CreateIndexRequestBuilder createInitialIndex = prepareCreate("source");
         Settings.Builder settings = Settings.builder().put(indexSettings())
             .put("number_of_shards", shardSplits[0])
-            .put("index.routing_shards_factor",  shardSplits[2] / shardSplits[0]);
+            .put("index.number_of_routing_shards",  shardSplits[2] * randomIntBetween(1, 10));
         if (useRouting && useMixedRouting == false && randomBoolean()) {
             settings.put("index.routing_partition_size", randomIntBetween(1, 10));
             createInitialIndex.addMapping("t1", "_routing", "required=true");
@@ -222,7 +222,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings())
             .put("number_of_shards", numberOfShards)
-            .put("index.routing_shards_factor",  numberOfTargetShards / numberOfShards)).get();
+            .put("index.number_of_routing_shards",  numberOfTargetShards)).get();
 
         final ImmutableOpenMap<String, DiscoveryNode> dataNodes =
                 client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
@@ -295,7 +295,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings())
             .put("number_of_shards", 1)
             .put("index.version.created", version)
-            .put("index.routing_shards_factor",  2)
+            .put("index.number_of_routing_shards",  2)
         ).get();
         final int docs = randomIntBetween(0, 128);
         for (int i = 0; i < docs; i++) {
@@ -398,7 +398,7 @@ public class SplitIndexIT extends ESIntegTestCase {
                 Settings.builder()
                     .put(indexSettings())
                     .put("sort.field", "id")
-                    .put("index.routing_shards_factor",  16)
+                    .put("index.number_of_routing_shards",  16)
                     .put("sort.order", "desc")
                     .put("number_of_shards", 2)
                     .put("number_of_replicas", 0)

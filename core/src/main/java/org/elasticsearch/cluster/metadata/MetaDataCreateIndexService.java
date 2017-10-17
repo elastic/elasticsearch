@@ -384,11 +384,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 final int routingNumShards;
                 if (recoverFromIndex == null) {
                     Settings idxSettings = indexSettingsBuilder.build();
-                    int numShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(idxSettings);
-                    int routingShardsFactor = IndexMetaData.INDEX_ROUTING_SHARDS_FACTOR_SETTING.get(idxSettings);
-                    // we multiply the routing shards in order to split the shard going forward.
-                    // implementation wise splitting shards is really just an inverted shrink operation.
-                    routingNumShards = numShards * routingShardsFactor;
+                    routingNumShards = IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(idxSettings);
                 } else {
                     final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(recoverFromIndex);
                     routingNumShards = sourceMetaData.getRoutingNumShards();

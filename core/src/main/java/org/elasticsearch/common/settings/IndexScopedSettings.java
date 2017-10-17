@@ -70,7 +70,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING,
         IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING,
         IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING,
-        IndexMetaData.INDEX_ROUTING_SHARDS_FACTOR_SETTING,
+        IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING,
         IndexMetaData.INDEX_READ_ONLY_SETTING,
         IndexMetaData.INDEX_BLOCKS_READ_SETTING,
         IndexMetaData.INDEX_BLOCKS_WRITE_SETTING,

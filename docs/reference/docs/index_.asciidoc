@@ -69,7 +69,8 @@ type specified. Check out the <<mapping,mapping>>
 section for more information on mapping definitions.
 
 Automatic index creation can be disabled by setting
-`action.auto_create_index` to `false` in the config file of all nodes.
+`action.auto_create_index` to `false` in the config file of all nodes, 
+or via the cluster update settings API.
 Automatic mapping creation can be disabled by setting
 `index.mapper.dynamic` to `false` per-index as an index setting.
 

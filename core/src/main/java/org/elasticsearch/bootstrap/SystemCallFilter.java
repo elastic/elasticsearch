@@ -199,7 +199,6 @@ final class SystemCallFilter {
     static final int SECCOMP_RET_ALLOW = 0x7FFF0000;
 
     // some errno constants for error checking/handling
-    static final int EPERM  = 0x01;
     static final int EACCES = 0x0D;
     static final int EFAULT = 0x0E;
     static final int EINVAL = 0x16;

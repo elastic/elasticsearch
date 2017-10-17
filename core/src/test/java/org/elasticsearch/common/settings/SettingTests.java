@@ -337,7 +337,7 @@ public class SettingTests extends ESTestCase {
                     Settings.EMPTY);
             fail("not accepted");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "illegal value can't update [foo.bar.] from [{}] to [{1.value=1, 2.value=2}]");
+            assertEquals(ex.getMessage(), "illegal value can't update [foo.bar.] from [{}] to [{\"1.value\":\"1\",\"2.value\":\"2\"}]");
         }
     }
 
@@ -441,7 +441,7 @@ public class SettingTests extends ESTestCase {
         assertEquals("foo,bar", value.get(0));
 
         List<String> input = Arrays.asList("test", "test1, test2", "test", ",,,,");
-        Settings.Builder builder = Settings.builder().putArray("foo.bar", input.toArray(new String[0]));
+        Settings.Builder builder = Settings.builder().putList("foo.bar", input.toArray(new String[0]));
         assertTrue(listSetting.exists(builder.build()));
         value = listSetting.get(builder.build());
         assertEquals(input.size(), value.size());
@@ -464,11 +464,11 @@ public class SettingTests extends ESTestCase {
         assertEquals(input.size(), ref.get().size());
         assertArrayEquals(ref.get().toArray(new String[0]), input.toArray(new String[0]));
 
-        settingUpdater.apply(Settings.builder().putArray("foo.bar", "123").build(), builder.build());
+        settingUpdater.apply(Settings.builder().putList("foo.bar", "123").build(), builder.build());
         assertEquals(1, ref.get().size());
         assertArrayEquals(ref.get().toArray(new String[0]), new String[] {"123"});
 
-        settingUpdater.apply(Settings.builder().put("foo.bar", "1,2,3").build(), Settings.builder().putArray("foo.bar", "123").build());
+        settingUpdater.apply(Settings.builder().put("foo.bar", "1,2,3").build(), Settings.builder().putList("foo.bar", "123").build());
         assertEquals(3, ref.get().size());
         assertArrayEquals(ref.get().toArray(new String[0]), new String[] {"1", "2", "3"});
 
@@ -492,17 +492,17 @@ public class SettingTests extends ESTestCase {
         assertEquals(1, value.size());
         assertEquals("foo,bar", value.get(0));
 
-        value = settingWithFallback.get(Settings.builder().putArray("foo.bar", "1", "2").build());
+        value = settingWithFallback.get(Settings.builder().putList("foo.bar", "1", "2").build());
         assertEquals(2, value.size());
         assertEquals("1", value.get(0));
         assertEquals("2", value.get(1));
 
-        value = settingWithFallback.get(Settings.builder().putArray("foo.baz", "3", "4").build());
+        value = settingWithFallback.get(Settings.builder().putList("foo.baz", "3", "4").build());
         assertEquals(2, value.size());
         assertEquals("3", value.get(0));
         assertEquals("4", value.get(1));
 
-        value = settingWithFallback.get(Settings.builder().putArray("foo.baz", "3", "4").putArray("foo.bar", "1", "2").build());
+        value = settingWithFallback.get(Settings.builder().putList("foo.baz", "3", "4").putList("foo.bar", "1", "2").build());
         assertEquals(2, value.size());
         assertEquals("3", value.get(0));
         assertEquals("4", value.get(1));
@@ -512,13 +512,13 @@ public class SettingTests extends ESTestCase {
         Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(),
             Property.Dynamic, Property.NodeScope);
         List<String> input = Arrays.asList("test", "test1, test2", "test", ",,,,");
-        Settings.Builder builder = Settings.builder().putArray("foo.bar", input.toArray(new String[0]));
+        Settings.Builder builder = Settings.builder().putList("foo.bar", input.toArray(new String[0]));
         // try to parse this really annoying format
-        for (String key : builder.internalMap().keySet()) {
+        for (String key : builder.keys()) {
             assertTrue("key: " + key + " doesn't match", listSetting.match(key));
         }
         builder = Settings.builder().put("foo.bar", "1,2,3");
-        for (String key : builder.internalMap().keySet()) {
+        for (String key : builder.keys()) {
             assertTrue("key: " + key + " doesn't match", listSetting.match(key));
         }
         assertFalse(listSetting.match("foo_bar"));
@@ -577,16 +577,35 @@ public class SettingTests extends ESTestCase {
         assertFalse(listAffixSetting.match("foo"));
     }
 
+    public void testAffixAsMap() {
+        Setting.AffixSetting<String> setting = Setting.prefixKeySetting("foo.bar.", key ->
+            Setting.simpleString(key, Property.NodeScope));
+        Settings build = Settings.builder().put("foo.bar.baz", 2).put("foo.bar.foobar", 3).build();
+        Map<String, String> asMap = setting.getAsMap(build);
+        assertEquals(2, asMap.size());
+        assertEquals("2", asMap.get("baz"));
+        assertEquals("3", asMap.get("foobar"));
+
+        setting = Setting.prefixKeySetting("foo.bar.", key ->
+            Setting.simpleString(key, Property.NodeScope));
+        build = Settings.builder().put("foo.bar.baz", 2).put("foo.bar.foobar", 3).put("foo.bar.baz.deep", 45).build();
+        asMap = setting.getAsMap(build);
+        assertEquals(3, asMap.size());
+        assertEquals("2", asMap.get("baz"));
+        assertEquals("3", asMap.get("foobar"));
+        assertEquals("45", asMap.get("baz.deep"));
+    }
+
     public void testGetAllConcreteSettings() {
         Setting.AffixSetting<List<String>> listAffixSetting = Setting.affixKeySetting("foo.", "bar",
             (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope));
 
         Settings settings = Settings.builder()
-            .putArray("foo.1.bar", "1", "2")
-            .putArray("foo.2.bar", "3", "4", "5")
-            .putArray("foo.bar", "6")
-            .putArray("some.other", "6")
-            .putArray("foo.3.bar", "6")
+            .putList("foo.1.bar", "1", "2")
+            .putList("foo.2.bar", "3", "4", "5")
+            .putList("foo.bar", "6")
+            .putList("some.other", "6")
+            .putList("foo.3.bar", "6")
             .build();
         Stream<Setting<List<String>>> allConcreteSettings = listAffixSetting.getAllConcreteSettings(settings);
         Map<String, List<String>> collect = allConcreteSettings.collect(Collectors.toMap(Setting::getKey, (s) -> s.get(settings)));

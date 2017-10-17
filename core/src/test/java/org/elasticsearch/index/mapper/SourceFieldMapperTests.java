@@ -65,7 +65,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.smileBuilder().startObject()
                 .field("field", "value")
                 .endObject().bytes(),
-                XContentType.JSON));
+                XContentType.SMILE));
 
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.SMILE));
     }

@@ -21,6 +21,8 @@ package org.elasticsearch.test.rest;
 
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
@@ -30,6 +32,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -41,6 +44,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -51,16 +55,19 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import javax.net.ssl.SSLContext;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Superclass for tests that interact with an external test cluster using Elasticsearch's {@link RestClient}.
@@ -287,7 +294,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             } catch (IOException e) {
                 fail("cannot get cluster's pending tasks: " + e.getMessage());
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     /**
@@ -380,4 +387,28 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         return runningTasks;
     }
+
+    protected void assertOK(Response response) {
+        assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    protected void ensureGreen() throws IOException {
+        Map<String, String> params = new HashMap<>();
+        params.put("wait_for_status", "green");
+        params.put("wait_for_no_relocating_shards", "true");
+        params.put("timeout", "70s");
+        params.put("level", "shards");
+        assertOK(client().performRequest("GET", "_cluster/health", params));
+    }
+
+    protected void createIndex(String name, Settings settings) throws IOException {
+        createIndex(name, settings, "");
+    }
+
+    protected void createIndex(String name, Settings settings, String mapping) throws IOException {
+        assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
+            new StringEntity("{ \"settings\": " + Strings.toString(settings)
+                + ", \"mappings\" : {" + mapping + "} }", ContentType.APPLICATION_JSON)));
+    }
+
 }

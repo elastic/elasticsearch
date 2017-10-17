@@ -30,12 +30,7 @@ task bwcTest {
     group = 'verification'
 }
 
-// For now test against the current version:
-Version currentVersion = Version.fromString(VersionProperties.elasticsearch.minus('-SNAPSHOT'))
-Version[] versions = [currentVersion]
-// TODO: uncomment when there is a released version with: https://github.com/elastic/elasticsearch/pull/25456
-// versions = indexCompatVersions
-for (Version version : versions) {
+for (Version version : indexCompatVersions) {
     String baseName = "v${version}"
 
     Task oldQueryBuilderTest = tasks.create(name: "${baseName}#oldQueryBuilderTest", type: RestIntegTestTask) {
@@ -48,9 +43,8 @@ for (Version version : versions) {
 
     configure(extensions.findByName("${baseName}#oldQueryBuilderTestCluster")) {
         distribution = 'zip'
-        // TODO: uncomment when there is a released version with: https://github.com/elastic/elasticsearch/pull/25456
-        // bwcVersion = version
-        // numBwcNodes = 1
+        bwcVersion = version
+        numBwcNodes = 1
         numNodes = 1
         clusterName = 'query_builder_bwc'
         setting 'http.content_type.required', 'true'
@@ -89,7 +83,7 @@ test.enabled = false // no unit tests for rolling upgrades, only the rest integr
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
     if (project.bwc_tests_enabled) {
-        dependsOn = ["v${versions[-1]}#bwcTest"]
+        dependsOn = ["v${indexCompatVersions[-1]}#bwcTest"]
     }
 }
 

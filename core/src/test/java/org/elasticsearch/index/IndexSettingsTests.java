@@ -60,7 +60,7 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals("0xdeadbeef", settings.getUUID());
 
         assertFalse(settings.updateIndexMetaData(metaData));
-        assertEquals(metaData.getSettings().getAsMap(), settings.getSettings().getAsMap());
+        assertEquals(metaData.getSettings(), settings.getSettings());
         assertEquals(0, integer.get());
         assertTrue(settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(theSettings).put("index.test.setting.int", 42)
             .build())));
@@ -83,7 +83,7 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals("0xdeadbeef", settings.getUUID());
 
         assertFalse(settings.updateIndexMetaData(metaData));
-        assertEquals(metaData.getSettings().getAsMap(), settings.getSettings().getAsMap());
+        assertEquals(metaData.getSettings(), settings.getSettings());
         assertEquals(0, integer.get());
         expectThrows(IllegalArgumentException.class, () -> settings.updateIndexMetaData(newIndexMeta("index",
             Settings.builder().put(theSettings).put("index.test.setting.int", 42).build())));
@@ -156,7 +156,7 @@ public class IndexSettingsTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertEquals("uuid mismatch on settings update expected: 0xdeadbeef but was: _na_", ex.getMessage());
         }
-        assertEquals(metaData.getSettings().getAsMap(), settings.getSettings().getAsMap());
+        assertEquals(metaData.getSettings(), settings.getSettings());
     }
 
     public IndexSettings newIndexSettings(IndexMetaData metaData, Settings nodeSettings, Setting<?>... settings) {
@@ -543,7 +543,7 @@ public class IndexSettingsTests extends ESTestCase {
         );
         assertThat(index.getDefaultFields(), equalTo(Collections.singletonList("body")));
         index.updateIndexMetaData(
-            newIndexMeta("index", Settings.builder().putArray("index.query.default_field", "body", "title").build())
+            newIndexMeta("index", Settings.builder().putList("index.query.default_field", "body", "title").build())
         );
         assertThat(index.getDefaultFields(), equalTo(Arrays.asList("body", "title")));
     }

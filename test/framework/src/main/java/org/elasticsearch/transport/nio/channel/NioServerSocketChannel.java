@@ -37,4 +37,12 @@ public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChann
     public ChannelFactory getChannelFactory() {
         return channelFactory;
     }
+
+    @Override
+    public String toString() {
+        return "NioServerSocketChannel{" +
+            "profile=" + getProfile() +
+            ", localAddress=" + getLocalAddress() +
+            '}';
+    }
 }

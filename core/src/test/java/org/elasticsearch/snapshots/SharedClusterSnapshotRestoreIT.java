@@ -964,7 +964,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("location", randomRepoPath())));
 
         logger.info("-->  creating index that cannot be allocated");
-        prepareCreate("test-idx", 2, Settings.builder().put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + ".tag", "nowhere").put("index.number_of_shards", 3)).setWaitForActiveShards(ActiveShardCount.NONE).get();
+        prepareCreate("test-idx", 2, Settings.builder().put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag", "nowhere").put("index.number_of_shards", 3)).setWaitForActiveShards(ActiveShardCount.NONE).get();
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").get();
@@ -1827,7 +1827,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s")
                 .put("index.analysis.analyzer.my_analyzer.type", "custom")
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonym")
+                .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonym")
                 .put("index.analysis.filter.my_synonym.type", "synonym")
                 .put("index.analysis.filter.my_synonym.synonyms", "foo => bar");
 
@@ -1949,7 +1949,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 initialSettingsBuilder.put(blockSetting, true);
             }
             Settings initialSettings = initialSettingsBuilder.build();
-            logger.info("--> using initial block settings {}", initialSettings.getAsMap());
+            logger.info("--> using initial block settings {}", initialSettings);
 
             if (!initialSettings.isEmpty()) {
                 logger.info("--> apply initial blocks to index");
@@ -1978,7 +1978,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 changedSettingsBuilder.put(blockSetting, randomBoolean());
             }
             Settings changedSettings = changedSettingsBuilder.build();
-            logger.info("--> applying changed block settings {}", changedSettings.getAsMap());
+            logger.info("--> applying changed block settings {}", changedSettings);
 
             RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()
                     .prepareRestoreSnapshot("test-repo", "test-snap")
@@ -1992,7 +1992,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                     .put(initialSettings)
                     .put(changedSettings)
                     .build();
-            logger.info("--> merged block settings {}", mergedSettings.getAsMap());
+            logger.info("--> merged block settings {}", mergedSettings);
 
             logger.info("--> checking consistency between settings and blocks");
             assertThat(mergedSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_METADATA, false),

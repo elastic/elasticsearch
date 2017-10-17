@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
+import org.apache.lucene.analysis.bn.BengaliNormalizationFilter;
 import org.apache.lucene.analysis.br.BrazilianStemFilter;
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
 import org.apache.lucene.analysis.cjk.CJKBigramFilter;
@@ -94,6 +95,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("arabic_normalization", ArabicNormalizationFilterFactory::new);
         filters.put("arabic_stem", ArabicStemTokenFilterFactory::new);
         filters.put("asciifolding", ASCIIFoldingTokenFilterFactory::new);
+        filters.put("bengali_normalization", BengaliNormalizationFilterFactory::new);
         filters.put("brazilian_stem", BrazilianStemTokenFilterFactory::new);
         filters.put("cjk_bigram", CJKBigramFilterFactory::new);
         filters.put("cjk_width", CJKWidthFilterFactory::new);
@@ -180,6 +182,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.add(PreConfiguredTokenFilter.singleton("arabic_normalization", true, ArabicNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("arabic_stem", false, ArabicStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("asciifolding", true, ASCIIFoldingFilter::new));
+        filters.add(PreConfiguredTokenFilter.singleton("bengali_normalization", true, BengaliNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("brazilian_stem", false, BrazilianStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("cjk_bigram", false, CJKBigramFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("cjk_width", true, CJKWidthFilter::new));

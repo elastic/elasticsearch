@@ -1,0 +1,23 @@
+[[breaking_70_api_changes]]
+=== Breaking changes in 7.0
+
+==== Deprecated camel case and underscore parameters
+Bulk request, Multi Get request, Term Vectors request, and More Like This Query
+requests have deprecated a number of duplicate parameters.
+
+The following camel case parameters have been deprecated:
+
+* `opType`
+* `versionType`, `_versionType`
+
+The following parameters starting with underscore have been deprecated:
+
+* `_parent`
+* `_retry_on_conflict`
+* `_routing`
+* `_version`
+* `_version_type`
+
+Instead of these deprecated parameters, use their non camel case equivalents without
+starting underscore, e.g. use `version_type` instead of `_version_type` or `versionType`.
+

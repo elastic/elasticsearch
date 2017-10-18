@@ -34,17 +34,15 @@ public class PagedBytesReference extends BytesReference {
 
     private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
 
-    private final BigArrays bigarrays;
     protected final ByteArray byteArray;
-    private final int offset;
+    protected final int offset;
     private final int length;
 
-    public PagedBytesReference(BigArrays bigarrays, ByteArray byteArray, int length) {
-        this(bigarrays, byteArray, 0, length);
+    public PagedBytesReference(ByteArray byteArray, int length) {
+        this(byteArray, 0, length);
     }
 
-    public PagedBytesReference(BigArrays bigarrays, ByteArray byteArray, int from, int length) {
-        this.bigarrays = bigarrays;
+    public PagedBytesReference(ByteArray byteArray, int from, int length) {
         this.byteArray = byteArray;
         this.offset = from;
         this.length = length;
@@ -61,11 +59,11 @@ public class PagedBytesReference extends BytesReference {
     }
 
     @Override
-    public BytesReference slice(int from, int length) {
+    public PagedBytesReference slice(int from, int length) {
         if (from < 0 || (from + length) > length()) {
             throw new IllegalArgumentException("can't slice a buffer with length [" + length() + "], with slice parameters from [" + from + "], length [" + length + "]");
         }
-        return new PagedBytesReference(bigarrays, byteArray, offset + from, length);
+        return new PagedBytesReference(byteArray, offset + from, length);
     }
 
     @Override

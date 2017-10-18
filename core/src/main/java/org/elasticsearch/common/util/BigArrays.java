@@ -25,6 +25,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
@@ -162,6 +163,7 @@ public class BigArrays implements Releasable {
             assert indexIsInt(toIndex);
             Arrays.fill(array, (int) fromIndex, (int) toIndex, value);
         }
+
     }
 
     private static class IntArrayWrapper extends AbstractArrayWrapper implements IntArray {
@@ -461,6 +463,15 @@ public class BigArrays implements Releasable {
             }
         }
         return array;
+    }
+
+    /**
+     * Allocate a new {@link BytesPage}.
+     */
+    public BytesPage newBytePage() {
+        adjustBreaker(BigByteArray.estimateRamBytes(BYTE_PAGE_SIZE), false);
+        final Recycler.V<byte[]> page = recycler.bytePage(false);
+        return new BytesPage(page.v(), page);
     }
 
     /**

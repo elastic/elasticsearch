@@ -17,29 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.common.bytes;
+package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
 
-/**
- * An extension to {@link PagedBytesReference} that requires releasing its content. This
- * class exists to make it explicit when a bytes reference needs to be released, and when not.
- */
-public final class ReleasablePagedBytesReference extends PagedBytesReference implements Releasable {
+public final class BytesPage implements Releasable {
 
-    private final Releasable releasable;
+    private final byte[] page;
+    private final Releasable recycler;
 
-    public ReleasablePagedBytesReference(ByteArray byteArray, int length, Releasable releasable) {
-        super(byteArray, length);
-        this.releasable = releasable;
+    BytesPage(byte[] page, Releasable recycler) {
+        this.page = page;
+        this.recycler = recycler;
     }
 
     @Override
     public void close() {
-        Releasables.close(releasable);
+        recycler.close();
     }
 
+    public byte[] getByteArray() {
+        return page;
+    }
 }

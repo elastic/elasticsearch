@@ -447,7 +447,8 @@ public class Node implements Closeable {
                 clusterModule.getAllocationService());
             this.nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
-                httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter());
+                httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter(), responseCollectorService,
+                searchTransportService);
             modules.add(b -> {
                     b.bind(Node.class).toInstance(this);
                     b.bind(NodeService.class).toInstance(nodeService);

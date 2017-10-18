@@ -30,6 +30,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -110,7 +111,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         Query expected = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
         Query actual = MultiMatchQuery.blendTerm(
                 indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-                new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
+                new BytesRef("baz"), null, 1f, false, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
         assertEquals(expected, actual);
     }
 
@@ -126,11 +127,11 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         Query expected = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
         Query actual = MultiMatchQuery.blendTerm(
                 indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-                new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
+                new BytesRef("baz"), null, 1f, false, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
         assertEquals(expected, actual);
     }
 
-    public void testBlendTermsUnsupportedValue() {
+    public void testBlendTermsUnsupportedValueWithLenient() {
         FakeFieldType ft1 = new FakeFieldType();
         ft1.setName("foo");
         FakeFieldType ft2 = new FakeFieldType() {
@@ -142,11 +143,27 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         ft2.setName("bar");
         Term[] terms = new Term[] { new Term("foo", "baz") };
         float[] boosts = new float[] {2};
-        Query expected = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
+        Query expected = new DisjunctionMaxQuery(Arrays.asList(
+            Queries.newMatchNoDocsQuery("failed [" + ft2.name() + "] query, caused by illegal_argument_exception:[null]"),
+            BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f)
+        ), 1f);
         Query actual = MultiMatchQuery.blendTerm(
                 indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-                new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
+                new BytesRef("baz"), null, 1f, true, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
         assertEquals(expected, actual);
+    }
+
+    public void testBlendTermsUnsupportedValueWithoutLenient() {
+        FakeFieldType ft = new FakeFieldType() {
+            @Override
+            public Query termQuery(Object value, QueryShardContext context) {
+                throw new IllegalArgumentException();
+            }
+        };
+        ft.setName("bar");
+        expectThrows(IllegalArgumentException.class, () -> MultiMatchQuery.blendTerm(
+            indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
+            new BytesRef("baz"), null, 1f, false, new FieldAndFieldType(ft, 1)));
     }
 
     public void testBlendNoTermQuery() {
@@ -170,7 +187,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             ), 1.0f);
         Query actual = MultiMatchQuery.blendTerm(
                 indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-                new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
+                new BytesRef("baz"), null, 1f, false, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
         assertEquals(expected, actual);
     }
 

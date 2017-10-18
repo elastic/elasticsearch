@@ -248,7 +248,7 @@ public class IndexingIT extends ESRestTestCase {
         final Response response = client().performRequest("GET", index + "/test/" + docId,
                 Collections.singletonMap("preference", preference));
         assertOK(response);
-        final int actualVersion = Integer.parseInt(ObjectPath.createFromResponse(response).evaluate("_version").toString());
+        final int actualVersion = Integer.parseInt(ObjectPath.createFromResponse(response).evaluate("version").toString());
         assertThat("version mismatch for doc [" + docId + "] preference [" + preference + "]", actualVersion, equalTo(expectedVersion));
     }
 

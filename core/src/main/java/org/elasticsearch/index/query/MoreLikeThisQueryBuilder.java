@@ -148,9 +148,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             ParseField DOC = new ParseField("doc");
             ParseField FIELDS = new ParseField("fields");
             ParseField PER_FIELD_ANALYZER = new ParseField("per_field_analyzer");
-            ParseField ROUTING = new ParseField("_routing");
-            ParseField VERSION = new ParseField("_version");
-            ParseField VERSION_TYPE = new ParseField("_version_type");
+            ParseField ROUTING = new ParseField("routing","_routing");
+            ParseField VERSION = new ParseField("version","_version");
+            ParseField VERSION_TYPE = new ParseField("version_type",
+                "_version_type", "_versionType", "versionType");
         }
 
         private String index;
@@ -392,12 +393,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                         }
                     } else if (Field.PER_FIELD_ANALYZER.match(currentFieldName)) {
                         item.perFieldAnalyzer(TermVectorsRequest.readPerFieldAnalyzer(parser.map()));
-                    } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
+                    } else if (Field.ROUTING.match(currentFieldName)) {
                         item.routing = parser.text();
-                    } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
+                    } else if (Field.VERSION.match(currentFieldName)) {
                         item.version = parser.longValue();
-                    } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName)
-                            || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
+                    } else if (Field.VERSION_TYPE.match(currentFieldName)) {
                         item.versionType = VersionType.fromString(parser.text());
                     } else {
                         throw new ElasticsearchParseException(

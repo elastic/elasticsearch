@@ -13,16 +13,6 @@ web browser so that it does not block pop-up windows or create an
 exception for your {kib} URL.
 
 [float]
-=== Jobs must be re-created at GA
-//See x-pack-elasticsearch/#844
-
-The models that you create in the {xpackml} Beta cannot be upgraded.
-After the {xpackml} features become generally available, you must
-re-create your jobs. If you have data sets and job configurations that
-you work with extensively in the beta, make note of all the details so
-that you can re-create them successfully.
-
-[float]
 === {xpackml} features do not yet support cross cluster search
 
 At this time, you cannot use cross cluster search in either the {ml} APIs or the

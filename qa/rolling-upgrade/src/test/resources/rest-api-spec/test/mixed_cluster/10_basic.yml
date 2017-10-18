@@ -53,7 +53,7 @@ setup:
        body: {"f1": "v8_mixed", "f2": 12}
 
  - do:
-     indices.flush:
+     indices.refresh:
         index: test_index
 
  - do:
@@ -81,7 +81,7 @@ setup:
        id: d12
 
  - do:
-     indices.flush:
+     indices.refresh:
         index: test_index
 
 ---

@@ -99,7 +99,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         ensureWatcherStarted();
         watcherClient().prepareExecuteWatch("test_watch").setRecordExecution(true).get();
 
-        flush(".watcher-history*");
+        refresh(".watcher-history*");
         SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
         assertHitCount(searchResponse, 1);
 
@@ -137,7 +137,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         watcherClient().prepareExecuteWatch("test_watch").setRecordExecution(true).get();
 
-        flush(".watcher-history*");
+        refresh(".watcher-history*");
         SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
         assertHitCount(searchResponse, 1);
 

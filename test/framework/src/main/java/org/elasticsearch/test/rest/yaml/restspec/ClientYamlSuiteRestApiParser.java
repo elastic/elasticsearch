@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -146,16 +148,19 @@ public class ClientYamlSuiteRestApiParser {
         return restApi;
     }
     
-    private boolean getRequired(XContentParser parser) throws IOException {
-        boolean required = false;
-        while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                if ("required".equals(parser.currentName())) {
-                    parser.nextToken();
-                    required = parser.booleanValue();
-                }
-            }
+    class YamlElement {
+        private boolean required;
+        public boolean isRequired() {
+            return required;
         }
-        return required;
+        public void setRequired(boolean required) {
+            this.required = required;
+        }
+    }
+
+    private boolean getRequired(XContentParser parser) throws IOException {
+        ObjectParser<YamlElement, Void> objParser = new ObjectParser<>("", true, YamlElement::new);
+        objParser.declareBoolean(YamlElement::setRequired, new ParseField("required"));
+        return objParser.parse(parser, null).isRequired();
     }
 }

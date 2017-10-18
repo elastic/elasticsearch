@@ -99,19 +99,27 @@ public class ClientYamlSuiteRestApi {
         this.paths.add(path);
     }
 
+    /**
+     * Gets all path parts supported by the api. For every path part defines if it
+     * is required or optional.
+     */
     public Map<String, Boolean> getPathParts() {
         return pathParts;
     }
 
-    void addPathPart(String pathPart, Boolean required) {
+    void addPathPart(String pathPart, boolean required) {
         this.pathParts.put(pathPart, required);
     }
 
+    /**
+     * Gets all parameters supported by the api. For every parameter defines if it
+     * is required or optional.
+     */
     public Map<String, Boolean> getParams() {
         return params;
     }
 
-    void addParam(String param, Boolean required) {
+    void addParam(String param, boolean required) {
         this.params.put(param, required);
     }
 

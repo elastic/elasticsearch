@@ -21,13 +21,11 @@ package org.elasticsearch.test.rest.yaml.restspec;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.yaml.section.AbstractClientYamlTestFragmentParserTestCase;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseRestSpecIndexApi() throws Exception {
@@ -43,10 +41,10 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         assertThat(restApi.getPaths().get(0), equalTo("/{index}/{type}"));
         assertThat(restApi.getPaths().get(1), equalTo("/{index}/{type}/{id}"));
         assertThat(restApi.getPathParts().size(), equalTo(3));
-        assertThat(restApi.getPathParts().keySet(), containsInAnyOrder("id","index", "type"));
-        assertThat(restApi.getPathParts().get("index"), equalTo(true));
-        assertThat(restApi.getPathParts().get("type"), equalTo(true));
-        assertThat(restApi.getPathParts().get("id"), equalTo(false));
+        assertThat(restApi.getPathParts().keySet(), containsInAnyOrder("id", "index", "type"));
+        assertThat(restApi.getPathParts(), hasEntry("index", true));
+        assertThat(restApi.getPathParts(), hasEntry("type", true));
+        assertThat(restApi.getPathParts(), hasEntry("id", false));
         assertThat(restApi.getParams().size(), equalTo(4));
         assertThat(restApi.getParams().keySet(), containsInAnyOrder("wait_for_active_shards", "op_type", "parent", "refresh"));
         restApi.getParams().entrySet().stream().forEach(e -> assertThat(e.getValue(), equalTo(false)));
@@ -65,8 +63,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         assertThat(restApi.getPaths().get(0), equalTo("/_template"));
         assertThat(restApi.getPaths().get(1), equalTo("/_template/{name}"));
         assertThat(restApi.getPathParts().size(), equalTo(1));
-        assertThat(restApi.getPathParts().containsKey("name"), equalTo(true));
-        assertThat(restApi.getPathParts().get("name"), equalTo(false));
+        assertThat(restApi.getPathParts(), hasEntry("name", false));
         assertThat(restApi.getParams().size(), equalTo(0));
         assertThat(restApi.isBodySupported(), equalTo(false));
         assertThat(restApi.isBodyRequired(), equalTo(false));
@@ -89,7 +86,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         restApi.getPathParts().entrySet().stream().forEach(e -> assertThat(e.getValue(), equalTo(false)));
         assertThat(restApi.getParams().size(), equalTo(1));
         assertThat(restApi.getParams().keySet(), contains("ignore_unavailable"));
-        assertThat(restApi.getParams().get("ignore_unavailable"), equalTo(false));
+        assertThat(restApi.getParams(), hasEntry("ignore_unavailable", false));
         assertThat(restApi.isBodySupported(), equalTo(true));
         assertThat(restApi.isBodyRequired(), equalTo(false));
     }

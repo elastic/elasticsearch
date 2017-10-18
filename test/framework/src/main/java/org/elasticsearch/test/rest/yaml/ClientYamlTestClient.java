@@ -44,6 +44,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -84,31 +85,33 @@ public class ClientYamlTestClient {
         Map<String, String> pathParts = new HashMap<>();
         Map<String, String> queryStringParams = new HashMap<>();
 
-        List<String> apiPathParts = restApi.getPathParts().entrySet().stream().filter(e -> e.getValue() == true).map(Entry::getKey)
-                .collect(Collectors.toList());
-        List<String> apiParameters = restApi.getParams().entrySet().stream().filter(e -> e.getValue() == true).map(Entry::getKey)
-                .collect(Collectors.toList());
+        Set<String> apiRequiredPathParts = restApi.getPathParts().entrySet().stream().filter(e -> e.getValue() == true).map(Entry::getKey)
+                .collect(Collectors.toSet());
+        Set<String> apiRequiredParameters = restApi.getParams().entrySet().stream().filter(e -> e.getValue() == true).map(Entry::getKey)
+                .collect(Collectors.toSet());
 
         for (Map.Entry<String, String> entry : params.entrySet()) {
             if (restApi.getPathParts().containsKey(entry.getKey())) {
                 pathParts.put(entry.getKey(), entry.getValue());
-                apiPathParts.remove(entry.getKey());
+                apiRequiredPathParts.remove(entry.getKey());
             } else if (restApi.getParams().containsKey(entry.getKey())
                     || restSpec.isGlobalParameter(entry.getKey())
                     || restSpec.isClientParameter(entry.getKey())) {
                 queryStringParams.put(entry.getKey(), entry.getValue());
-                apiParameters.remove(entry.getKey());
+                apiRequiredParameters.remove(entry.getKey());
             } else {
                 throw new IllegalArgumentException(
                         "path/param [" + entry.getKey() + "] not supported by [" + restApi.getName() + "] " + "api");
             }
         }
-        
-        if (!apiPathParts.isEmpty()) {
-            throw new IllegalArgumentException("missing required path part: " + apiPathParts + " by [" + restApi.getName() + "] api");
+
+        if (!apiRequiredPathParts.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "missing required path part: " + apiRequiredPathParts + " by [" + restApi.getName() + "] api");
         }
-        if (!apiParameters.isEmpty()) {
-            throw new IllegalArgumentException("missing required parameter: " + apiParameters + " by [" + restApi.getName() + "] api");
+        if (!apiRequiredParameters.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "missing required parameter: " + apiRequiredParameters + " by [" + restApi.getName() + "] api");
         }
 
         List<String> supportedMethods = restApi.getSupportedMethods(pathParts.keySet());

@@ -149,7 +149,7 @@ And now we are ready to start our node and single cluster:
 --------------------------------------------------
 
 [float]
-=== Instalation with Homebrew
+=== Installation with Homebrew
 
 On macOS, Elasticsearch can also be installed via https://brew.sh[Homebrew]:
 

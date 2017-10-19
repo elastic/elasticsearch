@@ -34,7 +34,6 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.util.HashSet;
 import java.util.Set;
 
 import static org.mockito.Matchers.any;
@@ -54,7 +53,7 @@ public class SocketSelectorTests extends ESTestCase {
     private TestSelectionKey selectionKey;
     private WriteContext writeContext;
     private ActionListener<NioChannel> listener;
-    private NetworkBytesReference bufferReference = NetworkBytesReference.wrap(new BytesArray(new byte[1]));
+    private NetworkBytesReference bufferReference = HeapNetworkBytes.wrap(new BytesArray(new byte[1]));
 
     @Before
     @SuppressWarnings("unchecked")
@@ -306,8 +305,7 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.preSelect();
 
-        NetworkBytesReference networkBuffer = NetworkBytesReference.wrap(new BytesArray(new byte[1]));
-        socketSelector.queueWrite(new WriteOperation(mock(NioSocketChannel.class), networkBuffer, listener));
+        socketSelector.queueWrite(new WriteOperation(mock(NioSocketChannel.class), new BytesArray(new byte[1]), listener));
         socketSelector.scheduleForRegistration(unRegisteredChannel);
 
         socketSelector.cleanupAndCloseChannels();

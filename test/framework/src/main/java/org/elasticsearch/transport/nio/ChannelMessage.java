@@ -17,14 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio.channel;
+package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 
-import java.io.IOException;
+public class ChannelMessage implements Releasable {
 
-public interface ReadContext extends Releasable {
+    private final BytesReference content;
+    private final Releasable[] closeables;
 
-    int read() throws IOException;
+    ChannelMessage(BytesReference content, Releasable[] resourcesToClose) {
+        this.content = content;
+        this.closeables = resourcesToClose;
+    }
 
+
+    public BytesReference getContent() {
+        return content;
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(closeables);
+    }
 }

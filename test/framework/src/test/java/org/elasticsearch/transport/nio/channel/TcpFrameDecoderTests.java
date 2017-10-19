@@ -19,10 +19,14 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.nio.ChannelBuffer;
+import org.elasticsearch.transport.nio.ChannelMessage;
+import org.elasticsearch.transport.nio.HeapNetworkBytes;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
@@ -43,10 +47,8 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('S');
         streamOutput.write(1);
         streamOutput.write(1);
-        streamOutput.write(0);
-        streamOutput.write(0);
 
-        assertNull(frameDecoder.decode(streamOutput.bytes(), 4));
+        assertNull(frameDecoder.decode(toChannelBuffer(streamOutput)));
         assertEquals(-1, frameDecoder.expectedMessageLength());
     }
 
@@ -56,7 +58,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('S');
         streamOutput.writeInt(-1);
 
-        BytesReference message = frameDecoder.decode(streamOutput.bytes(), 6);
+        BytesReference message = frameDecoder.decode(toChannelBuffer(streamOutput)).getContent();
 
         assertEquals(-1, frameDecoder.expectedMessageLength());
         assertEquals(streamOutput.bytes(), message);
@@ -70,7 +72,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('E');
         streamOutput.write('S');
 
-        BytesReference message = frameDecoder.decode(streamOutput.bytes(), 8);
+        BytesReference message = frameDecoder.decode(toChannelBuffer(streamOutput)).getContent();
 
         assertEquals(6, message.length());
         assertEquals(streamOutput.bytes().slice(0, 6), message);
@@ -84,7 +86,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('M');
         streamOutput.write('A');
 
-        BytesReference message = frameDecoder.decode(streamOutput.bytes(), 8);
+        BytesReference message = frameDecoder.decode(toChannelBuffer(streamOutput)).getContent();
 
         assertEquals(-1, frameDecoder.expectedMessageLength());
         assertEquals(streamOutput.bytes(), message);
@@ -98,7 +100,9 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('M');
         streamOutput.write('A');
 
-        BytesReference message = frameDecoder.decode(streamOutput.bytes(), 8);
+        streamOutput.bytes().streamInput();
+
+        ChannelMessage message = frameDecoder.decode(toChannelBuffer(streamOutput));
 
         assertEquals(9, frameDecoder.expectedMessageLength());
         assertNull(message);
@@ -113,7 +117,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('A');
 
         try {
-            frameDecoder.decode(streamOutput.bytes(), 8);
+            frameDecoder.decode(toChannelBuffer(streamOutput));
             fail("Expected exception");
         } catch (Exception ex) {
             assertThat(ex, instanceOf(StreamCorruptedException.class));
@@ -134,7 +138,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write(randomByte());
 
         try {
-            frameDecoder.decode(streamOutput.bytes(), 7);
+            frameDecoder.decode(toChannelBuffer(streamOutput));
             fail("Expected exception");
         } catch (Exception ex) {
             assertThat(ex, instanceOf(StreamCorruptedException.class));
@@ -157,13 +161,18 @@ public class TcpFrameDecoderTests extends ESTestCase {
             streamOutput.write(new byte[6]);
 
             try {
-                BytesReference bytes = streamOutput.bytes();
-                frameDecoder.decode(bytes, bytes.length());
+                ChannelBuffer buffer = toChannelBuffer(streamOutput);
+                frameDecoder.decode(buffer);
                 fail("Expected exception");
             } catch (Exception ex) {
                 assertThat(ex, instanceOf(TcpTransport.HttpOnTransportException.class));
                 assertEquals("This is not a HTTP port", ex.getMessage());
             }
         }
+    }
+
+    private static ChannelBuffer toChannelBuffer(BytesStreamOutput streamOutput) {
+        BytesReference bytes = streamOutput.bytes();
+        return new ChannelBuffer(HeapNetworkBytes.wrap(new BytesArray(bytes.toBytesRef()), bytes.length(), 0));
     }
 }

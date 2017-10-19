@@ -17,14 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio.channel;
+package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.common.lease.Releasable;
+public class ReleaseOnReadChannelBuffer extends ChannelBuffer {
 
-import java.io.IOException;
+    public ReleaseOnReadChannelBuffer(NetworkBytesReference... newReferences) {
+        super(newReferences);
+    }
 
-public interface ReadContext extends Releasable {
+    @Override
+    public void incrementRead(int delta) {
+        super.incrementRead(delta);
 
-    int read() throws IOException;
-
+        NetworkBytesReference headRef;
+        while((headRef = peek()) != null && headRef.hasReadRemaining() == false) {
+            NetworkBytesReference reference = removeFirst();
+            reference.close();
+        }
+    }
 }

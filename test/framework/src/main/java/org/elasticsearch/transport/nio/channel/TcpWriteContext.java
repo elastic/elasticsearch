@@ -92,11 +92,13 @@ public class TcpWriteContext implements WriteContext {
             headOp.flush();
         } catch (IOException e) {
             headOp.getListener().onFailure(e);
+            headOp.close();
             throw e;
         }
 
         if (headOp.isFullyFlushed()) {
             headOp.getListener().onResponse(channel);
+            headOp.close();
         } else {
             queued.push(headOp);
         }

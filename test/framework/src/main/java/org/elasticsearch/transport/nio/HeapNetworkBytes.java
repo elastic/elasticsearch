@@ -27,7 +27,7 @@ import org.elasticsearch.common.util.BytesPage;
 
 import java.nio.ByteBuffer;
 
-public class HeapNetworkBytes extends NetworkBytesReference2 {
+public class HeapNetworkBytes extends NetworkBytesReference {
 
     private final BytesArray bytesArray;
 
@@ -58,12 +58,12 @@ public class HeapNetworkBytes extends NetworkBytesReference2 {
         return new HeapNetworkBytes(bytesArray, 0, 0);
     }
 
-    public static NetworkBytesReference2 wrap(BytesArray bytesArray, int writeIndex, int readIndex) {
+    public static NetworkBytesReference wrap(BytesArray bytesArray, int writeIndex, int readIndex) {
         return new HeapNetworkBytes(bytesArray, writeIndex, readIndex);
     }
 
     @Override
-    public NetworkBytesReference2 sliceAndRetain(int from, int length) {
+    public NetworkBytesReference sliceAndRetain(int from, int length) {
         BytesArray slice = (BytesArray) bytesArray.slice(from, length);
         refCountedReleasable.incRef();
         int newWriteIndex = Math.min(Math.max(writeIndex - from, 0), length);

@@ -19,45 +19,48 @@
 
 package org.elasticsearch.transport.nio;
 
-import com.carrotsearch.hppc.ObjectArrayDeque;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.BytesReferenceStreamInput;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.collect.IndexedArrayDeque;
+import org.elasticsearch.common.io.stream.StreamInput;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.stream.StreamSupport;
 
-public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReference2> {
+public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReference> {
 
-    private final ObjectArrayDeque<NetworkBytesReference2> references;
+    private final IndexedArrayDeque<NetworkBytesReference> references;
     private int[] offsets;
 
     private int length;
     private int writeIndex;
     private int readIndex;
 
-    public ChannelBuffer(NetworkBytesReference2... newReferences) {
-        this.references = new ObjectArrayDeque<>(Math.max(8, newReferences.length));
+    public ChannelBuffer(NetworkBytesReference... newReferences) {
+        this.references = new IndexedArrayDeque<>(Math.max(8, newReferences.length));
         this.offsets = new int[0];
         this.length = 0;
 
         addBuffers(newReferences);
     }
 
-    public void addBuffer(NetworkBytesReference2 newReference) {
+    public void addBuffer(NetworkBytesReference newReference) {
         addBuffers(newReference);
     }
 
-    public void addBuffers(NetworkBytesReference2... refs) {
+    public void addBuffers(NetworkBytesReference... refs) {
         int initialReferenceCount = references.size();
         int[] newOffsets = new int[offsets.length + refs.length];
         System.arraycopy(offsets, 0, newOffsets, 0, offsets.length);
 
         try {
             int i = refs.length;
-            for (NetworkBytesReference2 ref : refs) {
+            for (NetworkBytesReference ref : refs) {
                 addBuffer0(ref, newOffsets, newOffsets.length - i--);
             }
             this.offsets = newOffsets;
@@ -72,26 +75,33 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
      * indexes will be modified to reflect the dropped bytes. If the reader and/or writer index is
      * less than the index passed to this method, it will be set to zero.
      *
-     * @param index up to which buffers will be dropped
+     * @param messageLength up to which buffers will be dropped
      */
-    public BytesReference sliceOffMessage(int index) {
-        int offsetIndex = getOffsetIndex(index);
+    public ChannelMessage sliceOffMessage(int messageLength) {
+        int offsetIndex = getOffsetIndex(messageLength);
         int bytesDropped = 0;
-        // TODO: need to add partial old message
-        BytesReference[] messageReferences = new BytesReference[offsetIndex + 1]; //TODO: Check + 1
+
+        int messageBytesInFinalBuffer = messageLength - offsets[offsetIndex];
+        NetworkBytesReference[] messageReferences;
+        if (messageBytesInFinalBuffer == 0) {
+            messageReferences = new NetworkBytesReference[offsetIndex];
+        } else {
+            messageReferences = new NetworkBytesReference[offsetIndex + 1];
+        }
         for (int i = 0; i < offsetIndex; ++i) {
-            NetworkBytesReference2 removed = references.removeFirst();
+            NetworkBytesReference removed = references.removeFirst();
             messageReferences[i] = removed;
             int bytesOfRemoved = removed.length();
             bytesDropped += bytesOfRemoved;
         }
 
-        int bytesToDropFromSplitBuffer = index - offsets[offsetIndex];
-        if (bytesToDropFromSplitBuffer != 0) {
-            NetworkBytesReference2 first = references.removeFirst();
-            NetworkBytesReference2 newRef = first.sliceAndRetain(bytesToDropFromSplitBuffer, first.length() - bytesToDropFromSplitBuffer);
+        if (messageBytesInFinalBuffer != 0) {
+            NetworkBytesReference first = references.removeFirst();
+            messageReferences[offsetIndex] = first.sliceAndRetain(0, messageBytesInFinalBuffer);
+            NetworkBytesReference newRef = first.sliceAndRetain(messageBytesInFinalBuffer, first.length() - messageBytesInFinalBuffer);
+            first.close();
             references.addFirst(newRef);
-            bytesDropped += bytesToDropFromSplitBuffer;
+            bytesDropped += messageBytesInFinalBuffer;
         }
 
         this.writeIndex = Math.max(0, writeIndex - bytesDropped);
@@ -101,11 +111,27 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
         this.offsets = new int[references.size()];
         int currentOffset = 0;
         int i = 0;
-        for (ObjectCursor<NetworkBytesReference2> reference : references) {
+        for (ObjectCursor<NetworkBytesReference> reference : references) {
             offsets[i++] = currentOffset;
             currentOffset += reference.value.length();
         }
-        return new CompositeBytesReference(messageReferences);
+        return new ChannelMessage(new CompositeBytesReference(messageReferences), messageReferences);
+    }
+
+    public NetworkBytesReference peek() {
+        if (references.isEmpty()) {
+            return null;
+        }
+        return references.getFirst();
+    }
+
+    public NetworkBytesReference removeFirst() {
+        NetworkBytesReference reference = references.removeFirst();
+        int bytesDropped = reference.length();
+        this.length -= bytesDropped;
+        this.writeIndex = Math.max(0, writeIndex - bytesDropped);
+        this.readIndex = Math.max(0, readIndex - bytesDropped);
+        return reference;
     }
 
     @Override
@@ -124,7 +150,7 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
 
         int i = delta;
         while (i != 0) {
-            NetworkBytesReference2 reference = getReference(offsetIndex++);
+            NetworkBytesReference reference = references.get(offsetIndex++);
             int bytesToInc = Math.min(reference.getWriteRemaining(), i);
             reference.incrementWrite(bytesToInc);
             i -= bytesToInc;
@@ -157,7 +183,7 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
 
         int i = delta;
         while (i != 0) {
-            NetworkBytesReference2 reference = getReference(offsetIndex++);
+            NetworkBytesReference reference = references.get(offsetIndex++);
             int bytesToInc = Math.min(reference.getReadRemaining(), i);
             reference.incrementRead(bytesToInc);
             i -= bytesToInc;
@@ -192,7 +218,7 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
 
         int j = 0;
         for (int i = offsetIndex; i < refCount; ++i) {
-            buffers[j++] = getReference(i).getWriteByteBuffer();
+            buffers[j++] = references.get(i).getWriteByteBuffer();
         }
 
         return buffers;
@@ -211,7 +237,7 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
 
         int j = 0;
         for (int i = offsetIndex; i < refCount; ++i) {
-            buffers[j++] = getReference(i).getReadByteBuffer();
+            buffers[j++] = references.get(i).getReadByteBuffer();
         }
 
         return buffers;
@@ -229,37 +255,31 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
 
     @Override
     public void close() {
-        for (ObjectCursor<NetworkBytesReference2> reference : references) {
+        for (ObjectCursor<NetworkBytesReference> reference : references) {
             reference.value.close();
         }
     }
 
     @Override
-    public Iterator<NetworkBytesReference2> iterator() {
+    public Iterator<NetworkBytesReference> iterator() {
         return StreamSupport.stream(references.spliterator(), false).map(o -> o.value).iterator();
     }
 
     public byte get(int index) {
         final int i = getOffsetIndex(index);
-        return getReference(i).get(index - offsets[i]);
+        return references.get(i).get(index - offsets[i]);
     }
 
     public int length() {
         return length;
     }
 
-    private int getOffsetIndex(int offset) {
+    int getOffsetIndex(int offset) {
         final int i = Arrays.binarySearch(offsets, offset);
         return i < 0 ? (-(i + 1)) - 1 : i;
     }
 
-    private NetworkBytesReference2 getReference(int index) {
-        Object[] rawBuffer = references.buffer;
-        int actualIndex = (references.head + index) % rawBuffer.length;
-        return (NetworkBytesReference2) rawBuffer[actualIndex];
-    }
-
-    private void addBuffer0(NetworkBytesReference2 ref, int[] newOffsetArray, int offsetIndex) {
+    private void addBuffer0(NetworkBytesReference ref, int[] newOffsetArray, int offsetIndex) {
         int refReadIndex = ref.getReadIndex();
         int refWriteIndex = ref.getWriteIndex();
         validateReadAndWritesIndexes(refReadIndex, refWriteIndex);
@@ -274,7 +294,7 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
     private void removeAddedReferences(int initialReferenceCount) {
         int refsToDrop = references.size() - initialReferenceCount;
         for (int i = 0; i < refsToDrop; ++i) {
-            NetworkBytesReference2 reference = references.removeLast();
+            NetworkBytesReference reference = references.removeLast();
             this.length -= reference.length();
             this.writeIndex -= reference.getWriteIndex();
             this.readIndex -= reference.getReadIndex();
@@ -288,5 +308,16 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
         if (this.readIndex != length && refReadIndex != 0) {
             throw new IllegalArgumentException("The readable spaces must be contiguous across buffers.");
         }
+    }
+
+    public StreamInput streamInput() throws IOException {
+        Iterator<NetworkBytesReference> refIterator = iterator();
+        return new BytesReferenceStreamInput(() -> {
+            if (refIterator.hasNext()) {
+                return refIterator.next().toBytesRef();
+            } else {
+                return null;
+            }
+        }, length);
     }
 }

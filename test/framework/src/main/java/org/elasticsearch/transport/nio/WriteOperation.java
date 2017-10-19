@@ -24,13 +24,14 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
-public class WriteOperation {
+public class WriteOperation implements Releasable {
 
     private final NioSocketChannel channel;
     private final ActionListener<NioChannel> listener;
@@ -47,7 +48,6 @@ public class WriteOperation {
     }
 
     public ActionListener<NioChannel> getListener() {
-        // TODO: Close network bytes
         return listener;
     }
 
@@ -63,16 +63,21 @@ public class WriteOperation {
         return channel.write(bytes);
     }
 
+    @Override
+    public void close() {
+        bytes.close();
+    }
+
     private static NetworkBytes toNetworkBytes(BytesReference reference) {
         BytesRefIterator byteRefIterator = reference.iterator();
         BytesRef r;
         try {
             // Most network messages are composed of three buffers
-            ArrayList<NetworkBytesReference2> references = new ArrayList<>(3);
+            ArrayList<NetworkBytesReference> references = new ArrayList<>(3);
             while ((r = byteRefIterator.next()) != null) {
                 references.add(HeapNetworkBytes.wrap(new BytesArray(r), r.length, 0));
             }
-            return new ChannelBuffer(references.toArray(new NetworkBytesReference2[references.size()]));
+            return new ReleaseOnReadChannelBuffer(references.toArray(new NetworkBytesReference[references.size()]));
 
         } catch (IOException e) {
             // this is really an error since we don't do IO in our bytesreferences

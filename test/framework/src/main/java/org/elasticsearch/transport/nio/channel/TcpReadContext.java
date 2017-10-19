@@ -21,13 +21,14 @@ package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.transport.nio.ChannelBuffer;
+import org.elasticsearch.transport.nio.ChannelMessage;
+import org.elasticsearch.transport.nio.HeapNetworkBytes;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.function.Supplier;
 
 public class TcpReadContext implements ReadContext {
 
@@ -36,8 +37,8 @@ public class TcpReadContext implements ReadContext {
     private final TcpReadHandler handler;
     private final NioSocketChannel channel;
     private final TcpFrameDecoder frameDecoder;
-    private final LinkedList<NetworkBytesReference> references = new LinkedList<>();
-    private int rawBytesCount = 0;
+    private final ChannelBuffer channelBuffer;
+    private final Supplier<NetworkBytesReference> allocator = () -> HeapNetworkBytes.wrap(new BytesArray(new byte[DEFAULT_READ_LENGTH]));
 
     public TcpReadContext(NioSocketChannel channel, TcpReadHandler handler) {
         this(channel, handler, new TcpFrameDecoder());
@@ -47,36 +48,32 @@ public class TcpReadContext implements ReadContext {
         this.handler = handler;
         this.channel = channel;
         this.frameDecoder = frameDecoder;
-        this.references.add(NetworkBytesReference.wrap(new BytesArray(new byte[DEFAULT_READ_LENGTH])));
+        this.channelBuffer = new ChannelBuffer(allocator.get());
     }
 
     @Override
     public int read() throws IOException {
-        NetworkBytesReference last = references.peekLast();
-        if (last == null || last.hasWriteRemaining() == false) {
-            this.references.add(NetworkBytesReference.wrap(new BytesArray(new byte[DEFAULT_READ_LENGTH])));
+        // TODO: Decide when to start adding more bytes. We do not actually want to wait until buffer is exhausted.
+        if (channelBuffer.hasWriteRemaining() == false) {
+            channelBuffer.addBuffer(allocator.get());
         }
 
-        int bytesRead = channel.read(references.getLast());
+        int bytesRead = channel.read(channelBuffer);
 
         if (bytesRead == -1) {
             return bytesRead;
         }
 
-        rawBytesCount += bytesRead;
-
-        BytesReference message;
+        ChannelMessage message;
 
         // Frame decoder will throw an exception if the message is improperly formatted, the header is incorrect,
         // or the message is corrupted
-        while ((message = frameDecoder.decode(createCompositeBuffer(), rawBytesCount)) != null) {
-            int messageLengthWithHeader = message.length();
-            NetworkBytesReference.vectorizedIncrementReadIndexes(references, messageLengthWithHeader);
-            trimDecodedMessages(messageLengthWithHeader);
-            rawBytesCount -= messageLengthWithHeader;
+        while ((message = frameDecoder.decode(channelBuffer)) != null) {
+            BytesReference messageBytes = message.getContent();
+            int messageLengthWithHeader = messageBytes.length();
 
             try {
-                BytesReference messageWithoutHeader = message.slice(6, message.length() - 6);
+                BytesReference messageWithoutHeader = messageBytes.slice(6, messageBytes.length() - 6);
 
                 // A message length of 6 bytes it is just a ping. Ignore for now.
                 if (messageLengthWithHeader != 6) {
@@ -84,32 +81,16 @@ public class TcpReadContext implements ReadContext {
                 }
             } catch (Exception e) {
                 handler.handleException(channel, e);
+            } finally {
+                message.close();
             }
         }
 
         return bytesRead;
     }
 
-    private CompositeBytesReference createCompositeBuffer() {
-        return new CompositeBytesReference(references.toArray(new BytesReference[references.size()]));
-    }
-
-    private void trimDecodedMessages(int bytesToTrim) {
-        while (bytesToTrim != 0) {
-            NetworkBytesReference ref = references.getFirst();
-            int readIndex = ref.getReadIndex();
-            bytesToTrim -= readIndex;
-            if (readIndex == ref.length()) {
-                references.removeFirst();
-            } else {
-                assert bytesToTrim == 0;
-                if (readIndex != 0) {
-                    references.removeFirst();
-                    NetworkBytesReference slicedRef = ref.slice(readIndex, ref.length() - readIndex);
-                    references.addFirst(slicedRef);
-                }
-            }
-
-        }
+    @Override
+    public void close() {
+        channelBuffer.close();
     }
 }

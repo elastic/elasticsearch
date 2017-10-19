@@ -62,7 +62,7 @@ public class JsonProcessorTests extends ESTestCase {
         Exception exception = expectThrows(IllegalArgumentException.class, () -> jsonProcessor.execute(ingestDocument));
         assertThat(exception.getCause().getCause().getMessage(), equalTo("Unrecognized token"
                 + " 'invalid': was expecting ('true', 'false' or 'null')\n"
-                + " at [Source: invalid json; line: 1, column: 8]"));
+                + " at [Source: (org.elasticsearch.common.io.FastStringReader)\"invalid json\"; line: 1, column: 8]"));
     }
 
     public void testFieldMissing() {

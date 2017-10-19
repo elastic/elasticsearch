@@ -33,16 +33,9 @@ integTestRunner {
 }
 
 run {
-  // Enabled audit logging so we can test it
+  // Setup auditing so we can use it in some tests
   setting 'xpack.security.audit.enabled', 'true'
-  setting 'xpack.security.audit.outputs', '[logfile, index]'
-  // Only log the events we need so we don't have as much to sort through
-  setting 'xpack.security.audit.index.events.include', '[access_denied, access_granted]'
-  // Try and speed up audit logging without overwelming it
-  setting 'xpack.security.audit.index.flush_interval', '250ms'
-  // NOCOMMIT reenable after https://github.com/elastic/x-pack-elasticsearch/issues/2705 for lower overhead tests
-  // setting 'xpack.security.audit.index.settings.index.number_of_shards', '1'
-  // setting 'xpack.security.audit.index.settings.index.refresh_interval', '250ms'
+  setting 'xpack.security.audit.outputs', 'logfile'
   // Setup roles used by tests
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   /* Setup the one admin user that we run the tests as.

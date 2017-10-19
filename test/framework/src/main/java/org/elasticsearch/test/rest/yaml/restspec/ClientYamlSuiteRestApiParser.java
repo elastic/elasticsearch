@@ -147,8 +147,8 @@ public class ClientYamlSuiteRestApiParser {
 
         return restApi;
     }
-    
-    class YamlElement {
+
+    private static class Parameter {
         private boolean required;
         public boolean isRequired() {
             return required;
@@ -158,9 +158,9 @@ public class ClientYamlSuiteRestApiParser {
         }
     }
 
-    private boolean getRequired(XContentParser parser) throws IOException {
-        ObjectParser<YamlElement, Void> objParser = new ObjectParser<>("", true, YamlElement::new);
-        objParser.declareBoolean(YamlElement::setRequired, new ParseField("required"));
+    private static boolean getRequired(XContentParser parser) throws IOException {
+        ObjectParser<Parameter, Void> objParser = new ObjectParser<>("", true, Parameter::new);
+        objParser.declareBoolean(Parameter::setRequired, new ParseField("required"));
         return objParser.parse(parser, null).isRequired();
     }
 }

@@ -35,7 +35,7 @@ public class PagedBytesReference extends BytesReference {
     private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
 
     protected final ByteArray byteArray;
-    protected final int offset;
+    private final int offset;
     private final int length;
 
     public PagedBytesReference(ByteArray byteArray, int length) {
@@ -59,7 +59,7 @@ public class PagedBytesReference extends BytesReference {
     }
 
     @Override
-    public PagedBytesReference slice(int from, int length) {
+    public BytesReference slice(int from, int length) {
         if (from < 0 || (from + length) > length()) {
             throw new IllegalArgumentException("can't slice a buffer with length [" + length() + "], with slice parameters from [" + from + "], length [" + length + "]");
         }

@@ -163,7 +163,6 @@ public class BigArrays implements Releasable {
             assert indexIsInt(toIndex);
             Arrays.fill(array, (int) fromIndex, (int) toIndex, value);
         }
-
     }
 
     private static class IntArrayWrapper extends AbstractArrayWrapper implements IntArray {

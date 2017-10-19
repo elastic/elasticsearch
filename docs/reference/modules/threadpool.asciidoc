@@ -84,8 +84,8 @@ The `cached` thread pool is an unbounded thread pool that will spawn a
 thread if there are pending requests. This thread pool is used to
 prevent requests submitted to this pool from blocking or being
 rejected. Unused threads in this thread pool will be terminated after
-a keep alive expires (defaults to five minutes). The `cached` thread
-pool is reserved for the <<modules-threadpool,`generic`>> thread pool.
+a keep alive expires. The `cached` thread pool is reserved for 
+the <<modules-threadpool,`generic`>> thread pool.
 
 The `keep_alive` parameter determines how long a thread should be kept
 around in the thread pool without doing any work.

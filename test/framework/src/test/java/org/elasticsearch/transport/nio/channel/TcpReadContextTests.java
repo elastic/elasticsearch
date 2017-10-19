@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.NetworkBytes;
 import org.elasticsearch.transport.nio.TcpReadHandler;
@@ -51,7 +52,7 @@ public class TcpReadContextTests extends ESTestCase {
 
         messageLength = randomInt(96) + 4;
         channel = mock(NioSocketChannel.class);
-        readContext = new TcpReadContext(channel, handler);
+        readContext = new TcpReadContext(channel, handler, BigArrays.NON_RECYCLING_INSTANCE);
 
         when(channel.getProfile()).thenReturn(PROFILE);
     }

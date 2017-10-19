@@ -19,8 +19,8 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.transport.nio.ChannelBuffer;
 import org.elasticsearch.transport.nio.ChannelMessage;
 import org.elasticsearch.transport.nio.HeapNetworkBytes;
@@ -32,22 +32,17 @@ import java.util.function.Supplier;
 
 public class TcpReadContext implements ReadContext {
 
-    private static final int DEFAULT_READ_LENGTH = 1 << 14;
-
     private final TcpReadHandler handler;
     private final NioSocketChannel channel;
     private final TcpFrameDecoder frameDecoder;
     private final ChannelBuffer channelBuffer;
-    private final Supplier<NetworkBytesReference> allocator = () -> HeapNetworkBytes.wrap(new BytesArray(new byte[DEFAULT_READ_LENGTH]));
+    private final Supplier<NetworkBytesReference> allocator;
 
-    public TcpReadContext(NioSocketChannel channel, TcpReadHandler handler) {
-        this(channel, handler, new TcpFrameDecoder());
-    }
-
-    public TcpReadContext(NioSocketChannel channel, TcpReadHandler handler, TcpFrameDecoder frameDecoder) {
+    public TcpReadContext(NioSocketChannel channel, TcpReadHandler handler, BigArrays bigArrays) {
         this.handler = handler;
         this.channel = channel;
-        this.frameDecoder = frameDecoder;
+        this.frameDecoder = new TcpFrameDecoder();
+        this.allocator = () -> HeapNetworkBytes.fromBytesPage(bigArrays.newBytePage());
         this.channelBuffer = new ChannelBuffer(allocator.get());
     }
 

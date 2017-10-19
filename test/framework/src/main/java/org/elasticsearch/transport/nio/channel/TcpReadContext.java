@@ -37,6 +37,7 @@ public class TcpReadContext implements ReadContext {
     private final TcpFrameDecoder frameDecoder;
     private final ChannelBuffer channelBuffer;
     private final Supplier<NetworkBytesReference> allocator;
+    private boolean closed = false;
 
     public TcpReadContext(NioSocketChannel channel, TcpReadHandler handler, BigArrays bigArrays) {
         this.handler = handler;
@@ -86,6 +87,9 @@ public class TcpReadContext implements ReadContext {
 
     @Override
     public void close() {
-        channelBuffer.close();
+        if (closed == false) {
+            channelBuffer.close();
+            closed = true;
+        }
     }
 }

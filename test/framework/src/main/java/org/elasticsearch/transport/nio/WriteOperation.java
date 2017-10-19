@@ -34,19 +34,20 @@ public class WriteOperation {
 
     private final NioSocketChannel channel;
     private final ActionListener<NioChannel> listener;
-    private final NetworkBytesReference[] references;
+    private final NetworkBytes bytes;
 
     public WriteOperation(NioSocketChannel channel, BytesReference bytesReference, ActionListener<NioChannel> listener) {
         this.channel = channel;
         this.listener = listener;
-        this.references = toArray(bytesReference);
+        this.bytes = toNetworkBytes(bytesReference);
     }
 
-    public NetworkBytesReference[] getByteReferences() {
-        return references;
+    public NetworkBytes getByteReferences() {
+        return bytes;
     }
 
     public ActionListener<NioChannel> getListener() {
+        // TODO: Close network bytes
         return listener;
     }
 
@@ -55,23 +56,23 @@ public class WriteOperation {
     }
 
     public boolean isFullyFlushed() {
-        return references[references.length - 1].hasReadRemaining() == false;
+        return bytes.hasReadRemaining() == false;
     }
 
     public int flush() throws IOException {
-        return channel.write(references);
+        return channel.write(bytes);
     }
 
-    private static NetworkBytesReference[] toArray(BytesReference reference) {
+    private static NetworkBytes toNetworkBytes(BytesReference reference) {
         BytesRefIterator byteRefIterator = reference.iterator();
         BytesRef r;
         try {
             // Most network messages are composed of three buffers
-            ArrayList<NetworkBytesReference> references = new ArrayList<>(3);
+            ArrayList<NetworkBytesReference2> references = new ArrayList<>(3);
             while ((r = byteRefIterator.next()) != null) {
-                references.add(NetworkBytesReference.wrap(new BytesArray(r), r.length, 0));
+                references.add(HeapNetworkBytes.wrap(new BytesArray(r), r.length, 0));
             }
-            return references.toArray(new NetworkBytesReference[references.size()]);
+            return new ChannelBuffer(references.toArray(new NetworkBytesReference2[references.size()]));
 
         } catch (IOException e) {
             // this is really an error since we don't do IO in our bytesreferences

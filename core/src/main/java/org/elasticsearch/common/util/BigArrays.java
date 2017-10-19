@@ -470,8 +470,12 @@ public class BigArrays implements Releasable {
      */
     public BytesPage newBytePage() {
         adjustBreaker(BigByteArray.estimateRamBytes(BYTE_PAGE_SIZE), false);
-        final Recycler.V<byte[]> page = recycler.bytePage(false);
-        return new BytesPage(page.v(), page);
+        if (recycler != null) {
+            final Recycler.V<byte[]> page = recycler.bytePage(false);
+            return new BytesPage(page.v(), page);
+        } else {
+            return new BytesPage(new byte[BYTE_PAGE_SIZE], null);
+        }
     }
 
     /**

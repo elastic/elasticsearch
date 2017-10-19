@@ -27,7 +27,7 @@ import java.nio.ByteBuffer;
 
 public abstract class NetworkBytesReference2 extends BytesReference implements NetworkBytes {
 
-    protected final RefCountedReleasable refCountedReleasable;
+    final RefCountedReleasable refCountedReleasable;
 
     final int length;
     int writeIndex;
@@ -110,7 +110,9 @@ public abstract class NetworkBytesReference2 extends BytesReference implements N
 
         @Override
         protected void closeInternal() {
-            releasable.close();
+            if (releasable != null) {
+                releasable.close();
+            }
         }
     }
 }

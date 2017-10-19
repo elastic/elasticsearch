@@ -33,7 +33,9 @@ public final class BytesPage implements Releasable {
 
     @Override
     public void close() {
-        recycler.close();
+        if (recycler != null) {
+            recycler.close();
+        }
     }
 
     public byte[] getByteArray() {

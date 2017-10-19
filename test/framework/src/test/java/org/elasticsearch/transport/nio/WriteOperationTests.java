@@ -51,8 +51,8 @@ public class WriteOperationTests extends ESTestCase {
 
 
         when(channel.write(any())).thenAnswer(invocationOnMock -> {
-            NetworkBytesReference[] refs = (NetworkBytesReference[]) invocationOnMock.getArguments()[0];
-            refs[0].incrementRead(10);
+            NetworkBytes bytes = (NetworkBytes) invocationOnMock.getArguments()[0];
+            bytes.incrementRead(10);
             return 10;
         });
 
@@ -65,14 +65,14 @@ public class WriteOperationTests extends ESTestCase {
         WriteOperation writeOp = new WriteOperation(channel, new BytesArray(new byte[10]), listener);
 
         when(channel.write(any())).thenAnswer(invocationOnMock -> {
-            NetworkBytesReference[] refs = (NetworkBytesReference[]) invocationOnMock.getArguments()[0];
-            refs[0].incrementRead(5);
+            NetworkBytes bytes = (NetworkBytes) invocationOnMock.getArguments()[0];
+            bytes.incrementRead(5);
             return 5;
         });
 
         writeOp.flush();
 
         assertFalse(writeOp.isFullyFlushed());
-        assertEquals(5, writeOp.getByteReferences()[0].getReadRemaining());
+        assertEquals(5, writeOp.getByteReferences().getReadRemaining());
     }
 }

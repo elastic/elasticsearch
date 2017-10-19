@@ -23,12 +23,13 @@ import com.carrotsearch.hppc.ObjectArrayDeque;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.stream.StreamSupport;
 
-public class ChannelBuffer implements NetworkBytes {
+public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReference2> {
 
     private final ObjectArrayDeque<NetworkBytesReference2> references;
     private int[] offsets;
@@ -174,20 +175,11 @@ public class ChannelBuffer implements NetworkBytes {
     }
 
     @Override
-    public void close() {
-        for (ObjectCursor<NetworkBytesReference2> reference : references) {
-            reference.value.close();
-        }
+    public boolean isCompositeBuffer() {
+        return references.size() > 1;
     }
 
-    public StreamInput streamInput() {
-        return null;
-    }
-
-    public int length() {
-        return length;
-    }
-
+    @Override
     public ByteBuffer[] getWriteByteBuffers() {
         if (hasWriteRemaining() == false) {
             return new ByteBuffer[0];
@@ -206,6 +198,7 @@ public class ChannelBuffer implements NetworkBytes {
         return buffers;
     }
 
+    @Override
     public ByteBuffer[] getReadByteBuffers() {
         if (hasReadRemaining() == false) {
             return new ByteBuffer[0];
@@ -222,6 +215,37 @@ public class ChannelBuffer implements NetworkBytes {
         }
 
         return buffers;
+    }
+
+    @Override
+    public ByteBuffer getWriteByteBuffer() {
+        return references.getLast().getWriteByteBuffer();
+    }
+
+    @Override
+    public ByteBuffer getReadByteBuffer() {
+        return references.getLast().getReadByteBuffer();
+    }
+
+    @Override
+    public void close() {
+        for (ObjectCursor<NetworkBytesReference2> reference : references) {
+            reference.value.close();
+        }
+    }
+
+    @Override
+    public Iterator<NetworkBytesReference2> iterator() {
+        return StreamSupport.stream(references.spliterator(), false).map(o -> o.value).iterator();
+    }
+
+    public byte get(int index) {
+        final int i = getOffsetIndex(index);
+        return getReference(i).get(index - offsets[i]);
+    }
+
+    public int length() {
+        return length;
     }
 
     private int getOffsetIndex(int offset) {

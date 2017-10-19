@@ -21,6 +21,8 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.common.lease.Releasable;
 
+import java.nio.ByteBuffer;
+
 public interface NetworkBytes extends Releasable {
 
     int getWriteIndex();
@@ -38,6 +40,16 @@ public interface NetworkBytes extends Releasable {
     int getReadRemaining();
 
     boolean hasReadRemaining() ;
+
+    boolean isCompositeBuffer();
+
+    ByteBuffer[] getWriteByteBuffers();
+
+    ByteBuffer[] getReadByteBuffers();
+
+    ByteBuffer getWriteByteBuffer();
+
+    ByteBuffer getReadByteBuffer();
 
     static void validateReadIndex(int newReadIndex, int writeIndex) {
         if (newReadIndex > writeIndex) {

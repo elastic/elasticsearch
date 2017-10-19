@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.transport.nio.NetworkBytes;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.SocketSelector;
 
@@ -59,22 +60,18 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return socketSelector;
     }
 
-    public int write(NetworkBytesReference[] references) throws IOException {
+    public int write(NetworkBytes bytes) throws IOException {
         int written;
-        if (references.length == 1) {
-            written = socketChannel.write(references[0].getReadByteBuffer());
+        if (bytes.isCompositeBuffer() == false) {
+            written = socketChannel.write(bytes.getReadByteBuffer());
         } else {
-            ByteBuffer[] buffers = new ByteBuffer[references.length];
-            for (int i = 0; i < references.length; ++i) {
-                buffers[i] = references[i].getReadByteBuffer();
-            }
-            written = (int) socketChannel.write(buffers);
+            written = (int) socketChannel.write(bytes.getReadByteBuffers());
         }
         if (written <= 0) {
             return written;
         }
 
-        NetworkBytesReference.vectorizedIncrementReadIndexes(Arrays.asList(references), written);
+        bytes.incrementRead(written);
 
         return written;
     }

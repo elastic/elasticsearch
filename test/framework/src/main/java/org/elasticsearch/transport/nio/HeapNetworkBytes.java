@@ -22,29 +22,58 @@ package org.elasticsearch.transport.nio;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BytesPage;
 
 import java.nio.ByteBuffer;
 
-public class BytesPageNetworkBytes extends NetworkBytesReference2 {
+public class HeapNetworkBytes extends NetworkBytesReference2 {
 
     private final BytesArray bytesArray;
 
-    public BytesPageNetworkBytes(BytesPage bytesPage) {
-        super(bytesPage, bytesPage.getByteArray().length);
-        this.bytesArray = new BytesArray(bytesPage.getByteArray());
-    }
-
-    private BytesPageNetworkBytes(BytesArray bytesArray, RefCountedReleasable releasable) {
+    private HeapNetworkBytes(BytesArray bytesArray, Releasable releasable) {
         super(releasable, bytesArray.length());
         this.bytesArray = bytesArray;
+    }
+
+    private HeapNetworkBytes(BytesArray bytesArray, int writerIndex, int readerIndex) {
+        super((Releasable) null, bytesArray.length());
+        this.bytesArray = bytesArray;
+        this.writeIndex = writerIndex;
+        this.readIndex = readerIndex;
+    }
+
+    private HeapNetworkBytes(BytesArray bytesArray, RefCountedReleasable releasable, int writerIndex, int readerIndex) {
+        super(releasable, bytesArray.length());
+        this.bytesArray = bytesArray;
+        this.writeIndex = writerIndex;
+        this.readIndex = readerIndex;
+    }
+
+    public static HeapNetworkBytes fromBytesPage(BytesPage bytesPage) {
+        return new HeapNetworkBytes(new BytesArray(bytesPage.getByteArray()), bytesPage);
+    }
+
+    public static HeapNetworkBytes wrap(BytesArray bytesArray) {
+        return new HeapNetworkBytes(bytesArray, 0, 0);
+    }
+
+    public static NetworkBytesReference2 wrap(BytesArray bytesArray, int writeIndex, int readIndex) {
+        return new HeapNetworkBytes(bytesArray, writeIndex, readIndex);
     }
 
     @Override
     public NetworkBytesReference2 sliceAndRetain(int from, int length) {
         BytesArray slice = (BytesArray) bytesArray.slice(from, length);
         refCountedReleasable.incRef();
-        return new BytesPageNetworkBytes(slice, refCountedReleasable);
+        int newWriteIndex = Math.min(Math.max(writeIndex - from, 0), length);
+        int newReadIndex = Math.min(Math.max(readIndex - from, 0), length);
+        return new HeapNetworkBytes(slice, refCountedReleasable, newWriteIndex, newReadIndex);
+    }
+
+    @Override
+    public boolean isCompositeBuffer() {
+        return false;
     }
 
     @Override
@@ -61,6 +90,20 @@ public class BytesPageNetworkBytes extends NetworkBytesReference2 {
         byteBuffer.position(bytesArray.offset() + readIndex);
         byteBuffer.limit(bytesArray.offset() + writeIndex);
         return byteBuffer;
+    }
+
+    @Override
+    public ByteBuffer[] getWriteByteBuffers() {
+        ByteBuffer[] byteBuffers = new ByteBuffer[1];
+        byteBuffers[0] = getWriteByteBuffer();
+        return byteBuffers;
+    }
+
+    @Override
+    public ByteBuffer[] getReadByteBuffers() {
+        ByteBuffer[] byteBuffers = new ByteBuffer[1];
+        byteBuffers[0] = getReadByteBuffer();
+        return byteBuffers;
     }
 
     @Override

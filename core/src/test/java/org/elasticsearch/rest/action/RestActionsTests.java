@@ -85,6 +85,7 @@ public class RestActionsTests extends ESTestCase {
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
                 ParsingException exception = expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser));
                 assertEquals("Failed to parse", exception.getMessage());
+                assertEquals(JsonEOFException.class, exception.getRootCause().getClass());
             }
         }
     }

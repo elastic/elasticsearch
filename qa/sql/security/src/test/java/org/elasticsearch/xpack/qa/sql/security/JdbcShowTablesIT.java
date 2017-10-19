@@ -18,6 +18,6 @@ public class JdbcShowTablesIT extends ShowTablesTestCase {
 
     @Override
     protected Properties connectionProperties() {
-        return JdbcConnectionIT.securityProperties();
+        return JdbcSecurityIT.adminProperties();
     }
 }

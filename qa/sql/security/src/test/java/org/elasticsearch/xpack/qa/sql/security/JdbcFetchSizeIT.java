@@ -18,6 +18,6 @@ public class JdbcFetchSizeIT extends FetchSizeTestCase {
 
     @Override
     protected Properties connectionProperties() {
-        return JdbcConnectionIT.securityProperties();
+        return JdbcSecurityIT.adminProperties();
     }
 }

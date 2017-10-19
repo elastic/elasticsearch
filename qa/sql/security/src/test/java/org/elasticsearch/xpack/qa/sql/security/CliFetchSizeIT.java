@@ -9,10 +9,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.qa.sql.cli.FetchSizeTestCase;
 
 public class CliFetchSizeIT extends FetchSizeTestCase {
-    static String securityEsUrlPrefix() {
-        return "test_admin:x-pack-test-password@";
-    }
-
     @Override
     protected Settings restClientSettings() {
         return RestSqlIT.securitySettings();
@@ -20,6 +16,6 @@ public class CliFetchSizeIT extends FetchSizeTestCase {
 
     @Override
     protected String esUrlPrefix() {
-        return securityEsUrlPrefix();
+        return CliSecurityIT.adminEsUrlPrefix();
     }
 }

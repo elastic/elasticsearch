@@ -16,6 +16,6 @@ public class CliSelectIT extends SelectTestCase {
 
     @Override
     protected String esUrlPrefix() {
-        return CliFetchSizeIT.securityEsUrlPrefix();
+        return CliSecurityIT.adminEsUrlPrefix();
     }
 }

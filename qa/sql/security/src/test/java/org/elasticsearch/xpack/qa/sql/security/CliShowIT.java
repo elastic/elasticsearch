@@ -16,6 +16,6 @@ public class CliShowIT extends ShowTestCase {
 
     @Override
     protected String esUrlPrefix() {
-        return CliFetchSizeIT.securityEsUrlPrefix();
+        return CliSecurityIT.adminEsUrlPrefix();
     }
 }

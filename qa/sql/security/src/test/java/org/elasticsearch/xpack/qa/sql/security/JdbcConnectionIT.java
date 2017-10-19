@@ -11,13 +11,6 @@ import org.elasticsearch.xpack.qa.sql.jdbc.ConnectionTestCase;
 import java.util.Properties;
 
 public class JdbcConnectionIT extends ConnectionTestCase {
-    static Properties securityProperties() {
-        Properties prop = new Properties();
-        prop.put("user", "test_admin");
-        prop.put("pass", "x-pack-test-password");
-        return prop;
-    }
-
     @Override
     protected Settings restClientSettings() {
         return RestSqlIT.securitySettings();
@@ -25,6 +18,6 @@ public class JdbcConnectionIT extends ConnectionTestCase {
 
     @Override
     protected Properties connectionProperties() {
-        return securityProperties();
+        return JdbcSecurityIT.adminProperties();
     }
 }

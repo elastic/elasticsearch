@@ -42,13 +42,20 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     @ClassRule
     public static final EmbeddedJdbcServer EMBEDDED_SERVER = EMBED_SQL ? new EmbeddedJdbcServer() : null;
 
+    /**
+     * Read an address for Elasticsearch suitable for the JDBC driver from the system properties.
+     */
+    public static String elasticsearchAddress() {
+        String cluster = System.getProperty("tests.rest.cluster");
+        // JDBC only supports a single node at a time so we just give it one.
+        return "jdbc:es://" + cluster.split(",")[0];
+    }
+
     public Connection esJdbc() throws SQLException {
         if (EMBED_SQL) {
             return EMBEDDED_SERVER.connection();
         }
-        String cluster = System.getProperty("tests.rest.cluster");
-        // We only support a single node at this time.
-        return DriverManager.getConnection("jdbc:es://" + cluster.split(",")[0], connectionProperties());
+        return DriverManager.getConnection(elasticsearchAddress(), connectionProperties());
     }
 
     public static void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {

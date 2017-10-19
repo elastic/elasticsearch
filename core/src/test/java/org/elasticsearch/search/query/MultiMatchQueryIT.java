@@ -472,6 +472,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .setQuery(randomizeType(multiMatchQuery("captain america 15", "full_name", "first_name", "last_name", "category", "skill")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .analyzer("category")
+                        .lenient(true)
                         .operator(Operator.AND))).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
@@ -480,6 +481,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .setQuery(randomizeType(multiMatchQuery("captain america 15", "full_name", "first_name", "last_name", "category", "skill", "int-field")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .analyzer("category")
+                        .lenient(true)
                         .operator(Operator.AND))).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
@@ -488,6 +490,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .setQuery(randomizeType(multiMatchQuery("captain america 15", "skill", "full_name", "first_name", "last_name", "category", "int-field")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .analyzer("category")
+                        .lenient(true)
                         .operator(Operator.AND))).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
@@ -496,6 +499,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("captain america 15", "first_name", "last_name", "skill")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                        .lenient(true)
                         .analyzer("category"))).get();
         assertFirstHit(searchResponse, hasId("theone"));
 

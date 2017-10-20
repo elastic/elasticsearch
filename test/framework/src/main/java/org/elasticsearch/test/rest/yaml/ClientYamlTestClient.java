@@ -105,11 +105,11 @@ public class ClientYamlTestClient {
             }
         }
 
-        if (!apiRequiredPathParts.isEmpty()) {
+        if (false == apiRequiredPathParts.isEmpty()) {
             throw new IllegalArgumentException(
                     "missing required path part: " + apiRequiredPathParts + " by [" + restApi.getName() + "] api");
         }
-        if (!apiRequiredParameters.isEmpty()) {
+        if (false == apiRequiredParameters.isEmpty()) {
             throw new IllegalArgumentException(
                     "missing required parameter: " + apiRequiredParameters + " by [" + restApi.getName() + "] api");
         }
@@ -117,7 +117,7 @@ public class ClientYamlTestClient {
         List<String> supportedMethods = restApi.getSupportedMethods(pathParts.keySet());
         String requestMethod;
         if (entity != null) {
-            if (!restApi.isBodySupported()) {
+            if (false == restApi.isBodySupported()) {
                 throw new IllegalArgumentException("body is not supported by [" + restApi.getName() + "] api");
             }
             String contentType = entity.getContentType().getValue();

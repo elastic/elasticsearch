@@ -29,6 +29,11 @@ import java.io.IOException;
  */
 public class ClientYamlSuiteRestApiParser {
 
+    private static final ObjectParser<Parameter, Void> PARAMETER_PARSER = new ObjectParser<>("parameter", true, Parameter::new);
+    static {
+        PARAMETER_PARSER.declareBoolean(Parameter::setRequired, new ParseField("required"));
+    }
+
     public ClientYamlSuiteRestApi parse(String location, XContentParser parser) throws IOException {
 
         while ( parser.nextToken() != XContentParser.Token.FIELD_NAME ) {
@@ -79,7 +84,7 @@ public class ClientYamlSuiteRestApiParser {
                                 if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
                                     throw new IllegalArgumentException("Expected parts field in rest api definition to contain an object");
                                 }
-                                restApi.addPathPart(part, getRequired(parser));
+                                restApi.addPathPart(part, PARAMETER_PARSER.parse(parser, null).isRequired());
                             }
                         }
 
@@ -95,7 +100,7 @@ public class ClientYamlSuiteRestApiParser {
                                 if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
                                     throw new IllegalArgumentException("Expected params field in rest api definition to contain an object");
                                 }
-                                restApi.addParam(param, getRequired(parser));
+                                restApi.addParam(param, PARAMETER_PARSER.parse(parser, null).isRequired());
                             }
                         }
 
@@ -125,7 +130,7 @@ public class ClientYamlSuiteRestApiParser {
                                 }
                             }
                         }
-                        if (!requiredFound) {
+                        if (false == requiredFound) {
                             restApi.setBodyOptional();
                         }
                     }
@@ -156,11 +161,5 @@ public class ClientYamlSuiteRestApiParser {
         public void setRequired(boolean required) {
             this.required = required;
         }
-    }
-
-    private static boolean getRequired(XContentParser parser) throws IOException {
-        ObjectParser<Parameter, Void> objParser = new ObjectParser<>("", true, Parameter::new);
-        objParser.declareBoolean(Parameter::setRequired, new ParseField("required"));
-        return objParser.parse(parser, null).isRequired();
     }
 }

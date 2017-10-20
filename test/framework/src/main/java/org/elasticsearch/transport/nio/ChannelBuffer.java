@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.nio;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.BytesReferenceStreamInput;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.collect.IndexedArrayDeque;

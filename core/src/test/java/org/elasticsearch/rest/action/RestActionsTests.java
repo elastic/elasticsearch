@@ -72,18 +72,18 @@ public class RestActionsTests extends ESTestCase {
     public void testParseTopLevelBuilderMalformedJson() throws IOException {
         for (String requestBody : Arrays.asList("\"\"", "\"someString\"", "\"{\"")) {
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
-                ParsingException exception = expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser));
+                ParsingException exception =
+                    expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser));
                 assertEquals("Expected [START_OBJECT] but found [VALUE_STRING]", exception.getMessage());
             }
         }
     }
 
     public void testParseTopLevelBuilderIncompleteJson() throws IOException {
-        final String incomplete = "{\"query\":";
-        for (int i = 1; i <= incomplete.length(); i++) {
-            String requestBody = incomplete.substring(0, i);
+        for (String requestBody : Arrays.asList("{", "{ \"query\" :")) {
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
-                ParsingException exception = expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser));
+                ParsingException exception =
+                    expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser));
                 assertEquals("Failed to parse", exception.getMessage());
                 assertEquals(JsonEOFException.class, exception.getRootCause().getClass());
             }

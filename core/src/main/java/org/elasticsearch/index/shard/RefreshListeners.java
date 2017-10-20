@@ -27,7 +27,9 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
@@ -58,6 +60,10 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      * We never set this to non-null while closed it {@code true}.
      */
     private volatile List<Tuple<Translog.Location, Consumer<Boolean>>> refreshListeners = null;
+    /**
+     * Set of refresh listeners that are called every time a refresh happens.
+     */
+    private volatile Set<Runnable> recurringRefreshListeners = null;
     /**
      * The translog location that was last made visible by a refresh.
      */
@@ -107,6 +113,28 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         forceRefresh.run();
         listener.accept(true);
         return true;
+    }
+
+    /**
+     * Add a listener for refreshes, this listener will be called for every
+     * refresh, regardless of whether an actual refresh occurred or was not needed.
+     *
+     * @param listener for the refresh.
+     */
+    public void addRecurringNotifier(Runnable listener) {
+        requireNonNull(listener, "listener cannot be null");
+
+        synchronized (this) {
+            Set<Runnable> listeners = recurringRefreshListeners;
+            if (listeners == null) {
+                if (closed) {
+                    throw new IllegalStateException("can't wait for refresh on a closed index");
+                }
+                listeners = new HashSet<>();
+                recurringRefreshListeners = listeners;
+            }
+            listeners.add(listener);
+        }
     }
 
     @Override
@@ -169,6 +197,10 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
              * usually happens during recovery. The next refresh cycle out to pick up this refresh. */
             return;
         }
+        // Fire the recurring listeners that are called regardless of the translog location when refreshed
+        if (didRefresh) {
+            fireRecurringListeners();
+        }
         /* Set the lastRefreshedLocation so listeners that come in for locations before that will just execute inline without messing
          * around with refreshListeners or synchronizing at all. Note that it is not safe for us to abort early if we haven't advanced the
          * position here because we set and read lastRefreshedLocation outside of a synchronized block. We do that so that waiting for a
@@ -225,6 +257,24 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         }
         // Lastly, fire the listeners that are ready on the listener thread pool
         fireListeners(listenersToFire);
+    }
+
+    /**
+     * Fire the recurring listeners after a refresh has occurred (passing 'true').
+     * Does nothing if the list of listeners is null.
+     */
+    private void fireRecurringListeners() {
+        if (recurringRefreshListeners != null) {
+            listenerExecutor.execute(() -> {
+                for (Runnable listener : recurringRefreshListeners) {
+                    try {
+                        listener.run();
+                    } catch (Exception e) {
+                        logger.warn("Error firing recurring refresh listener", e);
+                    }
+                }
+            });
+        }
     }
 
     /**

@@ -70,10 +70,18 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<CircuitBreaker.Type> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING =
         new Setting<>("network.breaker.inflight_requests.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
+    public static final Setting<ByteSizeValue> ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING =
+        Setting.memorySizeSetting("network.breaker.accounting.limit", "100%", Property.Dynamic, Property.NodeScope);
+    public static final Setting<Double> ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING =
+        Setting.doubleSetting("network.breaker.accounting.overhead", 1.0d, 0.0d, Property.Dynamic, Property.NodeScope);
+    public static final Setting<CircuitBreaker.Type> ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING =
+        new Setting<>("network.breaker.accounting.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
+
     private volatile BreakerSettings parentSettings;
     private volatile BreakerSettings fielddataSettings;
     private volatile BreakerSettings inFlightRequestsSettings;
     private volatile BreakerSettings requestSettings;
+    private volatile BreakerSettings accountingSettings;
 
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
@@ -98,6 +106,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.get(settings)
         );
 
+        this.accountingSettings = new BreakerSettings(CircuitBreaker.ACCOUNTING,
+                ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
+                ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
+                ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING.get(settings)
+        );
+
         this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT,
                 TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(), 1.0,
                 CircuitBreaker.Type.PARENT);
@@ -109,11 +123,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         registerBreaker(this.requestSettings);
         registerBreaker(this.fielddataSettings);
         registerBreaker(this.inFlightRequestsSettings);
+        registerBreaker(this.accountingSettings);
 
         clusterSettings.addSettingsUpdateConsumer(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, this::setTotalCircuitBreakerLimit, this::validateTotalCircuitBreakerLimit);
         clusterSettings.addSettingsUpdateConsumer(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setFieldDataBreakerLimit);
         clusterSettings.addSettingsUpdateConsumer(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING, IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setInFlightRequestsBreakerLimit);
         clusterSettings.addSettingsUpdateConsumer(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setRequestBreakerLimit);
+        clusterSettings.addSettingsUpdateConsumer(ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING, ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setAccountingBreakerLimit);
     }
 
     private void setRequestBreakerLimit(ByteSizeValue newRequestMax, Double newRequestOverhead) {
@@ -140,6 +156,14 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         registerBreaker(newFielddataSettings);
         HierarchyCircuitBreakerService.this.fielddataSettings = newFielddataSettings;
         logger.info("Updated breaker settings field data: {}", newFielddataSettings);
+    }
+
+    private void setAccountingBreakerLimit(ByteSizeValue newAccountingMax, Double newAccountingOverhead) {
+        BreakerSettings newAccountingSettings = new BreakerSettings(CircuitBreaker.ACCOUNTING, newAccountingMax.getBytes(), newAccountingOverhead,
+                HierarchyCircuitBreakerService.this.accountingSettings.getType());
+        registerBreaker(newAccountingSettings);
+        HierarchyCircuitBreakerService.this.accountingSettings = newAccountingSettings;
+        logger.info("Updated breaker settings accounting: {}", newAccountingSettings);
     }
 
     private boolean validateTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {

@@ -32,6 +32,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -51,9 +52,10 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     private final AtomicInteger totalOps = new AtomicInteger();
     private final AtomicInteger shardExecutionIndex = new AtomicInteger(0);
     private final int maxConcurrentShardRequests;
+    private final Executor executor;
 
     InitialSearchPhase(String name, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts, Logger logger,
-                       int maxConcurrentShardRequests) {
+                       int maxConcurrentShardRequests, Executor executor) {
         super(name);
         this.request = request;
         this.shardsIts = shardsIts;
@@ -64,6 +66,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         // we process hence we add one for the non active partition here.
         this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
         this.maxConcurrentShardRequests = Math.min(maxConcurrentShardRequests, shardsIts.size());
+        this.executor = executor;
     }
 
     private void onShardFailure(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
@@ -143,15 +146,17 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     private void maybeExecuteNext() {
         final int index = shardExecutionIndex.getAndIncrement();
         if (index < shardsIts.size()) {
-            SearchShardIterator shardRoutings = shardsIts.get(index);
-            if (shardRoutings.skip()) {
-                skipShard(shardRoutings);
-            } else {
-                performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
-            }
+            // we have to go fork execution to another thread or we could stack overflow on deeply recursive calls
+            executor.execute(() -> {
+                final SearchShardIterator shardRoutings = shardsIts.get(index);
+                if (shardRoutings.skip()) {
+                    skipShard(shardRoutings);
+                } else {
+                    performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
+                }
+            });
         }
     }
-
 
     private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final ShardRouting shard) {
         if (shard == null) {

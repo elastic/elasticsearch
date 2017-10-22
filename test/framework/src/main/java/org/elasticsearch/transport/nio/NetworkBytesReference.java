@@ -24,6 +24,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class NetworkBytesReference extends BytesReference implements NetworkBytes {
 
@@ -32,6 +33,8 @@ public abstract class NetworkBytesReference extends BytesReference implements Ne
     final int length;
     int writeIndex;
     int readIndex;
+
+    private AtomicBoolean isClosed = new AtomicBoolean(false);
 
     NetworkBytesReference(Releasable releasable, int length) {
         this.refCountedReleasable = new RefCountedReleasable(releasable);
@@ -88,7 +91,11 @@ public abstract class NetworkBytesReference extends BytesReference implements Ne
 
     @Override
     public void close() {
-        refCountedReleasable.decRef();
+        if (isClosed.compareAndSet(false, true)) {
+            refCountedReleasable.decRef();
+        } else {
+            throw new IllegalStateException("Attempting to close NetworkBytesReference that is already closed.");
+        }
     }
 
     public abstract NetworkBytesReference sliceAndRetain(int from, int length);

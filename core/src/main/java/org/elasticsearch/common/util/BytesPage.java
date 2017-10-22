@@ -26,7 +26,7 @@ public final class BytesPage implements Releasable {
     private final byte[] page;
     private final Releasable recycler;
 
-    BytesPage(byte[] page, Releasable recycler) {
+    public BytesPage(byte[] page, Releasable recycler) {
         this.page = page;
         this.recycler = recycler;
     }

@@ -19,13 +19,24 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.BytesPage;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public class HeapNetworkBytesTests extends ESTestCase {
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+public class HeapNetworkBytesTests extends AbstractBytesReferenceTestCase {
 
     private HeapNetworkBytes buffer;
 
@@ -147,9 +158,82 @@ public class HeapNetworkBytesTests extends ESTestCase {
         }
     }
 
+    public void testClose() {
+        byte[] bytes = new byte[20];
+        initializeBytes(bytes);
+        Releasable closer = mock(Releasable.class);
+        BytesPage bytesPage = new BytesPage(bytes, closer);
+
+        HeapNetworkBytes heapNetworkBytes = HeapNetworkBytes.fromBytesPage(bytesPage);
+
+        heapNetworkBytes.close();
+        verify(closer).close();
+    }
+
+    public void testCannotCloseTwice() {
+        byte[] bytes = new byte[20];
+        initializeBytes(bytes);
+        Releasable closer = mock(Releasable.class);
+        BytesPage bytesPage = new BytesPage(bytes, closer);
+
+        HeapNetworkBytes heapNetworkBytes = HeapNetworkBytes.fromBytesPage(bytesPage);
+
+        heapNetworkBytes.close();
+        IllegalStateException exception = expectThrows(IllegalStateException.class, heapNetworkBytes::close);
+        assertEquals("Attempting to close NetworkBytesReference that is already closed.",exception.getMessage());
+
+        verify(closer, times(1)).close();
+    }
+
+    public void testSliceAndRetainRetains() {
+        byte[] bytes = new byte[20];
+        initializeBytes(bytes);
+        Releasable closer = mock(Releasable.class);
+        BytesPage bytesPage = new BytesPage(bytes, closer);
+
+        HeapNetworkBytes heapNetworkBytes = HeapNetworkBytes.fromBytesPage(bytesPage);
+
+        NetworkBytesReference child1 = heapNetworkBytes.sliceAndRetain(0, 8);
+        NetworkBytesReference child2 = heapNetworkBytes.sliceAndRetain(8, 12);
+
+        heapNetworkBytes.close();
+        verify(closer, times(0)).close();
+
+        child1.close();
+        verify(closer, times(0)).close();
+
+        child2.close();
+        verify(closer).close();
+    }
+
     private void initializeBytes(byte[] bytes) {
         for (int i = 0 ; i < bytes.length; ++i) {
             bytes[i] = (byte) i;
         }
+    }
+
+    @Override
+    protected BytesReference newBytesReference(int length) throws IOException {
+        return HeapNetworkBytes.wrap(newBytesArrayReference(length, randomInt(length)));
+    }
+
+    @Override
+    protected BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException {
+        return HeapNetworkBytes.wrap(newBytesArrayReference(length, 0));
+    }
+
+    @Override
+    public void testArrayOffset() throws IOException {
+        int length = randomInt(PAGE_SIZE * randomIntBetween(2, 5));
+        HeapNetworkBytes pbr = (HeapNetworkBytes) newBytesReferenceWithOffsetOfZero(length);
+        assertEquals(0, pbr.iterator().next().offset);
+    }
+
+    public static BytesArray newBytesArrayReference(int length, int offset) throws IOException {
+        final BytesStreamOutput out = new BytesStreamOutput(length + offset);
+        for (int i = 0; i < length + offset; i++) {
+            out.writeByte((byte) random().nextInt(1 << 8));
+        }
+        return new BytesArray(out.bytes().toBytesRef().bytes, offset, length);
     }
 }

@@ -124,12 +124,12 @@ public final class Request {
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
-
     static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
         String endpoint = endpoint(deleteIndexRequest.indices(), "");
 
         Params parameters = Params.builder();
         parameters.withTimeout(deleteIndexRequest.timeout());
+        parameters.withMasterTimeout(deleteIndexRequest.masterNodeTimeout());
         parameters.withIndicesOptions(deleteIndexRequest.indicesOptions());
 
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
@@ -390,7 +390,6 @@ public final class Request {
         return endpoint(String.join(",", indices), String.join(",", types), endpoint);
     }
 
-
     static String endpoint(String[] indices, String endpoint) {
         return endpoint(String.join(",", indices), endpoint);
     }
@@ -464,6 +463,10 @@ public final class Request {
                 }
             }
             return this;
+        }
+
+        Params withMasterTimeout(TimeValue masterTimeout) {
+            return putParam("master_timeout", masterTimeout);
         }
 
         Params withParent(String parent) {

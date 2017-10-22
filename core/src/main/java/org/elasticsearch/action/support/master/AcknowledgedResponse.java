@@ -21,8 +21,6 @@ package org.elasticsearch.action.support.master;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -33,7 +31,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * Abstract class that allows to mark action responses that support acknowledgements.
  * Facilitates consistency across different api.
  */
-public abstract class AcknowledgedResponse extends ActionResponse implements ToXContentObject {
+public abstract class AcknowledgedResponse extends ActionResponse {
 
     private static final String ACKNOWLEDGED = "acknowledged";
 
@@ -69,14 +67,6 @@ public abstract class AcknowledgedResponse extends ActionResponse implements ToX
         out.writeBoolean(acknowledged);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("acknowledged", acknowledged);
-        builder.endObject();
-        return builder;
-    }
-
     protected static void parseInnerToXContent(XContentParser parser, AcknowledgedResponse.Builder context) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
@@ -88,6 +78,10 @@ public abstract class AcknowledgedResponse extends ActionResponse implements ToX
             if (ACKNOWLEDGED.equals(currentFieldName)) {
                 context.setAcknowledged(parser.booleanValue());
             }
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            parser.skipChildren(); // skip potential inner objects for forward compatibility
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            parser.skipChildren(); // skip potential inner arrays for forward compatibility
         }
     }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.repositories.delete;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -49,4 +48,5 @@ public class DeleteRepositoryResponse extends AcknowledgedResponse {
         super.writeTo(out);
         writeAcknowledged(out);
     }
+
 }

@@ -25,6 +25,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -36,6 +37,8 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -238,6 +241,44 @@ public class RequestTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
         assertEquals(method, request.getMethod());
+    }
+
+    public void testDeleteIndex() throws IOException {
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
+
+        int numIndices = randomIntBetween(0, 5);
+        String[] indices = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5);
+        }
+        deleteIndexRequest.indices(indices);
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        setRandomTimeout(deleteIndexRequest, expectedParams);
+        setRandomMasterTimeout(deleteIndexRequest, expectedParams);
+
+        if (randomBoolean()) {
+            deleteIndexRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
+                randomBoolean()));
+        }
+        expectedParams.put("ignore_unavailable", Boolean.toString(deleteIndexRequest.indicesOptions().ignoreUnavailable()));
+        expectedParams.put("allow_no_indices", Boolean.toString(deleteIndexRequest.indicesOptions().allowNoIndices()));
+        if (deleteIndexRequest.indicesOptions().expandWildcardsOpen() && deleteIndexRequest.indicesOptions().expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "open,closed");
+        } else if (deleteIndexRequest.indicesOptions().expandWildcardsOpen()) {
+            expectedParams.put("expand_wildcards", "open");
+        } else if (deleteIndexRequest.indicesOptions().expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "closed");
+        } else {
+            expectedParams.put("expand_wildcards", "none");
+        }
+
+        Request request = Request.deleteIndex(deleteIndexRequest);
+        assertEquals("/" + String.join(",", indices), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertEquals("DELETE", request.getMethod());
+        assertNull(request.getEntity());
     }
 
     public void testIndex() throws IOException {
@@ -900,6 +941,26 @@ public class RequestTests extends ESTestCase {
                 }
                 consumer.accept(new FetchSourceContext(true, includes, excludes));
             }
+        }
+    }
+
+    private static void setRandomTimeout(AcknowledgedRequest<?> request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            String timeout = randomTimeValue();
+            request.timeout(timeout);
+            expectedParams.put("timeout", timeout);
+        } else {
+            expectedParams.put("timeout", AcknowledgedRequest.DEFAULT_ACK_TIMEOUT.getStringRep());
+        }
+    }
+
+    private static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            String masterTimeout = randomTimeValue();
+            request.masterNodeTimeout(masterTimeout);
+            expectedParams.put("master_timeout", masterTimeout);
+        } else {
+            expectedParams.put("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());
         }
     }
 

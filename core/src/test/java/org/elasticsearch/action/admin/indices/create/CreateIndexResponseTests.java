@@ -20,11 +20,19 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class CreateIndexResponseTests extends ESTestCase {
 
@@ -61,5 +69,75 @@ public class CreateIndexResponseTests extends ESTestCase {
                 assertNull(serialized.index());
             }
         }
+    }
+
+    public void testFromXContent() throws IOException {
+        doFromXContentTestWithRandomFields(false);
+    }
+
+    /**
+     * This test adds random fields and objects to the xContent rendered out to
+     * ensure we can parse it back to be forward compatible with additions to
+     * the xContent
+     */
+    public void testFromXContentWithRandomFields() throws IOException {
+        doFromXContentTestWithRandomFields(true);
+    }
+
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
+        boolean humanReadable = randomBoolean();
+        final XContentType xContentType = randomFrom(XContentType.values());
+
+        final Tuple<XContentBuilder, CreateIndexResponse> tuple = randomCreateIndexResponse(xContentType, humanReadable);
+        XContentBuilder CreateIndexResponseXContent = tuple.v1();
+        CreateIndexResponse expectedCreateIndexResponse = tuple.v2();
+
+        BytesReference originalBytes = CreateIndexResponseXContent.bytes();
+
+        BytesReference mutated;
+        if (addRandomFields) {
+            mutated = insertRandomFields(xContentType, originalBytes, null, random());
+        } else {
+            mutated = originalBytes;
+        }
+        CreateIndexResponse parsedCreateIndexResponse;
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
+            parsedCreateIndexResponse = CreateIndexResponse.fromXContent(parser);
+            assertNull(parser.nextToken());
+        }
+
+        asserCreateIndexResponse(expectedCreateIndexResponse, parsedCreateIndexResponse);
+    }
+
+    public static void asserCreateIndexResponse(CreateIndexResponse expected, CreateIndexResponse actual) {
+        assertEquals(expected.index(), actual.index());
+        assertEquals(expected.isShardsAcked(), actual.isShardsAcked());
+        assertEquals(expected.isAcknowledged(), actual.isAcknowledged());
+    }
+
+    /**
+     * Returns a tuple of an {@link XContentBuilder} and a {@link CreateIndexResponse}.
+     * <p>
+     * The left element is the actual {@link XContentBuilder} to serialize while the right element is the
+     * expected {@link CreateIndexResponse} after parsing.
+     */
+    public static Tuple<XContentBuilder, CreateIndexResponse> randomCreateIndexResponse(
+        XContentType xContentType, boolean humanReadable) throws IOException {
+
+        boolean acknowledged = randomBoolean();
+        boolean shardsAcked = acknowledged && randomBoolean();
+        String index = randomAlphaOfLength(5);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+        builder.humanReadable(humanReadable);
+        builder.startObject();
+        builder.field("acknowledged", acknowledged);
+        builder.field("shards_acknowledged", shardsAcked);
+        builder.field("index", index);
+        builder.endObject();
+
+        CreateIndexResponse expected = new CreateIndexResponse(acknowledged, shardsAcked, index);
+
+        return Tuple.tuple(builder, expected);
     }
 }

@@ -36,7 +36,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
             DeleteIndexResponse deleteIndexResponse =
-                execute(deleteIndexRequest, highLevelClient()::deleteIndex, highLevelClient()::deleteIndexAsync);
+                execute(deleteIndexRequest, highLevelClient().indices()::deleteIndex, highLevelClient().indices()::deleteIndexAsync);
             assertTrue(deleteIndexResponse.isAcknowledged());
 
             assertFalse(indexExists(indexName));
@@ -49,7 +49,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(nonExistentIndex);
 
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> execute(deleteIndexRequest, highLevelClient()::deleteIndex, highLevelClient()::deleteIndexAsync));
+                () -> execute(deleteIndexRequest, highLevelClient().indices()::deleteIndex, highLevelClient().indices()::deleteIndexAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
         }
     }

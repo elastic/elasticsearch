@@ -68,14 +68,11 @@ public class DeleteIndexResponseTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
-        // We can't use equals() to compare the original and the parsed delete response
-        // because the random delete response can contain shard failures with exceptions,
-        // and those exceptions are not parsed back with the same types.
         assertEquals(expectedDeleteIndexResponse.isAcknowledged(), parsedDeleteIndexResponse.isAcknowledged());
     }
 
     /**
-     * Returns a tuple of an {@link XContentBuilder} {@link DeleteIndexResponse}.
+     * Returns a tuple of an {@link XContentBuilder} and a {@link DeleteIndexResponse}.
      * <p>
      * The left element is the actual {@link XContentBuilder} to serialize while the right element is the
      * expected {@link DeleteIndexResponse} after parsing.
@@ -95,5 +92,4 @@ public class DeleteIndexResponseTests extends ESTestCase {
 
         return Tuple.tuple(builder, expected);
     }
-
 }

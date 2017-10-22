@@ -19,21 +19,21 @@
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Abstract class that allows to mark action responses that support acknowledgements.
  * Facilitates consistency across different api.
  */
 public abstract class AcknowledgedResponse extends ActionResponse {
-
-    private static final String ACKNOWLEDGED = "acknowledged";
 
     private boolean acknowledged;
 
@@ -67,36 +67,9 @@ public abstract class AcknowledgedResponse extends ActionResponse {
         out.writeBoolean(acknowledged);
     }
 
-    protected static void parseInnerToXContent(XContentParser parser, AcknowledgedResponse.Builder context) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+    protected static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
 
-        String currentFieldName = parser.currentName();
-        token = parser.nextToken();
-
-        if (token.isValue()) {
-            if (ACKNOWLEDGED.equals(currentFieldName)) {
-                context.setAcknowledged(parser.booleanValue());
-            }
-        } else if (token == XContentParser.Token.START_OBJECT) {
-            parser.skipChildren(); // skip potential inner objects for forward compatibility
-        } else if (token == XContentParser.Token.START_ARRAY) {
-            parser.skipChildren(); // skip potential inner arrays for forward compatibility
-        }
-    }
-
-    public abstract static class Builder {
-
-        protected boolean acknowledged = false;
-
-        public boolean isAcknowledged() {
-            return acknowledged;
-        }
-
-        public void setAcknowledged(boolean acknowledged) {
-            this.acknowledged = acknowledged;
-        }
-
-        public abstract AcknowledgedResponse build();
+    protected static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> PARSER) {
+        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ACKNOWLEDGED, ObjectParser.ValueType.BOOLEAN);
     }
 }

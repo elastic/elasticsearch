@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 /**
- * A wrapper for the {@link RestHighLevelClient} that provides method for the Indices api
+ * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Indices API.
  *
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/5.6/indices.html">Indices API on elastic.co</a>
  */

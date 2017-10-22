@@ -106,10 +106,10 @@ public class CreateIndexResponseTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
-        asserCreateIndexResponse(expectedCreateIndexResponse, parsedCreateIndexResponse);
+        assertCreateIndexResponse(expectedCreateIndexResponse, parsedCreateIndexResponse);
     }
 
-    public static void asserCreateIndexResponse(CreateIndexResponse expected, CreateIndexResponse actual) {
+    public static void assertCreateIndexResponse(CreateIndexResponse expected, CreateIndexResponse actual) {
         assertEquals(expected.index(), actual.index());
         assertEquals(expected.isShardsAcked(), actual.isShardsAcked());
         assertEquals(expected.isAcknowledged(), actual.isAcknowledged());

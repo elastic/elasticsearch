@@ -221,7 +221,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Provides an {@link IndicesClient} which can be used to access the Indices api.
+     * Provides an {@link IndicesClient} which can be used to access the Indices API.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/5.6/indices.html">Indices API on elastic.co</a>
      */

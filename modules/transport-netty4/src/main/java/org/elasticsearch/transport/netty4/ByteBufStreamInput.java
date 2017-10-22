@@ -47,23 +47,6 @@ class ByteBufStreamInput extends StreamInput {
     }
 
     @Override
-    public BytesReference readBytesReference(int length) throws IOException {
-        BytesReference ref = Netty4Utils.toBytesReference(buffer.slice(buffer.readerIndex(), length));
-        buffer.skipBytes(length);
-        return ref;
-    }
-
-    @Override
-    public BytesRef readBytesRef(int length) throws IOException {
-        if (!buffer.hasArray()) {
-            return super.readBytesRef(length);
-        }
-        BytesRef bytesRef = new BytesRef(buffer.array(), buffer.arrayOffset() + buffer.readerIndex(), length);
-        buffer.skipBytes(length);
-        return bytesRef;
-    }
-
-    @Override
     public int available() throws IOException {
         return endIndex - buffer.readerIndex();
     }

@@ -903,6 +903,10 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key), properties);
     }
 
+    public static Setting<Integer> intSetting(String key, Function<Settings, Integer> defaultValue, int minValue, Property... properties) {
+        return new Setting<>(key, defaultValue.andThen(n -> Integer.toString(n)), (s) -> parseInt(s, minValue, key), properties);
+    }
+
     public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, Property... properties) {
         return new Setting<>(key, fallbackSetting, (s) -> parseInt(s, minValue, key), properties);
     }

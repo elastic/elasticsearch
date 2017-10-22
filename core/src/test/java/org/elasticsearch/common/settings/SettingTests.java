@@ -644,6 +644,15 @@ public class SettingTests extends ESTestCase {
         assertEquals(1, integerSetting.get(Settings.EMPTY).intValue());
     }
 
+    public void testDefaultFunctionInt() throws Exception {
+        Setting<Integer> bar = Setting.intSetting("bar", 100);
+        Setting<Integer> foo = Setting.intSetting("foo", bar::get, 0);
+        assertThat(foo.get(Settings.EMPTY), equalTo(100));
+        assertThat(foo.get(Settings.builder().put("foo", 1).build()), equalTo(1));
+        assertThat(foo.get(Settings.builder().put("bar", 2).build()), equalTo(2));
+        assertThat(foo.get(Settings.builder().put("foo",10).put("bar", 20).build()), equalTo(10));
+    }
+
     /**
      * Only one single scope can be added to any setting
      */

@@ -30,8 +30,14 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * A {@link RoutingService} listens to clusters state. When this service
@@ -51,14 +57,17 @@ public class RoutingService extends AbstractLifecycleComponent {
 
     private final ClusterService clusterService;
     private final AllocationService allocationService;
+    private final ThreadPool threadPool;
 
-    private AtomicBoolean rerouting = new AtomicBoolean();
+    private final AtomicBoolean rerouting = new AtomicBoolean();
+    private final AtomicReference<ScheduledFuture> pendingTask = new AtomicReference<>();
 
     @Inject
-    public RoutingService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
+    public RoutingService(Settings settings, ClusterService clusterService, AllocationService allocationService, ThreadPool threadPool) {
         super(settings);
         this.clusterService = clusterService;
         this.allocationService = allocationService;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -74,8 +83,39 @@ public class RoutingService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Initiates a reroute.
+     * Schedules a one-shot reroute action after the given delay.
+     * This schedule may be skipped if there is an ongoing rerouting.
      */
+    public void scheduleReroute(String reason, TimeValue delay) {
+        if (logger.isTraceEnabled()){
+            logger.trace("Schedule reroute in [{}], reason [{}]", delay, reason);
+        }
+
+        ScheduledFuture newTask = null;
+        while (true) {
+            final ScheduledFuture existingTask = pendingTask.get();
+            final long existingDelayMS = (existingTask == null) ? Long.MAX_VALUE : existingTask.getDelay(TimeUnit.MILLISECONDS);
+
+            if (newTask == null && existingDelayMS > delay.millis()) {
+                newTask = threadPool.schedule(delay, ThreadPool.Names.SAME, () -> performReroute(reason));
+            }
+            if (newTask == null) {
+                return;
+            }
+            if (existingDelayMS > newTask.getDelay(TimeUnit.MILLISECONDS)) {
+                if (pendingTask.compareAndSet(existingTask, newTask) == true) {
+                    if (existingTask != null) {
+                        FutureUtils.cancel(existingTask);
+                    }
+                    return;
+                }
+            } else {
+                FutureUtils.cancel(newTask);
+                return;
+            }
+        }
+    }
+
     public final void reroute(String reason) {
         performReroute(reason);
     }
@@ -119,6 +159,8 @@ public class RoutingService extends AbstractLifecycleComponent {
             rerouting.set(false);
             ClusterState state = clusterService.state();
             logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to reroute routing table, current state:\n{}", state), e);
+        } finally {
+            pendingTask.set(null);
         }
     }
 }

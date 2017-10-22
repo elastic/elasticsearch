@@ -33,7 +33,6 @@ import java.io.IOException;
 class ByteBufStreamInput extends StreamInput {
 
     private final ByteBuf buffer;
-    private final int startIndex;
     private final int endIndex;
 
     ByteBufStreamInput(ByteBuf buffer, int length) {
@@ -41,7 +40,7 @@ class ByteBufStreamInput extends StreamInput {
             throw new IndexOutOfBoundsException();
         }
         this.buffer = buffer;
-        startIndex = buffer.readerIndex();
+        int startIndex = buffer.readerIndex();
         endIndex = startIndex + length;
         buffer.markReaderIndex();
     }

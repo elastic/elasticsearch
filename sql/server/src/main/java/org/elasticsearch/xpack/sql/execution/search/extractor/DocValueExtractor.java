@@ -9,6 +9,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
+import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 
@@ -41,7 +42,16 @@ public class DocValueExtractor implements HitExtractor {
     public Object get(SearchHit hit) {
         // NOCOMMIT we should think about what to do with multi-valued fields.
         DocumentField field = hit.field(fieldName);
-        return field != null ? field.getValue() : null;
+        if (field != null) {
+            Object value = field.getValue();
+            if (value != null && value instanceof ReadableInstant) {
+                return ((ReadableInstant) value).getMillis();
+            } else {
+                return value;
+            }
+        } else {
+            return null;
+        }
     }
 
     @Override

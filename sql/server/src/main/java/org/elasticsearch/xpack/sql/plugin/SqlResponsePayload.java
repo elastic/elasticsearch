@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
 import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
 import org.elasticsearch.xpack.sql.protocol.shared.SqlDataOutput;
-import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 import java.sql.JDBCType;
@@ -44,11 +43,6 @@ class SqlResponsePayload implements Payload {
             for (int c = 0; c < row.size(); c++) {
                 JDBCType type = typeLookup.get(c);
                 Object value = row.get(c);
-                // unpack Joda classes on the server-side to not 'pollute' the common project and thus the client 
-                if (type == JDBCType.TIMESTAMP && value instanceof ReadableInstant) {
-                    // NOCOMMIT feels like a hack that'd be better cleaned up another way.
-                    value = ((ReadableInstant) value).getMillis();
-                }
                 ProtoUtils.writeValue(out, value, type);
             }
         }

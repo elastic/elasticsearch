@@ -46,6 +46,24 @@ class ByteBufStreamInput extends StreamInput {
     }
 
     @Override
+    public BytesReference readBytesReference(int length) throws IOException {
+        // NOTE: It is unsafe to share a reference of the internal structure, so we
+        // use the default implementation which will copy the bytes. It is unsafe because
+        // a netty ByteBuf might be pooled which requires a manual release to prevent
+        // memory leaks.
+        return super.readBytesReference(length);
+    }
+
+    @Override
+    public BytesRef readBytesRef(int length) throws IOException {
+        // NOTE: It is unsafe to share a reference of the internal structure, so we
+        // use the default implementation which will copy the bytes. It is unsafe because
+        // a netty ByteBuf might be pooled which requires a manual release to prevent
+        // memory leaks.
+        return super.readBytesRef(length);
+    }
+
+    @Override
     public int available() throws IOException {
         return endIndex - buffer.readerIndex();
     }

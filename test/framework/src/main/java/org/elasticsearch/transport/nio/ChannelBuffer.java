@@ -77,6 +77,11 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
      * @param messageLength up to which buffers will be dropped
      */
     public ChannelMessage sliceOffMessage(int messageLength) {
+        if (messageLength > length) {
+            throw new IllegalArgumentException("can't slice off a message with a length [" + messageLength + "] that is greater " +
+                "than the length [" + length + "] of the buffer");
+        }
+
         int offsetIndex = getOffsetIndex(messageLength);
         int bytesDropped = 0;
 
@@ -101,6 +106,10 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
             first.close();
             references.addFirst(newRef);
             bytesDropped += messageBytesInFinalBuffer;
+        }
+
+        if (references.getFirst().length() == 0) {
+            references.removeFirst();
         }
 
         this.writeIndex = Math.max(0, writeIndex - bytesDropped);
@@ -273,7 +282,7 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
         return length;
     }
 
-    int getOffsetIndex(int offset) {
+    private int getOffsetIndex(int offset) {
         final int i = Arrays.binarySearch(offsets, offset);
         return i < 0 ? (-(i + 1)) - 1 : i;
     }

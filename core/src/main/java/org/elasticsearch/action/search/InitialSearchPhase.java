@@ -48,7 +48,7 @@ import java.util.stream.Stream;
  */
 abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends SearchPhase {
     private final SearchRequest request;
-    private final GroupShardsIterator<SearchShardIterator> skippedShardsIts;
+    private final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     private final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final Logger logger;
     private final int expectedTotalOps;
@@ -61,17 +61,17 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                        int maxConcurrentShardRequests, Executor executor) {
         super(name);
         this.request = request;
-        final List<SearchShardIterator> skipped = new ArrayList<>();
-        final List<SearchShardIterator> notSkipped = new ArrayList<>();
+        final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
+        final List<SearchShardIterator> iterators = new ArrayList<>();
         for (final SearchShardIterator iterator : shardsIts) {
             if (iterator.skip()) {
-                skipped.add(iterator);
+                toSkipIterators.add(iterator);
             } else {
-                notSkipped.add(iterator);
+                iterators.add(iterator);
             }
         }
-        this.skippedShardsIts = new GroupShardsIterator<>(skipped);
-        this.shardsIts = new GroupShardsIterator<>(notSkipped);
+        this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
+        this.shardsIts = new GroupShardsIterator<>(iterators);
         this.logger = logger;
         // we need to add 1 for non active partition, since we count it in the total. This means for each shard in the iterator we sum up
         // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
@@ -139,10 +139,9 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
 
     @Override
     public final void run() throws IOException {
-        for (final SearchShardIterator iterator : skippedShardsIts) {
-            if (iterator.skip()) {
-                skipShard(iterator);
-            }
+        for (final SearchShardIterator iterator : toSkipShardsIts) {
+            assert iterator.skip();
+            skipShard(iterator);
         }
         if (shardsIts.size() > 0) {
             int maxConcurrentShardRequests = Math.min(this.maxConcurrentShardRequests, shardsIts.size());
@@ -150,9 +149,8 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             assert success;
             for (int index = 0; index < maxConcurrentShardRequests; index++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(index);
-                if (!shardRoutings.skip()) {
-                    performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
-                }
+                assert shardRoutings.skip() == false;
+                performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
             }
         }
     }
